@@ -75,16 +75,20 @@ defmodule Servant.Connectors.EVMConnector do
         with {:ok, txs} <- Explorer.list_transactions(state.wallet_address, state.explorer_url, start_block: start_block),
              {:ok, token_txs} <- Explorer.list_token_transfers(state.wallet_address, state.explorer_url, start_block: start_block) do
           native_entries =
-            txs
-            |> Enum.map(&TransactionParser.parse_transaction(&1, state.wallet_address, min_wei: state.min_wei))
-            |> Enum.filter(&match?({:ok, _}, &1))
-            |> Enum.map(fn {:ok, parsed} -> build_entry(parsed, state.wallet_address) end)
+            Enum.flat_map(txs, fn tx ->
+              case TransactionParser.parse_transaction(tx, state.wallet_address, min_wei: state.min_wei) do
+                {:ok, parsed} -> [build_entry(parsed, state.wallet_address)]
+                _ -> []
+              end
+            end)
 
           token_entries =
-            token_txs
-            |> Enum.map(&TransactionParser.parse_token_transfer(&1, state.wallet_address))
-            |> Enum.filter(&match?({:ok, _}, &1))
-            |> Enum.map(fn {:ok, parsed} -> build_entry(parsed, state.wallet_address) end)
+            Enum.flat_map(token_txs, fn tx ->
+              case TransactionParser.parse_token_transfer(tx, state.wallet_address) do
+                {:ok, parsed} -> [build_entry(parsed, state.wallet_address)]
+                _ -> []
+              end
+            end)
 
           all_entries = native_entries ++ token_entries
 
