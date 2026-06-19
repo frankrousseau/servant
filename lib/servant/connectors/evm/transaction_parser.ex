@@ -156,10 +156,6 @@ defmodule Servant.Connectors.EVM.TransactionParser do
   defp parse_timestamp(_), do: DateTime.utc_now() |> DateTime.truncate(:second)
 
   defp format_hype(wei) do
-    hype = wei / @wei_per_hype
-
-    :erlang.float_to_binary(hype, decimals: 8)
-    |> String.trim_trailing("0")
-    |> String.trim_trailing(".")
+    Servant.Connectors.TxFormat.format_units(wei, @wei_per_hype, 8)
   end
 end

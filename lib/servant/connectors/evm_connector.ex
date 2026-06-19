@@ -130,16 +130,16 @@ defmodule Servant.Connectors.EVMConnector do
       defp build_title(nil), do: "#{unquote(name)} transaction"
 
       defp build_title(transfer) do
-        dir = if transfer.direction == "received", do: "Received", else: "Sent"
-        to_from = if transfer.direction == "received", do: "from", else: "to"
         symbol = if transfer.type == "native", do: unquote(native_symbol), else: transfer.symbol
-        counterparty_short = short_address(transfer.counterparty)
-        "#{dir} #{transfer.amount_display} #{symbol} #{to_from} #{counterparty_short}"
-      end
+        counterparty_short = Servant.Connectors.TxFormat.short_address(transfer.counterparty, 6)
 
-      defp short_address(nil), do: "unknown"
-      defp short_address(addr) when byte_size(addr) > 10, do: String.slice(addr, 0, 6) <> ".." <> String.slice(addr, -4, 4)
-      defp short_address(addr), do: addr
+        Servant.Connectors.TxFormat.transfer_title(
+          transfer.direction,
+          transfer.amount_display,
+          symbol,
+          counterparty_short
+        )
+      end
 
       defp parse_block_number(%{"blockNumber" => bn}) when is_binary(bn) do
         case Integer.parse(bn) do

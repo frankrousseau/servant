@@ -10,6 +10,7 @@ defmodule Servant.Connectors.SolanaConnector do
   require Logger
 
   alias Servant.Connectors.Solana.{RPC, TransactionParser, TokenMetadata}
+  alias Servant.Connectors.TxFormat
 
   @default_min_lamports 1_000_000
   @tx_fetch_delay_ms 1_000
@@ -217,21 +218,15 @@ defmodule Servant.Connectors.SolanaConnector do
 
   defp build_title(transfers) do
     transfer = List.first(transfers)
-    counterparty_short = short_address(transfer.counterparty)
+    counterparty_short = TxFormat.short_address(transfer.counterparty)
 
-    dir = if transfer.direction == "received", do: "Received", else: "Sent"
-    to_from = if transfer.direction == "received", do: "from", else: "to"
-
-    "#{dir} #{transfer.amount_display} #{transfer.symbol} #{to_from} #{counterparty_short}"
+    TxFormat.transfer_title(
+      transfer.direction,
+      transfer.amount_display,
+      transfer.symbol,
+      counterparty_short
+    )
   end
-
-  defp short_address(nil), do: "unknown"
-
-  defp short_address(addr) when byte_size(addr) > 8 do
-    String.slice(addr, 0, 4) <> ".." <> String.slice(addr, -4, 4)
-  end
-
-  defp short_address(addr), do: addr
 
   defp get_wallet_address(config) do
     config_value(config, "wallet_address")

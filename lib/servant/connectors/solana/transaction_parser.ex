@@ -214,7 +214,6 @@ defmodule Servant.Connectors.Solana.TransactionParser do
   end
 
   defp format_sol(lamports) do
-    sol = lamports / @lamports_per_sol
-    :erlang.float_to_binary(sol, decimals: 9) |> String.trim_trailing("0") |> String.trim_trailing(".")
+    Servant.Connectors.TxFormat.format_units(lamports, @lamports_per_sol, 9)
   end
 end

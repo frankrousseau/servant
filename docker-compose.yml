@@ -1,0 +1,19 @@
+services:
+  servant:
+    build: .
+    image: servant:latest
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?run mix phx.gen.secret and put it in .env}
+      PHX_HOST: ${PHX_HOST:-localhost}
+      DATABASE_PATH: /data/servant.db
+      PHX_SERVER: "true"
+      PORT: "4000"
+      # POOL_SIZE: "5"   # optional
+    volumes:
+      - servant_data:/data
+
+volumes:
+  servant_data:

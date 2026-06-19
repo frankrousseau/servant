@@ -1,0 +1,10 @@
+_build/
+deps/
+.elixir_ls/
+priv/static/assets/
+frontend/node_modules/
+frontend/dist/
+*.db
+*.db-*
+.git/
+.env
