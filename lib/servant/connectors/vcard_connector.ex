@@ -28,7 +28,7 @@ defmodule Servant.Connectors.VCardConnector do
 
   @impl true
   def init(_credentials, config) do
-    url = Map.get(config, "url") || Map.get(config, :url)
+    url = config_value(config, "url")
     source_name = Map.get(config, "source_name", "Contacts")
     {:ok, %{url: url, source_name: source_name}}
   end

@@ -53,7 +53,7 @@ defmodule Servant.Connectors.EVMConnector do
 
       @impl true
       def init(_credentials, config) do
-        case Map.get(config, "wallet_address") || Map.get(config, :wallet_address) do
+        case config_value(config, "wallet_address") do
           nil ->
             {:error, :missing_wallet_address}
 
@@ -61,7 +61,7 @@ defmodule Servant.Connectors.EVMConnector do
             {:ok,
              %{
                wallet_address: address,
-               explorer_url: Map.get(config, "explorer_url") || unquote(default_explorer_url),
+               explorer_url: config_value(config, "explorer_url", unquote(default_explorer_url)),
                min_wei: Map.get(config, "min_wei", @default_min_wei),
                last_block: Map.get(config, "last_block", 0)
              }}

@@ -234,6 +234,6 @@ defmodule Servant.Connectors.SolanaConnector do
   defp short_address(addr), do: addr
 
   defp get_wallet_address(config) do
-    Map.get(config, "wallet_address") || Map.get(config, :wallet_address)
+    config_value(config, "wallet_address")
   end
 end

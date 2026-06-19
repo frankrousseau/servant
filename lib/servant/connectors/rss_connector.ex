@@ -21,7 +21,7 @@ defmodule Servant.Connectors.RSSConnector do
 
   @impl true
   def init(_credentials, config) do
-    case Map.get(config, "url") || Map.get(config, :url) do
+    case config_value(config, "url") do
       nil -> {:error, :missing_url}
       url -> {:ok, %{url: url}}
     end

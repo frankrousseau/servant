@@ -25,7 +25,7 @@ defmodule Servant.Connectors.ICalConnector do
 
   @impl true
   def init(_credentials, config) do
-    url = Map.get(config, "url") || Map.get(config, :url)
+    url = config_value(config, "url")
     calendar_name = Map.get(config, "calendar_name", "Calendar")
 
     # URL is optional — connector can work with file uploads only

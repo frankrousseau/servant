@@ -24,9 +24,26 @@ defmodule Servant.Connectors.Connector do
 
   @optional_callbacks [supported_schedules: 0, default_schedule: 0]
 
+  @doc """
+  Fetches a value from a connector config, accepting either the string or
+  atom form of `key` (configs come from the DB with string keys but from
+  tests with atom keys). Returns `default` when neither key is present.
+  """
+  def config_value(config, key, default \\ nil) when is_binary(key) do
+    Map.get(config, key) || Map.get(config, safe_existing_atom(key)) || default
+  end
+
+  defp safe_existing_atom(key) do
+    String.to_existing_atom(key)
+  rescue
+    ArgumentError -> nil
+  end
+
   defmacro __using__(_opts) do
     quote do
       @behaviour Servant.Connectors.Connector
+
+      import Servant.Connectors.Connector, only: [config_value: 2, config_value: 3]
 
       @impl Servant.Connectors.Connector
       def supported_schedules do
