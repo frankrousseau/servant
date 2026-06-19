@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue";
+import { ref, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useApi } from "../composables/useApi";
+import { useFetchData } from "../composables/useFetchData";
 import { ArrowLeft, Download, Trash2 } from "lucide-vue-next";
 import { useConfirm } from "../composables/useConfirm";
 import type { Entry } from "../types";
@@ -10,9 +11,14 @@ const route = useRoute();
 const router = useRouter();
 const api = useApi();
 
-const entry = ref<Entry | null>(null);
-const loading = ref(true);
-const error = ref("");
+const {
+  data: entry,
+  loading,
+  error,
+} = useFetchData<Entry>(
+  () => api.get<{ data: Entry }>(`/api/entries/${route.params.id}`).then((r) => r.data),
+  { fallbackError: "Photo not found" },
+);
 const imgError = ref(false);
 
 const photoPath = computed(() => (entry.value?.data?.path as string) || "");
@@ -32,19 +38,6 @@ const longitude = computed(() => entry.value?.data?.longitude as number | undefi
 const createdAt = computed(() =>
   entry.value ? new Date(entry.value.inserted_at).toLocaleString() : "",
 );
-
-onMounted(async () => {
-  try {
-    const res = await api.get<{ data: Entry }>(
-      `/api/entries/${route.params.id}`,
-    );
-    entry.value = res.data;
-  } catch (e: any) {
-    error.value = e.message || "Photo not found";
-  } finally {
-    loading.value = false;
-  }
-});
 
 const { ask } = useConfirm();
 

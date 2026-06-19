@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from "vue";
+import { ref, reactive, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useApi } from "../composables/useApi";
+import { useFetchData } from "../composables/useFetchData";
 import { useAuthStore } from "../stores/auth";
 import { useConfirm } from "../composables/useConfirm";
 import { ArrowLeft, Trash2, Mail, Phone, Pencil, Camera, X as XIcon, Plus } from "lucide-vue-next";
@@ -13,9 +14,19 @@ const api = useApi();
 const auth = useAuthStore();
 const { ask } = useConfirm();
 
-const entry = ref<Entry | null>(null);
-const loading = ref(true);
-const error = ref("");
+const {
+  data: entry,
+  loading,
+  error,
+} = useFetchData<Entry>(
+  () => api.get<{ data: Entry }>(`/api/entries/${route.params.id}`).then((r) => r.data),
+  {
+    fallbackError: "Contact not found",
+    onSuccess: () => {
+      if (route.query.edit) startEdit();
+    },
+  },
+);
 const editing = ref(false);
 const saving = ref(false);
 const avatarUploading = ref(false);
@@ -53,18 +64,6 @@ const initials = computed(() =>
 const emails = computed(() => (entry.value?.data?.emails as { value: string; type: string }[]) || []);
 const phones = computed(() => (entry.value?.data?.phones as { value: string; type: string }[]) || []);
 const photo = computed(() => f("photo"));
-
-onMounted(async () => {
-  try {
-    const res = await api.get<{ data: Entry }>(`/api/entries/${route.params.id}`);
-    entry.value = res.data;
-    if (route.query.edit) startEdit();
-  } catch (e: any) {
-    error.value = e.message || "Contact not found";
-  } finally {
-    loading.value = false;
-  }
-});
 
 function startEdit() {
   if (!entry.value) return;
