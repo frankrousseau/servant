@@ -96,73 +96,32 @@ defmodule ServantWeb.ConnectorController do
     json(conn, %{status: "stopped"})
   end
 
-  @importable_types %{
-    "bank_csv" => {Servant.Connectors.BankCSVConnector, :import_csv},
-    "ical" => {Servant.Connectors.ICalConnector, :import_ical},
-    "vcard" => {Servant.Connectors.VCardConnector, :import_vcard},
-    "apple_health" => {Servant.Connectors.AppleHealthConnector, :import_health}
-  }
-
   def import_file(conn, %{"id" => id, "file" => %Plug.Upload{path: path}}) do
     user_id = conn.assigns.current_user.id
-    config = Connectors.get_connector_config!(user_id, id)
 
-    case Map.get(@importable_types, config.connector_type) do
-      nil ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "This connector does not support file import"})
+    case Connectors.import_file(user_id, id, File.read!(path)) do
+      {:ok, result} ->
+        json(conn, Map.put(result, :status, "ok"))
 
-      {module, import_fn} ->
-        content = File.read!(path)
+      {:error, :unsupported} ->
+        import_error(conn, "This connector does not support file import")
 
-        case module.init(%{}, config.config || %{}) do
-          {:ok, state} ->
-            {:ok, sync_log} = Connectors.create_sync_log(config.id)
+      {:error, {:init_failed, reason}} ->
+        import_error(conn, inspect(reason))
 
-            case apply(module, import_fn, [content, state]) do
-              {:ok, entries} ->
-                inserted =
-                  Enum.count(entries, fn entry_attrs ->
-                    case Servant.Data.create_entry(user_id, entry_attrs) do
-                      {:ok, _} -> true
-                      {:error, _} -> false
-                    end
-                  end)
-
-                Connectors.complete_sync_log(sync_log, inserted)
-
-                Connectors.update_connector_config(user_id, id, %{
-                  "last_synced_at" => DateTime.utc_now() |> DateTime.truncate(:second),
-                  "error" => nil
-                })
-
-                json(conn, %{
-                  status: "ok",
-                  imported: inserted,
-                  total: length(entries),
-                  skipped: length(entries) - inserted
-                })
-
-              {:error, reason} ->
-                Connectors.fail_sync_log(sync_log, reason)
-                conn
-                |> put_status(:unprocessable_entity)
-                |> json(%{error: to_string(reason)})
-            end
-
-          {:error, reason} ->
-            conn
-            |> put_status(:unprocessable_entity)
-            |> json(%{error: inspect(reason)})
-        end
+      {:error, {:import_failed, reason}} ->
+        import_error(conn, to_string(reason))
     end
   end
 
   def import_file(conn, %{"id" => _id}) do
+    import_error(conn, "A file is required")
+  end
+
+  defp import_error(conn, message) do
     conn
     |> put_status(:unprocessable_entity)
-    |> json(%{error: "A file is required"})
+    |> json(%{error: message})
   end
 
   def logs(conn, %{"id" => id}) do
