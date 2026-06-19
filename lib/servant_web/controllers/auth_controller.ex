@@ -143,11 +143,4 @@ defmodule ServantWeb.AuthController do
     |> json(%{error: "current_password and new_password are required"})
   end
 
-  defp format_errors(changeset) do
-    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-      Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
-        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
-      end)
-    end)
-  end
 end

@@ -42,6 +42,7 @@ defmodule ServantWeb do
       use Gettext, backend: ServantWeb.Gettext
 
       import Plug.Conn
+      import ServantWeb.ChangesetHelpers, only: [format_errors: 1]
 
       unquote(verified_routes())
     end
