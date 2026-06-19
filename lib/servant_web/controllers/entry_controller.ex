@@ -1,0 +1,124 @@
+defmodule ServantWeb.EntryController do
+  use ServantWeb, :controller
+
+  alias Servant.Data
+
+  def index(conn, params) do
+    user_id = conn.assigns.current_user.id
+    entries = Data.list_entries(user_id, params)
+    total = Data.count_entries(user_id, params)
+
+    per_page = parse_int(params["per_page"], 50)
+    page = max(parse_int(params["page"], 1), 1)
+    total_pages = max(ceil(total / per_page), 1)
+
+    json(conn, %{
+      data: Enum.map(entries, &entry_json/1),
+      meta: %{page: page, per_page: per_page, total: total, total_pages: total_pages}
+    })
+  end
+
+  def kinds(conn, _params) do
+    user_id = conn.assigns.current_user.id
+    kinds = Data.list_kinds(user_id)
+    json(conn, %{data: kinds})
+  end
+
+  def sources(conn, _params) do
+    user_id = conn.assigns.current_user.id
+    sources = Data.list_sources(user_id)
+    json(conn, %{data: sources})
+  end
+
+  def stats(conn, _params) do
+    user_id = conn.assigns.current_user.id
+    stats = Data.stats(user_id)
+    total = Enum.reduce(stats, 0, fn {_k, v}, acc -> acc + v end)
+    json(conn, %{data: stats, total: total})
+  end
+
+  def show(conn, %{"id" => id}) do
+    user_id = conn.assigns.current_user.id
+    entry = Data.get_entry!(user_id, id)
+    json(conn, %{data: entry_json(entry)})
+  end
+
+  def create(conn, params) do
+    user_id = conn.assigns.current_user.id
+
+    case Data.create_entry(user_id, params) do
+      {:ok, entry} ->
+        conn
+        |> put_status(:created)
+        |> json(%{data: entry_json(entry)})
+
+      {:error, changeset} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{errors: format_errors(changeset)})
+    end
+  end
+
+  def update(conn, %{"id" => id} = params) do
+    user_id = conn.assigns.current_user.id
+
+    case Data.update_entry(user_id, id, params) do
+      {:ok, entry} ->
+        json(conn, %{data: entry_json(entry)})
+
+      {:error, changeset} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{errors: format_errors(changeset)})
+    end
+  end
+
+  def delete(conn, %{"id" => id}) do
+    user_id = conn.assigns.current_user.id
+
+    case Data.delete_entry(user_id, id) do
+      {:ok, _entry} ->
+        send_resp(conn, :no_content, "")
+
+      {:error, _reason} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "Could not delete entry"})
+    end
+  end
+
+  defp entry_json(entry) do
+    %{
+      id: entry.id,
+      kind: entry.kind,
+      source: entry.source,
+      external_id: entry.external_id,
+      title: entry.title,
+      occurred_at: entry.occurred_at,
+      data: entry.data,
+      metadata: entry.metadata,
+      inserted_at: entry.inserted_at,
+      updated_at: entry.updated_at
+    }
+  end
+
+  defp format_errors(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+      Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
+        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
+      end)
+    end)
+  end
+
+  defp parse_int(nil, default), do: default
+
+  defp parse_int(val, default) when is_binary(val) do
+    case Integer.parse(val) do
+      {n, _} -> n
+      :error -> default
+    end
+  end
+
+  defp parse_int(val, _) when is_integer(val), do: val
+  defp parse_int(_, default), do: default
+end
