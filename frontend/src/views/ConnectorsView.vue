@@ -1,0 +1,535 @@
+<script setup lang="ts">
+import { ref, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import { useApi } from "../composables/useApi";
+import type { ConnectorConfig, Schedule } from "../types";
+import { SCHEDULE_LABELS, relativeTime } from "../types";
+import { CONNECTOR_DEFS, getConnectorDef } from "../connectors";
+import type { ConnectorDef } from "../connectors";
+
+const api = useApi();
+const router = useRouter();
+
+const connectors = ref<ConnectorConfig[]>([]);
+const loading = ref(true);
+
+// Setup modal
+const setupDef = ref<ConnectorDef | null>(null);
+const setupName = ref("");
+const setupSchedule = ref<Schedule>("every_hour");
+const supportedSchedules = ref<Schedule[]>([]);
+const setupConfig = ref<Record<string, string>>({});
+const saving = ref(false);
+
+// Catalog search & sort
+const catalogSearch = ref("");
+const availableDefs = computed(() => {
+  const q = catalogSearch.value.toLowerCase().trim();
+  return [...CONNECTOR_DEFS]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .filter((d) => !q || d.name.toLowerCase().includes(q) || d.category.toLowerCase().includes(q));
+});
+
+async function fetchConnectors() {
+  loading.value = true;
+  try {
+    const res = await api.get<{ data: ConnectorConfig[] }>("/api/connectors");
+    connectors.value = res.data;
+  } catch {
+    connectors.value = [];
+  } finally {
+    loading.value = false;
+  }
+}
+
+function openSetup(def: ConnectorDef) {
+  setupDef.value = def;
+  setupName.value = "";
+  setupConfig.value = {};
+  def.configFields.forEach((f) => {
+    if (f.type === "select" && f.options?.length) {
+      setupConfig.value[f.key] = f.options[0].value;
+    } else {
+      setupConfig.value[f.key] = "";
+    }
+  });
+  // Load supported schedules
+  loadSchedules(def.id);
+}
+
+function closeSetup() {
+  setupDef.value = null;
+}
+
+async function loadSchedules(type: string) {
+  try {
+    const data = await api.get<{ schedules: Schedule[]; default: Schedule }>(
+      `/api/connectors/schedules/${encodeURIComponent(type)}`,
+    );
+    supportedSchedules.value = data.schedules;
+    setupSchedule.value = data.default;
+  } catch {
+    supportedSchedules.value = Object.keys(SCHEDULE_LABELS) as Schedule[];
+    setupSchedule.value = "every_hour";
+  }
+}
+
+async function submitSetup() {
+  if (!setupDef.value) return;
+  saving.value = true;
+  try {
+    // Build config from hint + form fields
+    const config: Record<string, unknown> = {
+      ...setupDef.value.configHint,
+    };
+    setupDef.value.configFields.forEach((f) => {
+      const val = setupConfig.value[f.key]?.trim();
+      if (val) {
+        config[f.key] = f.type === "number" ? Number(val) : val;
+      }
+    });
+
+    await api.post("/api/connectors", {
+      connector_type: setupDef.value.id,
+      name: setupName.value || null,
+      config,
+      schedule: setupSchedule.value,
+      enabled: true,
+    });
+    closeSetup();
+    await fetchConnectors();
+  } catch {
+    // handle error
+  } finally {
+    saving.value = false;
+  }
+}
+
+onMounted(fetchConnectors);
+</script>
+
+<template>
+  <div class="sources-layout">
+    <p v-if="loading" class="text-muted" style="padding: 2rem">Loading...</p>
+
+    <template v-else>
+      <!-- Left: Active connectors -->
+      <div class="sources-col">
+        <h2 class="section-title">Active</h2>
+        <div v-if="connectors.length" class="active-grid">
+          <div
+            v-for="c in connectors"
+            :key="c.id"
+            class="active-card"
+            :class="{ 'has-error': c.error }"
+            @click="router.push(`/connectors/${c.id}`)"
+            role="button"
+            tabindex="0"
+          >
+            <div
+              class="active-logo"
+              v-html="getConnectorDef(c.connector_type)?.logo || ''"
+            ></div>
+            <div class="active-body">
+              <div class="active-name-row">
+                <span class="active-name">
+                  {{ c.name || getConnectorDef(c.connector_type)?.name || c.connector_type }}
+                </span>
+                <span
+                  class="status-dot"
+                  :class="{
+                    active: c.enabled && !c.error,
+                    error: !!c.error,
+                  }"
+                ></span>
+              </div>
+              <span class="active-meta">
+                {{ SCHEDULE_LABELS[c.schedule] }}
+                <template v-if="c.last_synced_at">
+                  &middot; {{ relativeTime(c.last_synced_at) }}
+                </template>
+              </span>
+              <span v-if="c.error" class="active-error">{{ c.error }}</span>
+            </div>
+            <span class="active-arrow">&rsaquo;</span>
+          </div>
+        </div>
+        <p v-else class="text-muted">No active sources yet.</p>
+      </div>
+
+      <!-- Right: Add a source -->
+      <div class="sources-col">
+        <h2 class="section-title">Add a Source</h2>
+        <input
+          v-model="catalogSearch"
+          type="text"
+          class="catalog-search"
+          placeholder="Search sources..."
+        />
+        <div class="catalog-grid">
+          <div
+            v-for="def in availableDefs"
+            :key="def.id"
+            class="catalog-card"
+            @click="openSetup(def)"
+            role="button"
+            tabindex="0"
+          >
+            <div class="catalog-logo" v-html="def.logo"></div>
+            <div class="catalog-body">
+              <span class="catalog-name">{{ def.name }}</span>
+              <span class="catalog-desc">{{ def.description }}</span>
+            </div>
+            <span class="catalog-category">{{ def.category }}</span>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Setup modal -->
+    <div
+      v-if="setupDef"
+      class="modal-overlay"
+      @click.self="closeSetup"
+    >
+      <div class="setup-modal">
+        <div class="setup-header">
+          <div class="setup-logo" v-html="setupDef.logo"></div>
+          <div>
+            <h2>{{ setupDef.name }}</h2>
+            <p class="setup-desc">{{ setupDef.description }}</p>
+          </div>
+        </div>
+
+        <form @submit.prevent="submitSetup">
+          <div class="field">
+            <label>
+              Name
+              <span class="field-optional">optional</span>
+            </label>
+            <input
+              v-model="setupName"
+              type="text"
+              :placeholder="setupDef.name"
+            />
+          </div>
+          <div
+            v-for="field in setupDef.configFields"
+            :key="field.key"
+            class="field"
+          >
+            <label>
+              {{ field.label }}
+              <span v-if="!field.required" class="field-optional">optional</span>
+            </label>
+            <select
+              v-if="field.type === 'select' && field.options"
+              v-model="setupConfig[field.key]"
+              :required="field.required"
+            >
+              <option v-for="opt in field.options" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </option>
+            </select>
+            <input
+              v-else
+              v-model="setupConfig[field.key]"
+              :type="field.type"
+              :placeholder="field.placeholder"
+              :required="field.required"
+            />
+          </div>
+
+          <div class="field">
+            <label>Sync frequency</label>
+            <select v-model="setupSchedule">
+              <option v-for="s in supportedSchedules" :key="s" :value="s">
+                {{ SCHEDULE_LABELS[s] }}
+              </option>
+            </select>
+          </div>
+
+          <div class="setup-actions">
+            <button type="button" class="btn-secondary" @click="closeSetup">
+              Cancel
+            </button>
+            <button type="submit" :disabled="saving">
+              {{ saving ? "Adding..." : "Add Source" }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.sources-layout {
+  display: flex;
+  gap: 1.5rem;
+  height: calc(100vh - 4rem);
+}
+
+.sources-col {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.section-title {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.75rem;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  padding: 0.5rem 0;
+  z-index: 1;
+}
+
+/* Active connectors */
+.active-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.active-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.active-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.active-card.has-error {
+  border-color: var(--danger);
+}
+
+.active-logo {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #000;
+}
+
+.active-logo :deep(svg),
+.active-logo :deep(img) {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.active-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.active-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.active-name {
+  font-weight: 600;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.status-dot.active {
+  background: var(--success);
+}
+
+.status-dot.error {
+  background: var(--danger);
+}
+
+.active-meta {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.active-error {
+  font-size: 0.9rem;
+  color: var(--danger);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.active-arrow {
+  font-size: 1.5rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.catalog-search {
+  margin-bottom: 0.75rem;
+}
+
+/* Catalog (available) */
+.catalog-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.catalog-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  position: relative;
+}
+
+.catalog-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.catalog-logo {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+}
+
+.catalog-logo :deep(svg),
+.catalog-logo :deep(img) {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.catalog-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.catalog-name {
+  font-weight: 600;
+}
+
+.catalog-desc {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.catalog-category {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--radius);
+}
+
+/* Setup modal */
+.setup-modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 460px;
+}
+
+.setup-header {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
+}
+
+.setup-header h2 {
+  margin: 0;
+}
+
+.setup-logo {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+}
+
+.setup-logo :deep(svg),
+.setup-logo :deep(img) {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.setup-desc {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin: 0.25rem 0 0;
+}
+
+.field-optional {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-left: 0.35rem;
+}
+
+.setup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.btn-secondary:hover {
+  border-color: var(--text-muted);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+</style>

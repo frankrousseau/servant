@@ -1,0 +1,600 @@
+<script setup lang="ts">
+import { ref, computed, onMounted, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useApi } from "../composables/useApi";
+import { useSocket } from "../composables/useSocket";
+import type { Entry, PaginationMeta } from "../types";
+import { relativeTime } from "../types";
+import KindIcon from "../components/KindIcon.vue";
+import { useConfirm } from "../composables/useConfirm";
+
+const api = useApi();
+const route = useRoute();
+const router = useRouter();
+
+const entries = ref<Entry[]>([]);
+const meta = ref<PaginationMeta>({ page: 1, per_page: 50, total: 0, total_pages: 1 });
+const loading = ref(true);
+
+// Filters
+const kinds = ref<string[]>([]);
+const sources = ref<string[]>([]);
+const filterKind = ref((route.query.kind as string) || "");
+const filterSource = ref((route.query.source as string) || "");
+const filterDateFrom = ref("");
+const filterDateTo = ref("");
+const page = ref(1);
+
+// Detail
+const selectedEntry = ref<Entry | null>(null);
+const showDetail = ref(false);
+
+// Create/Edit modal
+const showModal = ref(false);
+const editingEntry = ref<Entry | null>(null);
+const formKind = ref("");
+const formSource = ref("");
+const formTitle = ref("");
+const formData = ref("{}");
+const saving = ref(false);
+
+// Real-time
+const { onEntryChange } = useSocket();
+onEntryChange(() => {
+  fetchEntries();
+});
+
+async function fetchFilters() {
+  try {
+    const [kindsRes, sourcesRes] = await Promise.all([
+      api.get<{ data: string[] }>("/api/entries/kinds"),
+      api.get<{ data: string[] }>("/api/entries/sources"),
+    ]);
+    kinds.value = kindsRes.data;
+    sources.value = sourcesRes.data;
+  } catch {
+    // ignore
+  }
+}
+
+async function fetchEntries() {
+  loading.value = true;
+  try {
+    const params: Record<string, string> = {
+      page: page.value.toString(),
+      per_page: "50",
+    };
+    if (filterKind.value) params.kind = filterKind.value;
+    if (filterSource.value) params.source = filterSource.value;
+    if (filterDateFrom.value) params.from = filterDateFrom.value + "T00:00:00Z";
+    if (filterDateTo.value) params.to = filterDateTo.value + "T23:59:59Z";
+
+    const res = await api.get<{ data: Entry[]; meta: PaginationMeta }>(
+      "/api/entries",
+      params,
+    );
+    entries.value = res.data;
+    meta.value = res.meta;
+  } catch {
+    entries.value = [];
+  } finally {
+    loading.value = false;
+  }
+}
+
+function openDetail(entry: Entry) {
+  selectedEntry.value = entry;
+  showDetail.value = true;
+}
+
+function openCreate() {
+  editingEntry.value = null;
+  formKind.value = "";
+  formSource.value = "manual";
+  formTitle.value = "";
+  formData.value = "{}";
+  showModal.value = true;
+}
+
+function openEdit(entry: Entry) {
+  editingEntry.value = entry;
+  formKind.value = entry.kind;
+  formSource.value = entry.source;
+  formTitle.value = entry.title || "";
+  formData.value = JSON.stringify(entry.data, null, 2);
+  showModal.value = true;
+}
+
+async function saveEntry() {
+  saving.value = true;
+  try {
+    const body = {
+      kind: formKind.value,
+      source: formSource.value,
+      title: formTitle.value,
+      data: JSON.parse(formData.value),
+    };
+
+    if (editingEntry.value) {
+      await api.put(`/api/entries/${editingEntry.value.id}`, body);
+    } else {
+      await api.post("/api/entries", body);
+    }
+
+    showModal.value = false;
+    await fetchEntries();
+    await fetchFilters();
+  } catch {
+    // handle error
+  } finally {
+    saving.value = false;
+  }
+}
+
+const { ask } = useConfirm();
+
+async function deleteEntry(entry: Entry) {
+  const ok = await ask({ message: `Delete "${entry.title || entry.kind}" entry?` });
+  if (!ok) return;
+  try {
+    await api.del(`/api/entries/${entry.id}`);
+    showDetail.value = false;
+    selectedEntry.value = null;
+    await fetchEntries();
+    await fetchFilters();
+  } catch {
+    // handle error
+  }
+}
+
+function goToPage(p: number) {
+  page.value = p;
+}
+
+const pageRange = computed(() => {
+  const total = meta.value.total_pages;
+  const current = meta.value.page;
+  const range: number[] = [];
+  const start = Math.max(1, current - 2);
+  const end = Math.min(total, current + 2);
+  for (let i = start; i <= end; i++) range.push(i);
+  return range;
+});
+
+function formatData(data: Record<string, unknown>): string {
+  return JSON.stringify(data, null, 2);
+}
+
+// Watch filters -> reset page and refetch
+watch([filterKind, filterSource, filterDateFrom, filterDateTo], () => {
+  page.value = 1;
+  fetchEntries();
+});
+watch(page, fetchEntries);
+
+// Handle deep link to entry detail
+watch(
+  () => route.query.entry,
+  async (entryId) => {
+    if (entryId) {
+      try {
+        const res = await api.get<{ data: Entry }>(
+          `/api/entries/${entryId}`,
+        );
+        selectedEntry.value = res.data;
+        showDetail.value = true;
+      } catch {
+        // ignore
+      }
+    }
+  },
+  { immediate: true },
+);
+
+// Sync kind filter from route query
+watch(
+  () => route.query.kind,
+  (kind) => {
+    if (kind && kind !== filterKind.value) {
+      filterKind.value = kind as string;
+    }
+  },
+);
+
+onMounted(() => {
+  fetchFilters();
+  fetchEntries();
+});
+</script>
+
+<template>
+  <div class="view">
+    <div class="view-header">
+      <h1>Data Browser</h1>
+      <button @click="openCreate">+ New Entry</button>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters">
+      <select v-model="filterKind" class="capitalize">
+        <option value="">All kinds</option>
+        <option v-for="k in kinds" :key="k" :value="k">{{ k }}</option>
+      </select>
+      <select v-model="filterSource" class="capitalize">
+        <option value="">All sources</option>
+        <option v-for="s in sources" :key="s" :value="s">{{ s }}</option>
+      </select>
+      <input v-model="filterDateFrom" type="date" title="From date" />
+      <input v-model="filterDateTo" type="date" title="To date" />
+      <span class="filter-count" v-if="!loading">{{ meta.total }} entries</span>
+    </div>
+
+    <p v-if="loading" class="loading-text">Loading...</p>
+
+    <!-- Entry list -->
+    <div v-else-if="entries.length" class="entry-list">
+      <div
+        v-for="entry in entries"
+        :key="entry.id"
+        class="entry-row"
+        @click="openDetail(entry)"
+        role="button"
+        tabindex="0"
+      >
+        <KindIcon :kind="entry.kind" :size="14" />
+        <div class="entry-main">
+          <span class="entry-title">
+            {{ entry.title || entry.external_id || "(untitled)" }}
+          </span>
+          <span class="entry-subtitle">
+            {{ entry.source }}
+            <template v-if="entry.occurred_at">
+              &middot; {{ relativeTime(entry.occurred_at) }}
+            </template>
+          </span>
+        </div>
+        <span class="entry-kind-badge">{{ entry.kind }}</span>
+      </div>
+
+      <!-- Pagination -->
+      <div v-if="meta.total_pages > 1" class="pagination">
+        <button
+          class="small"
+          :disabled="meta.page <= 1"
+          @click.stop="goToPage(meta.page - 1)"
+        >
+          &lsaquo;
+        </button>
+        <button
+          v-for="p in pageRange"
+          :key="p"
+          class="small"
+          :class="{ 'page-active': p === meta.page }"
+          @click.stop="goToPage(p)"
+        >
+          {{ p }}
+        </button>
+        <button
+          class="small"
+          :disabled="meta.page >= meta.total_pages"
+          @click.stop="goToPage(meta.page + 1)"
+        >
+          &rsaquo;
+        </button>
+      </div>
+    </div>
+
+    <p v-else class="empty">No entries found.</p>
+
+    <!-- Detail panel -->
+    <div
+      v-if="showDetail && selectedEntry"
+      class="modal-overlay"
+      @click.self="showDetail = false; router.replace({ query: {} })"
+    >
+      <div class="detail-panel">
+        <div class="detail-header">
+          <div>
+            <KindIcon :kind="selectedEntry.kind" :size="18" />
+            <h2>{{ selectedEntry.title || selectedEntry.kind }}</h2>
+          </div>
+          <button
+            class="small"
+            @click="showDetail = false; router.replace({ query: {} })"
+          >
+            Close
+          </button>
+        </div>
+
+        <div class="detail-meta">
+          <div class="detail-meta-item">
+            <span class="detail-label">Kind</span>
+            <span class="detail-value">{{ selectedEntry.kind }}</span>
+          </div>
+          <div class="detail-meta-item">
+            <span class="detail-label">Source</span>
+            <span class="detail-value">{{ selectedEntry.source }}</span>
+          </div>
+          <div v-if="selectedEntry.external_id" class="detail-meta-item">
+            <span class="detail-label">External ID</span>
+            <span class="detail-value mono">{{ selectedEntry.external_id }}</span>
+          </div>
+          <div v-if="selectedEntry.occurred_at" class="detail-meta-item">
+            <span class="detail-label">Occurred</span>
+            <span class="detail-value">
+              {{ new Date(selectedEntry.occurred_at).toLocaleString() }}
+            </span>
+          </div>
+          <div class="detail-meta-item">
+            <span class="detail-label">Created</span>
+            <span class="detail-value">
+              {{ new Date(selectedEntry.inserted_at).toLocaleString() }}
+            </span>
+          </div>
+        </div>
+
+        <div class="detail-data">
+          <h3>Data</h3>
+          <pre>{{ formatData(selectedEntry.data) }}</pre>
+        </div>
+
+        <div
+          v-if="selectedEntry.metadata && Object.keys(selectedEntry.metadata).length"
+          class="detail-data"
+        >
+          <h3>Metadata</h3>
+          <pre>{{ formatData(selectedEntry.metadata) }}</pre>
+        </div>
+
+        <div class="detail-actions">
+          <button class="small" @click="openEdit(selectedEntry!)">Edit</button>
+          <button class="small danger" @click="deleteEntry(selectedEntry!)">
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Create/Edit Modal -->
+    <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
+      <div class="modal">
+        <h2>{{ editingEntry ? "Edit Entry" : "New Entry" }}</h2>
+        <form @submit.prevent="saveEntry">
+          <div class="field">
+            <label>Kind</label>
+            <input v-model="formKind" placeholder="e.g. transaction, article, note" required />
+          </div>
+          <div class="field">
+            <label>Source</label>
+            <input v-model="formSource" required />
+          </div>
+          <div class="field">
+            <label>Title</label>
+            <input v-model="formTitle" placeholder="Optional title" />
+          </div>
+          <div class="field">
+            <label>Data (JSON)</label>
+            <textarea v-model="formData" rows="8"></textarea>
+          </div>
+          <div class="modal-actions">
+            <button type="button" @click="showModal = false">Cancel</button>
+            <button type="submit" :disabled="saving">
+              {{ saving ? "Saving..." : "Save" }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.loading-text {
+  color: var(--text-muted);
+}
+
+.filters {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filters select {
+  width: auto;
+  min-width: 140px;
+}
+
+.filters select.capitalize {
+  text-transform: capitalize;
+}
+
+.filters input[type="date"] {
+  width: auto;
+  color-scheme: dark;
+}
+
+.filter-count {
+  font-size: 1rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+/* Entry list */
+.entry-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.entry-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+  border-radius: var(--radius);
+}
+
+.entry-row:hover {
+  background: var(--bg-hover);
+}
+
+.entry-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.entry-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.entry-title {
+  font-size: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.entry-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.entry-kind-badge {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius);
+  white-space: nowrap;
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: center;
+  padding: 1rem 0;
+}
+
+.page-active {
+  background: var(--primary) !important;
+  color: #fff !important;
+}
+
+/* Detail panel */
+.detail-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 600px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.detail-header > div {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.detail-header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.detail-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.detail-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.detail-meta-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-label {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.detail-value {
+  font-size: 1rem;
+}
+
+.detail-value.mono {
+  font-family: monospace;
+  font-size: 1rem;
+  word-break: break-all;
+}
+
+.detail-data {
+  margin-bottom: 1rem;
+}
+
+.detail-data h3 {
+  font-size: 1rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.detail-data pre {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  font-size: 1rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+</style>
