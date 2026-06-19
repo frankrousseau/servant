@@ -15,5 +15,6 @@ universal user-scoped `entries`, and pushes changes over Phoenix Channels.
 ## See also (not auto-loaded)
 
 - `README.md` — deployment, release build, env vars, systemd/reverse-proxy.
-- `PLAN.md` — original scaffolding plan (historical; the foundation it describes is already built).
+- `docs/deployment.md` — Docker deployment (multi-stage build, compose, volumes, ops).
+- `docs/PLAN.md` — original scaffolding plan (historical; the foundation it describes is already built).
 - `docs/ai-agents-plan.md` — design notes for a future AI-agents feature (not yet implemented).
