@@ -1,0 +1,9 @@
+{
+  "name": "servant-scrapers",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "playwright": "^1.52.0",
+    "otpauth": "^9.4.0"
+  }
+}
