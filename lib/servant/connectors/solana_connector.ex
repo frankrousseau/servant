@@ -15,6 +15,7 @@ defmodule Servant.Connectors.SolanaConnector do
   @tx_fetch_delay_ms 1_000
   @sigs_per_page 1000
   @max_pages 10
+  @max_consecutive_errors 3
 
   @impl true
   def id, do: "solana"
@@ -66,31 +67,30 @@ defmodule Servant.Connectors.SolanaConnector do
         all_signatures = Enum.reverse(all_signatures)
 
         {entries, new_last_sig, _errors} =
-          Enum.reduce(all_signatures, {[], state.last_signature, 0}, fn sig_info, {acc, last_sig, errors} ->
+          Enum.reduce_while(all_signatures, {[], state.last_signature, 0}, fn sig_info, {acc, last_sig, errors} ->
             signature = sig_info["signature"]
 
             # Skip failed transactions
             if sig_info["err"] != nil do
-              {acc, signature, errors}
+              {:cont, {acc, signature, errors}}
             else
               Process.sleep(@tx_fetch_delay_ms)
 
               case fetch_and_parse(signature, state, rpc_opts) do
                 {:ok, entry} ->
-                  {[entry | acc], signature, errors}
+                  {:cont, {[entry | acc], signature, 0}}
 
                 :skip ->
-                  {acc, signature, errors}
+                  {:cont, {acc, signature, 0}}
 
                 {:error, reason} ->
                   Logger.warning("Failed to fetch tx #{signature}: #{inspect(reason)}")
-                  # Don't advance last_signature past a failed fetch
-                  # so we retry it next sync
-                  if errors >= 3 do
-                    # Too many consecutive errors, stop processing
-                    {acc, last_sig, errors + 1}
+                  # Don't advance last_signature past a failed fetch so we retry it next sync.
+                  # Stop after too many consecutive errors to avoid hammering a failing RPC.
+                  if errors + 1 >= @max_consecutive_errors do
+                    {:halt, {acc, last_sig, errors + 1}}
                   else
-                    {acc, last_sig, errors + 1}
+                    {:cont, {acc, last_sig, errors + 1}}
                   end
               end
             end
@@ -206,14 +206,12 @@ defmodule Servant.Connectors.SolanaConnector do
         "signature" => parsed.signature,
         "slot" => parsed.slot,
         "wallet" => wallet_address,
-        "transfers" => Enum.map(transfers, &ensure_map/1),
+        "transfers" => transfers,
         "counterparty" => counterparty
       },
       "metadata" => %{}
     }
   end
-
-  defp ensure_map(%{} = m), do: m
 
   defp build_title([]), do: "Solana transaction"
 

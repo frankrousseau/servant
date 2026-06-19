@@ -116,14 +116,12 @@ defmodule Servant.Connectors.EVMConnector do
             "wallet" => wallet_address,
             "chain" => unquote(chain),
             "chain_id" => unquote(chain_id),
-            "transfers" => Enum.map(parsed.transfers, &ensure_map/1),
+            "transfers" => parsed.transfers,
             "counterparty" => transfer.counterparty
           },
           "metadata" => %{}
         }
       end
-
-      defp ensure_map(%{} = m), do: m
 
       defp build_title(nil), do: "#{unquote(name)} transaction"
 
