@@ -98,7 +98,12 @@ defmodule Servant.Connectors.BankCSV.Parser do
       description = Map.get(row, preset.description_column, "") |> String.trim()
       amount = parse_amount(Map.get(row, preset.amount_column, ""), preset.decimal_separator)
       currency = Map.get(row, preset[:currency_column] || "Currency", "") |> String.trim()
-      balance = parse_amount(Map.get(row, preset[:balance_column] || "Balance", ""), preset.decimal_separator)
+
+      balance =
+        parse_amount(
+          Map.get(row, preset[:balance_column] || "Balance", ""),
+          preset.decimal_separator
+        )
 
       if date == nil or amount == nil or description == "" do
         :skip

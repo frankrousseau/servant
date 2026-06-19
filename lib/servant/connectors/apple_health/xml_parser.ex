@@ -64,30 +64,94 @@ defmodule Servant.Connectors.AppleHealth.XMLParser do
 
   @type_mapping %{
     "HKQuantityTypeIdentifierStepCount" => %{kind: "health", category: "steps", unit: "count"},
-    "HKQuantityTypeIdentifierDistanceWalkingRunning" => %{kind: "health", category: "distance", unit: "km"},
+    "HKQuantityTypeIdentifierDistanceWalkingRunning" => %{
+      kind: "health",
+      category: "distance",
+      unit: "km"
+    },
     "HKQuantityTypeIdentifierHeartRate" => %{kind: "health", category: "heart_rate", unit: "bpm"},
-    "HKQuantityTypeIdentifierRestingHeartRate" => %{kind: "health", category: "resting_heart_rate", unit: "bpm"},
-    "HKQuantityTypeIdentifierHeartRateVariabilitySDNN" => %{kind: "health", category: "hrv", unit: "ms"},
-    "HKQuantityTypeIdentifierActiveEnergyBurned" => %{kind: "health", category: "active_energy", unit: "kcal"},
-    "HKQuantityTypeIdentifierBasalEnergyBurned" => %{kind: "health", category: "basal_energy", unit: "kcal"},
+    "HKQuantityTypeIdentifierRestingHeartRate" => %{
+      kind: "health",
+      category: "resting_heart_rate",
+      unit: "bpm"
+    },
+    "HKQuantityTypeIdentifierHeartRateVariabilitySDNN" => %{
+      kind: "health",
+      category: "hrv",
+      unit: "ms"
+    },
+    "HKQuantityTypeIdentifierActiveEnergyBurned" => %{
+      kind: "health",
+      category: "active_energy",
+      unit: "kcal"
+    },
+    "HKQuantityTypeIdentifierBasalEnergyBurned" => %{
+      kind: "health",
+      category: "basal_energy",
+      unit: "kcal"
+    },
     "HKQuantityTypeIdentifierBodyMass" => %{kind: "health", category: "weight", unit: "kg"},
     "HKQuantityTypeIdentifierBodyMassIndex" => %{kind: "health", category: "bmi", unit: ""},
     "HKQuantityTypeIdentifierHeight" => %{kind: "health", category: "height", unit: "cm"},
-    "HKQuantityTypeIdentifierBloodPressureSystolic" => %{kind: "health", category: "blood_pressure_systolic", unit: "mmHg"},
-    "HKQuantityTypeIdentifierBloodPressureDiastolic" => %{kind: "health", category: "blood_pressure_diastolic", unit: "mmHg"},
+    "HKQuantityTypeIdentifierBloodPressureSystolic" => %{
+      kind: "health",
+      category: "blood_pressure_systolic",
+      unit: "mmHg"
+    },
+    "HKQuantityTypeIdentifierBloodPressureDiastolic" => %{
+      kind: "health",
+      category: "blood_pressure_diastolic",
+      unit: "mmHg"
+    },
     "HKQuantityTypeIdentifierOxygenSaturation" => %{kind: "health", category: "spo2", unit: "%"},
-    "HKQuantityTypeIdentifierBodyTemperature" => %{kind: "health", category: "temperature", unit: "°C"},
-    "HKQuantityTypeIdentifierRespiratoryRate" => %{kind: "health", category: "respiratory_rate", unit: "breaths/min"},
-    "HKQuantityTypeIdentifierFlightsClimbed" => %{kind: "health", category: "flights_climbed", unit: "count"},
-    "HKQuantityTypeIdentifierAppleExerciseTime" => %{kind: "health", category: "exercise_time", unit: "min"},
-    "HKQuantityTypeIdentifierAppleStandTime" => %{kind: "health", category: "stand_time", unit: "min"},
+    "HKQuantityTypeIdentifierBodyTemperature" => %{
+      kind: "health",
+      category: "temperature",
+      unit: "°C"
+    },
+    "HKQuantityTypeIdentifierRespiratoryRate" => %{
+      kind: "health",
+      category: "respiratory_rate",
+      unit: "breaths/min"
+    },
+    "HKQuantityTypeIdentifierFlightsClimbed" => %{
+      kind: "health",
+      category: "flights_climbed",
+      unit: "count"
+    },
+    "HKQuantityTypeIdentifierAppleExerciseTime" => %{
+      kind: "health",
+      category: "exercise_time",
+      unit: "min"
+    },
+    "HKQuantityTypeIdentifierAppleStandTime" => %{
+      kind: "health",
+      category: "stand_time",
+      unit: "min"
+    },
     "HKCategoryTypeIdentifierSleepAnalysis" => %{kind: "health", category: "sleep", unit: ""},
     "HKQuantityTypeIdentifierDietaryWater" => %{kind: "health", category: "water", unit: "mL"},
-    "HKQuantityTypeIdentifierDietaryEnergyConsumed" => %{kind: "health", category: "calories_consumed", unit: "kcal"},
+    "HKQuantityTypeIdentifierDietaryEnergyConsumed" => %{
+      kind: "health",
+      category: "calories_consumed",
+      unit: "kcal"
+    },
     "HKQuantityTypeIdentifierVO2Max" => %{kind: "health", category: "vo2max", unit: "mL/kg·min"},
-    "HKQuantityTypeIdentifierWalkingHeartRateAverage" => %{kind: "health", category: "walking_heart_rate", unit: "bpm"},
-    "HKQuantityTypeIdentifierEnvironmentalAudioExposure" => %{kind: "health", category: "audio_exposure", unit: "dB"},
-    "HKQuantityTypeIdentifierHeadphoneAudioExposure" => %{kind: "health", category: "headphone_audio", unit: "dB"}
+    "HKQuantityTypeIdentifierWalkingHeartRateAverage" => %{
+      kind: "health",
+      category: "walking_heart_rate",
+      unit: "bpm"
+    },
+    "HKQuantityTypeIdentifierEnvironmentalAudioExposure" => %{
+      kind: "health",
+      category: "audio_exposure",
+      unit: "dB"
+    },
+    "HKQuantityTypeIdentifierHeadphoneAudioExposure" => %{
+      kind: "health",
+      category: "headphone_audio",
+      unit: "dB"
+    }
   }
 
   def type_mapping, do: @type_mapping
@@ -161,7 +225,8 @@ defmodule Servant.Connectors.AppleHealth.XMLParser do
     # Format: "2025-03-28 08:00:00 +0100"
     case Regex.run(~r/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) ([+-]\d{4})$/, str) do
       [_, date_str, time_str, tz_offset] ->
-        iso = "#{date_str}T#{time_str}#{String.slice(tz_offset, 0, 3)}:#{String.slice(tz_offset, 3, 2)}"
+        iso =
+          "#{date_str}T#{time_str}#{String.slice(tz_offset, 0, 3)}:#{String.slice(tz_offset, 3, 2)}"
 
         case DateTime.from_iso8601(iso) do
           {:ok, dt, _offset} -> DateTime.truncate(dt, :second)

@@ -3,7 +3,9 @@ defmodule Servant.Repo.Migrations.CreateSyncLogs do
 
   def change do
     create table(:sync_logs) do
-      add :connector_config_id, references(:connector_configs, on_delete: :delete_all), null: false
+      add :connector_config_id, references(:connector_configs, on_delete: :delete_all),
+        null: false
+
       add :status, :string, null: false
       add :entries_count, :integer, default: 0
       add :error, :text

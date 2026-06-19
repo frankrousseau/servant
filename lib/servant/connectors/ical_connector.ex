@@ -180,7 +180,7 @@ defmodule Servant.Connectors.ICalConnector do
   end
 
   @doc false
-  def parse_ical_datetime(nil), do: {:error, :nil}
+  def parse_ical_datetime(nil), do: {:error, nil}
 
   def parse_ical_datetime(str) do
     str = String.trim(str)
@@ -188,7 +188,8 @@ defmodule Servant.Connectors.ICalConnector do
     cond do
       # 20250315T120000Z
       Regex.match?(~r/^\d{8}T\d{6}Z$/, str) ->
-        <<y::binary-4, m::binary-2, d::binary-2, ?T, h::binary-2, mi::binary-2, s::binary-2, ?Z>> = str
+        <<y::binary-4, m::binary-2, d::binary-2, ?T, h::binary-2, mi::binary-2, s::binary-2, ?Z>> =
+          str
 
         DateTime.new(
           Date.new!(String.to_integer(y), String.to_integer(m), String.to_integer(d)),

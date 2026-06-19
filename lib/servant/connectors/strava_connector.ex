@@ -100,10 +100,17 @@ defmodule Servant.Connectors.StravaConnector do
 
         # Cache the token with expiration
         exp_dt = DateTime.from_unix!(expires_at)
-        Servant.Connectors.put_env("strava", "tokens", state.client_id, %{
-          "access_token" => access_token,
-          "expires_at" => expires_at
-        }, exp_dt)
+
+        Servant.Connectors.put_env(
+          "strava",
+          "tokens",
+          state.client_id,
+          %{
+            "access_token" => access_token,
+            "expires_at" => expires_at
+          },
+          exp_dt
+        )
 
         # Update refresh_token if Strava rotated it
         new_state =

@@ -20,7 +20,8 @@ defmodule Servant.Connectors.Solana.TransactionParser do
 
     with :ok <- check_success(tx),
          {:ok, account_index} <- find_account_index(tx, wallet_address),
-         transfers when transfers != [] <- extract_transfers(tx, wallet_address, account_index, min_lamports) do
+         transfers when transfers != [] <-
+           extract_transfers(tx, wallet_address, account_index, min_lamports) do
       {:ok,
        %{
          signature: get_in(tx, ["transaction", "signatures"]) |> List.first(),

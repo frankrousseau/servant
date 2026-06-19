@@ -24,7 +24,10 @@ defmodule ServantWeb.ExportController do
 
     conn
     |> put_resp_content_type("application/json")
-    |> put_resp_header("content-disposition", ~s(attachment; filename="servant_entries_#{timestamp}.json"))
+    |> put_resp_header(
+      "content-disposition",
+      ~s(attachment; filename="servant_entries_#{timestamp}.json")
+    )
     |> json(data)
   end
 
@@ -37,7 +40,10 @@ defmodule ServantWeb.ExportController do
 
     conn
     |> put_resp_content_type("text/calendar")
-    |> put_resp_header("content-disposition", ~s(attachment; filename="servant_calendar_#{timestamp}.ics"))
+    |> put_resp_header(
+      "content-disposition",
+      ~s(attachment; filename="servant_calendar_#{timestamp}.ics")
+    )
     |> send_resp(200, ics)
   end
 
@@ -129,7 +135,10 @@ defmodule ServantWeb.ExportController do
 
       conn
       |> put_resp_content_type("application/x-sqlite3")
-      |> put_resp_header("content-disposition", ~s(attachment; filename="servant_#{timestamp}.db"))
+      |> put_resp_header(
+        "content-disposition",
+        ~s(attachment; filename="servant_#{timestamp}.db")
+      )
       |> send_file(200, db_path)
     else
       conn

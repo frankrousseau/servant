@@ -68,7 +68,9 @@ defmodule Servant.Connectors.SolanaConnector do
         all_signatures = Enum.reverse(all_signatures)
 
         {entries, new_last_sig, _errors} =
-          Enum.reduce_while(all_signatures, {[], state.last_signature, 0}, fn sig_info, {acc, last_sig, errors} ->
+          Enum.reduce_while(all_signatures, {[], state.last_signature, 0}, fn sig_info,
+                                                                              {acc, last_sig,
+                                                                               errors} ->
             signature = sig_info["signature"]
 
             # Skip failed transactions
@@ -136,7 +138,15 @@ defmodule Servant.Connectors.SolanaConnector do
           # More pages available — use the last signature as cursor
           last = List.last(signatures)
           Process.sleep(500)
-          fetch_all_signatures(address, last_signature, rpc_opts, last["signature"], new_acc, page + 1)
+
+          fetch_all_signatures(
+            address,
+            last_signature,
+            rpc_opts,
+            last["signature"],
+            new_acc,
+            page + 1
+          )
         end
 
       {:error, reason} ->

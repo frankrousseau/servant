@@ -78,9 +78,12 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
     args =
       [
         script,
-        "--provider", state.provider,
-        "--email", state.email,
-        "--password", state.password
+        "--provider",
+        state.provider,
+        "--email",
+        state.email,
+        "--password",
+        state.password
       ] ++
         if state.totp_secret && state.totp_secret != "" do
           ["--totp-secret", state.totp_secret]
@@ -138,7 +141,7 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
       "source" => provider,
       "external_id" => invoice["id"] || "#{provider}-#{date_str}-#{amount}",
       "title" => title,
-      "occurred_at" => occurred_at || (DateTime.utc_now() |> DateTime.truncate(:second)),
+      "occurred_at" => occurred_at || DateTime.utc_now() |> DateTime.truncate(:second),
       "data" => %{
         "provider" => provider,
         "amount" => amount,
@@ -166,12 +169,29 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
   end
 
   @months %{
-    "january" => 1, "february" => 2, "march" => 3, "april" => 4,
-    "may" => 5, "june" => 6, "july" => 7, "august" => 8,
-    "september" => 9, "october" => 10, "november" => 11, "december" => 12,
-    "jan" => 1, "feb" => 2, "mar" => 3, "apr" => 4,
-    "jun" => 6, "jul" => 7, "aug" => 8, "sep" => 9,
-    "oct" => 10, "nov" => 11, "dec" => 12
+    "january" => 1,
+    "february" => 2,
+    "march" => 3,
+    "april" => 4,
+    "may" => 5,
+    "june" => 6,
+    "july" => 7,
+    "august" => 8,
+    "september" => 9,
+    "october" => 10,
+    "november" => 11,
+    "december" => 12,
+    "jan" => 1,
+    "feb" => 2,
+    "mar" => 3,
+    "apr" => 4,
+    "jun" => 6,
+    "jul" => 7,
+    "aug" => 8,
+    "sep" => 9,
+    "oct" => 10,
+    "nov" => 11,
+    "dec" => 12
   }
 
   defp parse_english_date(str) do

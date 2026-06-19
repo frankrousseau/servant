@@ -74,7 +74,7 @@ defmodule Servant.Connectors.ICalConnectorTest do
     end
 
     test "returns error for nil" do
-      assert {:error, :nil} = ICalConnector.parse_ical_datetime(nil)
+      assert {:error, nil} = ICalConnector.parse_ical_datetime(nil)
     end
 
     test "returns error for invalid format" do
@@ -90,7 +90,12 @@ defmodule Servant.Connectors.ICalConnectorTest do
     end
 
     test "accepts custom calendar name" do
-      assert {:ok, state} = ICalConnector.init(%{}, %{"url" => "https://x.com/c.ics", "calendar_name" => "Work"})
+      assert {:ok, state} =
+               ICalConnector.init(%{}, %{
+                 "url" => "https://x.com/c.ics",
+                 "calendar_name" => "Work"
+               })
+
       assert state.calendar_name == "Work"
     end
 
@@ -117,7 +122,9 @@ defmodule Servant.Connectors.ICalConnectorTest do
 
   describe "line unfolding" do
     test "handles folded lines" do
-      ical = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:fold@test\r\nDTSTART:20250315T100000Z\r\nSUMMARY:This is a very long\r\n  summary that wraps\r\nEND:VEVENT\r\nEND:VCALENDAR"
+      ical =
+        "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:fold@test\r\nDTSTART:20250315T100000Z\r\nSUMMARY:This is a very long\r\n  summary that wraps\r\nEND:VEVENT\r\nEND:VCALENDAR"
+
       [event] = ICalConnector.parse_ical(ical)
       assert event[:summary] == "This is a very long summary that wraps"
     end

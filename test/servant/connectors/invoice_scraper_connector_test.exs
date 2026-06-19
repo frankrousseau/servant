@@ -13,27 +13,38 @@ defmodule Servant.Connectors.InvoiceScraperConnectorTest do
     end
 
     test "accepts optional totp_secret" do
-      config = %{"provider" => "anthropic", "email" => "a@b.com", "password" => "s", "totp_secret" => "JBSWY3DPEHPK3PXP"}
+      config = %{
+        "provider" => "anthropic",
+        "email" => "a@b.com",
+        "password" => "s",
+        "totp_secret" => "JBSWY3DPEHPK3PXP"
+      }
+
       assert {:ok, state} = InvoiceScraperConnector.init(%{}, config)
       assert state.totp_secret == "JBSWY3DPEHPK3PXP"
     end
 
     test "fails without provider" do
-      assert {:error, :missing_provider} = InvoiceScraperConnector.init(%{}, %{"email" => "a", "password" => "b"})
+      assert {:error, :missing_provider} =
+               InvoiceScraperConnector.init(%{}, %{"email" => "a", "password" => "b"})
     end
 
     test "fails without email" do
-      assert {:error, :missing_email} = InvoiceScraperConnector.init(%{}, %{"provider" => "x", "password" => "b"})
+      assert {:error, :missing_email} =
+               InvoiceScraperConnector.init(%{}, %{"provider" => "x", "password" => "b"})
     end
 
     test "fails without password" do
-      assert {:error, :missing_password} = InvoiceScraperConnector.init(%{}, %{"provider" => "x", "email" => "a"})
+      assert {:error, :missing_password} =
+               InvoiceScraperConnector.init(%{}, %{"provider" => "x", "email" => "a"})
     end
   end
 
   describe "parse_output/1" do
     test "parses valid JSON with invoices" do
-      json = ~s({"invoices": [{"id": "inv-1", "date": "2025-03-01", "amount": "142.50", "currency": "USD", "status": "paid"}]})
+      json =
+        ~s({"invoices": [{"id": "inv-1", "date": "2025-03-01", "amount": "142.50", "currency": "USD", "status": "paid"}]})
+
       assert {:ok, [inv]} = InvoiceScraperConnector.parse_output(json)
       assert inv["id"] == "inv-1"
       assert inv["amount"] == "142.50"
@@ -50,7 +61,14 @@ defmodule Servant.Connectors.InvoiceScraperConnectorTest do
 
   describe "build_entry/2" do
     test "builds entry from invoice with ISO date" do
-      invoice = %{"id" => "inv-1", "date" => "2025-03-01", "amount" => "142.50", "currency" => "USD", "status" => "paid"}
+      invoice = %{
+        "id" => "inv-1",
+        "date" => "2025-03-01",
+        "amount" => "142.50",
+        "currency" => "USD",
+        "status" => "paid"
+      }
+
       entry = InvoiceScraperConnector.build_entry(invoice, "anthropic")
 
       assert entry["kind"] == "invoice"

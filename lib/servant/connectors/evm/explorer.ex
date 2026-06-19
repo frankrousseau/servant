@@ -56,7 +56,8 @@ defmodule Servant.Connectors.EVM.Explorer do
       when is_list(result) ->
         {:ok, result}
 
-      {:ok, %Req.Response{status: 200, body: %{"status" => "0", "message" => "No transactions found"}}} ->
+      {:ok,
+       %Req.Response{status: 200, body: %{"status" => "0", "message" => "No transactions found"}}} ->
         {:ok, []}
 
       {:ok, %Req.Response{status: 200, body: %{"status" => "0"}}} ->

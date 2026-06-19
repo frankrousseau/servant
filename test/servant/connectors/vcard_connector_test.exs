@@ -43,7 +43,11 @@ defmodule Servant.Connectors.VCardConnectorTest do
       [john | _] = VCardConnector.parse_vcards(@sample_vcf)
       assert length(john.emails) == 2
       assert Enum.any?(john.emails, &(&1["value"] == "john@example.com" and &1["type"] == "work"))
-      assert Enum.any?(john.emails, &(&1["value"] == "john.doe@gmail.com" and &1["type"] == "home"))
+
+      assert Enum.any?(
+               john.emails,
+               &(&1["value"] == "john.doe@gmail.com" and &1["type"] == "home")
+             )
     end
 
     test "extracts typed phones" do
@@ -96,7 +100,12 @@ defmodule Servant.Connectors.VCardConnectorTest do
     end
 
     test "accepts url and source_name" do
-      assert {:ok, state} = VCardConnector.init(%{}, %{"url" => "https://x.com/c.vcf", "source_name" => "iCloud"})
+      assert {:ok, state} =
+               VCardConnector.init(%{}, %{
+                 "url" => "https://x.com/c.vcf",
+                 "source_name" => "iCloud"
+               })
+
       assert state.url == "https://x.com/c.vcf"
       assert state.source_name == "iCloud"
     end
@@ -118,7 +127,9 @@ defmodule Servant.Connectors.VCardConnectorTest do
 
   describe "line unfolding" do
     test "handles folded lines in vCard" do
-      vcf = "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Test\r\nNOTE:This is a long\r\n  note that wraps\r\nUID:fold-test\r\nEND:VCARD"
+      vcf =
+        "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Test\r\nNOTE:This is a long\r\n  note that wraps\r\nUID:fold-test\r\nEND:VCARD"
+
       [contact] = VCardConnector.parse_vcards(vcf)
       assert contact.note == "This is a long note that wraps"
     end

@@ -7,8 +7,10 @@ defmodule Servant.Connectors.Connector do
   @callback name() :: String.t()
   @callback required_credentials() :: [atom()]
   @callback kind() :: String.t()
-  @callback init(credentials :: map(), config :: map()) :: {:ok, state :: term()} | {:error, term()}
-  @callback sync(state :: term()) :: {:ok, [map()], state :: term()} | {:error, term(), state :: term()}
+  @callback init(credentials :: map(), config :: map()) ::
+              {:ok, state :: term()} | {:error, term()}
+  @callback sync(state :: term()) ::
+              {:ok, [map()], state :: term()} | {:error, term(), state :: term()}
 
   @doc """
   Returns the list of schedules this connector supports.

@@ -17,7 +17,13 @@ defmodule ServantWeb.UploadController do
     "application/octet-stream" => ""
   }
 
-  def create(conn, %{"file" => %Plug.Upload{path: tmp_path, content_type: content_type, filename: original_name}}) do
+  def create(conn, %{
+        "file" => %Plug.Upload{
+          path: tmp_path,
+          content_type: content_type,
+          filename: original_name
+        }
+      }) do
     user_id = conn.assigns.current_user.id
 
     case File.stat(tmp_path) do

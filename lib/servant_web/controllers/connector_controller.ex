@@ -174,5 +174,4 @@ defmodule ServantWeb.ConnectorController do
       updated_at: config.updated_at
     }
   end
-
 end

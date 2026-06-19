@@ -54,8 +54,11 @@ defmodule Servant.Connectors.BankCSVConnector do
           Enum.map(transactions, fn tx ->
             title =
               case tx.direction do
-                "sent" -> "Paid #{format_amount(tx.abs_amount)} #{tx.currency} — #{tx.description}"
-                "received" -> "Received #{format_amount(tx.abs_amount)} #{tx.currency} — #{tx.description}"
+                "sent" ->
+                  "Paid #{format_amount(tx.abs_amount)} #{tx.currency} — #{tx.description}"
+
+                "received" ->
+                  "Received #{format_amount(tx.abs_amount)} #{tx.currency} — #{tx.description}"
               end
 
             occurred_at =

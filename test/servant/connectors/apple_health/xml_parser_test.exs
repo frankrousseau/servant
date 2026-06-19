@@ -50,28 +50,47 @@ defmodule Servant.Connectors.AppleHealth.XMLParserTest do
 
   describe "normalize_record/1" do
     test "normalizes step count record" do
-      record = %{"type" => "HKQuantityTypeIdentifierStepCount", "value" => "1234",
-                 "unit" => "count", "sourceName" => "iPhone",
-                 "startDate" => "2025-03-28 08:00:00 +0100", "endDate" => "2025-03-28 09:00:00 +0100"}
+      record = %{
+        "type" => "HKQuantityTypeIdentifierStepCount",
+        "value" => "1234",
+        "unit" => "count",
+        "sourceName" => "iPhone",
+        "startDate" => "2025-03-28 08:00:00 +0100",
+        "endDate" => "2025-03-28 09:00:00 +0100"
+      }
+
       result = XMLParser.normalize_record(record)
       assert result.category == "steps"
       assert result.value == 1234.0
     end
 
     test "normalizes heart rate record" do
-      record = %{"type" => "HKQuantityTypeIdentifierHeartRate", "value" => "72",
-                 "unit" => "count/min", "sourceName" => "Apple Watch",
-                 "startDate" => "2025-03-28 10:00:00 +0100", "endDate" => "2025-03-28 10:00:05 +0100"}
+      record = %{
+        "type" => "HKQuantityTypeIdentifierHeartRate",
+        "value" => "72",
+        "unit" => "count/min",
+        "sourceName" => "Apple Watch",
+        "startDate" => "2025-03-28 10:00:00 +0100",
+        "endDate" => "2025-03-28 10:00:05 +0100"
+      }
+
       result = XMLParser.normalize_record(record)
       assert result.category == "heart_rate"
       assert result.value == 72.0
     end
 
     test "normalizes workout" do
-      record = %{"_tag" => "Workout", "workoutActivityType" => "HKWorkoutActivityTypeRunning",
-                 "duration" => "30.5", "totalEnergyBurned" => "250.0", "totalDistance" => "5.2",
-                 "sourceName" => "Apple Watch",
-                 "startDate" => "2025-03-28 18:00:00 +0100", "endDate" => "2025-03-28 18:30:00 +0100"}
+      record = %{
+        "_tag" => "Workout",
+        "workoutActivityType" => "HKWorkoutActivityTypeRunning",
+        "duration" => "30.5",
+        "totalEnergyBurned" => "250.0",
+        "totalDistance" => "5.2",
+        "sourceName" => "Apple Watch",
+        "startDate" => "2025-03-28 18:00:00 +0100",
+        "endDate" => "2025-03-28 18:30:00 +0100"
+      }
+
       result = XMLParser.normalize_record(record)
       assert result.category == "workout"
       assert result.workout_type == "running"

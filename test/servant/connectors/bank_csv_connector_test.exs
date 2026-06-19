@@ -11,7 +11,9 @@ defmodule Servant.Connectors.BankCSVConnectorTest do
     end
 
     test "accepts custom account name" do
-      assert {:ok, state} = BankCSVConnector.init(%{}, %{"preset" => "n26", "account_name" => "N26 Personal"})
+      assert {:ok, state} =
+               BankCSVConnector.init(%{}, %{"preset" => "n26", "account_name" => "N26 Personal"})
+
       assert state.account_name == "N26 Personal"
     end
 

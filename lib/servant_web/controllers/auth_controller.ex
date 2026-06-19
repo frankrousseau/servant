@@ -142,5 +142,4 @@ defmodule ServantWeb.AuthController do
     |> put_status(:unprocessable_entity)
     |> json(%{error: "current_password and new_password are required"})
   end
-
 end

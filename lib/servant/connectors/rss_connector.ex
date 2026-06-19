@@ -55,7 +55,9 @@ defmodule Servant.Connectors.RSSConnector do
   def default_schedule, do: "every_hour"
 
   defp fetch_and_parse(url) do
-    case :httpc.request(:get, {String.to_charlist(url), []}, [{:timeout, 15_000}], body_format: :binary) do
+    case :httpc.request(:get, {String.to_charlist(url), []}, [{:timeout, 15_000}],
+           body_format: :binary
+         ) do
       {:ok, {{_, 200, _}, _headers, body}} ->
         {:ok, parse_rss(body)}
 

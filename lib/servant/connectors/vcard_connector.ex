@@ -116,12 +116,13 @@ defmodule Servant.Connectors.VCardConnector do
   end
 
   defp parse_vcard(lines) do
-    props = Enum.reduce(lines, %{}, fn line, acc ->
-      case parse_property(line) do
-        {key, value} -> Map.update(acc, key, [value], &(&1 ++ [value]))
-        nil -> acc
-      end
-    end)
+    props =
+      Enum.reduce(lines, %{}, fn line, acc ->
+        case parse_property(line) do
+          {key, value} -> Map.update(acc, key, [value], &(&1 ++ [value]))
+          nil -> acc
+        end
+      end)
 
     fn_name = get_first(props, "FN")
     n_parts = get_first(props, "N")
@@ -129,9 +130,18 @@ defmodule Servant.Connectors.VCardConnector do
     # Build a display name
     display_name =
       cond do
-        fn_name && fn_name != "" -> fn_name
-        n_parts -> n_parts |> String.split(";") |> Enum.reject(&(&1 == "")) |> Enum.reverse() |> Enum.join(" ")
-        true -> nil
+        fn_name && fn_name != "" ->
+          fn_name
+
+        n_parts ->
+          n_parts
+          |> String.split(";")
+          |> Enum.reject(&(&1 == ""))
+          |> Enum.reverse()
+          |> Enum.join(" ")
+
+        true ->
+          nil
       end
 
     if display_name do
@@ -236,7 +246,8 @@ defmodule Servant.Connectors.VCardConnector do
       "source" => "vcard",
       "external_id" => contact.uid,
       "title" => title,
-      "occurred_at" => parse_birthday(contact.birthday) || (DateTime.utc_now() |> DateTime.truncate(:second)),
+      "occurred_at" =>
+        parse_birthday(contact.birthday) || DateTime.utc_now() |> DateTime.truncate(:second),
       "data" => %{
         "display_name" => contact.display_name,
         "emails" => contact.emails,

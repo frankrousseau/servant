@@ -115,7 +115,10 @@ defmodule Servant.Connectors.Worker do
 
       config ->
         config
-        |> Ecto.Changeset.change(%{last_synced_at: DateTime.utc_now() |> DateTime.truncate(:second), error: error})
+        |> Ecto.Changeset.change(%{
+          last_synced_at: DateTime.utc_now() |> DateTime.truncate(:second),
+          error: error
+        })
         |> Repo.update()
     end
   end

@@ -18,7 +18,14 @@ defmodule Servant.Connectors.SyncLog do
 
   def changeset(sync_log, attrs) do
     sync_log
-    |> cast(attrs, [:connector_config_id, :status, :entries_count, :error, :started_at, :finished_at])
+    |> cast(attrs, [
+      :connector_config_id,
+      :status,
+      :entries_count,
+      :error,
+      :started_at,
+      :finished_at
+    ])
     |> validate_required([:connector_config_id, :status, :started_at])
     |> validate_inclusion(:status, ~w(running completed failed))
   end

@@ -225,7 +225,11 @@ defmodule Servant.Connectors do
   def put_env(connector_type, namespace, key, value, expires_at \\ nil) do
     expires_at = if expires_at, do: DateTime.truncate(expires_at, :second)
 
-    case Repo.get_by(ConnectorEnvironment, connector_type: connector_type, namespace: namespace, key: key) do
+    case Repo.get_by(ConnectorEnvironment,
+           connector_type: connector_type,
+           namespace: namespace,
+           key: key
+         ) do
       nil ->
         %ConnectorEnvironment{}
         |> ConnectorEnvironment.changeset(%{

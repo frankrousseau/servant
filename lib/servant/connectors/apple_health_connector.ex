@@ -111,7 +111,7 @@ defmodule Servant.Connectors.AppleHealthConnector do
 
     avg =
       if values != [] do
-        Enum.sum(values) / length(values) |> Float.round(1)
+        (Enum.sum(values) / length(values)) |> Float.round(1)
       else
         nil
       end
@@ -124,7 +124,9 @@ defmodule Servant.Connectors.AppleHealthConnector do
   # --- Entry builder ---
 
   defp build_entry({category, day, record}) when category == "workout" do
-    workout_name = (record.workout_type || "workout") |> String.replace("_", " ") |> String.capitalize()
+    workout_name =
+      (record.workout_type || "workout") |> String.replace("_", " ") |> String.capitalize()
+
     duration_min = if record.duration, do: Float.round(record.duration, 0) |> trunc(), else: nil
 
     title =
@@ -178,19 +180,28 @@ defmodule Servant.Connectors.AppleHealthConnector do
 
   defp build_title("steps", record), do: "#{format_number(record.value)} steps"
   defp build_title("distance", record), do: "#{format_decimal(record.value, 1)} km walked"
-  defp build_title("heart_rate", record), do: "Heart rate avg #{format_decimal(record.value, 0)} bpm"
-  defp build_title("resting_heart_rate", record), do: "Resting HR #{format_decimal(record.value, 0)} bpm"
+
+  defp build_title("heart_rate", record),
+    do: "Heart rate avg #{format_decimal(record.value, 0)} bpm"
+
+  defp build_title("resting_heart_rate", record),
+    do: "Resting HR #{format_decimal(record.value, 0)} bpm"
+
   defp build_title("hrv", record), do: "HRV #{format_decimal(record.value, 0)} ms"
   defp build_title("active_energy", record), do: "#{format_number(record.value)} kcal active"
   defp build_title("basal_energy", record), do: "#{format_number(record.value)} kcal basal"
   defp build_title("weight", record), do: "Weight #{format_decimal(record.value, 1)} kg"
   defp build_title("exercise_time", record), do: "#{format_number(record.value)} min exercise"
   defp build_title("stand_time", record), do: "#{format_number(record.value)} min standing"
-  defp build_title("flights_climbed", record), do: "#{format_number(record.value)} flights climbed"
+
+  defp build_title("flights_climbed", record),
+    do: "#{format_number(record.value)} flights climbed"
+
   defp build_title("sleep", _record), do: "Sleep"
   defp build_title("spo2", record), do: "SpO2 #{format_decimal(record.value, 0)}%"
   defp build_title("vo2max", record), do: "VO2 Max #{format_decimal(record.value, 1)}"
   defp build_title("water", record), do: "#{format_number(record.value)} mL water"
+
   defp build_title(category, record) do
     value_str = if record.value, do: " #{record.value}", else: ""
     unit_str = if record[:unit] && record[:unit] != "", do: " #{record[:unit]}", else: ""
@@ -202,7 +213,10 @@ defmodule Servant.Connectors.AppleHealthConnector do
   defp format_number(val), do: to_string(val)
 
   defp format_decimal(nil, _), do: "0"
-  defp format_decimal(val, decimals) when is_float(val), do: :erlang.float_to_binary(val, decimals: decimals)
+
+  defp format_decimal(val, decimals) when is_float(val),
+    do: :erlang.float_to_binary(val, decimals: decimals)
+
   defp format_decimal(val, _), do: to_string(val)
 
   defp date_to_datetime(date) do

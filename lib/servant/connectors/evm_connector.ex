@@ -72,11 +72,19 @@ defmodule Servant.Connectors.EVMConnector do
       def sync(state) do
         start_block = state.last_block + 1
 
-        with {:ok, txs} <- Explorer.list_transactions(state.wallet_address, state.explorer_url, start_block: start_block),
-             {:ok, token_txs} <- Explorer.list_token_transfers(state.wallet_address, state.explorer_url, start_block: start_block) do
+        with {:ok, txs} <-
+               Explorer.list_transactions(state.wallet_address, state.explorer_url,
+                 start_block: start_block
+               ),
+             {:ok, token_txs} <-
+               Explorer.list_token_transfers(state.wallet_address, state.explorer_url,
+                 start_block: start_block
+               ) do
           native_entries =
             Enum.flat_map(txs, fn tx ->
-              case TransactionParser.parse_transaction(tx, state.wallet_address, min_wei: state.min_wei) do
+              case TransactionParser.parse_transaction(tx, state.wallet_address,
+                     min_wei: state.min_wei
+                   ) do
                 {:ok, parsed} -> [build_entry(parsed, state.wallet_address)]
                 _ -> []
               end
@@ -147,9 +155,10 @@ defmodule Servant.Connectors.EVMConnector do
           :error -> 0
         end
       end
+
       defp parse_block_number(_), do: 0
 
-      defoverridable [init: 2, sync: 1]
+      defoverridable init: 2, sync: 1
     end
   end
 end
