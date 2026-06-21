@@ -50,7 +50,7 @@ export interface AppContext {
   confirm: ConfirmAPI;
   api: {
     entries: EntriesAPI;
-    upload(file: File): Promise<UploadResult>;
+    upload(file: File, app?: string): Promise<UploadResult>;
     fetch(path: string, opts?: RequestInit): Promise<Response>;
   };
   viewer: ViewerAPI;

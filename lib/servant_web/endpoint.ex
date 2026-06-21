@@ -31,7 +31,7 @@ defmodule ServantWeb.Endpoint do
     only: ServantWeb.static_paths(),
     raise_on_missing_only: code_reloading?
 
-  plug ServantWeb.Plugs.UploadsStatic
+  plug ServantWeb.Plugs.FilesStatic
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.

@@ -96,10 +96,10 @@ defmodule ServantWeb.ConnectorController do
     json(conn, %{status: "stopped"})
   end
 
-  def import_file(conn, %{"id" => id, "file" => %Plug.Upload{path: path}}) do
+  def import_file(conn, %{"id" => id, "file" => %Plug.Upload{} = upload}) do
     user_id = conn.assigns.current_user.id
 
-    case Connectors.import_file(user_id, id, File.read!(path)) do
+    case Connectors.import_file(user_id, id, upload) do
       {:ok, result} ->
         json(conn, Map.put(result, :status, "ok"))
 

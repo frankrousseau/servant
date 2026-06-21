@@ -36,8 +36,6 @@ defmodule Servant.Accounts do
     |> Repo.update()
   end
 
-  @avatars_dir "avatars"
-
   def update_avatar(user, %Plug.Upload{path: tmp_path, content_type: content_type}) do
     ext =
       case content_type do
@@ -48,19 +46,14 @@ defmodule Servant.Accounts do
         _ -> ".jpg"
       end
 
-    filename = "#{user.id}#{ext}"
+    with {:ok, relative, _absolute} <-
+           Servant.Storage.store_account_avatar(user.id, tmp_path, ext) do
+      avatar_url = Servant.Storage.public_url(relative)
 
-    dest_dir = Servant.Uploads.join([@avatars_dir])
-
-    File.mkdir_p!(dest_dir)
-    dest_path = Path.join(dest_dir, filename)
-    File.cp!(tmp_path, dest_path)
-
-    avatar_url = "/uploads/#{@avatars_dir}/#{filename}"
-
-    user
-    |> User.avatar_changeset(avatar_url)
-    |> Repo.update()
+      user
+      |> User.avatar_changeset(avatar_url)
+      |> Repo.update()
+    end
   end
 
   def change_password(user, current_password, new_password) do

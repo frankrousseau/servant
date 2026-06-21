@@ -36,7 +36,11 @@ servant-*.tar
 # Scraper dependencies
 /priv/scrapers/node_modules/
 
-# User-uploaded runtime files (keep the directory, not its contents)
+# User-uploaded runtime files (keep directories, not contents)
+/priv/files/*
+!/priv/files/.gitkeep
+/priv/tmp/*
+!/priv/tmp/.gitkeep
 /priv/uploads/*
 !/priv/uploads/.gitkeep
 

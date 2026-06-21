@@ -147,7 +147,7 @@ const filesApp: AppModule = {
       // Shared upload logic
       async function uploadFiles(files: File[]) {
         for (const file of files) {
-          const result = await ctx.api.upload(file);
+          const result = await ctx.api.upload(file, "files")
           await ctx.api.entries.create({
             kind: "file",
             source: "files_app",

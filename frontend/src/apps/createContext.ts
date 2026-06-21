@@ -68,9 +68,10 @@ export function createAppContext(viewer: ViewerAPI): AppContext {
           return res.data;
         },
       },
-      async upload(file: File): Promise<UploadResult> {
-        const form = new FormData();
-        form.append("file", file);
+      async upload(file: File, app = "files"): Promise<UploadResult> {
+        const form = new FormData()
+        form.append("file", file)
+        form.append("app", app)
         const res = await fetch("/api/uploads", {
           method: "POST",
           headers: { Authorization: `Bearer ${auth.token}` },

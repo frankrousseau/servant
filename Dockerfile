@@ -62,9 +62,10 @@ ENV LANG=en_US.UTF-8 LANGUAGE=en_US:en LC_ALL=en_US.UTF-8
 WORKDIR /app
 
 # Database lives on a mounted volume
-RUN mkdir -p /data && chown nobody:nogroup /data
+RUN mkdir -p /data/files /data/tmp && chown -R nobody:nogroup /data
 ENV DATABASE_PATH=/data/servant.db
-ENV UPLOADS_DIR=/data/uploads
+ENV FILES_DIR=/data/files
+ENV TMP_DIR=/data/tmp
 
 COPY --from=build --chown=nobody:nogroup /app/_build/prod/rel/servant ./
 COPY --chown=nobody:nogroup docker-entrypoint.sh /app/docker-entrypoint.sh

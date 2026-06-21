@@ -207,6 +207,8 @@ volumes:
 | `SECRET_KEY_BASE` | ✅ | — | Signs tokens/cookies. Generate with `mix phx.gen.secret`. |
 | `PHX_HOST` | ✅ | `example.com` | Public hostname (used to build URLs). |
 | `DATABASE_PATH` | ✅ | `/data/servant.db` (set in image) | Absolute path to the SQLite file — must be on the volume. |
+| `FILES_DIR` | ✅ | `/data/files` (set in image) | Persistent user files (`apps/`, `connectors/`, `account/`). |
+| `TMP_DIR` | ✅ | `/data/tmp` (set in image) | Scratch space for imports and processing (safe to purge). |
 | `PHX_SERVER` | ✅ | `true` (set in image) | Must be truthy or the HTTP server won't start. |
 | `PORT` | — | `4000` | HTTP listen port inside the container. |
 | `POOL_SIZE` | — | `5` | SQLite connection pool size. |

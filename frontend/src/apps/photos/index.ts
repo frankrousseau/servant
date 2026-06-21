@@ -251,7 +251,7 @@ const photosApp: AppModule = {
         uploading = true;
         render();
         for (const file of images) {
-          const result = await ctx.api.upload(file) as unknown as Record<string, unknown>;
+          const result = await ctx.api.upload(file, "photos") as unknown as Record<string, unknown>
           const data: Record<string, unknown> = {
             filename: file.name,
             size: result.size,

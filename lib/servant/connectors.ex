@@ -155,34 +155,54 @@ defmodule Servant.Connectors do
     * `{:error, {:init_failed, reason}}` if the connector cannot init
     * `{:error, {:import_failed, reason}}` if parsing the file fails
   """
-  def import_file(user_id, config_id, content) do
-    content = strip_bom(content)
+  def import_file(user_id, config_id, %Plug.Upload{path: path, filename: filename}) do
     config = get_connector_config!(user_id, config_id)
+    workspace = Servant.Storage.tmp_workspace(user_id)
+    staged = Path.join(workspace, "import#{Path.extname(filename)}")
+    File.cp!(path, staged)
 
-    case Map.get(@importable_types, config.connector_type) do
-      nil ->
-        {:error, :unsupported}
+    try do
+      content = staged |> File.read!() |> strip_bom()
 
-      {module, import_fn} ->
-        case module.init(%{}, config.config || %{}) do
-          {:ok, state} ->
-            {:ok, sync_log} = create_sync_log(config.id)
-            run_import(module, import_fn, content, state, sync_log, user_id, config_id)
+      case Map.get(@importable_types, config.connector_type) do
+        nil ->
+          {:error, :unsupported}
 
-          {:error, reason} ->
-            {:error, {:init_failed, reason}}
-        end
+        {module, import_fn} ->
+          case module.init(%{}, config.config || %{}) do
+            {:ok, state} ->
+              {:ok, sync_log} = create_sync_log(config.id)
+
+              run_import(
+                module,
+                import_fn,
+                content,
+                state,
+                sync_log,
+                user_id,
+                config_id,
+                config,
+                staged,
+                filename
+              )
+
+            {:error, reason} ->
+              {:error, {:init_failed, reason}}
+          end
+      end
+    after
+      Servant.Storage.cleanup_tmp(workspace)
     end
   end
 
   defp strip_bom(<<0xEF, 0xBB, 0xBF, rest::binary>>), do: rest
   defp strip_bom(content), do: content
 
-  defp run_import(module, import_fn, content, state, sync_log, user_id, config_id) do
+  defp run_import(module, import_fn, content, state, sync_log, user_id, config_id, config, staged, filename) do
     case apply(module, import_fn, [content, state]) do
       {:ok, []} ->
-        fail_sync_log(sync_log, "No transactions found in CSV")
-        {:error, {:import_failed, "No transactions found — check CSV format and bank preset"}}
+        fail_sync_log(sync_log, "No entries found in file")
+        {:error, {:import_failed, "No entries found — check file format and connector preset"}}
 
       {:ok, entries} ->
         inserted =
@@ -197,7 +217,22 @@ defmodule Servant.Connectors do
           "error" => nil
         })
 
-        {:ok, %{imported: inserted, total: length(entries), skipped: length(entries) - inserted}}
+        {:ok, relative, _absolute} =
+          Servant.Storage.store_connector_file(
+            user_id,
+            config.connector_type,
+            config.id,
+            staged,
+            filename
+          )
+
+        {:ok,
+         %{
+           imported: inserted,
+           total: length(entries),
+           skipped: length(entries) - inserted,
+           file_path: Servant.Storage.public_url(relative)
+         }}
 
       {:error, reason} ->
         fail_sync_log(sync_log, reason)

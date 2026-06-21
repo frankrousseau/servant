@@ -103,8 +103,9 @@ async function uploadPhoto(event: Event) {
   if (!file) return;
   avatarUploading.value = true;
   try {
-    const fd = new FormData();
-    fd.append("file", file);
+    const fd = new FormData()
+    fd.append("file", file)
+    fd.append("app", "contacts")
     const res = await fetch("/api/uploads", {
       method: "POST",
       headers: { Authorization: `Bearer ${auth.token}` },
