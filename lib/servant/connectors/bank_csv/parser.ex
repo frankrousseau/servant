@@ -4,17 +4,30 @@ defmodule Servant.Connectors.BankCSV.Parser do
   Each preset defines the CSV structure for a specific bank.
   """
 
+  @n26_classic %{
+    delimiter: ";",
+    date_column: "Date",
+    description_column: "Description",
+    amount_column: "Amount",
+    currency_column: "Currency",
+    balance_column: "Balance",
+    date_format: :eu_dot,
+    decimal_separator: ","
+  }
+
+  @n26_modern %{
+    delimiter: ",",
+    date_column: "Booking Date",
+    description_columns: ["Partner Name", "Payment Reference", "Type"],
+    amount_column: "Amount (EUR)",
+    currency_column: "Original Currency",
+    balance_column: nil,
+    date_format: :iso,
+    decimal_separator: "."
+  }
+
   @presets %{
-    "n26" => %{
-      delimiter: ";",
-      date_column: "Date",
-      description_column: "Description",
-      amount_column: "Amount",
-      currency_column: "Currency",
-      balance_column: "Balance",
-      date_format: :eu_dot,
-      decimal_separator: ","
-    },
+    "n26" => :detect,
     "revolut" => %{
       delimiter: ",",
       date_column: "Started Date",
@@ -39,6 +52,7 @@ defmodule Servant.Connectors.BankCSV.Parser do
 
   def available_presets, do: Map.keys(@presets)
 
+  def get_preset("n26"), do: @n26_classic
   def get_preset(name), do: Map.get(@presets, name)
 
   @doc """
@@ -50,8 +64,29 @@ defmodule Servant.Connectors.BankCSV.Parser do
       nil ->
         {:error, "Unknown preset: #{preset_name}"}
 
+      :detect ->
+        do_parse(csv_content, detect_n26_preset(csv_content))
+
       preset ->
         do_parse(csv_content, preset)
+    end
+  end
+
+  defp detect_n26_preset(csv_content) do
+    csv_content
+    |> strip_bom()
+    |> String.trim()
+    |> String.split(~r/\r?\n/, parts: 2)
+    |> case do
+      [header | _] when is_binary(header) ->
+        if String.contains?(header, "Booking Date") do
+          @n26_modern
+        else
+          @n26_classic
+        end
+
+      _ ->
+        @n26_classic
     end
   end
 
@@ -61,6 +96,7 @@ defmodule Servant.Connectors.BankCSV.Parser do
       |> strip_bom()
       |> String.trim()
       |> String.split(~r/\r?\n/)
+      |> Enum.reject(&(String.trim(&1) == ""))
 
     case lines do
       [] ->
@@ -88,51 +124,100 @@ defmodule Servant.Connectors.BankCSV.Parser do
 
   defp parse_line(line, headers, preset, _line_num) do
     values = split_line(line, preset.delimiter)
+    row = zip_row(headers, values)
 
-    if length(values) < length(headers) do
+    raw_date = Map.get(row, preset.date_column, "")
+
+    date =
+      parse_date(raw_date, preset.date_format) ||
+        parse_date(raw_date, :iso)
+
+    description = build_description(row, preset)
+    amount = parse_amount(Map.get(row, preset.amount_column, ""), preset.decimal_separator)
+
+    currency =
+      preset
+      |> Map.get(:currency_column, "Currency")
+      |> then(fn
+        nil -> ""
+        col -> Map.get(row, col, "")
+      end)
+      |> String.trim()
+
+    balance =
+      case Map.get(preset, :balance_column) do
+        nil -> nil
+        col -> parse_amount(Map.get(row, col, ""), preset.decimal_separator)
+      end
+
+    if date == nil or amount == nil or description == nil do
       :skip
     else
-      row = Enum.zip(headers, values) |> Map.new()
+      direction = if amount < 0, do: "sent", else: "received"
 
-      raw_date = Map.get(row, preset.date_column, "")
+      {:ok,
+       %{
+         date: date,
+         description: description,
+         amount: amount,
+         abs_amount: abs(amount),
+         currency: if(currency != "", do: currency, else: "EUR"),
+         balance: balance,
+         direction: direction
+       }}
+    end
+  end
 
-      date =
-        parse_date(raw_date, preset.date_format) ||
-          parse_date(raw_date, :iso)
-      description = Map.get(row, preset.description_column, "") |> String.trim()
-      amount = parse_amount(Map.get(row, preset.amount_column, ""), preset.decimal_separator)
-      currency = Map.get(row, preset[:currency_column] || "Currency", "") |> String.trim()
+  defp zip_row(headers, values) do
+    headers
+    |> Enum.zip(values)
+    |> Map.new()
+  end
 
-      balance =
-        parse_amount(
-          Map.get(row, preset[:balance_column] || "Balance", ""),
-          preset.decimal_separator
-        )
+  defp build_description(row, %{description_columns: columns}) when is_list(columns) do
+    columns
+    |> Enum.map(fn col ->
+      row
+      |> Map.get(col, "")
+      |> String.trim()
+    end)
+    |> Enum.reject(&(&1 == ""))
+    |> case do
+      [] -> nil
+      parts -> Enum.join(parts, " — ")
+    end
+  end
 
-      if date == nil or amount == nil or description == "" do
-        :skip
-      else
-        direction = if amount < 0, do: "sent", else: "received"
-
-        {:ok,
-         %{
-           date: date,
-           description: description,
-           amount: amount,
-           abs_amount: abs(amount),
-           currency: if(currency != "", do: currency, else: "EUR"),
-           balance: balance,
-           direction: direction
-         }}
-      end
+  defp build_description(row, %{description_column: column}) do
+    case Map.get(row, column, "") |> String.trim() do
+      "" -> nil
+      description -> description
     end
   end
 
   defp strip_bom(<<0xEF, 0xBB, 0xBF, rest::binary>>), do: rest
   defp strip_bom(content), do: content
 
+  defp split_line(line, ",") do
+    line
+    |> String.trim()
+    |> then(fn trimmed ->
+      trimmed
+      |> NimbleCSV.RFC4180.parse_string()
+      |> Enum.to_list()
+      |> List.first()
+      |> case do
+        nil -> fallback_split(trimmed, ",")
+        fields -> fields
+      end
+    end)
+  end
+
   defp split_line(line, delimiter) do
-    # Simple CSV split handling quoted fields
+    fallback_split(line, delimiter)
+  end
+
+  defp fallback_split(line, delimiter) do
     line
     |> String.split(delimiter)
     |> Enum.map(fn field ->
@@ -173,15 +258,14 @@ defmodule Servant.Connectors.BankCSV.Parser do
       str
       |> String.trim()
       |> String.replace(" ", "")
+      |> String.replace("€", "")
 
     str =
       case decimal_separator do
         "," ->
-          # "1.230,50" -> "1230.50"
           str |> String.replace(".", "") |> String.replace(",", ".")
 
         _ ->
-          # "1,230.50" -> "1230.50"
           str |> String.replace(",", "")
       end
 

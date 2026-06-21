@@ -53,6 +53,26 @@ defmodule Servant.Connectors.BankCSV.ParserTest do
       assert {:ok, [tx]} = Parser.parse(csv, "n26")
       assert tx.date == ~D[2025-02-05]
     end
+
+    test "parses modern N26 CSV export (Booking Date, Amount EUR)" do
+      csv = """
+      "Booking Date","Value Date","Partner Name","Partner Iban",Type,"Payment Reference","Account Name","Amount (EUR)","Original Amount","Original Currency","Exchange Rate"
+      2019-08-21,,,,Presentment,,"Main Account",-15.00,15.00,EUR,1.000000
+      2019-09-04,,"MR FRANK ROUSSEAU","FR1820041000012683304R02067","Credit Transfer"," ","Main Account",1000.00,,,
+      """
+
+      assert {:ok, txs} = Parser.parse(csv, "n26")
+      assert length(txs) == 2
+
+      [presentment, transfer] = txs
+      assert presentment.date == ~D[2019-08-21]
+      assert presentment.amount == -15.0
+      assert presentment.description == "Presentment"
+
+      assert transfer.date == ~D[2019-09-04]
+      assert transfer.amount == 1000.0
+      assert transfer.description == "MR FRANK ROUSSEAU — Credit Transfer"
+    end
   end
 
   describe "generic format" do
