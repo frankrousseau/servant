@@ -126,11 +126,8 @@ defmodule ServantWeb.UploadController do
   end
 
   defp maybe_add_photo_thumbnail(response, "photos", "image/" <> _, relative, absolute) do
-    thumb_relative = Servant.Storage.thumb_relative(relative)
-    thumb_absolute = Servant.Storage.join_files([thumb_relative])
-
-    case Servant.Media.Thumbnail.generate(absolute, thumb_absolute) do
-      :ok -> Map.put(response, :thumb_path, Servant.Storage.public_url(thumb_relative))
+    case Servant.Media.Thumbnail.create_for_storage(relative, absolute) do
+      {:ok, thumb_url, _} -> Map.put(response, :thumb_path, thumb_url)
       :error -> response
     end
   end

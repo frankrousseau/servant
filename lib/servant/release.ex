@@ -15,6 +15,24 @@ defmodule Servant.Release do
     {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :down, to: version))
   end
 
+  def backfill_photo_thumbnails do
+    load_app()
+    {:ok, _} = Application.ensure_all_started(@app)
+
+    results = Servant.Media.Thumbnail.backfill_missing()
+
+    Enum.each(results, fn
+      {:ok, id} ->
+        IO.puts("thumbnail backfill ok: #{id}")
+
+      {:error, id, reason} ->
+        IO.puts("thumbnail backfill failed: #{id} (#{inspect(reason)})")
+    end)
+
+    ok = Enum.count(results, &match?({:ok, _}, &1))
+    {ok, length(results)}
+  end
+
   defp repos do
     Application.fetch_env!(@app, :ecto_repos)
   end
