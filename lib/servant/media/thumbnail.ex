@@ -5,7 +5,6 @@ defmodule Servant.Media.Thumbnail do
 
   import Ecto.Query
 
-  alias Servant.Data
   alias Servant.Data.Entry
   alias Servant.Repo
   alias Servant.Storage
@@ -85,7 +84,9 @@ defmodule Servant.Media.Thumbnail do
       {:ok, thumb_url, _} ->
         new_data = Map.put(entry.data, "thumb_path", thumb_url)
 
-        case Data.update_entry(entry.user_id, entry.id, %{data: new_data}) do
+        case entry
+             |> Entry.changeset(%{data: new_data})
+             |> Repo.update() do
           {:ok, _} -> {:ok, entry.id}
           {:error, reason} -> {:error, entry.id, reason}
         end
