@@ -55,7 +55,8 @@ defmodule Servant.MixProject do
       {:castore, "~> 1.0"},
       {:saxy, "~> 1.5"},
       {:exif_parser, "~> 0.3"},
-      {:nimble_csv, "~> 1.2"}
+      {:nimble_csv, "~> 1.2"},
+      {:vix, "~> 0.38"}
     ]
   end
 

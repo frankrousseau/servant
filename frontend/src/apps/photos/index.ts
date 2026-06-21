@@ -10,6 +10,10 @@ function getField(e: Entry, k: string): unknown {
   return e.data[k];
 }
 
+function getThumbPath(e: Entry): string {
+  return (getField(e, "thumb_path") || getField(e, "path")) as string;
+}
+
 function getTags(e: Entry): string[] {
   return (e.data.tags as string[]) || [];
 }
@@ -210,7 +214,7 @@ const photosApp: AppModule = {
                 return `
                 <div class="ph-thumb ${selectionMode && isSelected ? "ph-thumb--selected" : ""}" data-id="${p.id}">
                   ${selectionMode ? `<span class="ph-check ${isSelected ? "ph-check--on" : ""}"></span>` : `<button class="ph-thumb-delete" data-id="${p.id}" title="Delete">×</button>`}
-                  <img src="${escapeHtml(getField(p, "path") as string)}" alt="${escapeHtml(p.title || "")}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+                  <img src="${escapeHtml(getThumbPath(p))}" alt="${escapeHtml(p.title || "")}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
                   <div class="ph-broken" style="display:none">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
                   </div>
@@ -267,6 +271,7 @@ const photosApp: AppModule = {
             data.longitude = result.longitude;
           }
           if (result.camera) data.camera = result.camera;
+          if (result.thumb_path) data.thumb_path = result.thumb_path;
 
           await ctx.api.entries.create({
             kind: "photo",

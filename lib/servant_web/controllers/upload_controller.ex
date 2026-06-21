@@ -47,7 +47,10 @@ defmodule ServantWeb.UploadController do
             app: app_id
           }
 
-          response = apply_exif(response, exif)
+          response =
+            response
+            |> apply_exif(exif)
+            |> maybe_add_photo_thumbnail(app_id, content_type, relative, absolute)
           json(conn, response)
         else
           {:error, message} when is_binary(message) ->
@@ -121,4 +124,17 @@ defmodule ServantWeb.UploadController do
       value -> Map.put(response, key, value)
     end
   end
+
+  defp maybe_add_photo_thumbnail(response, "photos", "image/" <> _, relative, absolute) do
+    thumb_relative = Servant.Storage.thumb_relative(relative)
+    thumb_absolute = Servant.Storage.join_files([thumb_relative])
+
+    case Servant.Media.Thumbnail.generate(absolute, thumb_absolute) do
+      :ok -> Map.put(response, :thumb_path, Servant.Storage.public_url(thumb_relative))
+      :error -> response
+    end
+  end
+
+  defp maybe_add_photo_thumbnail(response, _app_id, _content_type, _relative, _absolute),
+    do: response
 end

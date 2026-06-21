@@ -103,11 +103,19 @@ defmodule Servant.Data do
     end
   end
 
-  defp delete_entry_file(%{data: %{"path" => path}}) when is_binary(path) and path != "" do
-    Servant.Storage.delete_public_file(path)
+  defp delete_entry_file(%{data: data}) when is_map(data) do
+    delete_public_path(data["path"])
+    delete_public_path(data["thumb_path"])
+    :ok
   end
 
   defp delete_entry_file(_entry), do: :ok
+
+  defp delete_public_path(path) when is_binary(path) and path != "" do
+    Servant.Storage.delete_public_file(path)
+  end
+
+  defp delete_public_path(_), do: :ok
 
   def list_kinds(user_id) do
     Entry
