@@ -50,11 +50,7 @@ defmodule Servant.Accounts do
 
     filename = "#{user.id}#{ext}"
 
-    dest_dir =
-      case :code.priv_dir(:servant) do
-        {:error, _} -> Path.join("priv/uploads", @avatars_dir)
-        dir -> Path.join(to_string(dir), Path.join("uploads", @avatars_dir))
-      end
+    dest_dir = Servant.Uploads.join([@avatars_dir])
 
     File.mkdir_p!(dest_dir)
     dest_path = Path.join(dest_dir, filename)

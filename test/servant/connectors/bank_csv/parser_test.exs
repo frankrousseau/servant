@@ -43,6 +43,16 @@ defmodule Servant.Connectors.BankCSV.ParserTest do
       {:ok, [tx | _]} = Parser.parse(@n26_csv, "n26")
       assert tx.currency == "EUR"
     end
+
+    test "parses ISO dates in N26 exports" do
+      csv = """
+      Date;Description;Amount;Currency;Balance
+      2025-02-05;SUPERMARKET PURCHASE;-24,80;EUR;1.230,50
+      """
+
+      assert {:ok, [tx]} = Parser.parse(csv, "n26")
+      assert tx.date == ~D[2025-02-05]
+    end
   end
 
   describe "generic format" do

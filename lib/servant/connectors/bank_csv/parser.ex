@@ -56,9 +56,9 @@ defmodule Servant.Connectors.BankCSV.Parser do
   end
 
   defp do_parse(csv_content, preset) do
-    # Split into lines, handle \r\n and \n
     lines =
       csv_content
+      |> strip_bom()
       |> String.trim()
       |> String.split(~r/\r?\n/)
 
@@ -94,7 +94,11 @@ defmodule Servant.Connectors.BankCSV.Parser do
     else
       row = Enum.zip(headers, values) |> Map.new()
 
-      date = parse_date(Map.get(row, preset.date_column, ""), preset.date_format)
+      raw_date = Map.get(row, preset.date_column, "")
+
+      date =
+        parse_date(raw_date, preset.date_format) ||
+          parse_date(raw_date, :iso)
       description = Map.get(row, preset.description_column, "") |> String.trim()
       amount = parse_amount(Map.get(row, preset.amount_column, ""), preset.decimal_separator)
       currency = Map.get(row, preset[:currency_column] || "Currency", "") |> String.trim()
@@ -123,6 +127,9 @@ defmodule Servant.Connectors.BankCSV.Parser do
       end
     end
   end
+
+  defp strip_bom(<<0xEF, 0xBB, 0xBF, rest::binary>>), do: rest
+  defp strip_bom(content), do: content
 
   defp split_line(line, delimiter) do
     # Simple CSV split handling quoted fields

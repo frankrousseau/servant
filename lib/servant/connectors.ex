@@ -156,6 +156,7 @@ defmodule Servant.Connectors do
     * `{:error, {:import_failed, reason}}` if parsing the file fails
   """
   def import_file(user_id, config_id, content) do
+    content = strip_bom(content)
     config = get_connector_config!(user_id, config_id)
 
     case Map.get(@importable_types, config.connector_type) do
@@ -174,8 +175,15 @@ defmodule Servant.Connectors do
     end
   end
 
+  defp strip_bom(<<0xEF, 0xBB, 0xBF, rest::binary>>), do: rest
+  defp strip_bom(content), do: content
+
   defp run_import(module, import_fn, content, state, sync_log, user_id, config_id) do
     case apply(module, import_fn, [content, state]) do
+      {:ok, []} ->
+        fail_sync_log(sync_log, "No transactions found in CSV")
+        {:error, {:import_failed, "No transactions found — check CSV format and bank preset"}}
+
       {:ok, entries} ->
         inserted =
           Enum.count(entries, fn attrs ->

@@ -39,7 +39,7 @@ defmodule ServantWeb.UploadController do
         filename = "#{uuid}#{ext}"
         relative_path = "#{relative_dir}/#{filename}"
 
-        abs_dir = Path.join([:code.priv_dir(:servant), "uploads", relative_dir])
+        abs_dir = Servant.Uploads.join([relative_dir])
         abs_path = Path.join(abs_dir, filename)
 
         File.mkdir_p!(abs_dir)

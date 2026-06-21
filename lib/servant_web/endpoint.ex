@@ -31,11 +31,7 @@ defmodule ServantWeb.Endpoint do
     only: ServantWeb.static_paths(),
     raise_on_missing_only: code_reloading?
 
-  # Serve user uploads from priv/uploads/
-  plug Plug.Static,
-    at: "/uploads",
-    from: Path.join(:code.priv_dir(:servant) |> to_string(), "uploads"),
-    gzip: false
+  plug ServantWeb.Plugs.UploadsStatic
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.

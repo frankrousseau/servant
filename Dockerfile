@@ -64,6 +64,7 @@ WORKDIR /app
 # Database lives on a mounted volume
 RUN mkdir -p /data && chown nobody:nogroup /data
 ENV DATABASE_PATH=/data/servant.db
+ENV UPLOADS_DIR=/data/uploads
 
 COPY --from=build --chown=nobody:nogroup /app/_build/prod/rel/servant ./
 COPY --chown=nobody:nogroup docker-entrypoint.sh /app/docker-entrypoint.sh
