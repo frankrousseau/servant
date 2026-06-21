@@ -122,6 +122,7 @@ const photosApp: AppModule = {
           + '<button class="ph-btn" id="ph-deselect">Deselect</button>'
           + '<button class="ph-btn ph-btn--primary" id="ph-tag" ' + disabledAttr + '>Tag</button>'
           + '<button class="ph-btn" id="ph-tag-people" ' + disabledAttr + '>Tag people</button>'
+          + '<button class="ph-btn ph-btn--danger" id="ph-delete" ' + disabledAttr + '>Delete</button>'
           + removeBtnHtml
           + '<button class="ph-btn" id="ph-cancel-sel">Cancel</button>'
           + '</div></div>'
@@ -208,7 +209,7 @@ const photosApp: AppModule = {
                 ];
                 return `
                 <div class="ph-thumb ${selectionMode && isSelected ? "ph-thumb--selected" : ""}" data-id="${p.id}">
-                  ${selectionMode ? `<span class="ph-check ${isSelected ? "ph-check--on" : ""}"></span>` : ""}
+                  ${selectionMode ? `<span class="ph-check ${isSelected ? "ph-check--on" : ""}"></span>` : `<button class="ph-thumb-delete" data-id="${p.id}" title="Delete">×</button>`}
                   <img src="${escapeHtml(getField(p, "path") as string)}" alt="${escapeHtml(p.title || "")}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
                   <div class="ph-broken" style="display:none">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
@@ -335,6 +336,35 @@ const photosApp: AppModule = {
       el.querySelector("#ph-deselect")?.addEventListener("click", () => {
         selectedIds.clear();
         render();
+      });
+
+      async function deletePhotos(ids: string[]) {
+        if (!ids.length) return;
+        const label = ids.length === 1 ? "this photo" : `${ids.length} photos`;
+        const ok = await ctx.confirm.ask({
+          message: `Delete ${label}?`,
+          danger: true,
+          confirmLabel: "Delete",
+        });
+        if (!ok) return;
+        for (const id of ids) {
+          await ctx.api.entries.delete(id);
+        }
+        selectedIds.clear();
+        selectionMode = false;
+        await reload();
+      }
+
+      el.querySelector("#ph-delete")?.addEventListener("click", () => {
+        deletePhotos([...selectedIds]);
+      });
+
+      el.querySelectorAll(".ph-thumb-delete").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const id = (btn as HTMLElement).dataset.id;
+          if (id) await deletePhotos([id]);
+        });
       });
 
       // Tag people button
@@ -710,6 +740,29 @@ const photosApp: AppModule = {
         height: 100%;
         object-fit: cover;
         display: block;
+      }
+      .ph-thumb-delete {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        z-index: 2;
+        width: 26px;
+        height: 26px;
+        border: none;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.65);
+        color: #fff;
+        font-size: 1.1rem;
+        line-height: 1;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.15s;
+      }
+      .ph-thumb:hover .ph-thumb-delete {
+        opacity: 1;
+      }
+      .ph-thumb-delete:hover {
+        background: var(--danger);
       }
       .ph-check {
         position: absolute;

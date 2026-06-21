@@ -89,6 +89,7 @@ defmodule Servant.Data do
 
   def delete_entry(user_id, id) do
     entry = get_entry!(user_id, id)
+    delete_entry_file(entry)
 
     result = Repo.delete(entry)
 
@@ -101,6 +102,12 @@ defmodule Servant.Data do
         error
     end
   end
+
+  defp delete_entry_file(%{data: %{"path" => path}}) when is_binary(path) and path != "" do
+    Servant.Storage.delete_public_file(path)
+  end
+
+  defp delete_entry_file(_entry), do: :ok
 
   def list_kinds(user_id) do
     Entry
