@@ -17,9 +17,13 @@ defmodule Servant.Release do
 
   def backfill_photo_thumbnails do
     load_app()
-    {:ok, _} = Application.ensure_all_started(@app)
 
-    results = Servant.Media.Thumbnail.backfill_missing()
+    repo = List.first(repos())
+
+    {:ok, results, _} =
+      Ecto.Migrator.with_repo(repo, fn _ ->
+        Servant.Media.Thumbnail.backfill_missing()
+      end)
 
     Enum.each(results, fn
       {:ok, id} ->
