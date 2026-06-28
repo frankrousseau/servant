@@ -24,6 +24,7 @@ defmodule Servant.DataCase do
       import Ecto.Changeset
       import Ecto.Query
       import Servant.DataCase
+      import Servant.Fixtures
     end
   end
 

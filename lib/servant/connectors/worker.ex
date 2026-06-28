@@ -75,11 +75,15 @@ defmodule Servant.Connectors.Worker do
 
     case state.connector_module.sync(state.state) do
       {:ok, entries, new_connector_state} ->
-        Enum.each(entries, fn entry_attrs ->
-          Data.create_entry(state.user_id, entry_attrs)
-        end)
+        {:ok, inserted} = Data.create_entries(state.user_id, entries)
 
-        Connectors.complete_sync_log(sync_log, length(entries))
+        Connectors.complete_sync_log(sync_log, inserted)
+
+        Connectors.persist_connector_cursor(
+          state.config_id,
+          state.connector_module.persisted_config(new_connector_state)
+        )
+
         update_sync_status(state.config_id, nil)
         maybe_schedule_sync(state.schedule)
         {:noreply, %{state | state: new_connector_state}}

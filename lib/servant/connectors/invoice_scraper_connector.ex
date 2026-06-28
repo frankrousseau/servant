@@ -69,39 +69,60 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
   end
 
   defp run_scraper(state) do
+    do_run_scraper(state)
+  rescue
+    e -> {:error, "Failed to run scraper: #{Exception.message(e)}"}
+  end
+
+  defp do_run_scraper(state) do
     script = script_path()
 
     unless File.exists?(script) do
       raise "Scraper not found at #{script}. Run 'npm install' in priv/scrapers/."
     end
 
-    args =
+    # Only the (non-secret) provider goes on the command line. Secrets are
+    # passed via environment variables so they don't leak through `ps`/`/proc`.
+    args = [script, "--provider", state.provider]
+
+    env =
       [
-        script,
-        "--provider",
-        state.provider,
-        "--email",
-        state.email,
-        "--password",
-        state.password
+        {"SCRAPER_EMAIL", state.email},
+        {"SCRAPER_PASSWORD", state.password}
       ] ++
         if state.totp_secret && state.totp_secret != "" do
-          ["--totp-secret", state.totp_secret]
+          [{"SCRAPER_TOTP_SECRET", state.totp_secret}]
         else
           []
         end
 
     Logger.info("Running invoice scraper for provider: #{state.provider}")
 
-    case System.cmd("node", args, stderr_to_stdout: false, timeout: @cmd_timeout) do
-      {stdout, 0} ->
+    # `System.cmd/3` has no `:timeout` option (it was silently ignored), so a
+    # hung Playwright script would block this worker forever. Run it in a Task
+    # and enforce the timeout with Task.yield/2 + Task.shutdown/2.
+    task =
+      Task.async(fn ->
+        try do
+          {:ok, System.cmd("node", args, stderr_to_stdout: false, env: env)}
+        rescue
+          e -> {:error, Exception.message(e)}
+        end
+      end)
+
+    case Task.yield(task, @cmd_timeout) || Task.shutdown(task) do
+      {:ok, {:ok, {stdout, 0}}} ->
         parse_output(stdout)
 
-      {_stdout, exit_code} ->
+      {:ok, {:ok, {_stdout, exit_code}}} ->
         {:error, "Scraper failed (exit code #{exit_code})"}
+
+      {:ok, {:error, message}} ->
+        {:error, "Failed to run scraper: #{message}"}
+
+      nil ->
+        {:error, "Scraper timed out after #{@cmd_timeout}ms"}
     end
-  rescue
-    e -> {:error, "Failed to run scraper: #{Exception.message(e)}"}
   end
 
   @doc false

@@ -101,15 +101,14 @@ defmodule Servant.Connectors.ICalConnector do
   end
 
   defp fetch_ical(url) do
-    case Req.get(url, Servant.HTTP.req_options()) do
-      {:ok, %Req.Response{status: 200, body: body}} when is_binary(body) ->
-        {:ok, body}
-
-      {:ok, %Req.Response{status: status}} ->
-        {:error, "HTTP #{status}"}
-
-      {:error, reason} ->
-        {:error, reason}
+    with :ok <- Servant.HTTP.ensure_public_url(url),
+         {:ok, %Req.Response{status: 200, body: body}} when is_binary(body) <-
+           Req.get(url, Servant.HTTP.req_options()) do
+      {:ok, body}
+    else
+      {:error, :blocked_url} -> {:error, "Refusing to fetch a non-public URL"}
+      {:ok, %Req.Response{status: status}} -> {:error, "HTTP #{status}"}
+      {:error, reason} -> {:error, reason}
     end
   end
 

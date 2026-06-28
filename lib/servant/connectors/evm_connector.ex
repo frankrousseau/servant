@@ -69,6 +69,9 @@ defmodule Servant.Connectors.EVMConnector do
       end
 
       @impl true
+      def persisted_config(state), do: %{"last_block" => state.last_block}
+
+      @impl true
       def sync(state) do
         start_block = state.last_block + 1
 

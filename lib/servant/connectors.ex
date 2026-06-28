@@ -47,10 +47,54 @@ defmodule Servant.Connectors do
     |> Repo.insert()
   end
 
+  @redacted_secret "••••••"
+  @sensitive_substrings ~w(password secret token totp apikey api_key private_key)
+
   def update_connector_config(user_id, id, attrs) do
-    get_connector_config!(user_id, id)
-    |> ConnectorConfig.changeset(attrs)
+    config = get_connector_config!(user_id, id)
+
+    config
+    |> ConnectorConfig.changeset(restore_redacted(attrs, config.config || %{}))
     |> Repo.update()
+  end
+
+  @doc """
+  Replaces the values of sensitive config keys (password/secret/token/…) with a
+  redaction marker so secrets never leave the API. Use before serializing a
+  connector config to a client.
+  """
+  def redact_config(config) when is_map(config) do
+    Map.new(config, fn {k, v} ->
+      if sensitive_key?(k) and is_binary(v) and v != "" do
+        {k, @redacted_secret}
+      else
+        {k, v}
+      end
+    end)
+  end
+
+  def redact_config(other), do: other
+
+  # When a client sends back the redaction marker (because it round-tripped a
+  # redacted config), keep the stored secret instead of overwriting it.
+  defp restore_redacted(attrs, existing) do
+    case Map.get(attrs, "config") do
+      incoming when is_map(incoming) ->
+        merged =
+          Map.new(incoming, fn {k, v} ->
+            if v == @redacted_secret, do: {k, Map.get(existing, k)}, else: {k, v}
+          end)
+
+        Map.put(attrs, "config", merged)
+
+      _ ->
+        attrs
+    end
+  end
+
+  defp sensitive_key?(key) do
+    k = key |> to_string() |> String.downcase()
+    Enum.any?(@sensitive_substrings, &String.contains?(k, &1))
   end
 
   def delete_connector_config(user_id, id) do
@@ -112,6 +156,29 @@ defmodule Servant.Connectors do
   end
 
   def connector_modules, do: @connector_modules
+
+  @doc """
+  Merges the cursor returned by a connector's `persisted_config/1` into its
+  stored config after a successful sync, so incremental cursors (last_block,
+  last_signature, rotated refresh tokens, …) survive a restart.
+
+  A no-op when the cursor is empty.
+  """
+  def persist_connector_cursor(_config_id, cursor) when map_size(cursor) == 0, do: :ok
+
+  def persist_connector_cursor(config_id, cursor) when is_map(cursor) do
+    case Repo.get(ConnectorConfig, config_id) do
+      nil ->
+        :ok
+
+      config ->
+        merged = Map.merge(config.config || %{}, cursor)
+
+        config
+        |> ConnectorConfig.changeset(%{config: merged})
+        |> Repo.update()
+    end
+  end
 
   # --- Sync Logs ---
 
@@ -198,17 +265,25 @@ defmodule Servant.Connectors do
   defp strip_bom(<<0xEF, 0xBB, 0xBF, rest::binary>>), do: rest
   defp strip_bom(content), do: content
 
-  defp run_import(module, import_fn, content, state, sync_log, user_id, config_id, config, staged, filename) do
+  defp run_import(
+         module,
+         import_fn,
+         content,
+         state,
+         sync_log,
+         user_id,
+         config_id,
+         config,
+         staged,
+         filename
+       ) do
     case apply(module, import_fn, [content, state]) do
       {:ok, []} ->
         fail_sync_log(sync_log, "No entries found in file")
         {:error, {:import_failed, "No entries found — check file format and connector preset"}}
 
       {:ok, entries} ->
-        inserted =
-          Enum.count(entries, fn attrs ->
-            match?({:ok, _}, Servant.Data.create_entry(user_id, attrs))
-          end)
+        {:ok, inserted} = Servant.Data.create_entries(user_id, entries)
 
         complete_sync_log(sync_log, inserted)
 

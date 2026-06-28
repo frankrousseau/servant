@@ -69,6 +69,51 @@ defmodule Servant.Data do
     end
   end
 
+  @doc """
+  Bulk-inserts entries for a user in a single `insert_all` (with
+  `on_conflict: :nothing` on the unique key), then emits **one** aggregated
+  broadcast instead of one INSERT + one PubSub message per entry. Used by
+  connector syncs / file imports where a sync can yield thousands of entries.
+
+  Returns `{:ok, inserted_count}`.
+  """
+  def create_entries(_user_id, []), do: {:ok, 0}
+
+  def create_entries(user_id, attrs_list) when is_list(attrs_list) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    rows = Enum.map(attrs_list, &entry_row(user_id, &1, now))
+
+    {count, _} =
+      Repo.insert_all(Entry, rows,
+        on_conflict: :nothing,
+        conflict_target: [:user_id, :source, :external_id]
+      )
+
+    if count > 0, do: broadcast(user_id, {:entries_changed, %{count: count}})
+    {:ok, count}
+  end
+
+  defp entry_row(user_id, attrs, now) do
+    %{
+      id: Ecto.UUID.generate(),
+      user_id: user_id,
+      kind: field(attrs, :kind),
+      source: field(attrs, :source),
+      external_id: field(attrs, :external_id),
+      title: field(attrs, :title),
+      occurred_at: normalize_datetime(field(attrs, :occurred_at)),
+      data: field(attrs, :data) || %{},
+      metadata: field(attrs, :metadata) || %{},
+      inserted_at: now,
+      updated_at: now
+    }
+  end
+
+  defp field(attrs, key), do: Map.get(attrs, Atom.to_string(key)) || Map.get(attrs, key)
+
+  defp normalize_datetime(%DateTime{} = dt), do: DateTime.truncate(dt, :second)
+  defp normalize_datetime(_), do: nil
+
   def update_entry(user_id, id, attrs) do
     entry = get_entry!(user_id, id)
 
@@ -125,26 +170,13 @@ defmodule Servant.Data do
     |> Repo.all()
   end
 
+  # Filters arrive with either atom keys (internal callers/tests) or string
+  # keys (controller params). Normalize once to strings so a single set of
+  # clauses covers both — a filter added on only one form can't slip through.
   defp apply_filters(query, filters) do
-    Enum.reduce(filters, query, fn
-      {:kind, kind}, q when is_binary(kind) ->
-        where(q, kind: ^kind)
-
-      {:source, source}, q when is_binary(source) ->
-        where(q, source: ^source)
-
-      {:from, from}, q when is_binary(from) ->
-        case DateTime.from_iso8601(from) do
-          {:ok, dt, _} -> where(q, [e], e.occurred_at >= ^dt)
-          _ -> q
-        end
-
-      {:to, to}, q when is_binary(to) ->
-        case DateTime.from_iso8601(to) do
-          {:ok, dt, _} -> where(q, [e], e.occurred_at <= ^dt)
-          _ -> q
-        end
-
+    filters
+    |> stringify_keys()
+    |> Enum.reduce(query, fn
       {"kind", kind}, q when is_binary(kind) ->
         where(q, kind: ^kind)
 
@@ -166,6 +198,10 @@ defmodule Servant.Data do
       _, q ->
         q
     end)
+  end
+
+  defp stringify_keys(map) do
+    Map.new(map, fn {k, v} -> {to_string(k), v} end)
   end
 
   defp apply_sort(query, %{"sort" => "inserted_at"}), do: order_by(query, desc: :inserted_at)

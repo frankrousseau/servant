@@ -24,7 +24,18 @@ defmodule Servant.Connectors.Connector do
   """
   @callback default_schedule() :: String.t()
 
-  @optional_callbacks [supported_schedules: 0, default_schedule: 0]
+  @doc """
+  Returns the subset of connector state that must be persisted back into the
+  stored config after a successful sync — typically an incremental cursor like
+  `last_block`/`last_signature` (or a rotated OAuth `refresh_token`). Persisting
+  it lets the connector resume instead of re-scanning from scratch on restart.
+
+  Defaults to `%{}` (nothing persisted). Keys should be strings (DB config maps
+  use string keys).
+  """
+  @callback persisted_config(state :: term()) :: map()
+
+  @optional_callbacks [supported_schedules: 0, default_schedule: 0, persisted_config: 1]
 
   @doc """
   Fetches a value from a connector config, accepting either the string or
@@ -55,7 +66,10 @@ defmodule Servant.Connectors.Connector do
       @impl Servant.Connectors.Connector
       def default_schedule, do: "every_hour"
 
-      defoverridable supported_schedules: 0, default_schedule: 0
+      @impl Servant.Connectors.Connector
+      def persisted_config(_state), do: %{}
+
+      defoverridable supported_schedules: 0, default_schedule: 0, persisted_config: 1
     end
   end
 end

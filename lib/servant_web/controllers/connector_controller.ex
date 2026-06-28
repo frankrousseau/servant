@@ -166,7 +166,7 @@ defmodule ServantWeb.ConnectorController do
       connector_type: config.connector_type,
       name: config.name,
       enabled: config.enabled,
-      config: config.config,
+      config: Connectors.redact_config(config.config),
       schedule: config.schedule,
       last_synced_at: config.last_synced_at,
       error: config.error,

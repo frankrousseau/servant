@@ -25,10 +25,9 @@ const passwordSuccess = ref(false);
 const passwordError = ref("");
 
 // Export
-const exporting = ref(false);
 const exportingEntries = ref(false);
 
-async function downloadFile(url: string, fallbackName: string, loadingRef: typeof exporting) {
+async function downloadFile(url: string, fallbackName: string, loadingRef: typeof exportingEntries) {
   loadingRef.value = true;
   try {
     const res = await fetch(url, {
@@ -51,7 +50,6 @@ async function downloadFile(url: string, fallbackName: string, loadingRef: typeo
   }
 }
 
-function downloadDatabase() { downloadFile("/api/export/database", "servant.db", exporting); }
 function downloadEntries() { downloadFile("/api/export/entries", "servant_entries.json", exportingEntries); }
 
 // Account info
@@ -289,9 +287,6 @@ async function changePassword() {
         <div class="card-actions export-actions">
           <button @click="downloadEntries" :disabled="exportingEntries">
             {{ exportingEntries ? "Downloading..." : "Entries (JSON)" }}
-          </button>
-          <button @click="downloadDatabase" :disabled="exporting">
-            {{ exporting ? "Downloading..." : "Database (SQLite)" }}
           </button>
         </div>
       </div>

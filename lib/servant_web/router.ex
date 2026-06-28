@@ -42,7 +42,6 @@ defmodule ServantWeb.Router do
 
     get "/export/entries", ExportController, :entries
     get "/export/entries.ics", ExportController, :ical
-    get "/export/database", ExportController, :database
   end
 
   # Enable LiveDashboard in development

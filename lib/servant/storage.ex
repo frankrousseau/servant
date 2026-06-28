@@ -181,7 +181,13 @@ defmodule Servant.Storage do
     end
   end
 
-  defp path_safe?(relative), do: not String.contains?(relative, "..")
+  # Resolve the path and confirm it stays under files_root/, so neither `..`
+  # segments nor absolute paths can escape the storage directory.
+  defp path_safe?(relative) do
+    root = Path.expand(files_root())
+    expanded = Path.expand(relative, root)
+    expanded == root or String.starts_with?(expanded, root <> "/")
+  end
 
   defp env_dir(key) do
     case System.get_env(key) do

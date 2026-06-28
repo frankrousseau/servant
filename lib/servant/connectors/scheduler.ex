@@ -14,12 +14,13 @@ defmodule Servant.Connectors.Scheduler do
 
   @impl true
   def init(_opts) do
-    Process.send_after(self(), :start_connectors, 1_000)
-    {:ok, %{}}
+    # Repo and the Ecto.Migrator run before the Scheduler in the supervision
+    # tree, so `handle_continue` is safe here — no need for a hardcoded delay.
+    {:ok, %{}, {:continue, :start_connectors}}
   end
 
   @impl true
-  def handle_info(:start_connectors, state) do
+  def handle_continue(:start_connectors, state) do
     Logger.info("Scheduler: starting enabled connectors")
 
     try do

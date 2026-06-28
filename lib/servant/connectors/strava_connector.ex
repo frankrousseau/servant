@@ -51,17 +51,27 @@ defmodule Servant.Connectors.StravaConnector do
          %{
            client_id: client_id,
            client_secret: client_secret,
-           refresh_token: refresh_token
+           refresh_token: refresh_token,
+           last_activity_after: Map.get(config, "last_activity_after")
          }}
     end
   end
 
   @impl true
+  def persisted_config(state) do
+    %{
+      "refresh_token" => state.refresh_token,
+      "last_activity_after" => state.last_activity_after
+    }
+  end
+
+  @impl true
   def sync(state) do
     with {:ok, access_token, state} <- ensure_access_token(state),
-         {:ok, activities} <- fetch_all_activities(access_token) do
+         {:ok, activities} <- fetch_all_activities(access_token, state.last_activity_after) do
       entries = Enum.map(activities, &build_entry/1)
-      {:ok, entries, state}
+      new_after = latest_activity_epoch(activities, state.last_activity_after)
+      {:ok, entries, %{state | last_activity_after: new_after}}
     else
       {:error, reason, state} -> {:error, reason, state}
       {:error, reason} -> {:error, reason, state}
@@ -134,20 +144,23 @@ defmodule Servant.Connectors.StravaConnector do
 
   # --- Activities fetching ---
 
-  defp fetch_all_activities(access_token) do
-    fetch_activities_page(access_token, 1, [])
+  # Only fetch activities newer than the persisted cursor (Strava `after` is a
+  # unix timestamp), so we don't re-paginate the entire history every sync.
+  defp fetch_all_activities(access_token, after_ts) do
+    fetch_activities_page(access_token, after_ts, 1, [])
   end
 
-  defp fetch_activities_page(access_token, page, acc) do
+  defp fetch_activities_page(access_token, after_ts, page, acc) do
     headers = [{"authorization", "Bearer #{access_token}"}]
-    url = "#{@api_base}/athlete/activities?per_page=#{@per_page}&page=#{page}"
+    after_param = if after_ts, do: "&after=#{after_ts}", else: ""
+    url = "#{@api_base}/athlete/activities?per_page=#{@per_page}&page=#{page}#{after_param}"
 
     case Req.get(url, Servant.HTTP.req_options(headers: headers)) do
       {:ok, %Req.Response{status: 200, body: activities}} when is_list(activities) ->
         all = acc ++ activities
 
         if length(activities) == @per_page do
-          fetch_activities_page(access_token, page + 1, all)
+          fetch_activities_page(access_token, after_ts, page + 1, all)
         else
           {:ok, all}
         end
@@ -164,6 +177,27 @@ defmodule Servant.Connectors.StravaConnector do
 
       {:error, reason} ->
         {:error, "HTTP error: #{inspect(reason)}"}
+    end
+  end
+
+  # Advance the cursor to the most recent activity start time (unix seconds),
+  # keeping the previous value when this sync returned nothing newer.
+  defp latest_activity_epoch(activities, fallback) do
+    epochs =
+      activities
+      |> Enum.map(&activity_epoch/1)
+      |> Enum.reject(&is_nil/1)
+
+    case [fallback | epochs] |> Enum.reject(&is_nil/1) do
+      [] -> nil
+      values -> Enum.max(values)
+    end
+  end
+
+  defp activity_epoch(activity) do
+    case DateTime.from_iso8601(activity["start_date"] || "") do
+      {:ok, dt, _} -> DateTime.to_unix(dt)
+      _ -> nil
     end
   end
 

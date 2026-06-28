@@ -54,11 +54,13 @@ async function main() {
     process.exit(1);
   }
 
-  // Validate required fields
+  // Validate required fields.
+  // Secrets are passed via environment variables (so they don't show up in the
+  // process list / `ps`); fall back to CLI args for backward compatibility.
   const credentials = {
-    email: args.email,
-    password: args.password,
-    totp_secret: args.totp_secret,
+    email: process.env.SCRAPER_EMAIL || args.email,
+    password: process.env.SCRAPER_PASSWORD || args.password,
+    totp_secret: process.env.SCRAPER_TOTP_SECRET || args.totp_secret,
   };
 
   for (const field of provider.fields || []) {

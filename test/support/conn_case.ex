@@ -28,11 +28,24 @@ defmodule ServantWeb.ConnCase do
       import Plug.Conn
       import Phoenix.ConnTest
       import ServantWeb.ConnCase
+      import Servant.Fixtures
     end
   end
 
   setup tags do
     Servant.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
+  end
+
+  @doc """
+  Registers a user and returns `{conn, user}` with a valid Bearer token set on
+  the connection's `authorization` header.
+  """
+  def register_and_log_in_user(conn, attrs \\ %{}) do
+    user = Servant.Fixtures.user_fixture(attrs)
+    # Sign against the Endpoint directly — a bare build_conn/0 has no
+    # :phoenix_endpoint until a request is dispatched.
+    token = ServantWeb.Auth.sign_token(ServantWeb.Endpoint, user.id)
+    {Plug.Conn.put_req_header(conn, "authorization", "Bearer #{token}"), user}
   end
 end

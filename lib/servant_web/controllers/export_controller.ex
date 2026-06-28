@@ -126,24 +126,4 @@ defmodule ServantWeb.ExportController do
   end
 
   defp ical_escape(val), do: to_string(val)
-
-  def database(conn, _params) do
-    db_path = Servant.Repo.config()[:database]
-
-    if db_path && File.exists?(db_path) do
-      timestamp = DateTime.utc_now() |> Calendar.strftime("%Y%m%d_%H%M%S")
-
-      conn
-      |> put_resp_content_type("application/x-sqlite3")
-      |> put_resp_header(
-        "content-disposition",
-        ~s(attachment; filename="servant_#{timestamp}.db")
-      )
-      |> send_file(200, db_path)
-    else
-      conn
-      |> put_status(:not_found)
-      |> json(%{error: "Database file not found"})
-    end
-  end
 end

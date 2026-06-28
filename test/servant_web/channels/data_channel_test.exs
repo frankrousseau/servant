@@ -1,0 +1,60 @@
+defmodule ServantWeb.DataChannelTest do
+  use ServantWeb.ChannelCase
+
+  alias Servant.Accounts
+  alias Servant.Data
+
+  setup do
+    {:ok, user} =
+      Accounts.register_user(%{
+        username: "channeluser",
+        password: "password123",
+        display_name: "Channel User"
+      })
+
+    # The socket carries the verified user id (a binary_id/UUID), exactly as
+    # `ServantWeb.UserSocket.connect/3` assigns it after token verification.
+    socket =
+      Phoenix.ChannelTest.socket(ServantWeb.UserSocket, "user_socket:#{user.id}", %{
+        user_id: user.id
+      })
+
+    %{user: user, socket: socket}
+  end
+
+  test "join succeeds on the owner's UUID topic", %{socket: socket, user: user} do
+    assert {:ok, _reply, _socket} = subscribe_and_join(socket, "data:#{user.id}", %{})
+  end
+
+  test "join is rejected for another user's topic", %{socket: socket} do
+    other_id = Ecto.UUID.generate()
+
+    assert {:error, %{reason: "unauthorized"}} =
+             subscribe_and_join(socket, "data:#{other_id}", %{})
+  end
+
+  test "pushes an entry_change event when an entry is created", %{socket: socket, user: user} do
+    {:ok, _reply, _socket} = subscribe_and_join(socket, "data:#{user.id}", %{})
+
+    {:ok, _entry} =
+      Data.create_entry(user.id, %{
+        "kind" => "note",
+        "source" => "test",
+        "title" => "Hello"
+      })
+
+    assert_push "entry_change", %{type: "created", entry: %{title: "Hello"}}
+  end
+
+  test "pushes an entry_change event when an entry is deleted", %{socket: socket, user: user} do
+    {:ok, entry} =
+      Data.create_entry(user.id, %{"kind" => "note", "source" => "test", "title" => "Bye"})
+
+    {:ok, _reply, _socket} = subscribe_and_join(socket, "data:#{user.id}", %{})
+
+    {:ok, _} = Data.delete_entry(user.id, entry.id)
+
+    assert_push "entry_change", %{type: "deleted", entry: %{id: id}}
+    assert id == entry.id
+  end
+end

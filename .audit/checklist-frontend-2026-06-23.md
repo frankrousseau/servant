@@ -1,0 +1,140 @@
+# Checklist d'audit — Servant · **FRONTEND** (Vue 3 SPA)
+
+**Source :** `.audit/code-audit-2026-06-22.md` (passe Frontend)
+**Généré le :** 2026-06-23 · **Backend :** voir `.audit/checklist-backend-2026-06-23.md`
+
+> **Comment sélectionner :** cochez les cases `- [x]` des items à traiter, **ou** indiquez-moi les **IDs** (`FE-SEC-1, FE-PERF-3`), **ou** un **lot** (« tous les quick wins », « toute la phase Sécurité »). Je n'implémente qu'après votre choix, un item à la fois, avec vérification.
+
+### Légende
+
+- **ID** = `FE` (Frontend) + thème (`ARCH`, `BUG`, `TEST`, `SEC`, `PERF`, `CLEAN`, `DEP`, `DOC`) + numéro.
+- **Sévérité** : 🔴 critical · 🟠 high · 🟡 medium · ⚪ low
+- **Effort** : `quick` (≤15 min, mécanique) · `small` · `medium` · `large` (transversal / risqué)
+
+### Résumé
+
+| | 🔴 | 🟠 | 🟡 | ⚪ | Total |
+|---|---|---|---|---|---|
+| Frontend | 0 | 8 | 11 | 5 | 24 |
+
+### Progression (boucle `/loop`)
+
+Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décision requise · ⏭️ = sauté (risqué/large, à arbitrer).
+
+- *(rien encore — les correctifs frontend sont vérifiables ici via `vue-tsc`/`npm run build`)*
+
+---
+
+## Architecture
+
+- [ ] **FE-ARCH-1** · 🟠 high · `apps/{contacts,calendar,files,photos}/index.ts` (~2500 LOC) · effort: large
+      Deux paradigmes : Vue réactif (SFC) vs DOM impératif (`innerHTML` + listeners manuels) → surface XSS, fuites, perte focus/scroll.
+      Fix : réécrire les apps en composants Vue (le contrat `AppContext` peut rester). *(racine de FE-SEC-1/4, FE-BUG-3/5, FE-CLEAN-1/2)*
+- [ ] **FE-ARCH-2** · 🟠 high · `auth.ts:7`, `main.ts`/`App.vue` · effort: small
+      `auth.user` non réhydraté au rechargement → `useSocket.connect()` sort (temps réel jamais connecté après refresh, cause 3/3).
+      Fix : au boot, si `token` présent, charger `/auth/me` et peupler `user`. *(complète BE-BUG-1/2)*
+- [ ] **FE-ARCH-3** · 🟡 medium · `useApi.ts`, `createContext.ts`, `auth.ts` · effort: medium
+      Trois implémentations du client HTTP (Bearer/401/parse d'erreur dupliqués).
+      Fix : un seul client partagé. *(lié à FE-CLEAN-3)*
+- [ ] **FE-ARCH-4** · 🟡 medium · `createContext.ts:90-101` · effort: small
+      Jetons de thème (couleurs hex) dupliqués vs `style.css`.
+      Fix : exposer les variables CSS aux apps. *(lié à FE-CLEAN-3)*
+
+## Bugs / correctness
+
+- [ ] **FE-BUG-1** · 🟠 high · `DataBrowserView.vue:42-45` · effort: small
+      Rafraîchissement temps réel inopérant (`onEntryChange` jamais déclenché).
+      Fix : dépend de BE-BUG-1/2 + FE-ARCH-2. *(paire avec BE-BUG-2)*
+- [ ] **FE-BUG-2** · 🟠 high · `DataBrowserView.vue:78,127,145` (19 `catch {}`) · effort: medium
+      Erreurs avalées en silence (ex. `JSON.parse` invalide dans `saveEntry` → modale figée sans message).
+      Fix : afficher les erreurs (toast/inline) ; valider le JSON du formulaire avant envoi.
+- [ ] **FE-BUG-3** · 🟡 medium · `contacts/index.ts:134-140` · effort: quick
+      Fuite d'écouteur `keydown` (retiré seulement sur Échap, pas sur Annuler/overlay/unmount). **(quick win)**
+      Fix : retirer `onKey` dans `closeCreateModal` et `unmount`.
+- [ ] **FE-BUG-4** · 🟡 medium · `createContext.ts:48` · effort: medium
+      `entries.list` charge jusqu'à 10 000 entrées côté client.
+      Fix : pagination/chargement incrémental, ou filtrage côté serveur. *(lié à FE-PERF-1)*
+- [ ] **FE-BUG-5** · ⚪ low · apps impératives · effort: large
+      Ré-render `innerHTML` complet détruit focus/scroll/sélection (contourné ponctuellement).
+      Fix : migration en composants Vue. *(doublon de FE-ARCH-1)*
+
+## Tests & couverture
+
+- [ ] **FE-TEST-1** · 🟠 high · frontend (0 test) · effort: large
+      Aucun test (pas de Vitest/Jest/Playwright). Les 4 apps impératives (~2500 LOC, lieu des XSS/fuites) ne sont pas testées.
+      Fix : Vitest + `@vue/test-utils` + `happy-dom` ; helper anti-régression XSS ; script `"test": "vitest"`.
+- [ ] **FE-TEST-2** · 🟡 medium · `stores/auth.ts`, `useApi.ts`, gardes de route · effort: medium
+      Flux auth + client API non testés (401/logout/guard).
+      Fix : tests du store auth + `useApi`.
+
+## Sécurité
+
+- [ ] **FE-SEC-1** · 🟠 high · `contacts/index.ts:396-397` · effort: small
+      XSS stocké : schéma d'`href` non validé (vCard `URL:javascript:…`) → vol de token au clic.
+      Fix : n'autoriser que `http:`/`https:`/`mailto:`/`tel:` pour tout `href` issu de données utilisateur.
+- [ ] **FE-SEC-2** · 🟠 high · backend `SpaController`/endpoint · effort: small
+      Aucune CSP ni en-tête de sécurité → toute XSS s'exécute librement.
+      Fix : CSP stricte (`default-src 'self'`, `script-src 'self'`) sur la réponse HTML du SPA. ⚠️ retirer d'abord les handlers inline (FE-SEC-5).
+- [ ] **FE-SEC-3** · 🟡 medium · `auth.ts:6,14` · effort: medium
+      Token en `localStorage` → volable par XSS.
+      Fix (défense en profondeur) : cookie `HttpOnly`+`SameSite`, ou a minima réduire la surface XSS + CSP.
+- [ ] **FE-SEC-4** · 🟡 medium · apps (`innerHTML` ~17×) · effort: large
+      Surface XSS large par conception (échappement manuel partout — pas d'oubli trouvé, mais régression facile).
+      Fix : migration en composants Vue. *(doublon de FE-ARCH-1)*
+- [ ] **FE-SEC-5** · 🟡 medium · `photos/index.ts:217` · effort: quick
+      Handler inline `onerror=` dans `innerHTML` (bloque une CSP sans `unsafe-inline`). **(quick win)**
+      Fix : retirer le handler inline (prérequis de FE-SEC-2).
+
+## Performance
+
+- [ ] **FE-PERF-1** · 🟠 high · `createContext.ts:48` + ré-render `innerHTML` · effort: large
+      Chargement de toutes les entrées + reconstruction DOM complète à chaque interaction → payload lourd + jank.
+      Fix : pagination/scroll infini côté serveur + rendu réactif granulaire. *(lié à FE-BUG-4, FE-ARCH-1)*
+- [ ] **FE-PERF-2** · 🟡 medium · `contacts/index.ts:221,334`, `photos/index.ts:112` · effort: quick
+      Avatars non lazy-loadés (1 seule occurrence de `loading="lazy"` dans tout le front). **(quick win)**
+      Fix : ajouter `loading="lazy"` aux `<img>` de listes.
+- [ ] **FE-PERF-3** · ⚪ low · `connectors.ts` (13 logos SVG inline) · effort: small
+      Logos SVG embarqués dans le chunk principal.
+      Fix : externaliser en `.svg` ou charger à la demande si le catalogue grandit.
+- [ ] **FE-PERF-4** · ⚪ low · `vite.config.ts` · effort: small
+      Pas de configuration de chunking (non bloquant).
+      Fix : optionnel, surveiller la taille du chunk vendor.
+
+## Clean code
+
+- [ ] **FE-CLEAN-1** · 🟡 medium · `apps/{contacts,photos,files,calendar}` · effort: small
+      `escapeHtml` redéfini 4× → risque qu'une copie diverge.
+      Fix : factoriser dans un module partagé. *(lié à FE-ARCH-1)*
+- [ ] **FE-CLEAN-2** · 🟡 medium · `photos/index.ts` (934 l.), `ConnectorDetailView.vue` (860), etc. · effort: large
+      Fichiers volumineux mêlant rendu/logique/état/HTML.
+      Fix : découper en sous-composants ; la migration Vue réduirait mécaniquement la taille. *(lié à FE-ARCH-1)*
+- [ ] **FE-CLEAN-3** · 🟡 medium · `useApi.ts`, `createContext.ts`, `auth.ts` + couleurs hard-codées · effort: medium
+      Trois clients HTTP / jetons de thème dupliqués.
+      Fix : centraliser. *(doublon de FE-ARCH-3/4)*
+
+## Dépendances
+
+- [ ] **FE-DEP-1** · 🟠 high · `frontend/package.json` (`vite` 8.0.0) · effort: quick
+      2 advisories **HIGH** (path traversal / lecture de fichier via dev server). **(quick win)**
+      Fix : `npm audit fix` → `vite 8.0.16` (patch, sans rupture).
+- [ ] **FE-DEP-2** · 🟡 medium · transitives (`postcss`, `launch-editor`) · effort: quick
+      1 advisory modéré + 1 dev/Windows ; corrigés par le même `npm audit fix`. **(quick win)**
+      Fix : `npm audit fix`.
+- [ ] **FE-DEP-3** · 🟡 medium · `package.json` · effort: small
+      Mises à jour mineures sûres (`vue 3.5.30→3.5.38`, `vue-tsc`, `@vueuse/core`, `phoenix 1.8.5→1.8.8`).
+      Fix : `npm update` (dans les contraintes `^`).
+- [ ] **FE-DEP-4** · ⚪ low · `package.json` · effort: medium
+      Majeures à planifier (`vue-router 4→5`, `typescript 5.9→6`, `@types/node 24→26`).
+      Fix : traiter séparément avec relecture des changelogs.
+
+## Documentation
+
+- [ ] **FE-DOC-1** · 🟡 medium · `frontend/README.md` · effort: quick
+      README = boilerplate Vite par défaut. **(quick win)**
+      Fix : court guide (scripts, proxy Vite, lien DEVELOPMENT.md) ou suppression.
+- [ ] **FE-DOC-2** · 🟡 medium · `apps/types.ts` (contrat non documenté) · effort: small
+      Système d'« apps » pluggables (`AppModule`/`AppContext`) non documenté.
+      Fix : `apps/README.md` ou section DEVELOPMENT.md (« comment ajouter une app »).
+- [ ] **FE-DOC-3** · ⚪ low · frontend (JSDoc rare) · effort: small
+      Seul `useFetchData.ts` est commenté.
+      Fix : quelques commentaires d'intention sur les apps impératives.

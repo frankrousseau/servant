@@ -71,12 +71,38 @@ defmodule Servant.Media.Thumbnail do
   Generates missing thumbnails for photo entries and updates their `thumb_path`.
   Returns a list of `{:ok, entry_id}` or `{:error, entry_id, reason}` tuples.
   """
+  @backfill_batch_size 100
+
   def backfill_missing do
     Entry
     |> where([e], e.kind == "photo")
-    |> Repo.all()
-    |> Enum.filter(&missing_thumb?/1)
-    |> Enum.map(&backfill_entry/1)
+    |> stream_in_batches(@backfill_batch_size)
+    |> Stream.filter(&missing_thumb?/1)
+    |> Stream.map(&backfill_entry/1)
+    |> Enum.to_list()
+  end
+
+  # Keyset-paginate by id so we never hold every photo entry in memory at once.
+  # Each batch is its own query, so the per-entry `Repo.update` in
+  # `backfill_entry/1` runs between fetches (no open cursor — SQLite-friendly).
+  defp stream_in_batches(query, batch_size) do
+    Stream.resource(
+      fn -> nil end,
+      fn last_id ->
+        batch =
+          query
+          |> order_by([e], asc: e.id)
+          |> limit(^batch_size)
+          |> then(fn q -> if last_id, do: where(q, [e], e.id > ^last_id), else: q end)
+          |> Repo.all()
+
+        case batch do
+          [] -> {:halt, last_id}
+          rows -> {rows, List.last(rows).id}
+        end
+      end,
+      fn _ -> :ok end
+    )
   end
 
   defp backfill_entry(%Entry{} = entry) do

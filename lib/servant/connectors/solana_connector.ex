@@ -17,6 +17,10 @@ defmodule Servant.Connectors.SolanaConnector do
   @sigs_per_page 1000
   @max_pages 10
   @max_consecutive_errors 3
+  # Cap transactions processed per sync. At ~1s/tx (rate-limit throttling), an
+  # unbounded backfill would block the worker GenServer for many minutes. The
+  # persisted `last_signature` cursor lets the next scheduled sync continue.
+  @max_tx_per_sync 50
 
   @impl true
   def id, do: "solana"
@@ -56,6 +60,9 @@ defmodule Servant.Connectors.SolanaConnector do
   end
 
   @impl true
+  def persisted_config(state), do: %{"last_signature" => state.last_signature}
+
+  @impl true
   def sync(state) do
     rpc_opts = if state.rpc_url, do: [rpc_url: state.rpc_url], else: []
 
@@ -64,8 +71,9 @@ defmodule Servant.Connectors.SolanaConnector do
         {:ok, [], state}
 
       {:ok, all_signatures} ->
-        # Process oldest-first for consistent state
-        all_signatures = Enum.reverse(all_signatures)
+        # Process oldest-first for consistent state, bounded per sync so the
+        # worker isn't blocked for ~1s/tx during a large backfill.
+        all_signatures = all_signatures |> Enum.reverse() |> Enum.take(@max_tx_per_sync)
 
         {entries, new_last_sig, _errors} =
           Enum.reduce_while(all_signatures, {[], state.last_signature, 0}, fn sig_info,
