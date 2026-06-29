@@ -20,7 +20,7 @@ defmodule Servant.MixProject do
   def application do
     [
       mod: {Servant.Application, []},
-      extra_applications: [:logger, :runtime_tools, :inets, :ssl]
+      extra_applications: [:logger, :runtime_tools, :ssl]
     ]
   end
 
@@ -56,7 +56,8 @@ defmodule Servant.MixProject do
       {:saxy, "~> 1.5"},
       {:exif_parser, "~> 0.3"},
       {:nimble_csv, "~> 1.2"},
-      {:vix, "~> 0.38"}
+      {:vix, "~> 0.38"},
+      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false}
     ]
   end
 
@@ -72,7 +73,15 @@ defmodule Servant.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
-      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"],
+      precommit: [
+        "compile --warnings-as-errors",
+        "deps.unlock --unused",
+        # GHSA-rhv4-8758-jx7v: transitive `decimal` DoS, only patched in 3.0
+        # which ecto/ecto_sqlite3 don't yet allow. Revisit when ecto supports it.
+        "deps.audit --ignore-advisory-ids GHSA-rhv4-8758-jx7v",
+        "format",
+        "test"
+      ],
       "assets.deploy": [
         "cmd npm run build --prefix=../frontend"
       ]

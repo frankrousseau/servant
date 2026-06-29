@@ -28,6 +28,10 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
 - **2026-06-28 — Section Tests & couverture** : BE-TEST-2 ✅, BE-TEST-3 ✅, BE-TEST-5 ✅, BE-TEST-6 ✅, BE-TEST-7 ✅, BE-TEST-8 ✅ · BE-TEST-4 🔶 **partiel** (Entry + Auth couverts ; connector/upload/export/app/spa restants). Support ajouté : `test/support/fixtures.ex` (`user_fixture`/`entry_fixture`), `register_and_log_in_user` dans `ConnCase`, `test/support/fake_connector.ex`. **+40 tests** → `mix test` = **188 tests, 1 failure** (préexistant bank_csv).
 - **2026-06-28 — Section Sécurité** : BE-SEC-3 ✅, BE-SEC-6 ✅, BE-SEC-7 ✅, BE-SEC-8 ✅ · BE-SEC-4 ⏭️ (Cloak, large/breaking — décision), BE-SEC-5 ⏭️ (TLS verify_none — risqué, décision), BE-SEC-9 ⚠️ (policy inscription/throttle — décision), BE-SEC-10 ⏭️ (secrets dev, « non urgent »). +11 tests (`http_test.exs` SSRF, `connector_controller_test.exs` masquage) — fait aussi avancer BE-TEST-4 (contrôleur Connector). `mix test` = **199 tests, 1 failure** (préexistant).
 - **2026-06-28 — Section Performance** : BE-PERF-1 ✅ (`Data.create_entries/2` insert_all + 1 broadcast agrégé `entries_changed`, utilisé par worker **et** import), BE-PERF-2 ✅ (Strava param `after` + curseur persisté), BE-PERF-5 ✅ (migration index `connector_configs(user_id)`+`(enabled)`) · BE-PERF-4 ⏭️ (miniatures async — l'upload ne crée pas l'entrée, donc coordination front requise). +3 tests batch. `mix test` = **202 tests, 1 failure** (préexistant).
+- **2026-06-30 — Commit** : `42e44b2` sur `main` (sections Architecture→Performance + tests). `mix.lock` (vix/nimble_csv, préexistant) laissé hors commit.
+- **2026-06-30 — Section Clean code** : BE-CLEAN-1 ✅ (`Entry.to_json/1` unique, 3 sites), BE-CLEAN-2 ✅ (`config_value`), BE-CLEAN-3 ✅ (`Servant.Util` : `strip_bom`/`parse_int`), BE-CLEAN-4 ✅ (`formats: [:json]` + retrait Gettext), BE-CLEAN-6 ✅ (`format_units` entier) · BE-CLEAN-5 ⏭️ (liste apps codée en dur — low, « si la liste grandit »). `mix test` = **202 tests, 1 failure** (préexistant).
+- **2026-06-30 — Section Dépendances** : BE-DEP-1 ✅ (`mix_audit` + `deps.audit` dans `precommit`), BE-DEP-2 ✅ (retrait `:inets`), BE-DEP-3 ✅ (bandit 1.10.3→1.12.0 — **CVE DoS high/moderate corrigée** — + phoenix 1.8.8, plug 1.20, jason, castore, …) · BE-DEP-4 ⏭️ (deps « inutilisées » : dns_cluster câblé/no-op, gettext transitif — retraits low/conditionnels). ⚠️ Advisory transitive restante : `decimal` < 3.0 (DoS modéré), patché seulement en 3.0 bloqué par ecto → ignorée explicitement dans `precommit`. `mix.lock` mis à jour. `mix compile --warnings-as-errors` OK, **219 tests, 1 failure** (préexistant).
+- **2026-06-30 — Section Documentation** : BE-DOC-1 ✅ (FILES_DIR/TMP_DIR/UPLOADS_DIR documentés + avertissement persistance + systemd), BE-DOC-2 ✅ (résolu par le code BE-BUG-1/2 ; bout-en-bout dépend encore de FE-ARCH-2), BE-DOC-3 ✅ (note sécurité `/files/` + reformulation multi-user), BE-DOC-4 ✅ (« email » retiré des sources), BE-DOC-5 ✅ (Node.js runtime + libvips clarifiés). README only. **Toutes les sections backend traitées.**
 
 > ⚠️ **Échec de test préexistant** (hors périmètre) : `BankCSV.ParserTest` « returns empty for empty CSV » échoue — le parser renvoie `{:error, "Empty CSV"}` mais le test attend `{:ok, []}` (depuis le commit e68539d, N26). À trancher : corriger le test ou le parser.
 
@@ -204,54 +208,69 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
 
 ## Clean code
 
-- [ ] **BE-CLEAN-1** · 🟡 medium · `entry_controller.ex:90`, `data_channel.ex:32`, `export_controller.ex:10` · effort: small
+- [x] **BE-CLEAN-1** · 🟡 medium · `entry_controller.ex:90`, `data_channel.ex:32`, `export_controller.ex:10` · effort: small
       `entry_json` dupliqué 3× (le canal omet déjà `inserted_at`/`updated_at`).
       Fix : fonction unique (`Servant.Data.Entry.to_json/1` ou module `EntryJSON`). *(lié à BE-ARCH-5)*
-- [ ] **BE-CLEAN-2** · 🟡 medium · `strava_connector.ex:35-37`, `invoice_scraper_connector.ex:34-36` · effort: small
+      ✅ *Fait (2026-06-30)* : `Servant.Data.Entry.to_json/1` (version complète) utilisée par entry_controller, export_controller et data_channel (le canal envoie désormais aussi les timestamps — toléré par le front). Couvre partiellement BE-ARCH-5 (reste : sérialisation bespoke des contrôleurs connector/auth).
+- [x] **BE-CLEAN-2** · 🟡 medium · `strava_connector.ex:35-37`, `invoice_scraper_connector.ex:34-36` · effort: small
       Accès config incohérent : `Map.get` (chaîne seule) vs `config_value` (chaîne+atome) → init échoue silencieusement sur clés atomes.
       Fix : utiliser `config_value` partout.
-- [ ] **BE-CLEAN-3** · ⚪ low · `connectors.ex:198` & `bank_csv/parser.ex:198` ; `data.ex:195` & `entry_controller.ex:107` · effort: small
+      ✅ *Fait (2026-06-30)* : `config_value` partout dans les `init` de Strava (client_id/secret/refresh_token/last_activity_after) et invoice_scraper (provider/email/password/totp_secret).
+- [x] **BE-CLEAN-3** · ⚪ low · `connectors.ex:198` & `bank_csv/parser.ex:198` ; `data.ex:195` & `entry_controller.ex:107` · effort: small
       Helpers dupliqués (`strip_bom/1`, `parse_int/2`).
       Fix : factoriser dans un module utilitaire partagé.
-- [ ] **BE-CLEAN-4** · ⚪ low · `servant_web.ex:40` · effort: quick
+      ✅ *Fait (2026-06-30)* : `Servant.Util.strip_bom/1` + `parse_int/2` ; 4 sites redirigés (connectors, bank_csv/parser, data, entry_controller).
+- [x] **BE-CLEAN-4** · ⚪ low · `servant_web.ex:40` · effort: quick
       `controller` déclare `formats: [:html, :json]` + `use Gettext` superflus (API-only). **(quick win)**
       Fix : `formats: [:json]`.
+      ✅ *Fait (2026-06-30)* : `formats: [:json]` + `use Gettext` retiré (aucun usage gettext dans les contrôleurs). Compile + suite OK.
 - [ ] **BE-CLEAN-5** · ⚪ low · `app_controller.ex:5-38` · effort: small
       Liste d'apps codée en dur, dupliquée probablement côté front (`apps/registry.ts`).
       Fix : dériver d'une config partagée si la liste grandit.
-- [ ] **BE-CLEAN-6** · ⚪ low · `tx_format.ex:44` · effort: small
+      ⏭️ *Sauté (2026-06-30)* : low + conditionnel (« si la liste grandit »). Partage front/back = coordination ; pas justifié pour la taille actuelle.
+- [x] **BE-CLEAN-6** · ⚪ low · `tx_format.ex:44` · effort: small
       `format_units` en flottant (wei/18 déc.) → perte de précision possible à l'affichage.
       Fix : arithmétique entière/`Decimal` pour le rendu.
+      ✅ *Fait (2026-06-30)* : réécrit en arithmétique entière (div/rem + padding/slice), gère le signe. Tests parsers (HyperEVM/Solana « 1.5 ») toujours verts.
 
 ## Dépendances
 
-- [ ] **BE-DEP-1** · 🟡 medium · `mix.exs` · effort: small
+- [x] **BE-DEP-1** · 🟡 medium · `mix.exs` · effort: small
       Pas de scan CVE automatisé.
       Fix : `{:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false}` + ajout à l'alias `precommit`.
-- [ ] **BE-DEP-2** · 🟡 medium · `mix.exs:23`, `rss_connector.ex:58` · effort: small
+      ✅ *Fait (2026-06-30)* : `mix_audit` ajouté (dev/test) + `deps.audit` dans `precommit`. A immédiatement détecté la CVE bandit (→ BE-DEP-3).
+- [x] **BE-DEP-2** · 🟡 medium · `mix.exs:23`, `rss_connector.ex:58` · effort: small
       `:inets`/`:httpc` requis seulement à cause de RSS.
       Fix : migrer RSS vers `Req` (BE-BUG-7) puis retirer `:inets` de `extra_applications`.
-- [ ] **BE-DEP-3** · ⚪ low · `mix.exs` / `mix.lock` · effort: small
+      ✅ *Fait (2026-06-30)* : `:inets` retiré de `extra_applications` (RSS migré en BE-BUG-7 ; aucun `:httpc`/`:inets` restant). `:ssl` conservé.
+- [x] **BE-DEP-3** · ⚪ low · `mix.exs` / `mix.lock` · effort: small
       Mises à jour patch alignées : `phoenix 1.8.5→1.8.8`, `bandit 1.10.3→1.12.0`, `jason`/`castore`. **(quick win)**
       Fix : `mix deps.update` ciblé (revoir contraintes `~>` pour `ecto_sqlite3`/`req`).
+      ✅ *Fait (2026-06-30)* : `mix deps.update bandit phoenix jason castore` → bandit 1.12.0 (**CVE DoS résolue**), phoenix 1.8.8, plug 1.20.1, thousand_island 1.5, decimal 2.4.1, telemetry 1.4.2. Compile + suite OK. ⚠️ Reste `decimal` < 3.0 (advisory transitive, bloquée par ecto) — ignorée dans `precommit` avec note.
 - [ ] **BE-DEP-4** · ⚪ low · `mix.exs` · effort: small
       Deps peu utilisées (`dns_cluster`, `gettext`) ; `date_time_parser` autorisé mais inutilisé.
       Fix : retirer les inutiles si on vise la minceur ; envisager `date_time_parser` pour simplifier le parsing de dates.
+      ⏭️ *Sauté (2026-06-30)* : `dns_cluster` est câblé dans l'arbre de supervision (no-op avec `:ignore`), `gettext` reste tiré transitivement → retraits à faible valeur et conditionnels. `date_time_parser` n'est pas dans les deps (sous-point caduc) ; RSS parse déjà les dates en interne (BE-BUG-4).
 
 ## Documentation
 
-- [ ] **BE-DOC-1** · 🟠 high · `storage.ex:14-20`, `README.md` · effort: quick
+- [x] **BE-DOC-1** · 🟠 high · `storage.ex:14-20`, `README.md` · effort: quick
       `FILES_DIR`/`TMP_DIR`/`UPLOADS_DIR` non documentés → fichiers atterrissent dans la release → **perdus au redéploiement**. **(quick win)**
       Fix : documenter ces variables dans README + unit systemd.
-- [ ] **BE-DOC-2** · 🟠 high · `README.md:10` · effort: quick
+      ✅ *Fait (2026-06-30)* : 3 vars ajoutées au tableau des vars optionnelles + avertissement « persiste FILES_DIR/DATABASE_PATH hors release » + lignes `Environment=` dans l'unité systemd.
+- [x] **BE-DOC-2** · 🟠 high · `README.md:10` · effort: quick
       « Real-time » annoncé fonctionnel alors que le canal est cassé.
       Fix : réparer (BE-BUG-1/2) ou retirer l'affirmation en attendant.
-- [ ] **BE-DOC-3** · 🟠 high · `README.md:9` · effort: quick
+      ✅ *Fait (2026-06-30)* : résolu en **réparant le code** (BE-BUG-1/2) — le canal pousse bien les changements. Le bout-en-bout après rechargement de page dépend encore de FE-ARCH-2 (front).
+- [x] **BE-DOC-3** · 🟠 high · `README.md:9` · effort: quick
       Confidentialité multi-utilisateur surévaluée (contredite par BE-SEC-1/2).
       Fix : corriger le code (prioritaire) ou documenter la limite.
-- [ ] **BE-DOC-4** · 🟡 medium · `README.md:3` · effort: quick
+      ✅ *Fait (2026-06-30)* : BE-SEC-2 corrigé (dump global supprimé) ; reformulation « requêtes scopées par user » + **note sécurité explicite** sur `/files/` non authentifié (BE-SEC-1, en attente de décision).
+- [x] **BE-DOC-4** · 🟡 medium · `README.md:3` · effort: quick
       « email » listé comme source sans connecteur email.
       Fix : retirer ou marquer « à venir ».
-- [ ] **BE-DOC-5** · 🟡 medium · `README.md:18` · effort: quick
+      ✅ *Fait (2026-06-30)* : « email » retiré de la liste d'exemples (remplacé par banking/photos/health/calendar/contacts/blockchain).
+- [x] **BE-DOC-5** · 🟡 medium · `README.md:18` · effort: quick
       Contradiction Node.js runtime (build-time only vs invoice_scraper exécute `node` au runtime).
       Fix : préciser que Invoice Collector requiert Node.js + `npm install` dans `priv/scrapers/`.
+      ✅ *Fait (2026-06-30)* : précisé que Node.js est requis au runtime pour l'Invoice Collector (+ `npm install` dans `priv/scrapers/`) ; ajout de `libvips` (miniatures) aux prérequis runtime.

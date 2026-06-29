@@ -37,9 +37,7 @@ defmodule ServantWeb do
 
   def controller do
     quote do
-      use Phoenix.Controller, formats: [:html, :json]
-
-      use Gettext, backend: ServantWeb.Gettext
+      use Phoenix.Controller, formats: [:json]
 
       import Plug.Conn
       import ServantWeb.ChangesetHelpers, only: [format_errors: 1]

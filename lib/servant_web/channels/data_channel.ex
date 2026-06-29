@@ -1,6 +1,8 @@
 defmodule ServantWeb.DataChannel do
   use ServantWeb, :channel
 
+  alias Servant.Data.Entry
+
   @impl true
   def join("data:" <> user_id, _payload, socket) do
     # User IDs are binary_id (UUID) strings, so compare directly — never coerce to integer.
@@ -14,12 +16,12 @@ defmodule ServantWeb.DataChannel do
 
   @impl true
   def handle_info({:entry_created, entry}, socket) do
-    push(socket, "entry_change", %{type: "created", entry: entry_json(entry)})
+    push(socket, "entry_change", %{type: "created", entry: Entry.to_json(entry)})
     {:noreply, socket}
   end
 
   def handle_info({:entry_updated, entry}, socket) do
-    push(socket, "entry_change", %{type: "updated", entry: entry_json(entry)})
+    push(socket, "entry_change", %{type: "updated", entry: Entry.to_json(entry)})
     {:noreply, socket}
   end
 
@@ -33,18 +35,5 @@ defmodule ServantWeb.DataChannel do
   def handle_info({:entries_changed, payload}, socket) do
     push(socket, "entries_changed", payload)
     {:noreply, socket}
-  end
-
-  defp entry_json(entry) do
-    %{
-      id: entry.id,
-      kind: entry.kind,
-      source: entry.source,
-      external_id: entry.external_id,
-      title: entry.title,
-      occurred_at: entry.occurred_at,
-      data: entry.data,
-      metadata: entry.metadata
-    }
   end
 end

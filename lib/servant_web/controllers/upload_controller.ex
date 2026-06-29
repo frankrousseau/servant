@@ -51,6 +51,7 @@ defmodule ServantWeb.UploadController do
             response
             |> apply_exif(exif)
             |> maybe_add_photo_thumbnail(app_id, content_type, relative, absolute)
+
           json(conn, response)
         else
           {:error, message} when is_binary(message) ->

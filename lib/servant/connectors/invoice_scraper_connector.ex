@@ -31,9 +31,9 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
 
   @impl true
   def init(_credentials, config) do
-    provider = Map.get(config, "provider")
-    email = Map.get(config, "email")
-    password = Map.get(config, "password")
+    provider = config_value(config, "provider")
+    email = config_value(config, "email")
+    password = config_value(config, "password")
 
     cond do
       is_nil(provider) or provider == "" ->
@@ -51,7 +51,7 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
            provider: provider,
            email: email,
            password: password,
-           totp_secret: Map.get(config, "totp_secret")
+           totp_secret: config_value(config, "totp_secret")
          }}
     end
   end

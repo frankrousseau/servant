@@ -229,7 +229,7 @@ defmodule Servant.Connectors do
     File.cp!(path, staged)
 
     try do
-      content = staged |> File.read!() |> strip_bom()
+      content = staged |> File.read!() |> Servant.Util.strip_bom()
 
       case Map.get(@importable_types, config.connector_type) do
         nil ->
@@ -261,9 +261,6 @@ defmodule Servant.Connectors do
       Servant.Storage.cleanup_tmp(workspace)
     end
   end
-
-  defp strip_bom(<<0xEF, 0xBB, 0xBF, rest::binary>>), do: rest
-  defp strip_bom(content), do: content
 
   defp run_import(
          module,

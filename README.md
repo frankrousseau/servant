@@ -1,21 +1,29 @@
 # Servant
 
-A self-hosted personal data hub. Aggregates data from external services (email, banking, photos, health, etc.) via connectors and exposes it through a unified API and Vue.js web interface.
+A self-hosted personal data hub. Aggregates data from external services (banking, photos, health, calendar, contacts, blockchain, etc.) via connectors and exposes it through a unified API and Vue.js web interface.
 
 ## Features
 
 - **Universal data model** — all data stored as typed entries with JSON payloads
 - **Connector plugin system** — pull data from external services on a schedule
-- **Multi-user** — equal accounts, each with their own private data and connectors
+- **Multi-user** — equal accounts; all API/database queries are scoped per user
 - **Real-time** — Phoenix Channels push entry changes to connected clients
 - **Self-hosted** — single binary deployment, SQLite database, runs on a Raspberry Pi
+
+> **Security note:** uploaded files are currently served under `/files/` **without
+> per-user access control** — anyone who knows (or guesses) a file path can fetch
+> it. Until that is addressed, treat this as single-trust-domain (household)
+> software rather than a hard multi-tenant boundary for file contents.
 
 ## Deployment
 
 ### Prerequisites
 
 - Erlang 27+ and Elixir 1.18+
-- Node.js 22+ (build-time only, not needed at runtime)
+- Node.js 22+ — required to build the frontend. Also required **at runtime** if you
+  use the **Invoice Collector** connector, which runs Playwright scripts via `node`
+  (run `npm install` in `priv/scrapers/`). Not needed at runtime otherwise.
+- `libvips` — required at runtime for photo thumbnail generation (`vix`).
 
 ### Build a release
 
@@ -51,6 +59,13 @@ Optional variables:
 | `PORT` | `4000` | HTTP listen port |
 | `PHX_SERVER` | _(unset)_ | Set to `true` to start the HTTP server (required for releases) |
 | `POOL_SIZE` | `5` | Database connection pool size |
+| `FILES_DIR` | `priv/files` (inside the release) | Where uploaded files, photos and connector archives are stored. **Set this to a persistent path outside the release** (e.g. `/var/lib/servant/files`) — the default lives inside the release directory and is **wiped on every redeploy**. |
+| `TMP_DIR` | `priv/tmp` | Scratch space used while importing connector files. |
+| `UPLOADS_DIR` | `priv/uploads` | Legacy uploads directory (only read, for files created before `FILES_DIR`). |
+
+> ⚠️ **Persist your data.** Both `DATABASE_PATH` **and** `FILES_DIR` must point
+> outside the release directory, or you lose user files (and the DB) on each
+> redeploy. Put them under e.g. `/var/lib/servant/`.
 
 ```bash
 SECRET_KEY_BASE=$(mix phx.gen.secret) \
@@ -85,6 +100,8 @@ Environment=PHX_SERVER=true
 Environment=PORT=4000
 Environment=PHX_HOST=servant.local
 Environment=DATABASE_PATH=/var/lib/servant/servant.db
+Environment=FILES_DIR=/var/lib/servant/files
+Environment=TMP_DIR=/var/lib/servant/tmp
 Environment=SECRET_KEY_BASE=<your-secret-key>
 
 [Install]

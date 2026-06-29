@@ -32,9 +32,9 @@ defmodule Servant.Connectors.StravaConnector do
 
   @impl true
   def init(_credentials, config) do
-    client_id = Map.get(config, "client_id")
-    client_secret = Map.get(config, "client_secret")
-    refresh_token = Map.get(config, "refresh_token")
+    client_id = config_value(config, "client_id")
+    client_secret = config_value(config, "client_secret")
+    refresh_token = config_value(config, "refresh_token")
 
     cond do
       is_nil(client_id) or client_id == "" ->
@@ -52,7 +52,7 @@ defmodule Servant.Connectors.StravaConnector do
            client_id: client_id,
            client_secret: client_secret,
            refresh_token: refresh_token,
-           last_activity_after: Map.get(config, "last_activity_after")
+           last_activity_after: config_value(config, "last_activity_after")
          }}
     end
   end

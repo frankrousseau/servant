@@ -6,21 +6,7 @@ defmodule ServantWeb.ExportController do
     entries = Servant.Data.all_entries(user_id)
     timestamp = DateTime.utc_now() |> Calendar.strftime("%Y%m%d_%H%M%S")
 
-    data =
-      Enum.map(entries, fn e ->
-        %{
-          id: e.id,
-          kind: e.kind,
-          source: e.source,
-          external_id: e.external_id,
-          title: e.title,
-          occurred_at: e.occurred_at,
-          data: e.data,
-          metadata: e.metadata,
-          inserted_at: e.inserted_at,
-          updated_at: e.updated_at
-        }
-      end)
+    data = Enum.map(entries, &Servant.Data.Entry.to_json/1)
 
     conn
     |> put_resp_content_type("application/json")

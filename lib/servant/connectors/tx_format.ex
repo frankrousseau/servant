@@ -41,10 +41,27 @@ defmodule Servant.Connectors.TxFormat do
   and trimming trailing zeros (e.g. `1_500_000_000, 1_000_000_000, 9` ->
   `"1.5"`).
   """
-  def format_units(amount, divisor, decimals) do
-    (amount / divisor)
-    |> :erlang.float_to_binary(decimals: decimals)
-    |> String.trim_trailing("0")
-    |> String.trim_trailing(".")
+  def format_units(amount, divisor, decimals)
+      when is_integer(amount) and is_integer(divisor) and divisor > 0 do
+    # Integer arithmetic only — float division loses precision past ~15 digits,
+    # which matters for 18-decimal wei amounts.
+    scale = byte_size(Integer.to_string(divisor)) - 1
+    sign = if amount < 0, do: "-", else: ""
+    abs_amount = abs(amount)
+
+    whole = div(abs_amount, divisor)
+
+    frac =
+      abs_amount
+      |> rem(divisor)
+      |> Integer.to_string()
+      |> String.pad_leading(scale, "0")
+      |> String.slice(0, decimals)
+      |> String.trim_trailing("0")
+
+    case frac do
+      "" -> "#{sign}#{whole}"
+      f -> "#{sign}#{whole}.#{f}"
+    end
   end
 end

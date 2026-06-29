@@ -74,7 +74,7 @@ defmodule Servant.Connectors.BankCSV.Parser do
 
   defp detect_n26_preset(csv_content) do
     csv_content
-    |> strip_bom()
+    |> Servant.Util.strip_bom()
     |> String.trim()
     |> String.split(~r/\r?\n/, parts: 2)
     |> case do
@@ -93,7 +93,7 @@ defmodule Servant.Connectors.BankCSV.Parser do
   defp do_parse(csv_content, preset) do
     lines =
       csv_content
-      |> strip_bom()
+      |> Servant.Util.strip_bom()
       |> String.trim()
       |> String.split(~r/\r?\n/)
       |> Enum.reject(&(String.trim(&1) == ""))
@@ -194,9 +194,6 @@ defmodule Servant.Connectors.BankCSV.Parser do
       description -> description
     end
   end
-
-  defp strip_bom(<<0xEF, 0xBB, 0xBF, rest::binary>>), do: rest
-  defp strip_bom(content), do: content
 
   defp split_line(line, ",") do
     line

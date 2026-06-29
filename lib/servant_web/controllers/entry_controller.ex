@@ -2,6 +2,7 @@ defmodule ServantWeb.EntryController do
   use ServantWeb, :controller
 
   alias Servant.Data
+  alias Servant.Data.Entry
 
   def index(conn, params) do
     user_id = conn.assigns.current_user.id
@@ -13,7 +14,7 @@ defmodule ServantWeb.EntryController do
     total_pages = max(ceil(total / per_page), 1)
 
     json(conn, %{
-      data: Enum.map(entries, &entry_json/1),
+      data: Enum.map(entries, &Entry.to_json/1),
       meta: %{page: page, per_page: per_page, total: total, total_pages: total_pages}
     })
   end
@@ -40,7 +41,7 @@ defmodule ServantWeb.EntryController do
   def show(conn, %{"id" => id}) do
     user_id = conn.assigns.current_user.id
     entry = Data.get_entry!(user_id, id)
-    json(conn, %{data: entry_json(entry)})
+    json(conn, %{data: Entry.to_json(entry)})
   end
 
   def create(conn, params) do
@@ -50,7 +51,7 @@ defmodule ServantWeb.EntryController do
       {:ok, entry} ->
         conn
         |> put_status(:created)
-        |> json(%{data: entry_json(entry)})
+        |> json(%{data: Entry.to_json(entry)})
 
       {:error, changeset} ->
         conn
@@ -64,7 +65,7 @@ defmodule ServantWeb.EntryController do
 
     case Data.update_entry(user_id, id, params) do
       {:ok, entry} ->
-        json(conn, %{data: entry_json(entry)})
+        json(conn, %{data: Entry.to_json(entry)})
 
       {:error, changeset} ->
         conn
@@ -87,30 +88,5 @@ defmodule ServantWeb.EntryController do
     end
   end
 
-  defp entry_json(entry) do
-    %{
-      id: entry.id,
-      kind: entry.kind,
-      source: entry.source,
-      external_id: entry.external_id,
-      title: entry.title,
-      occurred_at: entry.occurred_at,
-      data: entry.data,
-      metadata: entry.metadata,
-      inserted_at: entry.inserted_at,
-      updated_at: entry.updated_at
-    }
-  end
-
-  defp parse_int(nil, default), do: default
-
-  defp parse_int(val, default) when is_binary(val) do
-    case Integer.parse(val) do
-      {n, _} -> n
-      :error -> default
-    end
-  end
-
-  defp parse_int(val, _) when is_integer(val), do: val
-  defp parse_int(_, default), do: default
+  defp parse_int(val, default), do: Servant.Util.parse_int(val, default)
 end

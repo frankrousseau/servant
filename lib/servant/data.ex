@@ -228,15 +228,7 @@ defmodule Servant.Data do
     |> offset(^((page - 1) * per_page))
   end
 
-  defp parse_int(val, default) when is_binary(val) do
-    case Integer.parse(val) do
-      {n, _} -> n
-      :error -> default
-    end
-  end
-
-  defp parse_int(val, _default) when is_integer(val), do: val
-  defp parse_int(_, default), do: default
+  defp parse_int(val, default), do: Servant.Util.parse_int(val, default)
 
   defp broadcast(user_id, message) do
     Phoenix.PubSub.broadcast(Servant.PubSub, "data:#{user_id}", message)
