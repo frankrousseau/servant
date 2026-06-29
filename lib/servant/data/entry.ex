@@ -24,4 +24,23 @@ defmodule Servant.Data.Entry do
     |> validate_required([:kind, :source])
     |> unique_constraint([:user_id, :source, :external_id])
   end
+
+  @doc """
+  Canonical JSON-serializable map for an entry. Single source of truth shared by
+  the entry/export controllers and the data channel.
+  """
+  def to_json(%__MODULE__{} = entry) do
+    %{
+      id: entry.id,
+      kind: entry.kind,
+      source: entry.source,
+      external_id: entry.external_id,
+      title: entry.title,
+      occurred_at: entry.occurred_at,
+      data: entry.data,
+      metadata: entry.metadata,
+      inserted_at: entry.inserted_at,
+      updated_at: entry.updated_at
+    }
+  end
 end

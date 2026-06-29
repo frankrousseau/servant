@@ -34,6 +34,14 @@ defmodule ServantWeb.AppController do
         icon: "image",
         route: "/apps/photos",
         built_in: true
+      },
+      %{
+        id: "notes",
+        name: "Notes",
+        description: "Write linked markdown notes with wikilinks and backlinks",
+        icon: "notebook-pen",
+        route: "/apps/notes",
+        built_in: true
       }
     ]
 

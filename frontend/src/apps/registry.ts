@@ -29,6 +29,13 @@ export const BUILTIN_APPS: AppDef[] = [
     builtin: true,
     load: () => import("./photos"),
   },
+  {
+    id: "notes",
+    name: "Notes",
+    icon: "NotebookPen",
+    builtin: true,
+    load: () => import("./notes"),
+  },
 ];
 
 export function getAppDef(id: string): AppDef | undefined {

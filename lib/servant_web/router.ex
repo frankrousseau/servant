@@ -28,6 +28,9 @@ defmodule ServantWeb.Router do
     get "/entries/stats", EntryController, :stats
     resources "/entries", EntryController, except: [:new, :edit]
 
+    get "/notes/:id/backlinks", NotesController, :backlinks
+    resources "/notes", NotesController, except: [:new, :edit]
+
     resources "/connectors", ConnectorController, except: [:new, :edit]
     post "/connectors/:id/start", ConnectorController, :start
     post "/connectors/:id/stop", ConnectorController, :stop
