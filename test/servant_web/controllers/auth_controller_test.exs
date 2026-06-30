@@ -26,6 +26,19 @@ defmodule ServantWeb.AuthControllerTest do
       conn = post(conn, "/api/auth/register", %{"username" => "only"})
       assert json_response(conn, 422)
     end
+
+    test "403 when registration is disabled (BE-SEC-9)", %{conn: conn} do
+      Application.put_env(:servant, :registration_enabled, false)
+      on_exit(fn -> Application.put_env(:servant, :registration_enabled, true) end)
+
+      conn =
+        post(conn, "/api/auth/register", %{
+          "username" => "blocked",
+          "password" => "password123"
+        })
+
+      assert json_response(conn, 403)
+    end
   end
 
   describe "POST /api/auth/login" do

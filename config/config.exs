@@ -9,7 +9,10 @@ import Config
 
 config :servant,
   ecto_repos: [Servant.Repo],
-  generators: [timestamp_type: :utc_datetime]
+  generators: [timestamp_type: :utc_datetime],
+  # Open self-registration. Override at runtime with REGISTRATION_ENABLED=false
+  # (see config/runtime.exs) once your accounts are created.
+  registration_enabled: true
 
 # Configure the endpoint
 config :servant, ServantWeb.Endpoint,

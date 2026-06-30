@@ -174,10 +174,10 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
       `path_safe?` se limite à `not contains?("..")` → fragile.
       Fix : `Path.expand` puis vérifier que le chemin reste sous `files_root()`. *(lié à BE-TEST-5)*
       ✅ *Fait (2026-06-28)* : `path_safe?` résout via `Path.expand(relative, root)` et exige que le résultat reste sous `files_root()` (bloque `..` **et** chemins absolus). Couvert par `storage_test.exs` (BE-TEST-5).
-- [ ] **BE-SEC-9** · 🟡 medium · `auth_controller.ex` (`register`/`login`) · effort: small
+- [x] **BE-SEC-9** · 🟡 medium · `auth_controller.ex` (`register`/`login`) · effort: small
       Inscription ouverte + aucune limite de tentatives → un inconnu s'inscrit puis (avec BE-SEC-2) aspire tout.
       Fix : désactiver/whitelister l'inscription ; throttling sur `login`.
-      ⚠️ *Signalé — décision (2026-06-28)* : choix de politique (désactiver l'inscription par défaut ? whitelist ?) + le throttling login demande un rate-limiter (ex. `hammer`, nouvelle dép). Je peux implémenter un flag d'env `REGISTRATION_ENABLED` (défaut activé = pas de changement) si tu valides la direction. BE-SEC-2 (dump global) étant déjà corrigé, l'urgence est moindre.
+      ✅ *Fait en partie (2026-06-30)* : flag `REGISTRATION_ENABLED` (défaut `true` = comportement inchangé ; `false` → `register` renvoie 403). Config dans `config.exs` (défaut) + `runtime.exs` (env) ; documenté README ; test 403 ajouté. ⏭️ **Reste** : throttling `login` (anti-brute-force) — nécessite un rate-limiter (ex. dép `hammer`), à décider séparément.
 - [ ] **BE-SEC-10** · ⚪ low · `dev.exs:23`, `endpoint.ex:11`, `config.exs:23` · effort: quick
       `secret_key_base`/`signing_salt` dev committés (prod via env = OK).
       Fix : non urgent ; éviter de committer le secret dev.

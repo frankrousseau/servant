@@ -59,6 +59,7 @@ Optional variables:
 | `PORT` | `4000` | HTTP listen port |
 | `PHX_SERVER` | _(unset)_ | Set to `true` to start the HTTP server (required for releases) |
 | `POOL_SIZE` | `5` | Database connection pool size |
+| `REGISTRATION_ENABLED` | `true` | Set to `false` to close self-registration (e.g. after creating your accounts). Existing users can still log in. |
 | `FILES_DIR` | `priv/files` (inside the release) | Where uploaded files, photos and connector archives are stored. **Set this to a persistent path outside the release** (e.g. `/var/lib/servant/files`) — the default lives inside the release directory and is **wiped on every redeploy**. |
 | `TMP_DIR` | `priv/tmp` | Scratch space used while importing connector files. |
 | `UPLOADS_DIR` | `priv/uploads` | Legacy uploads directory (only read, for files created before `FILES_DIR`). |

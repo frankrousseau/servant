@@ -5,25 +5,31 @@ defmodule ServantWeb.AuthController do
   alias ServantWeb.Auth
 
   def register(conn, %{"username" => _, "password" => _} = params) do
-    case Accounts.register_user(params) do
-      {:ok, user} ->
-        token = Auth.sign_token(conn, user.id)
+    if registration_enabled?() do
+      case Accounts.register_user(params) do
+        {:ok, user} ->
+          token = Auth.sign_token(conn, user.id)
 
-        conn
-        |> put_status(:created)
-        |> json(%{
-          token: token,
-          user: %{
-            id: user.id,
-            username: user.username,
-            display_name: user.display_name
-          }
-        })
+          conn
+          |> put_status(:created)
+          |> json(%{
+            token: token,
+            user: %{
+              id: user.id,
+              username: user.username,
+              display_name: user.display_name
+            }
+          })
 
-      {:error, changeset} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{errors: format_errors(changeset)})
+        {:error, changeset} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{errors: format_errors(changeset)})
+      end
+    else
+      conn
+      |> put_status(:forbidden)
+      |> json(%{error: "Registration is disabled"})
     end
   end
 
@@ -32,6 +38,8 @@ defmodule ServantWeb.AuthController do
     |> put_status(:unprocessable_entity)
     |> json(%{errors: %{detail: "username and password are required"}})
   end
+
+  defp registration_enabled?, do: Application.get_env(:servant, :registration_enabled, true)
 
   def login(conn, %{"username" => username, "password" => password}) do
     case Accounts.authenticate_user(username, password) do

@@ -23,6 +23,12 @@ end
 config :servant, ServantWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+# Allow operators to close self-registration once their accounts exist.
+# Defaults to enabled to preserve first-run behaviour.
+config :servant,
+  registration_enabled:
+    System.get_env("REGISTRATION_ENABLED", "true") not in ~w(false 0 no off)
+
 if config_env() == :prod do
   database_path =
     System.get_env("DATABASE_PATH") ||
