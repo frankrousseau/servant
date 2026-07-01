@@ -107,8 +107,12 @@ defmodule Servant.Connectors.BankCSV.ParserTest do
       assert {:error, "Unknown preset: nonexistent"} = Parser.parse("data", "nonexistent")
     end
 
-    test "returns empty for empty CSV" do
-      assert {:ok, []} = Parser.parse("", "n26")
+    test "returns an error for a completely empty CSV" do
+      assert {:error, "Empty CSV"} = Parser.parse("", "n26")
+    end
+
+    test "returns empty for a header-only CSV" do
+      assert {:ok, []} = Parser.parse("Date;Description;Amount;Currency;Balance", "n26")
     end
 
     test "skips lines with missing data" do
