@@ -11,7 +11,7 @@ defmodule Servant.Connectors.ConnectorConfig do
     field :connector_type, :string
     field :name, :string
     field :enabled, :boolean, default: false
-    field :config, :map, default: %{}
+    field :config, Servant.Encrypted.Map, default: %{}
     field :schedule, :string, default: "every_hour"
     field :last_synced_at, :utc_datetime
     field :error, :string

@@ -154,10 +154,10 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
       `config_json/1` renvoie `config` complet (mots de passe/tokens) dans les réponses JSON. **(quick win)**
       Fix : masquer/omettre les champs sensibles à la sérialisation.
       ✅ *Fait (2026-06-28)* : `Connectors.redact_config/1` masque les clés sensibles (`password`/`secret`/`token`/`totp`/`api_key`/`private_key`) → `••••••` dans `config_json`. Garde anti-écrasement : `update_connector_config` restaure le secret stocké quand le client renvoie le masque. Tests `connector_controller_test.exs`.
-- [ ] **BE-SEC-4** · 🟠 high · `connector_config.ex:14`, `credential.ex` · effort: large
+- [x] **BE-SEC-4** · 🟠 high · `connector_config.ex:14`, `credential.ex` · effort: large
       Secrets de connecteurs stockés en clair dans `config` (le schéma `Credential` chiffré est inutilisé).
       Fix : chiffrer les champs sensibles (Cloak/Ecto encrypted type). *(dépend de BE-SEC-3 pour la non-exposition API)*
-      ⏭️ *Signalé — décision requise (2026-06-28)* : refactor large + migration chiffrante des données existantes (Cloak ou type Ecto chiffré). Choix de clé/rotation + migration des configs en place à arbitrer. Non appliqué à l'aveugle. BE-SEC-3 limite déjà l'exposition API en attendant.
+      ✅ *Fait (2026-07-01)* : type Ecto chiffré `Servant.Encrypted.Map` (AES-256-GCM, clé dérivée de `CONNECTOR_ENCRYPTION_KEY` ou `SECRET_KEY_BASE`) sur `ConnectorConfig.config` — sans nouvelle dépendance. **Transparent** (les lecteurs reçoivent une map déchiffrée) et **rétrocompatible** (anciennes lignes JSON lisibles, chiffrées à la prochaine écriture). Migration `20260701193301` chiffre les lignes existantes (idempotente). Tests : round-trip crypto, type Ecto, **preuve au repos** (colonne = ciphertext, pas de secret en clair). ⚠️ Rotation de clé = re-saisie des secrets (documenté README). Schéma `Credential` inutilisé laissé tel quel (mort — suppression possible séparément).
 - [ ] **BE-SEC-5** · 🟠 high · `http.ex:21` · effort: medium
       `verify: :verify_none` désactive TLS pour **tous** les connecteurs (dont OAuth Strava) → MITM possible.
       Fix : restreindre `verify_none` aux hôtes buggés (liste blanche), vérifier ailleurs ; ou bundle CA correct.

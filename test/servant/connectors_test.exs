@@ -41,6 +41,29 @@ defmodule Servant.ConnectorsTest do
     end
   end
 
+  describe "config encryption at rest (BE-SEC-4)" do
+    test "secrets are stored encrypted but read back decrypted" do
+      user = user_fixture()
+
+      {:ok, config} =
+        Connectors.create_connector_config(user.id, %{
+          "connector_type" => "strava",
+          "name" => "s",
+          "config" => %{"client_secret" => "supersecret", "wallet" => "public"}
+        })
+
+      {:ok, %{rows: [[raw]]}} =
+        Servant.Repo.query("SELECT config FROM connector_configs WHERE id = ?", [config.id])
+
+      assert Servant.Encrypted.encrypted?(raw)
+      assert :binary.match(raw, "supersecret") == :nomatch
+
+      reloaded = Connectors.get_connector_config!(user.id, config.id)
+      assert reloaded.config["client_secret"] == "supersecret"
+      assert reloaded.config["wallet"] == "public"
+    end
+  end
+
   describe "persisted_config/1" do
     test "solana persists last_signature" do
       assert Servant.Connectors.SolanaConnector.persisted_config(%{last_signature: "s"}) ==
