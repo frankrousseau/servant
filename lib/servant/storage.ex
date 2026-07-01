@@ -106,6 +106,28 @@ defmodule Servant.Storage do
     :ok
   end
 
+  @doc """
+  Like `resolve_public_path/1`, but only succeeds when the resolved file belongs
+  to `user_id` — i.e. it lives under `FILES_DIR/<user_id>/`. Used to enforce
+  per-user ownership when serving `/files/…` behind authentication.
+  """
+  def resolve_owned_path(user_id, relative) when is_binary(user_id) and is_binary(relative) do
+    case resolve_public_path(relative) do
+      {:ok, absolute} ->
+        owner_root = Path.expand(join_files([user_id]))
+        expanded = Path.expand(absolute)
+
+        if expanded == owner_root or String.starts_with?(expanded, owner_root <> "/") do
+          {:ok, absolute}
+        else
+          :error
+        end
+
+      :error ->
+        :error
+    end
+  end
+
   def resolve_public_path(relative) when is_binary(relative) do
     relative = URI.decode(relative) |> String.trim_leading("/")
 

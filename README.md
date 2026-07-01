@@ -10,10 +10,11 @@ A self-hosted personal data hub. Aggregates data from external services (banking
 - **Real-time** — Phoenix Channels push entry changes to connected clients
 - **Self-hosted** — single binary deployment, SQLite database, runs on a Raspberry Pi
 
-> **Security note:** uploaded files are currently served under `/files/` **without
-> per-user access control** — anyone who knows (or guesses) a file path can fetch
-> it. Until that is addressed, treat this as single-trust-domain (household)
-> software rather than a hard multi-tenant boundary for file contents.
+> **File access:** uploaded files are served under `/files/…` (and legacy
+> `/uploads/…`) **only to their owner**. Access is authenticated by an HttpOnly
+> `_servant_file_auth` cookie set at login and scoped to `FILES_DIR/<user_id>/`,
+> so `<img src="/files/…">` works without exposing a token to JavaScript. Users
+> logged in before this change must log in again to receive the cookie.
 
 ## Deployment
 

@@ -11,6 +11,7 @@ defmodule ServantWeb.AuthController do
           token = Auth.sign_token(conn, user.id)
 
           conn
+          |> Auth.put_file_cookie(token)
           |> put_status(:created)
           |> json(%{
             token: token,
@@ -47,6 +48,7 @@ defmodule ServantWeb.AuthController do
         token = Auth.sign_token(conn, user.id)
 
         conn
+        |> Auth.put_file_cookie(token)
         |> json(%{
           token: token,
           user: %{
@@ -67,6 +69,12 @@ defmodule ServantWeb.AuthController do
     conn
     |> put_status(:unprocessable_entity)
     |> json(%{errors: %{detail: "username and password are required"}})
+  end
+
+  def logout(conn, _params) do
+    conn
+    |> Auth.delete_file_cookie()
+    |> json(%{status: "ok"})
   end
 
   def me(conn, _params) do

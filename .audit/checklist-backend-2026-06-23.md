@@ -142,10 +142,10 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
 
 ## Sécurité
 
-- [ ] **BE-SEC-1** · 🔴 critical · `endpoint.ex:34`, `plugs/files_static.ex`, `storage.ex` · effort: medium
+- [x] **BE-SEC-1** · 🔴 critical · `endpoint.ex:34`, `plugs/files_static.ex`, `storage.ex` · effort: medium
       `/files/` servi **sans authentification ni contrôle de propriété** (plug avant routeur+Auth) → fuite de fichiers privés (photos, **relevés bancaires** importés).
       Fix : servir via un contrôleur authentifié vérifiant `entry.user_id == current_user.id` (ou URLs signées). *(risqué : change le contrat d'URL ; coordonner avec le front `/files/` + proxy Vite)*
-      ⚠️ **BLOQUÉ — décision requise** : les fichiers sont chargés via `<img src="/files/...">` sans en-tête `Authorization`, donc un correctif backend seul est impossible. Trois options à arbitrer : (1) URLs signées (jeton court dans la query) ; (2) auth par cookie `HttpOnly`+`SameSite` (route protégée) ; (3) jeton en query-param + vérification de propriété par préfixe de chemin. Chacune nécessite une coordination front. Non implémenté dans cette boucle.
+      ✅ *Fait (2026-07-01, Option B — cookie HttpOnly)* : plug `FilesStatic` retiré de l'endpoint ; `/files/*` et `/uploads/*` servis par `FilesController` derrière le plug `FileAuth` (cookie `_servant_file_auth` HttpOnly posé au login/register). Propriété vérifiée par `Storage.resolve_owned_path/2` (chemin résolu doit rester sous `FILES_DIR/<user_id>/`). Action `logout` efface le cookie. Tests : `files_controller_test.exs` (200 propriétaire, 401 sans cookie, **404 fichier d'autrui**), cookie login/logout. **Coordination front minimale** : le cookie est envoyé automatiquement par `<img>` (même origine, proxy Vite déjà OK) → pas de changement front pour l'affichage ; à faire côté front : (a) appeler `POST /api/auth/logout` au logout, (b) les users déjà connectés doivent se reconnecter une fois pour recevoir le cookie.
 - [x] **BE-SEC-2** · 🔴 critical · `export_controller.ex:130-148` · effort: small
       `GET /api/export/database` renvoie le **fichier SQLite entier** → tout compte aspire hash de mdp + secrets de tous.
       Fix : supprimer l'endpoint, le réserver à un admin, ou n'exporter que les données du user courant (dump filtré).

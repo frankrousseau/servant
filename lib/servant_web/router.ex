@@ -9,11 +9,16 @@ defmodule ServantWeb.Router do
     plug ServantWeb.Auth
   end
 
+  pipeline :file_auth do
+    plug ServantWeb.Plugs.FileAuth
+  end
+
   scope "/api", ServantWeb do
     pipe_through :api
 
     post "/auth/register", AuthController, :register
     post "/auth/login", AuthController, :login
+    post "/auth/logout", AuthController, :logout
 
     # Authenticated routes
     pipe_through :auth
@@ -56,6 +61,14 @@ defmodule ServantWeb.Router do
 
       live_dashboard "/dashboard", metrics: ServantWeb.Telemetry
     end
+  end
+
+  # Authenticated, per-user file serving (must come before the SPA catch-all).
+  scope "/", ServantWeb do
+    pipe_through :file_auth
+
+    get "/files/*path", FilesController, :show
+    get "/uploads/*path", FilesController, :show
   end
 
   # SPA catch-all: must be after /api and /dev routes

@@ -57,6 +57,20 @@ defmodule ServantWeb.AuthControllerTest do
       assert is_binary(token)
     end
 
+    test "sets an HttpOnly file-auth cookie (BE-SEC-1)", %{conn: conn} do
+      conn =
+        post(conn, "/api/auth/login", %{"username" => "loginuser", "password" => "password123"})
+
+      cookie = conn.resp_cookies["_servant_file_auth"]
+      assert cookie.http_only
+      assert is_binary(cookie.value) and cookie.value != ""
+    end
+
+    test "logout clears the file-auth cookie", %{conn: conn} do
+      conn = post(conn, "/api/auth/logout", %{})
+      assert conn.resp_cookies["_servant_file_auth"].max_age == 0
+    end
+
     test "401 for a wrong password", %{conn: conn} do
       conn =
         post(conn, "/api/auth/login", %{"username" => "loginuser", "password" => "wrongpass1"})

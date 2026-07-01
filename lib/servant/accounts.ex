@@ -30,6 +30,8 @@ defmodule Servant.Accounts do
 
   def get_user!(id), do: Repo.get!(User, id)
 
+  def get_user(id), do: Repo.get(User, id)
+
   def update_profile(user, attrs) do
     user
     |> User.profile_changeset(attrs)

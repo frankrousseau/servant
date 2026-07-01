@@ -7,8 +7,31 @@ defmodule ServantWeb.Auth do
   alias Servant.Accounts
 
   @max_age 86_400 * 30
+  @file_cookie "_servant_file_auth"
 
   def init(opts), do: opts
+
+  @doc "Name of the HttpOnly cookie used to authenticate `/files/…` requests."
+  def file_cookie_name, do: @file_cookie
+
+  @doc """
+  Sets an HttpOnly auth cookie carrying `token`, so the browser sends it
+  automatically on `<img src="/files/…">` requests (which can't set an
+  Authorization header). `Secure` is only set over HTTPS so dev over http works.
+  """
+  def put_file_cookie(conn, token) do
+    Plug.Conn.put_resp_cookie(conn, @file_cookie, token,
+      http_only: true,
+      same_site: "Lax",
+      secure: conn.scheme == :https,
+      max_age: @max_age
+    )
+  end
+
+  @doc "Clears the file auth cookie (logout)."
+  def delete_file_cookie(conn) do
+    Plug.Conn.delete_resp_cookie(conn, @file_cookie, http_only: true, same_site: "Lax")
+  end
 
   def call(conn, _opts) do
     with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
