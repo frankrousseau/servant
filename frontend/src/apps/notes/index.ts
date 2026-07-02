@@ -3,10 +3,13 @@ import { renderMarkdown, canon } from "./render";
 
 type Note = Entry;
 
+// Also escapes quotes — this output is interpolated into HTML attributes.
 function escapeHtml(s: string): string {
-  const d = document.createElement("div");
-  d.textContent = s;
-  return d.innerHTML;
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function noteFolder(n: Note): string {
@@ -42,6 +45,10 @@ function emptyNode(name: string, path: string): TreeNode {
   return { name, path, folders: new Map(), notes: [] };
 }
 
+// Set by mount() so unmount() can flush a pending debounced save. A single
+// notes instance is mounted at a time.
+let flushPendingSave: (() => void) | null = null;
+
 function buildTree(list: Note[]): TreeNode {
   const root = emptyNode("", "");
   for (const n of list) {
@@ -69,6 +76,9 @@ const notesApp: AppModule = {
     let viewMode: "split" | "edit" | "preview" = "split";
     const collapsed = new Set<string>();
     let saveTimer: ReturnType<typeof setTimeout> | undefined;
+    let saveChain: Promise<void> = Promise.resolve();
+    let saveState: "idle" | "saving" | "saved" | "error" = "idle";
+    let saveError = "";
 
     // ----- API -----
 
@@ -239,7 +249,8 @@ const notesApp: AppModule = {
       main.innerHTML =
         `<div class="nt-toolbar">` +
         `<input class="nt-title" value="${escapeHtml(note.title || "")}" placeholder="Untitled" />` +
-        `<input class="nt-folder" value="${escapeHtml(noteFolder(note))}" placeholder="Folder (e.g. Projects/Servant)" />` +
+        `<input class="nt-folder-input" value="${escapeHtml(noteFolder(note))}" placeholder="Folder (e.g. Projects/Servant)" />` +
+        `<span class="nt-save-status"></span>` +
         `<div class="nt-view-toggle">` +
         ["edit", "split", "preview"]
           .map(
@@ -257,7 +268,7 @@ const notesApp: AppModule = {
         `<div class="nt-backlinks"></div>`;
 
       const titleEl = main.querySelector(".nt-title") as HTMLInputElement;
-      const folderEl = main.querySelector(".nt-folder") as HTMLInputElement;
+      const folderEl = main.querySelector(".nt-folder-input") as HTMLInputElement;
       const bodyEl = main.querySelector(".nt-body") as HTMLTextAreaElement | null;
 
       titleEl?.addEventListener("input", scheduleSave);
@@ -267,9 +278,7 @@ const notesApp: AppModule = {
         updatePreview();
         updateAutocomplete(bodyEl);
       });
-      bodyEl?.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") hideAutocomplete();
-      });
+      bodyEl?.addEventListener("keydown", (e) => handleAutocompleteKey(e, bodyEl));
       bodyEl?.addEventListener("blur", () => setTimeout(hideAutocomplete, 150));
 
       main.querySelectorAll(".nt-vb").forEach((b) =>
@@ -285,6 +294,16 @@ const notesApp: AppModule = {
 
       updatePreview();
       renderBacklinks();
+      renderSaveStatus();
+    }
+
+    function renderSaveStatus() {
+      const s = el.querySelector(".nt-save-status") as HTMLElement | null;
+      if (!s) return;
+      const labels = { idle: "", saving: "Saving…", saved: "Saved", error: "" };
+      s.textContent = saveState === "error" ? saveError || "Save failed" : labels[saveState];
+      s.classList.toggle("nt-save-status--error", saveState === "error");
+      s.title = saveState === "error" ? saveError : "";
     }
 
     function currentBody(): string {
@@ -321,8 +340,39 @@ const notesApp: AppModule = {
 
     // ----- wikilink autocomplete -----
 
+    let acMatches: string[] = [];
+    let acIndex = 0;
+    let acPartialLen = 0;
+
     function hideAutocomplete() {
-      el.querySelector(".nt-ac")?.remove();
+      // The popup lives in document.body (not in `el`), so search the document.
+      document.querySelectorAll(".nt-ac").forEach((p) => p.remove());
+      acMatches = [];
+    }
+
+    function highlightAcItem() {
+      document.querySelectorAll(".nt-ac-item").forEach((item, i) => {
+        item.classList.toggle("nt-ac-item--active", i === acIndex);
+        if (i === acIndex) item.scrollIntoView({ block: "nearest" });
+      });
+    }
+
+    function handleAutocompleteKey(e: KeyboardEvent, ta: HTMLTextAreaElement) {
+      if (!acMatches.length || !document.querySelector(".nt-ac")) return;
+      if (e.key === "Escape") {
+        hideAutocomplete();
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        acIndex = (acIndex + 1) % acMatches.length;
+        highlightAcItem();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        acIndex = (acIndex - 1 + acMatches.length) % acMatches.length;
+        highlightAcItem();
+      } else if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        insertWikilink(ta, acPartialLen, acMatches[acIndex]);
+      }
     }
 
     function updateAutocomplete(ta: HTMLTextAreaElement) {
@@ -332,16 +382,22 @@ const notesApp: AppModule = {
       if (!m) return;
 
       const query = m[1].toLowerCase();
-      const partialLen = m[1].length;
-      const matches = sortNotes(
+      acPartialLen = m[1].length;
+      acMatches = sortNotes(
         notes.filter((n) => (n.title || "").toLowerCase().includes(query)),
-      ).slice(0, 8);
-      if (!matches.length) return;
+      )
+        .slice(0, 8)
+        .map((n) => n.title || "");
+      if (!acMatches.length) return;
+      acIndex = 0;
 
       const pop = document.createElement("div");
       pop.className = "nt-ac";
-      pop.innerHTML = matches
-        .map((n) => `<div class="nt-ac-item" data-title="${escapeHtml(n.title || "")}">${escapeHtml(n.title || "")}</div>`)
+      pop.innerHTML = acMatches
+        .map(
+          (title, i) =>
+            `<div class="nt-ac-item${i === 0 ? " nt-ac-item--active" : ""}" data-title="${escapeHtml(title)}">${escapeHtml(title)}</div>`,
+        )
         .join("");
 
       const rect = ta.getBoundingClientRect();
@@ -352,7 +408,7 @@ const notesApp: AppModule = {
       pop.querySelectorAll(".nt-ac-item").forEach((item) =>
         item.addEventListener("mousedown", (e) => {
           e.preventDefault();
-          insertWikilink(ta, partialLen, (item as HTMLElement).dataset.title!);
+          insertWikilink(ta, acPartialLen, (item as HTMLElement).dataset.title!);
         }),
       );
     }
@@ -375,14 +431,32 @@ const notesApp: AppModule = {
 
     function scheduleSave() {
       if (saveTimer) clearTimeout(saveTimer);
-      saveTimer = setTimeout(() => void save(), 600);
+      saveTimer = setTimeout(() => {
+        saveTimer = undefined;
+        void enqueueSave();
+      }, 600);
+    }
+
+    // Serialize saves so a slow response can't overwrite a later one.
+    function enqueueSave(): Promise<void> {
+      saveChain = saveChain.then(() => save());
+      return saveChain;
+    }
+
+    // Runs the debounced save now (if one is pending). Used when leaving the
+    // note or unmounting the app, so pending edits aren't lost.
+    function flushSave(): Promise<void> {
+      if (!saveTimer) return saveChain;
+      clearTimeout(saveTimer);
+      saveTimer = undefined;
+      return enqueueSave();
     }
 
     async function save() {
       const note = selected();
       if (!note) return;
       const titleEl = el.querySelector(".nt-title") as HTMLInputElement | null;
-      const folderEl = el.querySelector(".nt-folder") as HTMLInputElement | null;
+      const folderEl = el.querySelector(".nt-folder-input") as HTMLInputElement | null;
       const bodyEl = el.querySelector(".nt-body") as HTMLTextAreaElement | null;
 
       const attrs = {
@@ -392,14 +466,20 @@ const notesApp: AppModule = {
       };
       if (!attrs.title) return;
 
+      saveState = "saving";
+      renderSaveStatus();
       try {
         const updated = await apiUpdate(note.id, attrs);
         notes = notes.map((n) => (n.id === updated.id ? updated : n));
+        saveState = "saved";
+        saveError = "";
         renderSidebar();
         updatePreview();
-      } catch {
-        // transient; next keystroke reschedules a save
+      } catch (e) {
+        saveState = "error";
+        saveError = e instanceof Error ? e.message : "Save failed";
       }
+      renderSaveStatus();
     }
 
     async function createNote(folder = "") {
@@ -408,6 +488,8 @@ const notesApp: AppModule = {
         notes.push(created);
         selectedId = created.id;
         backlinks = [];
+        saveState = "idle";
+        saveError = "";
         viewMode = "split";
         renderSidebar();
         renderMain();
@@ -420,10 +502,9 @@ const notesApp: AppModule = {
     }
 
     async function selectNote(id: string) {
-      if (saveTimer) {
-        clearTimeout(saveTimer);
-        await save();
-      }
+      await flushSave();
+      saveState = "idle";
+      saveError = "";
       selectedId = id;
       backlinks = [];
       hideAutocomplete();
@@ -502,8 +583,9 @@ const notesApp: AppModule = {
       ".nt-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }",
       ".nt-toolbar { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); }",
       ".nt-title { font-weight: 600; flex: 1; min-width: 0; }",
-      ".nt-folder { }",
-      ".nt-toolbar .nt-folder { width: 220px; flex-shrink: 0; color: var(--text); display: block; }",
+      ".nt-folder-input { width: 220px; flex-shrink: 0; color: var(--text); display: block; }",
+      ".nt-save-status { flex-shrink: 0; font-size: 0.75rem; color: var(--text-muted); max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }",
+      ".nt-save-status--error { color: var(--danger); }",
       ".nt-view-toggle { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }",
       ".nt-vb { background: transparent; border: none; color: var(--text-muted); padding: 0.35rem 0.6rem; font-size: 0.8rem; cursor: pointer; text-transform: capitalize; }",
       ".nt-vb:hover { background: var(--bg-hover); }",
@@ -534,12 +616,14 @@ const notesApp: AppModule = {
       ".nt-bl-item:hover { text-decoration: underline; }",
       ".nt-ac { position: fixed; z-index: 10000; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.25rem; min-width: 180px; max-height: 240px; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }",
       ".nt-ac-item { padding: 0.35rem 0.6rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }",
-      ".nt-ac-item:hover { background: var(--bg-hover); }",
-      ".nt-body, .nt-title, .nt-folder, .nt-search { color-scheme: dark; }",
+      ".nt-ac-item:hover, .nt-ac-item--active { background: var(--bg-hover); }",
+      ".nt-body, .nt-title, .nt-folder-input, .nt-search { color-scheme: dark; }",
     ].join("\n");
     document.head.appendChild(style);
 
     // ----- bootstrap -----
+
+    flushPendingSave = () => void flushSave();
 
     el.innerHTML =
       '<div class="nt-layout"><div class="nt-sidebar"></div><div class="nt-main"></div></div>';
@@ -559,8 +643,11 @@ const notesApp: AppModule = {
   },
 
   unmount(el) {
+    // Flush before clearing the DOM: save() captures input values synchronously.
+    flushPendingSave?.();
+    flushPendingSave = null;
     el.innerHTML = "";
-    document.querySelector(".nt-ac")?.remove();
+    document.querySelectorAll(".nt-ac").forEach((p) => p.remove());
     document.querySelector('style[data-app="notes"]')?.remove();
   },
 };

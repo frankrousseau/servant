@@ -1,7 +1,11 @@
 defmodule Servant.NotesTest do
   use Servant.DataCase
 
+  import Ecto.Query
+
   alias Servant.Notes
+  alias Servant.Notes.NoteLink
+  alias Servant.Repo
 
   setup do
     %{user: user_fixture(), other: user_fixture()}
@@ -31,6 +35,17 @@ defmodule Servant.NotesTest do
       assert note.external_id == "loose"
       assert note.data["folder"] == ""
       assert Enum.sort(note.data["tags"]) == ["idea", "servant"]
+    end
+
+    test "rejects a duplicate title in the same folder with a title error", %{user: user} do
+      {:ok, _} = Notes.create_note(user.id, %{"title" => "Dup", "body" => ""})
+
+      assert {:error, changeset} = Notes.create_note(user.id, %{"title" => "dup ", "body" => ""})
+      assert %{title: [message]} = errors_on(changeset)
+      assert message =~ "already exists"
+
+      # Same title in another folder is a different slug, so it is fine.
+      assert {:ok, _} = Notes.create_note(user.id, %{"title" => "Dup", "folder" => "Sub"})
     end
   end
 
@@ -68,6 +83,20 @@ defmodule Servant.NotesTest do
       assert Enum.map(Notes.backlinks(user.id, c), & &1.id) == [a.id]
     end
 
+    test "renaming a note un-resolves links that pointed at its old title", %{user: user} do
+      {:ok, source} = Notes.create_note(user.id, %{"title" => "A", "body" => "see [[B]]"})
+      {:ok, b} = Notes.create_note(user.id, %{"title" => "B", "body" => ""})
+
+      link = Repo.one!(from l in NoteLink, where: l.source_note_id == ^source.id)
+      assert link.target_note_id == b.id
+
+      {:ok, renamed} = Notes.update_note(user.id, b.id, %{"title" => "B2"})
+
+      link = Repo.one!(from l in NoteLink, where: l.source_note_id == ^source.id)
+      assert link.target_note_id == nil
+      assert Notes.backlinks(user.id, renamed) == []
+    end
+
     test "[[folder/title]] links resolve too", %{user: user} do
       {:ok, target} =
         Notes.create_note(user.id, %{"title" => "Spec", "folder" => "Docs", "body" => ""})
@@ -86,6 +115,25 @@ defmodule Servant.NotesTest do
 
     test "tags ignore markdown headings" do
       assert Notes.parse_tags("# Heading\nbody #real and ## H2") == ["real"]
+    end
+  end
+
+  describe "update_note/3 with partial attrs" do
+    test "keeps fields that are absent from attrs", %{user: user} do
+      {:ok, note} =
+        Notes.create_note(user.id, %{
+          "title" => "Keep",
+          "folder" => "Stuff",
+          "body" => "content #tag"
+        })
+
+      {:ok, updated} = Notes.update_note(user.id, note.id, %{"title" => "Kept"})
+
+      assert updated.title == "Kept"
+      assert updated.data["body"] == "content #tag"
+      assert updated.data["folder"] == "Stuff"
+      assert updated.data["tags"] == ["tag"]
+      assert updated.external_id == "stuff/kept"
     end
   end
 

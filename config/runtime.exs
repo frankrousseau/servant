@@ -26,8 +26,7 @@ config :servant, ServantWeb.Endpoint,
 # Allow operators to close self-registration once their accounts exist.
 # Defaults to enabled to preserve first-run behaviour.
 config :servant,
-  registration_enabled:
-    System.get_env("REGISTRATION_ENABLED", "true") not in ~w(false 0 no off)
+  registration_enabled: System.get_env("REGISTRATION_ENABLED", "true") not in ~w(false 0 no off)
 
 if config_env() == :prod do
   database_path =

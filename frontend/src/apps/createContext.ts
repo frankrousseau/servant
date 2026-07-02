@@ -14,6 +14,21 @@ export function createAppContext(viewer: ViewerAPI): AppContext {
     return h;
   }
 
+  // Turns API error payloads into a readable message: either `{error: "..."}`
+  // or a changeset-style `{errors: {field: ["msg", ...]}}`.
+  function errorMessage(err: unknown): string | null {
+    if (typeof err !== "object" || err === null) return null;
+    const e = err as { error?: unknown; errors?: unknown };
+    if (typeof e.error === "string") return e.error;
+    if (typeof e.errors === "object" && e.errors !== null) {
+      const parts = Object.entries(e.errors as Record<string, unknown>).map(
+        ([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(", ") : String(msgs)}`,
+      );
+      if (parts.length) return parts.join("; ");
+    }
+    return null;
+  }
+
   async function apiFetch(path: string, opts: RequestInit = {}): Promise<Response> {
     const res = await fetch(path, {
       ...opts,
@@ -25,7 +40,7 @@ export function createAppContext(viewer: ViewerAPI): AppContext {
     }
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || `Request failed: ${res.status}`);
+      throw new Error(errorMessage(err) || `Request failed: ${res.status}`);
     }
     return res;
   }

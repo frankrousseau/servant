@@ -56,7 +56,7 @@ defmodule Servant.Notes do
 
     result =
       %Entry{user_id: user_id, kind: @kind, source: @source}
-      |> note_changeset(entry_attrs)
+      |> note_changeset(entry_attrs, user_id)
       |> Repo.insert()
 
     after_write(user_id, result, :entry_created)
@@ -64,7 +64,7 @@ defmodule Servant.Notes do
 
   def update_note(user_id, id, attrs) do
     note = get_note!(user_id, id)
-    {title, folder, body} = extract(attrs)
+    {title, folder, body} = extract(attrs, note)
 
     entry_attrs = %{
       title: title,
@@ -74,7 +74,7 @@ defmodule Servant.Notes do
 
     result =
       note
-      |> note_changeset(entry_attrs)
+      |> note_changeset(entry_attrs, user_id)
       |> Repo.update()
 
     after_write(user_id, result, :entry_updated)
@@ -172,25 +172,60 @@ defmodule Servant.Notes do
 
   # A note needs a non-blank title (and thus a non-empty slug). validate_required
   # treats "" as missing, so it rejects empty titles before insert/update.
-  defp note_changeset(entry, attrs) do
+  # The slug pre-check turns the entries unique-index violation into a friendly
+  # `:title` error (the index is still the backstop under concurrency).
+  defp note_changeset(entry, attrs, user_id) do
     entry
     |> Entry.changeset(attrs)
     |> Ecto.Changeset.validate_required([:title, :external_id])
+    |> validate_slug_available(user_id)
+  end
+
+  defp validate_slug_available(changeset, user_id) do
+    slug = Ecto.Changeset.get_field(changeset, :external_id)
+    id = Ecto.Changeset.get_field(changeset, :id)
+
+    taken? =
+      is_binary(slug) and slug != "" and
+        notes_query(user_id)
+        |> where([e], e.external_id == ^slug)
+        |> then(fn q -> if id, do: where(q, [e], e.id != ^id), else: q end)
+        |> Repo.exists?()
+
+    if taken? do
+      Ecto.Changeset.add_error(
+        changeset,
+        :title,
+        "a note with this title already exists in this folder"
+      )
+    else
+      changeset
+    end
   end
 
   defp after_write(user_id, {:ok, note}, event) do
-    sync_links(user_id, note)
-    resolve_inbound(user_id, note)
+    {:ok, _} =
+      Repo.transaction(fn ->
+        sync_links(user_id, note)
+        reconcile_inbound(user_id, note)
+      end)
+
     broadcast(user_id, {event, note})
     {:ok, note}
   end
 
   defp after_write(_user_id, error, _event), do: error
 
-  # Point any existing links whose target matches this note's keys at it, so the
-  # graph stays accurate when a linked-to note is created or renamed later.
-  defp resolve_inbound(user_id, %Entry{} = note) do
+  # Keep inbound link resolution accurate across creates and renames: links that
+  # used to resolve to this note but no longer match its keys are un-resolved,
+  # and links whose target matches its keys are pointed at it.
+  defp reconcile_inbound(user_id, %Entry{} = note) do
     keys = note_keys(note)
+
+    from(l in NoteLink,
+      where: l.user_id == ^user_id and l.target_note_id == ^note.id and l.target_path not in ^keys
+    )
+    |> Repo.update_all(set: [target_note_id: nil])
 
     from(l in NoteLink, where: l.user_id == ^user_id and l.target_path in ^keys)
     |> Repo.update_all(set: [target_note_id: note.id])
@@ -217,14 +252,24 @@ defmodule Servant.Notes do
     [canon(note.title || ""), canon(full_path(folder, note.title || ""))] |> Enum.uniq()
   end
 
-  defp extract(attrs) do
-    title = attrs |> get(:title) |> to_string() |> String.trim()
-    folder = attrs |> get(:folder) |> to_string() |> String.trim() |> String.trim("/")
-    body = attrs |> get(:body) |> to_string()
+  # On update, attrs may be partial: keys absent from `attrs` keep the note's
+  # current value (explicit "" still clears, since "" is truthy here).
+  defp extract(attrs, note \\ nil) do
+    title = attrs |> get(:title, note && note.title) |> to_string() |> String.trim()
+
+    folder =
+      attrs
+      |> get(:folder, note && note.data["folder"])
+      |> to_string()
+      |> String.trim()
+      |> String.trim("/")
+
+    body = attrs |> get(:body, note && note.data["body"]) |> to_string()
     {title, folder, body}
   end
 
-  defp get(attrs, key), do: Map.get(attrs, Atom.to_string(key)) || Map.get(attrs, key)
+  defp get(attrs, key, default),
+    do: Map.get(attrs, Atom.to_string(key)) || Map.get(attrs, key) || default
 
   defp full_path("", title), do: title
   defp full_path(folder, title), do: folder <> "/" <> title
