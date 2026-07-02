@@ -214,7 +214,7 @@ const photosApp: AppModule = {
                 return `
                 <div class="ph-thumb ${selectionMode && isSelected ? "ph-thumb--selected" : ""}" data-id="${p.id}">
                   ${selectionMode ? `<span class="ph-check ${isSelected ? "ph-check--on" : ""}"></span>` : `<button class="ph-thumb-delete" data-id="${p.id}" title="Delete">×</button>`}
-                  <img src="${escapeHtml(getThumbPath(p))}" alt="${escapeHtml(p.title || "")}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+                  <img class="ph-thumb-img" src="${escapeHtml(getThumbPath(p))}" alt="${escapeHtml(p.title || "")}" loading="lazy" />
                   <div class="ph-broken" style="display:none">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
                   </div>
@@ -307,6 +307,16 @@ const photosApp: AppModule = {
           if (dt?.files.length) uploadFiles(Array.from(dt.files));
         });
       }
+
+      // Broken-image fallback, wired in JS instead of an inline onerror handler
+      // (so a strict CSP without 'unsafe-inline' can be applied — see FE-SEC-5).
+      el.querySelectorAll<HTMLImageElement>("img.ph-thumb-img").forEach((img) => {
+        img.addEventListener("error", () => {
+          img.style.display = "none";
+          const broken = img.nextElementSibling as HTMLElement | null;
+          if (broken) broken.style.display = "flex";
+        });
+      });
 
       // Thumbnail clicks
       el.querySelectorAll(".ph-thumb").forEach((thumb) => {

@@ -6,6 +6,17 @@ function escapeHtml(s: string): string {
   return d.innerHTML;
 }
 
+// Returns the URL only if it uses a safe scheme, else null — blocks stored XSS
+// from vCard fields like `URL:javascript:...` rendered into an href.
+function safeUrl(url: string): string | null {
+  try {
+    const scheme = new URL(url, window.location.origin).protocol;
+    return ["http:", "https:", "mailto:", "tel:"].includes(scheme) ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 function f(entry: Entry, key: string): string {
   const val = (entry.data[key] as string) || "";
   const cleaned = val.trim().replace(/^;+|;+$/g, "").trim();
@@ -78,6 +89,10 @@ const contactApp: AppModule = {
       return allContacts.find((c) => c.id === selectedId) || null;
     }
 
+    // Tracked so it's removed on *any* close path (Escape, overlay, Cancel,
+    // re-render), not only when Escape is pressed — avoids a keydown leak.
+    let onKey: ((e: KeyboardEvent) => void) | null = null;
+
     function openCreateModal() {
       modalOpen = true;
       renderModal();
@@ -85,6 +100,10 @@ const contactApp: AppModule = {
 
     function closeCreateModal() {
       modalOpen = false;
+      if (onKey) {
+        document.removeEventListener("keydown", onKey);
+        onKey = null;
+      }
       const overlay = document.querySelector(".ct-modal-overlay");
       if (overlay) overlay.remove();
     }
@@ -130,13 +149,10 @@ const contactApp: AppModule = {
         if (e.target === overlay) closeCreateModal();
       });
 
-      // Close on Escape
-      function onKey(e: KeyboardEvent) {
-        if (e.key === "Escape") {
-          closeCreateModal();
-          document.removeEventListener("keydown", onKey);
-        }
-      }
+      // Close on Escape (cleanup handled by closeCreateModal)
+      onKey = (e: KeyboardEvent) => {
+        if (e.key === "Escape") closeCreateModal();
+      };
       document.addEventListener("keydown", onKey);
 
       // Cancel button
@@ -220,7 +236,7 @@ const contactApp: AppModule = {
           const avatarHtml = photo
             ? '<span class="ct-avatar ct-avatar--photo"><img src="'
               + escapeHtml(photo)
-              + '" alt="" /></span>'
+              + '" alt="" loading="lazy" /></span>'
             : '<span class="ct-avatar">'
               + escapeHtml(getInitials(name))
               + "</span>";
@@ -333,7 +349,7 @@ const contactApp: AppModule = {
       const avatarHtml = photo
         ? '<span class="ct-avatar ct-avatar--lg ct-avatar--photo"><img src="'
           + escapeHtml(photo)
-          + '" alt="" /></span>'
+          + '" alt="" loading="lazy" /></span>'
         : '<span class="ct-avatar ct-avatar--lg">'
           + escapeHtml(getInitials(name))
           + "</span>";
@@ -391,14 +407,22 @@ const contactApp: AppModule = {
             + escapeHtml(birthday)
             + "</span></div>",
         );
-      if (url)
-        detailRows.push(
-          '<div class="ct-meta-row"><span class="ct-meta-key">Website</span><a class="ct-link" href="'
-            + escapeHtml(url)
+      if (url) {
+        const safe = safeUrl(url);
+        const label = escapeHtml(url);
+        const value = safe
+          ? '<a class="ct-link" href="'
+            + escapeHtml(safe)
             + '" target="_blank" rel="noopener">'
-            + escapeHtml(url)
-            + "</a></div>",
+            + label
+            + "</a>"
+          : label;
+        detailRows.push(
+          '<div class="ct-meta-row"><span class="ct-meta-key">Website</span><span>'
+            + value
+            + "</span></div>",
         );
+      }
       if (note)
         detailRows.push(
           '<div class="ct-meta-row"><span class="ct-meta-key">Note</span><span class="ct-note">'

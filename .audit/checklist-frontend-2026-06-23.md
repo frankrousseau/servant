@@ -22,6 +22,7 @@
 Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décision requise · ⏭️ = sauté (risqué/large, à arbitrer).
 
 - **2026-07-03 — Section Architecture** : FE-ARCH-2 ✅ (réhydratation `auth.user` au boot → **débloque le temps réel de bout en bout** avec BE-BUG-1/2), FE-ARCH-4 ✅ (bloc `theme.colors` mort supprimé — il dupliquait `style.css` sans être consommé) · FE-ARCH-1 ⏭️ (réécriture des 4 apps en Vue, large — à arbitrer), FE-ARCH-3 ⏭️ (unification des 3 clients HTTP — sera traité avec FE-CLEAN-3). Bonus : suivi front de **BE-SEC-1** (`logout` appelle `POST /api/auth/logout`). `vue-tsc` OK.
+- **2026-07-03 — Quick wins (Deps/Sécurité/Bugs/Perf)** : FE-DEP-1 ✅ + FE-DEP-2 ✅ (`npm audit fix` → 0 vulnérabilité, vite 8.1.3, build OK), FE-SEC-1 ✅ (validation schéma `href` vCard, bloque `javascript:`), FE-SEC-5 ✅ (handler `onerror` inline retiré, re-câblé en JS — plus aucun handler inline dans les apps), FE-BUG-3 ✅ (fuite listener `keydown`), FE-PERF-2 ✅ (`loading="lazy"` avatars), **FE-BUG-1 ✅** (temps réel — résolu par FE-ARCH-2 + BE-BUG-1/2 ; le câblage `onEntryChange` était déjà bon). `vue-tsc` + `npm run build` OK.
 
 ---
 
@@ -46,15 +47,17 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
 
 ## Bugs / correctness
 
-- [ ] **FE-BUG-1** · 🟠 high · `DataBrowserView.vue:42-45` · effort: small
+- [x] **FE-BUG-1** · 🟠 high · `DataBrowserView.vue:42-45` · effort: small
       Rafraîchissement temps réel inopérant (`onEntryChange` jamais déclenché).
       Fix : dépend de BE-BUG-1/2 + FE-ARCH-2. *(paire avec BE-BUG-2)*
+      ✅ *Fait (2026-07-03)* : résolu par FE-ARCH-2 + BE-BUG-1/2 — le câblage `onEntryChange(() => fetchEntries())` était déjà correct, il ne se déclenchait jamais faute de socket connecté. Aucun changement de code nécessaire ici.
 - [ ] **FE-BUG-2** · 🟠 high · `DataBrowserView.vue:78,127,145` (19 `catch {}`) · effort: medium
       Erreurs avalées en silence (ex. `JSON.parse` invalide dans `saveEntry` → modale figée sans message).
       Fix : afficher les erreurs (toast/inline) ; valider le JSON du formulaire avant envoi.
-- [ ] **FE-BUG-3** · 🟡 medium · `contacts/index.ts:134-140` · effort: quick
+- [x] **FE-BUG-3** · 🟡 medium · `contacts/index.ts:134-140` · effort: quick
       Fuite d'écouteur `keydown` (retiré seulement sur Échap, pas sur Annuler/overlay/unmount). **(quick win)**
       Fix : retirer `onKey` dans `closeCreateModal` et `unmount`.
+      ✅ *Fait (2026-07-03)* : `onKey` hissé dans le scope de `mount` et retiré dans `closeCreateModal` (appelé sur Échap/overlay/Annuler) → nettoyage sur tous les chemins de fermeture.
 - [ ] **FE-BUG-4** · 🟡 medium · `createContext.ts:48` · effort: medium
       `entries.list` charge jusqu'à 10 000 entrées côté client.
       Fix : pagination/chargement incrémental, ou filtrage côté serveur. *(lié à FE-PERF-1)*
@@ -73,9 +76,10 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
 
 ## Sécurité
 
-- [ ] **FE-SEC-1** · 🟠 high · `contacts/index.ts:396-397` · effort: small
+- [x] **FE-SEC-1** · 🟠 high · `contacts/index.ts:396-397` · effort: small
       XSS stocké : schéma d'`href` non validé (vCard `URL:javascript:…`) → vol de token au clic.
       Fix : n'autoriser que `http:`/`https:`/`mailto:`/`tel:` pour tout `href` issu de données utilisateur.
+      ✅ *Fait (2026-07-03)* : helper `safeUrl/1` (via `new URL`) → n'autorise que `http/https/mailto/tel` ; sinon l'URL est rendue en **texte** (pas de lien). `vue-tsc` OK.
 - [ ] **FE-SEC-2** · 🟠 high · backend `SpaController`/endpoint · effort: small
       Aucune CSP ni en-tête de sécurité → toute XSS s'exécute librement.
       Fix : CSP stricte (`default-src 'self'`, `script-src 'self'`) sur la réponse HTML du SPA. ⚠️ retirer d'abord les handlers inline (FE-SEC-5).
@@ -85,18 +89,20 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
 - [ ] **FE-SEC-4** · 🟡 medium · apps (`innerHTML` ~17×) · effort: large
       Surface XSS large par conception (échappement manuel partout — pas d'oubli trouvé, mais régression facile).
       Fix : migration en composants Vue. *(doublon de FE-ARCH-1)*
-- [ ] **FE-SEC-5** · 🟡 medium · `photos/index.ts:217` · effort: quick
+- [x] **FE-SEC-5** · 🟡 medium · `photos/index.ts:217` · effort: quick
       Handler inline `onerror=` dans `innerHTML` (bloque une CSP sans `unsafe-inline`). **(quick win)**
       Fix : retirer le handler inline (prérequis de FE-SEC-2).
+      ✅ *Fait (2026-07-03)* : `onerror` inline retiré ; fallback image cassée re-câblé via `addEventListener("error")` après rendu (classe `ph-thumb-img`). Vérifié : **aucun** handler inline restant dans `apps/` (prérequis CSP FE-SEC-2 levé).
 
 ## Performance
 
 - [ ] **FE-PERF-1** · 🟠 high · `createContext.ts:48` + ré-render `innerHTML` · effort: large
       Chargement de toutes les entrées + reconstruction DOM complète à chaque interaction → payload lourd + jank.
       Fix : pagination/scroll infini côté serveur + rendu réactif granulaire. *(lié à FE-BUG-4, FE-ARCH-1)*
-- [ ] **FE-PERF-2** · 🟡 medium · `contacts/index.ts:221,334`, `photos/index.ts:112` · effort: quick
+- [x] **FE-PERF-2** · 🟡 medium · `contacts/index.ts:221,334`, `photos/index.ts:112` · effort: quick
       Avatars non lazy-loadés (1 seule occurrence de `loading="lazy"` dans tout le front). **(quick win)**
       Fix : ajouter `loading="lazy"` aux `<img>` de listes.
+      ✅ *Fait (2026-07-03)* : `loading="lazy"` ajouté aux 2 avatars contacts (liste + détail). Les vignettes photos l'avaient déjà.
 - [ ] **FE-PERF-3** · ⚪ low · `connectors.ts` (13 logos SVG inline) · effort: small
       Logos SVG embarqués dans le chunk principal.
       Fix : externaliser en `.svg` ou charger à la demande si le catalogue grandit.
@@ -118,12 +124,14 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
 
 ## Dépendances
 
-- [ ] **FE-DEP-1** · 🟠 high · `frontend/package.json` (`vite` 8.0.0) · effort: quick
+- [x] **FE-DEP-1** · 🟠 high · `frontend/package.json` (`vite` 8.0.0) · effort: quick
       2 advisories **HIGH** (path traversal / lecture de fichier via dev server). **(quick win)**
       Fix : `npm audit fix` → `vite 8.0.16` (patch, sans rupture).
-- [ ] **FE-DEP-2** · 🟡 medium · transitives (`postcss`, `launch-editor`) · effort: quick
+      ✅ *Fait (2026-07-03)* : `npm audit fix` → **vite 8.1.3** (advisories HIGH path-traversal / arbitrary-file-read corrigées). `npm run build` OK. Seul `package-lock.json` modifié (bump dans les ranges `^`).
+- [x] **FE-DEP-2** · 🟡 medium · transitives (`postcss`, `launch-editor`) · effort: quick
       1 advisory modéré + 1 dev/Windows ; corrigés par le même `npm audit fix`. **(quick win)**
       Fix : `npm audit fix`.
+      ✅ *Fait (2026-07-03)* : même `npm audit fix` → `postcss` + `picomatch` corrigés. `npm audit` = **0 vulnérabilité**.
 - [ ] **FE-DEP-3** · 🟡 medium · `package.json` · effort: small
       Mises à jour mineures sûres (`vue 3.5.30→3.5.38`, `vue-tsc`, `@vueuse/core`, `phoenix 1.8.5→1.8.8`).
       Fix : `npm update` (dans les contraintes `^`).
