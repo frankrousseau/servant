@@ -66,6 +66,11 @@ defmodule Servant.Notes do
     note = get_note!(user_id, id)
     {title, folder, body} = extract(attrs, note)
 
+    # Captured before the write: links that currently resolve to this note are
+    # the ones to rewrite if the rename changes its keys (reconcile_inbound
+    # un-resolves them as part of after_write).
+    inbound_ids = inbound_source_ids(note)
+
     entry_attrs = %{
       title: title,
       external_id: canon(full_path(folder, title)),
@@ -77,7 +82,14 @@ defmodule Servant.Notes do
       |> note_changeset(entry_attrs, user_id)
       |> Repo.update()
 
-    after_write(user_id, result, :entry_updated)
+    case after_write(user_id, result, :entry_updated) do
+      {:ok, updated} ->
+        propagate_rename(user_id, note, updated, inbound_ids)
+        {:ok, updated}
+
+      error ->
+        error
+    end
   end
 
   def delete_note(user_id, id) do
@@ -231,6 +243,78 @@ defmodule Servant.Notes do
     |> Repo.update_all(set: [target_note_id: note.id])
 
     :ok
+  end
+
+  # Ids of notes whose links currently resolve to `note` (including itself, so
+  # self-links get rewritten on rename too).
+  defp inbound_source_ids(%Entry{} = note) do
+    from(l in NoteLink,
+      where: l.target_note_id == ^note.id,
+      select: l.source_note_id,
+      distinct: true
+    )
+    |> Repo.all()
+  end
+
+  # Obsidian-style rename propagation: when an update changes the note's keys,
+  # rewrite `[[wikilinks]]` in the notes that pointed at it — `[[title]]` links
+  # get the new title, `[[folder/title]]` links the new full path — then
+  # re-sync those sources' outgoing links so everything still resolves.
+  defp propagate_rename(_user_id, _old_note, _note, []), do: :ok
+
+  defp propagate_rename(user_id, %Entry{} = old_note, %Entry{} = note, source_ids) do
+    stale = note_keys(old_note) -- note_keys(note)
+
+    replacements =
+      %{}
+      |> Map.put(
+        canon(full_path(old_note.data["folder"] || "", old_note.title || "")),
+        full_path(note.data["folder"] || "", note.title || "")
+      )
+      |> Map.put(canon(old_note.title || ""), note.title || "")
+      |> Map.take(stale)
+
+    if replacements == %{} do
+      :ok
+    else
+      {:ok, rewritten} =
+        Repo.transaction(fn ->
+          notes_query(user_id)
+          |> where([e], e.id in ^source_ids)
+          |> Repo.all()
+          |> Enum.flat_map(&rewrite_source(user_id, &1, replacements))
+        end)
+
+      Enum.each(rewritten, &broadcast(user_id, {:entry_updated, &1}))
+      :ok
+    end
+  end
+
+  defp rewrite_source(user_id, %Entry{} = source, replacements) do
+    body = source.data["body"] || ""
+    new_body = rewrite_wikilinks(body, replacements)
+
+    if new_body == body do
+      []
+    else
+      data =
+        source.data
+        |> Map.put("body", new_body)
+        |> Map.put("tags", parse_tags(new_body))
+
+      {:ok, updated} = source |> Ecto.Changeset.change(data: data) |> Repo.update()
+      sync_links(user_id, updated)
+      [updated]
+    end
+  end
+
+  defp rewrite_wikilinks(body, replacements) do
+    Regex.replace(@wikilink_re, body, fn full, target ->
+      case Map.fetch(replacements, canon(target)) do
+        {:ok, new_target} -> "[[#{new_target}]]"
+        :error -> full
+      end
+    end)
   end
 
   # Maps each target string to a note id when a matching note exists.

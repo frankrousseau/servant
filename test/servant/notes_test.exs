@@ -83,18 +83,58 @@ defmodule Servant.NotesTest do
       assert Enum.map(Notes.backlinks(user.id, c), & &1.id) == [a.id]
     end
 
-    test "renaming a note un-resolves links that pointed at its old title", %{user: user} do
+    test "renaming a note keeps inbound link rows accurate", %{user: user} do
       {:ok, source} = Notes.create_note(user.id, %{"title" => "A", "body" => "see [[B]]"})
       {:ok, b} = Notes.create_note(user.id, %{"title" => "B", "body" => ""})
 
       link = Repo.one!(from l in NoteLink, where: l.source_note_id == ^source.id)
       assert link.target_note_id == b.id
+      assert link.target_path == "b"
 
       {:ok, renamed} = Notes.update_note(user.id, b.id, %{"title" => "B2"})
 
+      # The link row follows the rename (body rewrite + re-sync), so the graph
+      # never points at a key the note no longer answers to.
       link = Repo.one!(from l in NoteLink, where: l.source_note_id == ^source.id)
-      assert link.target_note_id == nil
-      assert Notes.backlinks(user.id, renamed) == []
+      assert link.target_note_id == b.id
+      assert link.target_path == "b2"
+      assert Enum.map(Notes.backlinks(user.id, renamed), & &1.id) == [source.id]
+    end
+
+    test "renaming a note rewrites [[wikilinks]] in referencing notes", %{user: user} do
+      {:ok, b} = Notes.create_note(user.id, %{"title" => "B", "body" => ""})
+
+      {:ok, source} =
+        Notes.create_note(user.id, %{"title" => "A", "body" => "see [[B]] and [[b]] not [[C]]"})
+
+      {:ok, renamed} = Notes.update_note(user.id, b.id, %{"title" => "B2"})
+
+      source = Notes.get_note!(user.id, source.id)
+      assert source.data["body"] == "see [[B2]] and [[B2]] not [[C]]"
+      assert Enum.map(Notes.backlinks(user.id, renamed), & &1.id) == [source.id]
+    end
+
+    test "moving a note to another folder rewrites [[folder/title]] links only", %{user: user} do
+      {:ok, spec} =
+        Notes.create_note(user.id, %{"title" => "Spec", "folder" => "Docs", "body" => ""})
+
+      {:ok, source} =
+        Notes.create_note(user.id, %{"title" => "Index", "body" => "[[Docs/Spec]] and [[Spec]]"})
+
+      {:ok, moved} = Notes.update_note(user.id, spec.id, %{"folder" => "Archive"})
+
+      source = Notes.get_note!(user.id, source.id)
+      assert source.data["body"] == "[[Archive/Spec]] and [[Spec]]"
+      assert Enum.map(Notes.backlinks(user.id, moved), & &1.id) == [source.id]
+    end
+
+    test "renaming rewrites self-links in the note's own body", %{user: user} do
+      {:ok, note} = Notes.create_note(user.id, %{"title" => "Me", "body" => "I am [[Me]]"})
+
+      {:ok, _} = Notes.update_note(user.id, note.id, %{"title" => "Myself"})
+
+      renamed = Notes.get_note!(user.id, note.id)
+      assert renamed.data["body"] == "I am [[Myself]]"
     end
 
     test "[[folder/title]] links resolve too", %{user: user} do

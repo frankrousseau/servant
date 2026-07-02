@@ -49,6 +49,50 @@ function emptyNode(name: string, path: string): TreeNode {
 // notes instance is mounted at a time.
 let flushPendingSave: (() => void) | null = null;
 
+// Viewport coordinates of the caret in a textarea, measured with a hidden
+// mirror div that replicates the textarea's text layout up to the caret.
+function caretViewportPosition(ta: HTMLTextAreaElement): { left: number; top: number; lineHeight: number } {
+  const cs = getComputedStyle(ta);
+  const mirror = document.createElement("div");
+  for (const prop of [
+    "fontFamily",
+    "fontSize",
+    "fontWeight",
+    "letterSpacing",
+    "lineHeight",
+    "textTransform",
+    "wordSpacing",
+    "paddingTop",
+    "paddingRight",
+    "paddingBottom",
+    "paddingLeft",
+    "borderWidth",
+    "boxSizing",
+    "tabSize",
+  ] as const) {
+    mirror.style[prop as never] = cs[prop as never];
+  }
+  mirror.style.position = "absolute";
+  mirror.style.visibility = "hidden";
+  mirror.style.whiteSpace = "pre-wrap";
+  mirror.style.wordWrap = "break-word";
+  mirror.style.overflow = "hidden";
+  mirror.style.width = `${ta.clientWidth}px`;
+
+  mirror.textContent = ta.value.slice(0, ta.selectionStart);
+  const marker = document.createElement("span");
+  marker.textContent = "​";
+  mirror.appendChild(marker);
+  document.body.appendChild(mirror);
+
+  const lineHeight = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.2;
+  const rect = ta.getBoundingClientRect();
+  const left = rect.left + marker.offsetLeft - ta.scrollLeft;
+  const top = rect.top + marker.offsetTop - ta.scrollTop;
+  mirror.remove();
+  return { left, top, lineHeight };
+}
+
 function buildTree(list: Note[]): TreeNode {
   const root = emptyNode("", "");
   for (const n of list) {
@@ -400,10 +444,19 @@ const notesApp: AppModule = {
         )
         .join("");
 
-      const rect = ta.getBoundingClientRect();
-      pop.style.left = `${rect.left + 12}px`;
-      pop.style.top = `${rect.top + 12}px`;
+      // Anchor at the caret, clamped to the viewport; flip above the line if
+      // there is no room below.
+      const caret = caretViewportPosition(ta);
+      pop.style.visibility = "hidden";
       document.body.appendChild(pop);
+      const popW = pop.offsetWidth;
+      const popH = pop.offsetHeight;
+      let left = Math.min(caret.left, window.innerWidth - popW - 8);
+      let top = caret.top + caret.lineHeight;
+      if (top + popH > window.innerHeight - 8) top = caret.top - popH - 4;
+      pop.style.left = `${Math.max(8, left)}px`;
+      pop.style.top = `${Math.max(8, top)}px`;
+      pop.style.visibility = "";
 
       pop.querySelectorAll(".nt-ac-item").forEach((item) =>
         item.addEventListener("mousedown", (e) => {
@@ -466,11 +519,20 @@ const notesApp: AppModule = {
       };
       if (!attrs.title) return;
 
+      const renamed =
+        attrs.title !== (note.title || "") || attrs.folder !== noteFolder(note);
+
       saveState = "saving";
       renderSaveStatus();
       try {
         const updated = await apiUpdate(note.id, attrs);
-        notes = notes.map((n) => (n.id === updated.id ? updated : n));
+        if (renamed) {
+          // A rename rewrites [[wikilinks]] in referencing notes server-side;
+          // reload so we don't hold (and later save back) stale bodies.
+          notes = await apiList();
+        } else {
+          notes = notes.map((n) => (n.id === updated.id ? updated : n));
+        }
         saveState = "saved";
         saveError = "";
         renderSidebar();
