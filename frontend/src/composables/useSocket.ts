@@ -56,10 +56,13 @@ export function useSocket() {
     connected.value = false;
   }
 
+  // Connect only once both the token AND the user are available. On a reload
+  // the user is populated asynchronously (auth.hydrate), so we must react to it
+  // and not just to the token.
   watch(
-    () => auth.isAuthenticated,
-    (isAuth) => {
-      if (isAuth) {
+    () => auth.isAuthenticated && !!auth.user,
+    (ready) => {
+      if (ready) {
         connect();
       } else {
         disconnect();

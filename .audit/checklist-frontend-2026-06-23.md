@@ -21,7 +21,7 @@
 
 Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décision requise · ⏭️ = sauté (risqué/large, à arbitrer).
 
-- *(rien encore — les correctifs frontend sont vérifiables ici via `vue-tsc`/`npm run build`)*
+- **2026-07-03 — Section Architecture** : FE-ARCH-2 ✅ (réhydratation `auth.user` au boot → **débloque le temps réel de bout en bout** avec BE-BUG-1/2), FE-ARCH-4 ✅ (bloc `theme.colors` mort supprimé — il dupliquait `style.css` sans être consommé) · FE-ARCH-1 ⏭️ (réécriture des 4 apps en Vue, large — à arbitrer), FE-ARCH-3 ⏭️ (unification des 3 clients HTTP — sera traité avec FE-CLEAN-3). Bonus : suivi front de **BE-SEC-1** (`logout` appelle `POST /api/auth/logout`). `vue-tsc` OK.
 
 ---
 
@@ -30,15 +30,19 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
 - [ ] **FE-ARCH-1** · 🟠 high · `apps/{contacts,calendar,files,photos}/index.ts` (~2500 LOC) · effort: large
       Deux paradigmes : Vue réactif (SFC) vs DOM impératif (`innerHTML` + listeners manuels) → surface XSS, fuites, perte focus/scroll.
       Fix : réécrire les apps en composants Vue (le contrat `AppContext` peut rester). *(racine de FE-SEC-1/4, FE-BUG-3/5, FE-CLEAN-1/2)*
-- [ ] **FE-ARCH-2** · 🟠 high · `auth.ts:7`, `main.ts`/`App.vue` · effort: small
+      ⏭️ *Signalé — refactor large (2026-07-03)* : réécriture des 4 apps impératives (~2500 LOC) en composants Vue. Gros chantier structurel à planifier ; racine de plusieurs items (FE-SEC-1/4, FE-BUG-3/5, FE-CLEAN-1/2). À faire par app, séparément.
+- [x] **FE-ARCH-2** · 🟠 high · `auth.ts:7`, `main.ts`/`App.vue` · effort: small
       `auth.user` non réhydraté au rechargement → `useSocket.connect()` sort (temps réel jamais connecté après refresh, cause 3/3).
       Fix : au boot, si `token` présent, charger `/auth/me` et peupler `user`. *(complète BE-BUG-1/2)*
+      ✅ *Fait (2026-07-03)* : `auth.hydrate()` charge `/api/auth/me` au boot (`main.ts`) si token présent (clear si 401) ; `useSocket` se connecte désormais quand `token` **et** `user` sont là (watch mis à jour). Complète BE-BUG-1/2 → temps réel fonctionnel après rechargement. `vue-tsc` OK.
 - [ ] **FE-ARCH-3** · 🟡 medium · `useApi.ts`, `createContext.ts`, `auth.ts` · effort: medium
       Trois implémentations du client HTTP (Bearer/401/parse d'erreur dupliqués).
       Fix : un seul client partagé. *(lié à FE-CLEAN-3)*
-- [ ] **FE-ARCH-4** · 🟡 medium · `createContext.ts:90-101` · effort: small
+      ⏭️ *Reporté (2026-07-03)* : sera traité avec FE-CLEAN-3 (même duplication) — un client HTTP partagé (Bearer/401/parse d'erreur).
+- [x] **FE-ARCH-4** · 🟡 medium · `createContext.ts:90-101` · effort: small
       Jetons de thème (couleurs hex) dupliqués vs `style.css`.
       Fix : exposer les variables CSS aux apps. *(lié à FE-CLEAN-3)*
+      ✅ *Fait (2026-07-03)* : le bloc `theme.colors` dupliquait `style.css` **et n'était consommé par aucune app** → supprimé du contrat (`types.ts`) et de `createContext.ts` (dédup par suppression du code mort). `style.css` reste la source unique. `vue-tsc` OK.
 
 ## Bugs / correctness
 

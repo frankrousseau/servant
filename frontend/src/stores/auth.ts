@@ -57,8 +57,32 @@ export const useAuthStore = defineStore("auth", () => {
   }
 
   function logout() {
+    // Clear the HttpOnly file-auth cookie server-side (BE-SEC-1), then locally.
+    fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
     clearAuth();
   }
 
-  return { token, user, isAuthenticated, login, register, logout };
+  // On a page reload the token is restored from localStorage but `user` is not.
+  // Fetch it so realtime (useSocket needs auth.user) and user-dependent UI work
+  // again after a refresh. Clears auth on an expired/invalid token.
+  async function hydrate() {
+    if (!token.value || user.value) return;
+
+    try {
+      const res = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token.value}` },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        user.value = data.data;
+      } else if (res.status === 401) {
+        clearAuth();
+      }
+    } catch {
+      // Network error — keep the token and retry on the next boot.
+    }
+  }
+
+  return { token, user, isAuthenticated, login, register, logout, hydrate };
 });

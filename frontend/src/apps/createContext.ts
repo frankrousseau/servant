@@ -87,18 +87,5 @@ export function createAppContext(viewer: ViewerAPI): AppContext {
     },
     confirm: { ask },
     viewer,
-    theme: {
-      colors: {
-        bg: "#0f1117",
-        bgSurface: "#1a1d27",
-        bgHover: "#252836",
-        border: "#2e3140",
-        text: "#e1e4ed",
-        textMuted: "#8b8fa3",
-        primary: "#6c8cff",
-        danger: "#f06c6c",
-        success: "#5cc98a",
-      },
-    },
   };
 }

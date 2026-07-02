@@ -54,9 +54,6 @@ export interface AppContext {
     fetch(path: string, opts?: RequestInit): Promise<Response>;
   };
   viewer: ViewerAPI;
-  theme: {
-    colors: Record<string, string>;
-  };
 }
 
 export interface AppModule {
