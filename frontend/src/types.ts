@@ -66,14 +66,6 @@ export interface SyncLog {
   finished_at: string | null;
 }
 
-export interface App {
-  id: string;
-  name: string;
-  description: string;
-  icon: string | null;
-  route: string;
-}
-
 // Kind icons/colors for visual differentiation
 export const KIND_CONFIG: Record<string, { icon: string; color: string }> = {
   transaction: { icon: "↔", color: "#6c8cff" },

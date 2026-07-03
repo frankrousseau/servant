@@ -30,7 +30,7 @@ defmodule Servant.Accounts.User do
     user
     |> cast(attrs, [:display_name, :email, :timezone])
     |> validate_length(:display_name, max: 100)
-    |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/, message: "must be a valid email")
+    |> validate_format(:email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "must be a valid email")
     |> validate_timezone()
   end
 

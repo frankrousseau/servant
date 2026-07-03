@@ -1,6 +1,12 @@
 defmodule Servant.Connectors.Connector do
   @moduledoc """
   Behaviour for connectors that sync external data sources.
+
+  Note: secrets and settings both live in the connector's `config` map
+  (encrypted at rest for sensitive keys — see `Servant.Encrypted.Map`). The
+  `credentials` argument to `init/2` is currently always `%{}`; `init/2` reads
+  what it needs from `config` via `config_value/2,3`. `required_credentials/0`
+  is advisory metadata only and does not gate anything today.
   """
 
   @callback id() :: String.t()

@@ -3,6 +3,7 @@ import { ref, computed, watch, nextTick, onMounted } from "vue";
 import type { AppContext, Entry } from "../types";
 import { formatFileSize } from "../../types";
 import { formatDateTime } from "../../lib/datetime";
+import { contactName, contactInitials } from "../../lib/contact";
 
 const props = defineProps<{ ctx: AppContext }>();
 
@@ -93,17 +94,6 @@ const tagSuggestions = computed(() => {
   const q = tagModalQuery.value.toLowerCase();
   return allTags.value.filter((t) => t.toLowerCase().includes(q) && t.toLowerCase() !== q);
 });
-
-function contactName(c: Entry): string {
-  return (c.data.display_name as string) || c.title?.split(" — ")[0] || "(unnamed)";
-}
-function contactInitials(c: Entry): string {
-  return contactName(c)
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() || "")
-    .join("");
-}
 
 function setFilter(opts: { tag?: string; person?: string }) {
   if (opts.tag !== undefined) {
@@ -402,7 +392,7 @@ onMounted(() => {
           @click="tagWithContact(c)"
         >
           <img v-if="c.data.photo" class="ph-people-avatar" :src="(c.data.photo as string)" alt="" />
-          <span v-else class="ph-people-avatar ph-people-avatar--init">{{ contactInitials(c) }}</span>
+          <span v-else class="ph-people-avatar ph-people-avatar--init">{{ contactInitials(contactName(c)) }}</span>
           <span>{{ contactName(c) }}</span>
         </div>
       </div>

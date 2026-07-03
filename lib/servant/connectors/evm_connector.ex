@@ -62,8 +62,8 @@ defmodule Servant.Connectors.EVMConnector do
              %{
                wallet_address: address,
                explorer_url: config_value(config, "explorer_url", unquote(default_explorer_url)),
-               min_wei: Map.get(config, "min_wei", @default_min_wei),
-               last_block: Map.get(config, "last_block", 0)
+               min_wei: config_value(config, "min_wei", @default_min_wei),
+               last_block: config_value(config, "last_block", 0)
              }}
         end
       end

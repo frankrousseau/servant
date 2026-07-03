@@ -5,7 +5,8 @@ defmodule ServantWeb.UserSocket do
 
   @impl true
   def connect(%{"token" => token}, socket, _connect_info) do
-    case Phoenix.Token.verify(socket, "user auth", token, max_age: 86_400 * 30) do
+    # Same salt/max-age as HTTP auth — delegate so the two can't drift.
+    case ServantWeb.Auth.verify_token(socket, token) do
       {:ok, user_id} ->
         {:ok, assign(socket, :user_id, user_id)}
 

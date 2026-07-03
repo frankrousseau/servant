@@ -170,7 +170,10 @@ defmodule Servant.Notes do
   and per distinct `@[[mention]]` target (kind `"mention"`, resolved to a
   contact/event entry). Bulk-write pattern mirrors `Servant.Data.create_entries/2`.
   """
-  def sync_links(user_id, %Entry{} = note) do
+  # `notes` may be a preloaded snapshot of the user's notes so a batch caller
+  # (rename propagation) resolves wikilink targets without reloading the whole
+  # vault once per source. `nil` loads it lazily for the single-note path.
+  def sync_links(user_id, %Entry{} = note, notes \\ nil) do
     body = Map.get(note.data, "body", "")
     wikilinks = parse_wikilinks(body)
     mentions = parse_mentions(body)
@@ -178,7 +181,7 @@ defmodule Servant.Notes do
     Repo.delete_all(from l in NoteLink, where: l.source_note_id == ^note.id)
 
     rows =
-      link_rows(user_id, note, wikilinks, resolve_targets(user_id, wikilinks), "wikilink") ++
+      link_rows(user_id, note, wikilinks, resolve_targets(user_id, wikilinks, notes), "wikilink") ++
         link_rows(user_id, note, mentions, resolve_mentions(user_id, mentions), "mention")
 
     if rows != [], do: Repo.insert_all(NoteLink, rows)
@@ -305,10 +308,14 @@ defmodule Servant.Notes do
     else
       {:ok, rewritten} =
         Repo.transaction(fn ->
-          notes_query(user_id)
-          |> where([e], e.id in ^source_ids)
-          |> Repo.all()
-          |> Enum.flat_map(&rewrite_source(user_id, &1, replacements))
+          # Snapshot the vault once and reuse it for every source's link re-sync:
+          # rewriting only changes bodies (not titles/paths), so target keys are
+          # stable — avoids reloading all notes per source (was O(N × vault)).
+          all_notes = notes_query(user_id) |> Repo.all()
+
+          all_notes
+          |> Enum.filter(&(&1.id in source_ids))
+          |> Enum.flat_map(&rewrite_source(user_id, &1, replacements, all_notes))
         end)
 
       Enum.each(rewritten, &broadcast(user_id, {:entry_updated, &1}))
@@ -316,7 +323,7 @@ defmodule Servant.Notes do
     end
   end
 
-  defp rewrite_source(user_id, %Entry{} = source, replacements) do
+  defp rewrite_source(user_id, %Entry{} = source, replacements, all_notes) do
     body = source.data["body"] || ""
     new_body = rewrite_wikilinks(body, replacements)
 
@@ -329,7 +336,7 @@ defmodule Servant.Notes do
         |> Map.put("tags", parse_tags(new_body))
 
       {:ok, updated} = source |> Ecto.Changeset.change(data: data) |> Repo.update()
-      sync_links(user_id, updated)
+      sync_links(user_id, updated, all_notes)
       [updated]
     end
   end
@@ -347,10 +354,10 @@ defmodule Servant.Notes do
   # full-path key (`folder/title`) is unique per user and always wins; a bare
   # `title` key only resolves when exactly one note carries it — otherwise the
   # link is left unresolved rather than pointing at an arbitrary same-named note.
-  defp resolve_targets(_user_id, []), do: %{}
+  defp resolve_targets(_user_id, [], _notes), do: %{}
 
-  defp resolve_targets(user_id, targets) do
-    notes = notes_query(user_id) |> Repo.all()
+  defp resolve_targets(user_id, targets, notes) do
+    notes = notes || notes_query(user_id) |> Repo.all()
 
     by_path =
       Map.new(notes, fn note ->
@@ -445,7 +452,5 @@ defmodule Servant.Notes do
     |> String.replace(~r/\s+/u, " ")
   end
 
-  defp broadcast(user_id, message) do
-    Phoenix.PubSub.broadcast(Servant.PubSub, "data:#{user_id}", message)
-  end
+  defp broadcast(user_id, message), do: Servant.Events.broadcast(user_id, message)
 end

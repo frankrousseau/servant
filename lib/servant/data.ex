@@ -136,23 +136,34 @@ defmodule Servant.Data do
   defp field(attrs, key), do: Map.get(attrs, Atom.to_string(key)) || Map.get(attrs, key)
 
   defp normalize_datetime(%DateTime{} = dt), do: DateTime.truncate(dt, :second)
+
+  defp normalize_datetime(iso) when is_binary(iso) do
+    case DateTime.from_iso8601(iso) do
+      {:ok, dt, _offset} -> DateTime.truncate(dt, :second)
+      _ -> nil
+    end
+  end
+
   defp normalize_datetime(_), do: nil
 
   def update_entry(user_id, id, attrs) do
     entry = get_entry!(user_id, id)
 
-    result =
-      entry
-      |> Entry.changeset(attrs)
-      |> Repo.update()
+    # Notes are entries too, but editing one here would skip the Notes context's
+    # link re-sync / rename propagation, leaving note_links stale. Route note
+    # edits through Servant.Notes instead. (Deletes are fine: note_links rows are
+    # cleaned by the FK on_delete.)
+    if entry.kind == "note" do
+      {:error, :notes_api_required}
+    else
+      case entry |> Entry.changeset(attrs) |> Repo.update() do
+        {:ok, entry} ->
+          broadcast(user_id, {:entry_updated, entry})
+          {:ok, entry}
 
-    case result do
-      {:ok, entry} ->
-        broadcast(user_id, {:entry_updated, entry})
-        {:ok, entry}
-
-      error ->
-        error
+        error ->
+          error
+      end
     end
   end
 
@@ -254,7 +265,5 @@ defmodule Servant.Data do
 
   defp parse_int(val, default), do: Servant.Util.parse_int(val, default)
 
-  defp broadcast(user_id, message) do
-    Phoenix.PubSub.broadcast(Servant.PubSub, "data:#{user_id}", message)
-  end
+  defp broadcast(user_id, message), do: Servant.Events.broadcast(user_id, message)
 end

@@ -1,4 +1,4 @@
-import { ref, watch, onUnmounted } from "vue";
+import { watch, onUnmounted } from "vue";
 import { Socket, Channel } from "phoenix";
 import { useAuthStore } from "../stores/auth";
 import type { Entry } from "../types";
@@ -8,7 +8,6 @@ export function useSocket() {
   let socket: Socket | null = null;
   let channel: Channel | null = null;
 
-  const connected = ref(false);
   const entryChangeCallbacks: Array<(entry: Entry) => void> = [];
   const bulkChangeCallbacks: Array<() => void> = [];
 
@@ -37,14 +36,7 @@ export function useSocket() {
     socket.connect();
 
     channel = socket.channel(`data:${auth.user.id}`, {});
-    channel
-      .join()
-      .receive("ok", () => {
-        connected.value = true;
-      })
-      .receive("error", () => {
-        connected.value = false;
-      });
+    channel.join();
 
     channel.on("entry_change", (payload: { entry: Entry }) => {
       for (const cb of entryChangeCallbacks) {
@@ -68,7 +60,6 @@ export function useSocket() {
       socket.disconnect();
       socket = null;
     }
-    connected.value = false;
   }
 
   // Connect only once both the token AND the user are available. On a reload
@@ -90,7 +81,7 @@ export function useSocket() {
     disconnect();
   });
 
-  return { connected, onEntryChange, onBulkChange };
+  return { onEntryChange, onBulkChange };
 }
 
 /**

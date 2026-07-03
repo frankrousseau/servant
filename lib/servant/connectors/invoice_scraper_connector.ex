@@ -151,6 +151,17 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
     end
   end
 
+  # Prefix common currencies with their symbol, otherwise suffix the code
+  # (e.g. "12.00 CHF") — never hard-code "$".
+  defp format_amount(amount, currency) do
+    case String.upcase(to_string(currency)) do
+      "USD" -> "$#{amount}"
+      "EUR" -> "€#{amount}"
+      "GBP" -> "£#{amount}"
+      other -> "#{amount} #{other}"
+    end
+  end
+
   @doc false
   def build_entry(invoice, provider) do
     date_str = invoice["date"] || ""
@@ -167,7 +178,7 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
       end
 
     provider_label = provider |> to_string() |> String.capitalize()
-    title = "#{provider_label} — $#{amount} (#{month_label})"
+    title = "#{provider_label} — #{format_amount(amount, currency)} (#{month_label})"
 
     %{
       "kind" => "invoice",

@@ -11,9 +11,13 @@ defmodule ServantWeb.Endpoint do
     same_site: "Lax"
   ]
 
-  socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [session: @session_options]],
-    longpoll: [connect_info: [session: @session_options]]
+  # The LiveView socket exists only for the dev-only LiveDashboard; this is an
+  # API-only app with no LiveView otherwise.
+  if Application.compile_env(:servant, :dev_routes) do
+    socket "/live", Phoenix.LiveView.Socket,
+      websocket: [connect_info: [session: @session_options]],
+      longpoll: [connect_info: [session: @session_options]]
+  end
 
   socket "/socket", ServantWeb.UserSocket,
     websocket: true,
@@ -41,16 +45,21 @@ defmodule ServantWeb.Endpoint do
     plug Phoenix.Ecto.CheckRepoStatus, otp_app: :servant
   end
 
-  plug Phoenix.LiveDashboard.RequestLogger,
-    param_key: "request_logger",
-    cookie_key: "request_logger"
+  if Application.compile_env(:servant, :dev_routes) do
+    plug Phoenix.LiveDashboard.RequestLogger,
+      param_key: "request_logger",
+      cookie_key: "request_logger"
+  end
 
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
   plug Plug.Parsers,
-    parsers: [:urlencoded, :multipart, :json],
+    # Cap JSON/urlencoded bodies at 10MB; multipart gets its own 60MB budget to
+    # accommodate the 50MB upload limit (enforced in UploadController).
+    parsers: [:urlencoded, :json, {:multipart, length: 60_000_000}],
     pass: ["*/*"],
+    length: 10_000_000,
     json_decoder: Phoenix.json_library()
 
   plug Plug.MethodOverride

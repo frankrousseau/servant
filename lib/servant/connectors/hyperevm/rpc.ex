@@ -68,7 +68,14 @@ defmodule Servant.Connectors.HyperEVM.RPC do
     call("eth_getTransactionByHash", [tx_hash], opts)
   end
 
-  def hex_to_int("0x" <> hex), do: String.to_integer(hex, 16)
-  def hex_to_int(hex) when is_binary(hex), do: String.to_integer(hex, 16)
+  def hex_to_int("0x" <> hex), do: hex_to_int(hex)
   def hex_to_int(n) when is_integer(n), do: n
+
+  def hex_to_int(hex) when is_binary(hex) do
+    # Tolerate empty/malformed hex ("0x", non-hex chars) instead of raising.
+    case Integer.parse(hex, 16) do
+      {n, _rest} -> n
+      :error -> 0
+    end
+  end
 end

@@ -2,6 +2,7 @@
 import { ref, computed, reactive, nextTick, onMounted, onUnmounted } from "vue";
 import type { AppContext, Entry } from "../types";
 import { formatDate } from "../../lib/datetime";
+import { contactField, contactName, contactInitials } from "../../lib/contact";
 
 const props = defineProps<{ ctx: AppContext }>();
 
@@ -36,27 +37,9 @@ const form = reactive({
   note: "",
 });
 
-function fld(entry: Entry, key: string): string {
-  const val = (entry.data[key] as string) || "";
-  return val.trim().replace(/^;+|;+$/g, "").trim();
-}
-function cleanName(raw: string): string {
-  return raw
-    .replace(/^["'«»“”‘’]+|["'«»“”‘’]+$/g, "")
-    .trim();
-}
-function contactName(c: Entry): string {
-  const name = fld(c, "display_name") || c.title?.split(" — ")[0] || "";
-  return cleanName(name) || "(unnamed)";
-}
+const fld = contactField;
+const getInitials = contactInitials;
 const isUnnamed = (c: Entry) => contactName(c) === "(unnamed)";
-function getInitials(name: string): string {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() || "")
-    .join("");
-}
 const getEmails = (e: Entry) => (e.data.emails as Labeled[]) || [];
 const getPhones = (e: Entry) => (e.data.phones as Labeled[]) || [];
 

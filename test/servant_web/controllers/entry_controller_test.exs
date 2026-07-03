@@ -66,6 +66,12 @@ defmodule ServantWeb.EntryControllerTest do
       assert_error_sent(404, fn -> put(conn, "/api/entries/#{foreign.id}", %{"title" => "x"}) end)
     end
 
+    test "refuses to update a note through the generic entries API", %{conn: conn, user: user} do
+      note = entry_fixture(user.id, %{"kind" => "note", "source" => "notes"})
+      conn = put(conn, "/api/entries/#{note.id}", %{"title" => "hijacked"})
+      assert %{"error" => _} = json_response(conn, 422)
+    end
+
     test "deletes the caller's own entry (204)", %{conn: conn, user: user} do
       entry = entry_fixture(user.id)
       conn = delete(conn, "/api/entries/#{entry.id}")

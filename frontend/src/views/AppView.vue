@@ -31,6 +31,12 @@ const viewerAPI: ViewerAPI = {
   },
 };
 
+// Build the app context once, here in setup(): createAppContext calls
+// useRouter()/useAuthStore()/useConfirm(), which must run in a component's setup
+// context — not later inside the async loadApp() watch callback (where
+// useRouter's injection may resolve to undefined after an await).
+const ctx = createAppContext(viewerAPI);
+
 function handleViewerClose() {
   viewerOpen.value = false;
 }
@@ -68,7 +74,6 @@ async function loadApp(appId: string) {
     const mod = await def.load();
     currentApp = mod.default;
     if (mountEl.value) {
-      const ctx = createAppContext(viewerAPI);
       await currentApp.mount(mountEl.value, ctx);
       document.title = `Servant | ${def.name}`;
     }

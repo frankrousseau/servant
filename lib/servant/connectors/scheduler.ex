@@ -19,6 +19,9 @@ defmodule Servant.Connectors.Scheduler do
     {:ok, %{}, {:continue, :start_connectors}}
   end
 
+  # Sweep expired shared-env rows once a day so the table doesn't grow forever.
+  @cleanup_interval_ms :timer.hours(24)
+
   @impl true
   def handle_continue(:start_connectors, state) do
     Logger.info("Scheduler: starting enabled connectors")
@@ -30,6 +33,18 @@ defmodule Servant.Connectors.Scheduler do
         Logger.error("Scheduler: failed to start connectors: #{inspect(e)}")
     end
 
+    schedule_env_cleanup()
     {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(:cleanup_env, state) do
+    Connectors.cleanup_expired_env()
+    schedule_env_cleanup()
+    {:noreply, state}
+  end
+
+  defp schedule_env_cleanup do
+    Process.send_after(self(), :cleanup_env, @cleanup_interval_ms)
   end
 end

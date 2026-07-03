@@ -65,15 +65,21 @@ defmodule Servant.Connectors.VCardConnector do
   end
 
   defp fetch_vcf(url) do
-    case Req.get(url, Servant.HTTP.req_options()) do
-      {:ok, %Req.Response{status: 200, body: body}} when is_binary(body) ->
-        {:ok, body}
+    # SSRF guard on the user-supplied feed URL, like RSS/iCal — without it a vCard
+    # connector could be pointed at internal/metadata addresses.
+    with :ok <- Servant.HTTP.ensure_public_url(url) do
+      case Req.get(url, Servant.HTTP.req_options(verify: false)) do
+        {:ok, %Req.Response{status: 200, body: body}} when is_binary(body) ->
+          {:ok, body}
 
-      {:ok, %Req.Response{status: status}} ->
-        {:error, "HTTP #{status}"}
+        {:ok, %Req.Response{status: status}} ->
+          {:error, "HTTP #{status}"}
 
-      {:error, reason} ->
-        {:error, reason}
+        {:error, reason} ->
+          {:error, "request failed: #{inspect(reason)}"}
+      end
+    else
+      {:error, :blocked_url} -> {:error, "URL is not allowed (private/loopback address)"}
     end
   end
 

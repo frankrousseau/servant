@@ -49,6 +49,7 @@ defmodule Servant.Connectors.Solana.TransactionParser do
       Enum.find_index(keys, fn
         %{"pubkey" => pubkey} -> pubkey == wallet_address
         key when is_binary(key) -> key == wallet_address
+        _ -> false
       end)
 
     case index do

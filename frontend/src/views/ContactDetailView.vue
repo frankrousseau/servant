@@ -9,6 +9,7 @@ import { ArrowLeft, Trash2, Mail, Phone, Pencil, Camera, X as XIcon, Plus } from
 import type { Entry } from "../types";
 import { safeUrl } from "../lib/url";
 import { formatDate } from "../lib/datetime";
+import { contactField, contactName, contactInitials } from "../lib/contact";
 
 const route = useRoute();
 const router = useRouter();
@@ -56,21 +57,11 @@ const form = reactive({
 });
 
 function f(key: string): string {
-  const val = (entry.value?.data?.[key] as string) || "";
-  return val.trim().replace(/^;+|;+$/g, "").trim();
+  return entry.value ? contactField(entry.value, key) : "";
 }
 
-function cleanName(raw: string): string {
-  return raw.replace(/^["'«»\u201c\u201d\u2018\u2019]+|["'«»\u201c\u201d\u2018\u2019]+$/g, "").trim();
-}
-
-const name = computed(() => {
-  const raw = f("display_name") || entry.value?.title?.split(" — ")[0] || "";
-  return cleanName(raw) || "(unnamed)";
-});
-const initials = computed(() =>
-  name.value.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || "").join(""),
-);
+const name = computed(() => (entry.value ? contactName(entry.value) : "(unnamed)"));
+const initials = computed(() => contactInitials(name.value));
 const emails = computed(() => (entry.value?.data?.emails as { value: string; type: string }[]) || []);
 const phones = computed(() => (entry.value?.data?.phones as { value: string; type: string }[]) || []);
 const photo = computed(() => f("photo"));

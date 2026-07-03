@@ -168,17 +168,24 @@ defmodule Servant.Connectors do
   def persist_connector_cursor(_config_id, cursor) when map_size(cursor) == 0, do: :ok
 
   def persist_connector_cursor(config_id, cursor) when is_map(cursor) do
-    case Repo.get(ConnectorConfig, config_id) do
-      nil ->
-        :ok
+    # Transaction so the read-merge-write is atomic — otherwise a concurrent API
+    # edit to the same config between the read and the write would be lost.
+    {:ok, result} =
+      Repo.transaction(fn ->
+        case Repo.get(ConnectorConfig, config_id) do
+          nil ->
+            :ok
 
-      config ->
-        merged = Map.merge(config.config || %{}, cursor)
+          config ->
+            merged = Map.merge(config.config || %{}, cursor)
 
-        config
-        |> ConnectorConfig.changeset(%{config: merged})
-        |> Repo.update()
-    end
+            config
+            |> ConnectorConfig.changeset(%{config: merged})
+            |> Repo.update()
+        end
+      end)
+
+    result
   end
 
   # --- Sync Logs ---
