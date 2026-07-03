@@ -23,6 +23,7 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
 
 - **2026-07-03 — Section Architecture** : FE-ARCH-2 ✅ (réhydratation `auth.user` au boot → **débloque le temps réel de bout en bout** avec BE-BUG-1/2), FE-ARCH-4 ✅ (bloc `theme.colors` mort supprimé — il dupliquait `style.css` sans être consommé) · FE-ARCH-1 ⏭️ (réécriture des 4 apps en Vue, large — à arbitrer), FE-ARCH-3 ⏭️ (unification des 3 clients HTTP — sera traité avec FE-CLEAN-3). Bonus : suivi front de **BE-SEC-1** (`logout` appelle `POST /api/auth/logout`). `vue-tsc` OK.
 - **2026-07-03 — Quick wins (Deps/Sécurité/Bugs/Perf)** : FE-DEP-1 ✅ + FE-DEP-2 ✅ (`npm audit fix` → 0 vulnérabilité, vite 8.1.3, build OK), FE-SEC-1 ✅ (validation schéma `href` vCard, bloque `javascript:`), FE-SEC-5 ✅ (handler `onerror` inline retiré, re-câblé en JS — plus aucun handler inline dans les apps), FE-BUG-3 ✅ (fuite listener `keydown`), FE-PERF-2 ✅ (`loading="lazy"` avatars), **FE-BUG-1 ✅** (temps réel — résolu par FE-ARCH-2 + BE-BUG-1/2 ; le câblage `onEntryChange` était déjà bon). `vue-tsc` + `npm run build` OK.
+- **2026-07-03 — Sécurité + Clean/Doc** : FE-SEC-2 ✅ (CSP + en-têtes sécurité sur la réponse SPA, `script-src 'self'` strict ; test ; ⚠️ à vérifier en navigateur prod), FE-CLEAN-1 ✅ (`escapeHtml` factorisé dans `apps/escapeHtml.ts` — 4 apps hors-notes ; les 2 copies notes appartiennent à l'agent en cours), FE-DOC-1 ✅ (README front réécrit). Note : coordination avec un autre agent actif sur l'app **notes** → je ne touche pas `notes/*` ni `createContext.ts`. `vue-tsc` + build OK.
 
 ---
 
@@ -113,9 +114,10 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
 
 ## Clean code
 
-- [ ] **FE-CLEAN-1** · 🟡 medium · `apps/{contacts,photos,files,calendar}` · effort: small
+- [x] **FE-CLEAN-1** · 🟡 medium · `apps/{contacts,photos,files,calendar}` · effort: small
       `escapeHtml` redéfini 4× → risque qu'une copie diverge.
       Fix : factoriser dans un module partagé. *(lié à FE-ARCH-1)*
+      ✅ *Fait (2026-07-03)* : `apps/escapeHtml.ts` partagé, importé par contacts/photos/files/calendar (4 copies supprimées). Les 2 copies des fichiers notes (`notes/index.ts`, `notes/render.ts`) restent — fichiers de l'agent en cours. `vue-tsc` + build OK.
 - [ ] **FE-CLEAN-2** · 🟡 medium · `photos/index.ts` (934 l.), `ConnectorDetailView.vue` (860), etc. · effort: large
       Fichiers volumineux mêlant rendu/logique/état/HTML.
       Fix : découper en sous-composants ; la migration Vue réduirait mécaniquement la taille. *(lié à FE-ARCH-1)*
@@ -142,9 +144,10 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
 
 ## Documentation
 
-- [ ] **FE-DOC-1** · 🟡 medium · `frontend/README.md` · effort: quick
+- [x] **FE-DOC-1** · 🟡 medium · `frontend/README.md` · effort: quick
       README = boilerplate Vite par défaut. **(quick win)**
       Fix : court guide (scripts, proxy Vite, lien DEVELOPMENT.md) ou suppression.
+      ✅ *Fait (2026-07-03)* : README réécrit (setup, dev/build, scripts, proxy Vite, structure, liens `DEVELOPMENT.md`/`apps/types.ts`).
 - [ ] **FE-DOC-2** · 🟡 medium · `apps/types.ts` (contrat non documenté) · effort: small
       Système d'« apps » pluggables (`AppModule`/`AppContext`) non documenté.
       Fix : `apps/README.md` ou section DEVELOPMENT.md (« comment ajouter une app »).

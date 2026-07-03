@@ -1,10 +1,6 @@
 import type { AppModule, Entry } from "../types";
 
-function escapeHtml(s: string): string {
-  const d = document.createElement("div");
-  d.textContent = s;
-  return d.innerHTML;
-}
+import { escapeHtml } from "../escapeHtml";
 
 // Returns the URL only if it uses a safe scheme, else null — blocks stored XSS
 // from vCard fields like `URL:javascript:...` rendered into an href.

@@ -1,10 +1,5 @@
 import type { AppModule, Entry } from "../types";
-
-function escapeHtml(s: string): string {
-  const d = document.createElement("div");
-  d.textContent = s;
-  return d.innerHTML;
-}
+import { escapeHtml } from "../escapeHtml";
 
 function getField(e: Entry, k: string): unknown {
   return e.data[k];

@@ -1,12 +1,7 @@
 import type { AppModule, Entry } from "../types";
 import flatpickr from "flatpickr";
 import "flatpickr/dist/flatpickr.min.css";
-
-function escapeHtml(s: string): string {
-  const d = document.createElement("div");
-  d.textContent = s;
-  return d.innerHTML;
-}
+import { escapeHtml } from "../escapeHtml";
 
 function formatTime(dt: string): string {
   return new Date(dt).toLocaleTimeString(undefined, {

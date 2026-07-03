@@ -1,10 +1,5 @@
 import type { AppModule, Entry } from "../types";
-
-function escapeHtml(s: string): string {
-  const d = document.createElement("div");
-  d.textContent = s;
-  return d.innerHTML;
-}
+import { escapeHtml } from "../escapeHtml";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
