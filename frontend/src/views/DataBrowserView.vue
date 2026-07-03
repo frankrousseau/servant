@@ -37,6 +37,12 @@ const formSource = ref("");
 const formTitle = ref("");
 const formData = ref("{}");
 const saving = ref(false);
+const formError = ref<string | null>(null);
+const pageError = ref<string | null>(null);
+
+function errMessage(e: unknown, fallback: string): string {
+  return e instanceof Error && e.message ? e.message : fallback;
+}
 
 // Real-time
 const { onEntryChange } = useSocket();
@@ -75,8 +81,10 @@ async function fetchEntries() {
     );
     entries.value = res.data;
     meta.value = res.meta;
-  } catch {
+    pageError.value = null;
+  } catch (e) {
     entries.value = [];
+    pageError.value = errMessage(e, "Failed to load entries");
   } finally {
     loading.value = false;
   }
@@ -93,6 +101,7 @@ function openCreate() {
   formSource.value = "manual";
   formTitle.value = "";
   formData.value = "{}";
+  formError.value = null;
   showModal.value = true;
 }
 
@@ -102,17 +111,30 @@ function openEdit(entry: Entry) {
   formSource.value = entry.source;
   formTitle.value = entry.title || "";
   formData.value = JSON.stringify(entry.data, null, 2);
+  formError.value = null;
   showModal.value = true;
 }
 
 async function saveEntry() {
+  formError.value = null;
+
+  // Validate the JSON up front so an invalid payload shows a message instead of
+  // silently freezing the modal.
+  let data: unknown;
+  try {
+    data = JSON.parse(formData.value);
+  } catch {
+    formError.value = "The Data field is not valid JSON.";
+    return;
+  }
+
   saving.value = true;
   try {
     const body = {
       kind: formKind.value,
       source: formSource.value,
       title: formTitle.value,
-      data: JSON.parse(formData.value),
+      data,
     };
 
     if (editingEntry.value) {
@@ -124,8 +146,8 @@ async function saveEntry() {
     showModal.value = false;
     await fetchEntries();
     await fetchFilters();
-  } catch {
-    // handle error
+  } catch (e) {
+    formError.value = errMessage(e, "Failed to save entry");
   } finally {
     saving.value = false;
   }
@@ -142,8 +164,8 @@ async function deleteEntry(entry: Entry) {
     selectedEntry.value = null;
     await fetchEntries();
     await fetchFilters();
-  } catch {
-    // handle error
+  } catch (e) {
+    pageError.value = errMessage(e, "Failed to delete entry");
   }
 }
 
@@ -213,6 +235,11 @@ onMounted(() => {
       <h1>Data Browser</h1>
       <button @click="openCreate">+ New Entry</button>
     </div>
+
+    <p v-if="pageError" class="error-banner" role="alert">
+      {{ pageError }}
+      <button class="error-banner-close" @click="pageError = null" aria-label="Dismiss">×</button>
+    </p>
 
     <!-- Filters -->
     <div class="filters">
@@ -376,6 +403,7 @@ onMounted(() => {
             <label>Data (JSON)</label>
             <textarea v-model="formData" rows="8"></textarea>
           </div>
+          <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
           <div class="modal-actions">
             <button type="button" @click="showModal = false">Cancel</button>
             <button type="submit" :disabled="saving">
@@ -391,6 +419,35 @@ onMounted(() => {
 <style scoped>
 .loading-text {
   color: var(--text-muted);
+}
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: rgba(240, 108, 108, 0.12);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  padding: 0.6rem 0.85rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+.error-banner-close {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.form-error {
+  color: var(--danger);
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
 }
 
 .filters {

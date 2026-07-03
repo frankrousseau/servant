@@ -52,9 +52,10 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
       Rafraîchissement temps réel inopérant (`onEntryChange` jamais déclenché).
       Fix : dépend de BE-BUG-1/2 + FE-ARCH-2. *(paire avec BE-BUG-2)*
       ✅ *Fait (2026-07-03)* : résolu par FE-ARCH-2 + BE-BUG-1/2 — le câblage `onEntryChange(() => fetchEntries())` était déjà correct, il ne se déclenchait jamais faute de socket connecté. Aucun changement de code nécessaire ici.
-- [ ] **FE-BUG-2** · 🟠 high · `DataBrowserView.vue:78,127,145` (19 `catch {}`) · effort: medium
+- [x] **FE-BUG-2** · 🟠 high · `DataBrowserView.vue:78,127,145` (19 `catch {}`) · effort: medium
       Erreurs avalées en silence (ex. `JSON.parse` invalide dans `saveEntry` → modale figée sans message).
       Fix : afficher les erreurs (toast/inline) ; valider le JSON du formulaire avant envoi.
+      ✅ *Fait (2026-07-03)* : `saveEntry` valide le JSON avant envoi (message inline si invalide) ; erreurs API save affichées dans la modale (`formError`) ; erreurs list/delete affichées en bannière page (`pageError`, dismissible). `vue-tsc` + build OK.
 - [x] **FE-BUG-3** · 🟡 medium · `contacts/index.ts:134-140` · effort: quick
       Fuite d'écouteur `keydown` (retiré seulement sur Échap, pas sur Annuler/overlay/unmount). **(quick win)**
       Fix : retirer `onKey` dans `closeCreateModal` et `unmount`.
