@@ -2,6 +2,7 @@
 import { ref, onMounted } from "vue";
 import { useAuthStore } from "../stores/auth";
 import { useApi } from "../composables/useApi";
+import { formatDate } from "../lib/datetime";
 import { User as UserIcon, KeyRound, Info, Download, Camera } from "lucide-vue-next";
 
 const auth = useAuthStore();
@@ -10,6 +11,32 @@ const api = useApi();
 // Profile
 const displayName = ref("");
 const email = ref("");
+const timezone = ref("UTC");
+
+// Available IANA timezones for the picker. `supportedValuesOf` is widely
+// supported; fall back to a small common set (plus the browser's) otherwise.
+const timezones: string[] = (() => {
+  try {
+    const supported = (Intl as unknown as {
+      supportedValuesOf?: (k: string) => string[];
+    }).supportedValuesOf;
+    if (supported) return supported("timeZone");
+  } catch {
+    // fall through
+  }
+  const browser = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return Array.from(
+    new Set([
+      "UTC",
+      browser,
+      "Europe/Paris",
+      "Europe/London",
+      "America/New_York",
+      "America/Los_Angeles",
+      "Asia/Tokyo",
+    ]),
+  );
+})();
 const avatarUrl = ref<string | null>(null);
 const avatarUploading = ref(false);
 const profileSaving = ref(false);
@@ -31,7 +58,7 @@ async function downloadFile(url: string, fallbackName: string, loadingRef: typeo
   loadingRef.value = true;
   try {
     const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${auth.token}` },
+      headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {},
     });
     if (!res.ok) throw new Error("Download failed");
     const blob = await res.blob();
@@ -58,12 +85,19 @@ const memberSince = ref("");
 onMounted(async () => {
   try {
     const res = await api.get<{
-      data: { display_name: string; email: string | null; avatar_path: string | null; inserted_at: string };
+      data: {
+        display_name: string;
+        email: string | null;
+        avatar_path: string | null;
+        timezone: string | null;
+        inserted_at: string;
+      };
     }>("/api/auth/me");
     displayName.value = res.data.display_name || "";
     email.value = res.data.email || "";
+    timezone.value = res.data.timezone || "UTC";
     avatarUrl.value = res.data.avatar_path;
-    memberSince.value = new Date(res.data.inserted_at).toLocaleDateString();
+    memberSince.value = formatDate(res.data.inserted_at);
   } catch {
     displayName.value = auth.user?.display_name || "";
   }
@@ -75,14 +109,23 @@ async function saveProfile() {
   profileError.value = "";
   try {
     const res = await api.put<{
-      data: { id: string; username: string; display_name: string; email: string | null; avatar_path: string | null };
+      data: {
+        id: string;
+        username: string;
+        display_name: string;
+        email: string | null;
+        avatar_path: string | null;
+        timezone: string | null;
+      };
     }>("/api/auth/profile", {
       display_name: displayName.value,
       email: email.value || null,
+      timezone: timezone.value,
     });
     if (auth.user) {
       auth.user.display_name = res.data.display_name;
       auth.user.email = res.data.email;
+      auth.user.timezone = res.data.timezone;
     }
     profileSuccess.value = true;
     setTimeout(() => (profileSuccess.value = false), 3000);
@@ -105,7 +148,7 @@ async function uploadAvatar(event: Event) {
   try {
     const res = await fetch("/api/auth/avatar", {
       method: "POST",
-      headers: { Authorization: `Bearer ${auth.token}` },
+      headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {},
       body: formData,
     });
     const data = await res.json();
@@ -208,6 +251,14 @@ async function changePassword() {
               type="email"
               placeholder="your@email.com"
             />
+          </div>
+
+          <div class="field">
+            <label for="timezone">Timezone</label>
+            <select id="timezone" v-model="timezone">
+              <option v-for="tz in timezones" :key="tz" :value="tz">{{ tz }}</option>
+            </select>
+            <p class="field-hint">Dates and times are shown in this timezone.</p>
           </div>
 
         <p v-if="profileError" class="msg msg-error">{{ profileError }}</p>
@@ -314,6 +365,11 @@ async function changePassword() {
 </template>
 
 <style scoped>
+.field-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
 .card {
   background: var(--bg-surface);
   border: 1px solid var(--border);

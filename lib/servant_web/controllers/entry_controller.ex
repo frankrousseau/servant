@@ -9,7 +9,7 @@ defmodule ServantWeb.EntryController do
     entries = Data.list_entries(user_id, params)
     total = Data.count_entries(user_id, params)
 
-    per_page = parse_int(params["per_page"], 50)
+    per_page = Data.clamp_per_page(params["per_page"])
     page = max(parse_int(params["page"], 1), 1)
     total_pages = max(ceil(total / per_page), 1)
 

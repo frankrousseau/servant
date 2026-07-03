@@ -112,12 +112,22 @@ defmodule Servant.Storage do
   per-user ownership when serving `/files/…` behind authentication.
   """
   def resolve_owned_path(user_id, relative) when is_binary(user_id) and is_binary(relative) do
+    normalized = relative |> URI.decode() |> String.trim_leading("/")
+
     case resolve_public_path(relative) do
       {:ok, absolute} ->
         owner_root = Path.expand(join_files([user_id]))
         expanded = Path.expand(absolute)
 
-        if expanded == owner_root or String.starts_with?(expanded, owner_root <> "/") do
+        under_owner_root? =
+          expanded == owner_root or String.starts_with?(expanded, owner_root <> "/")
+
+        # New-tree files live under FILES_DIR/<user_id>/ (physical check). Legacy
+        # files may resolve under UPLOADS_DIR (a different root) yet still belong
+        # to the user — their owner is encoded in the request path. `resolve_
+        # public_path` already rejected `..` traversal, so trusting that owner is
+        # safe.
+        if under_owner_root? or claimed_owner(normalized) == user_id do
           {:ok, absolute}
         else
           :error
@@ -127,6 +137,11 @@ defmodule Servant.Storage do
         :error
     end
   end
+
+  # The user id a public/legacy path claims to belong to.
+  defp claimed_owner("app_files/" <> rest), do: rest |> String.split("/", parts: 2) |> hd()
+  defp claimed_owner("avatars/" <> file), do: file |> String.split(".", parts: 2) |> hd()
+  defp claimed_owner(relative), do: relative |> String.split("/", parts: 2) |> hd()
 
   def resolve_public_path(relative) when is_binary(relative) do
     relative = URI.decode(relative) |> String.trim_leading("/")

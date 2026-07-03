@@ -72,7 +72,7 @@ defmodule Servant.Connectors.RSSConnector do
   defp fetch_and_parse(url) do
     with :ok <- Servant.HTTP.ensure_public_url(url),
          {:ok, %Req.Response{status: 200, body: body}} when is_binary(body) <-
-           Req.get(url, Servant.HTTP.req_options(decode_body: false)) do
+           Req.get(url, Servant.HTTP.req_options(decode_body: false, verify: false)) do
       {:ok, parse_rss(body)}
     else
       {:error, :blocked_url} -> {:error, "Refusing to fetch a non-public URL"}

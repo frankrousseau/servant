@@ -2,9 +2,10 @@
 import { ref, computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useApi } from "../composables/useApi";
-import { useSocket } from "../composables/useSocket";
+import { useSocket, debounce } from "../composables/useSocket";
 import type { Entry, PaginationMeta } from "../types";
 import { relativeTime } from "../types";
+import { formatDateTime } from "../lib/datetime";
 import KindIcon from "../components/KindIcon.vue";
 import { useConfirm } from "../composables/useConfirm";
 
@@ -44,11 +45,12 @@ function errMessage(e: unknown, fallback: string): string {
   return e instanceof Error && e.message ? e.message : fallback;
 }
 
-// Real-time
-const { onEntryChange } = useSocket();
-onEntryChange(() => {
-  fetchEntries();
-});
+// Real-time. Debounced so a burst of entry events (e.g. a connector sync) or the
+// aggregated entries_changed signal refetches the page once, not per row.
+const { onEntryChange, onBulkChange } = useSocket();
+const refresh = debounce(() => fetchEntries());
+onEntryChange(refresh);
+onBulkChange(refresh);
 
 async function fetchFilters() {
   try {
@@ -187,10 +189,15 @@ function formatData(data: Record<string, unknown>): string {
   return JSON.stringify(data, null, 2);
 }
 
-// Watch filters -> reset page and refetch
+// Watch filters -> reset to page 1. When already on page 1 the page watcher
+// won't fire, so fetch explicitly then; otherwise let the page watcher fetch
+// (avoids two concurrent requests for the same params).
 watch([filterKind, filterSource, filterDateFrom, filterDateTo], () => {
-  page.value = 1;
-  fetchEntries();
+  if (page.value === 1) {
+    fetchEntries();
+  } else {
+    page.value = 1;
+  }
 });
 watch(page, fetchEntries);
 
@@ -349,13 +356,13 @@ onMounted(() => {
           <div v-if="selectedEntry.occurred_at" class="detail-meta-item">
             <span class="detail-label">Occurred</span>
             <span class="detail-value">
-              {{ new Date(selectedEntry.occurred_at).toLocaleString() }}
+              {{ formatDateTime(selectedEntry.occurred_at) }}
             </span>
           </div>
           <div class="detail-meta-item">
             <span class="detail-label">Created</span>
             <span class="detail-value">
-              {{ new Date(selectedEntry.inserted_at).toLocaleString() }}
+              {{ formatDateTime(selectedEntry.inserted_at) }}
             </span>
           </div>
         </div>

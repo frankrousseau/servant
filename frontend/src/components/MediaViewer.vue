@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { ChevronLeft, ChevronRight, X, Download, Trash2, ZoomIn, ZoomOut, ExternalLink, Info } from "lucide-vue-next";
 import { useConfirm } from "../composables/useConfirm";
 
@@ -29,6 +29,20 @@ const showInfo = ref(false);
 const current = computed(() => props.items[currentIndex.value]);
 const hasPrev = computed(() => currentIndex.value > 0);
 const hasNext = computed(() => currentIndex.value < props.items.length - 1);
+
+// Keep the index in range when items shrink (e.g. deleting the last item while
+// the viewer is open) so `current` doesn't become undefined ("Image
+// unavailable" + a bogus "3 / 2" counter).
+watch(
+  () => props.items.length,
+  (len) => {
+    if (len === 0) {
+      emit("close");
+    } else if (currentIndex.value > len - 1) {
+      currentIndex.value = len - 1;
+    }
+  },
+);
 
 function prev() {
   if (hasPrev.value) { currentIndex.value--; zoom.value = 1; imgError.value = false; showInfo.value = false; }

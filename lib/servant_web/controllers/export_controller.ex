@@ -19,7 +19,7 @@ defmodule ServantWeb.ExportController do
 
   def ical(conn, _params) do
     user_id = conn.assigns.current_user.id
-    events = Servant.Data.list_entries(user_id, %{"kind" => "event", "per_page" => "100000"})
+    events = Servant.Data.all_entries(user_id, %{"kind" => "event"})
     timestamp = DateTime.utc_now() |> Calendar.strftime("%Y%m%d_%H%M%S")
 
     ics = build_ical(events)

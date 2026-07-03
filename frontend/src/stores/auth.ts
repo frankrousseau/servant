@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import type { User } from "../types";
+import { apiErrorMessage } from "../composables/apiClient";
 
 // Only a non-sensitive "are we logged in?" flag is persisted. The actual auth
 // token lives in an HttpOnly cookie (unreadable by JS) plus an in-memory copy
@@ -40,7 +41,7 @@ export const useAuthStore = defineStore("auth", () => {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "Login failed");
+      throw new Error(apiErrorMessage(err) || "Login failed");
     }
 
     const data = await res.json();
@@ -56,7 +57,9 @@ export const useAuthStore = defineStore("auth", () => {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "Registration failed");
+      // Uses the shared parser so changeset-style {errors:{field:[...]}} bodies
+      // surface the real field message instead of a generic "Registration failed".
+      throw new Error(apiErrorMessage(err) || "Registration failed");
     }
 
     const data = await res.json();

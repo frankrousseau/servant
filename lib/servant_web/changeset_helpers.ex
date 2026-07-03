@@ -10,8 +10,18 @@ defmodule ServantWeb.ChangesetHelpers do
   def format_errors(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
       Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
-        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
+        # `to_existing_atom` guards against an unexpected placeholder raising
+        # (which would turn a 422 into a 500); fall back to the literal key.
+        atom = safe_existing_atom(key)
+        value = if atom, do: Keyword.get(opts, atom, key), else: key
+        to_string(value)
       end)
     end)
+  end
+
+  defp safe_existing_atom(key) do
+    String.to_existing_atom(key)
+  rescue
+    ArgumentError -> nil
   end
 end

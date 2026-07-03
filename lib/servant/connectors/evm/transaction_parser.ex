@@ -103,6 +103,10 @@ defmodule Servant.Connectors.EVM.TransactionParser do
          tx_hash: tx["hash"],
          block_number: parse_int(tx["blockNumber"]),
          timestamp: parse_timestamp(tx["timeStamp"]),
+         # Etherscan's tokentx rows carry a per-tx `logIndex`; keep it so a tx
+         # emitting several ERC-20 Transfer events yields distinct external_ids
+         # instead of colliding on the shared hash and being deduped away.
+         log_index: tx["logIndex"],
          transfers: [
            %{
              type: "erc20",

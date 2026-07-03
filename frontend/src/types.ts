@@ -4,6 +4,7 @@ export interface User {
   display_name: string;
   email: string | null;
   avatar_path: string | null;
+  timezone?: string | null;
 }
 
 export interface Entry {
@@ -105,4 +106,12 @@ export function relativeTime(dateStr: string): string {
   if (diffHour < 24) return `${diffHour}h ago`;
   if (diffDay < 7) return `${diffDay}d ago`;
   return date.toLocaleDateString();
+}
+
+// Single byte formatter (bytes/KB/MB) shared by photos, files and photo detail,
+// which previously each carried a copy that disagreed on KB precision.
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

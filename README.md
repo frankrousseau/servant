@@ -12,7 +12,7 @@ A self-hosted personal data hub. Aggregates data from external services (banking
 
 > **File access:** uploaded files are served under `/files/…` (and legacy
 > `/uploads/…`) **only to their owner**. Access is authenticated by an HttpOnly
-> `_servant_file_auth` cookie set at login and scoped to `FILES_DIR/<user_id>/`,
+> `_servant_auth` cookie set at login and scoped to `FILES_DIR/<user_id>/`,
 > so `<img src="/files/…">` works without exposing a token to JavaScript. Users
 > logged in before this change must log in again to receive the cookie.
 

@@ -1,15 +1,6 @@
-export interface Entry {
-  id: string;
-  kind: string;
-  source: string;
-  external_id: string | null;
-  title: string | null;
-  occurred_at: string | null;
-  data: Record<string, unknown>;
-  metadata: Record<string, unknown>;
-  inserted_at: string;
-  updated_at: string;
-}
+// Single source of truth in ../types to keep the apps and views from drifting.
+export type { Entry } from "../types";
+import type { Entry } from "../types";
 
 export interface EntriesAPI {
   list(filters?: Record<string, string>): Promise<Entry[]>;

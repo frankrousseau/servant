@@ -39,6 +39,9 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
       is_nil(provider) or provider == "" ->
         {:error, :missing_provider}
 
+      not valid_provider?(provider) ->
+        {:error, :invalid_provider}
+
       is_nil(email) or email == "" ->
         {:error, :missing_email}
 
@@ -67,6 +70,15 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
         {:error, reason, state}
     end
   end
+
+  # The provider name is interpolated into a filesystem path by the Node script
+  # (`providers/<name>.js`), so restrict it to a bare identifier — no path
+  # separators or `..` — to prevent traversal into (and execution of) arbitrary
+  # JS. Mirrors the guard in priv/scrapers/invoice_scraper.js.
+  defp valid_provider?(provider) when is_binary(provider),
+    do: Regex.match?(~r/^[a-z0-9_]+$/, provider)
+
+  defp valid_provider?(_), do: false
 
   defp run_scraper(state) do
     do_run_scraper(state)

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, reactive, nextTick, onMounted, onUnmounted } from "vue";
 import type { AppContext, Entry } from "../types";
+import { formatDate } from "../../lib/datetime";
 
 const props = defineProps<{ ctx: AppContext }>();
 
@@ -15,6 +16,7 @@ const selectedId = ref<string | null>(
   new URLSearchParams(window.location.search).get("selected"),
 );
 const loading = ref(true);
+const loadError = ref("");
 
 const modalOpen = ref(false);
 const creating = ref(false);
@@ -165,9 +167,15 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 async function reload() {
-  const entries = await props.ctx.api.entries.list({ kind: "contact" });
-  allContacts.value = sortContacts(entries);
-  loading.value = false;
+  loadError.value = "";
+  try {
+    const entries = await props.ctx.api.entries.list({ kind: "contact" });
+    allContacts.value = sortContacts(entries);
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : "Failed to load contacts";
+  } finally {
+    loading.value = false;
+  }
 }
 
 onMounted(() => {
@@ -179,6 +187,7 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
 
 <template>
   <p v-if="loading" class="ct-loading">Loading contacts...</p>
+  <p v-else-if="loadError" class="ct-loading">{{ loadError }}</p>
   <div v-else class="ct-layout">
     <div class="ct-list-col">
       <div class="ct-search-wrap">
@@ -312,7 +321,7 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
             </div>
             <div class="ct-meta-row">
               <span class="ct-meta-key">Added</span>
-              <span>{{ new Date(selected.inserted_at).toLocaleDateString() }}</span>
+              <span>{{ formatDate(selected.inserted_at) }}</span>
             </div>
             <div v-if="selected.external_id" class="ct-meta-row">
               <span class="ct-meta-key">ID</span>

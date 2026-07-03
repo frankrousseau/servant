@@ -10,9 +10,18 @@ export function useSocket() {
 
   const connected = ref(false);
   const entryChangeCallbacks: Array<(entry: Entry) => void> = [];
+  const bulkChangeCallbacks: Array<() => void> = [];
 
   function onEntryChange(cb: (entry: Entry) => void) {
     entryChangeCallbacks.push(cb);
+  }
+
+  // Fires on the aggregated "entries_changed" signal (connector syncs / bulk
+  // imports), which the server emits once for many rows instead of one
+  // entry_change per row. Consumers should refetch here rather than relying on
+  // per-entry events (which never arrive for bulk writes).
+  function onBulkChange(cb: () => void) {
+    bulkChangeCallbacks.push(cb);
   }
 
   function connect() {
@@ -40,6 +49,12 @@ export function useSocket() {
     channel.on("entry_change", (payload: { entry: Entry }) => {
       for (const cb of entryChangeCallbacks) {
         cb(payload.entry);
+      }
+    });
+
+    channel.on("entries_changed", () => {
+      for (const cb of bulkChangeCallbacks) {
+        cb();
       }
     });
   }
@@ -75,5 +90,21 @@ export function useSocket() {
     disconnect();
   });
 
-  return { connected, onEntryChange };
+  return { connected, onEntryChange, onBulkChange };
+}
+
+/**
+ * Wraps a zero-arg callback so bursts of calls collapse into a single trailing
+ * invocation after `delay` ms of quiet. Use to coalesce refetches driven by
+ * many socket events (a connector sync fires one event per entry).
+ */
+export function debounce(fn: () => void, delay = 400): () => void {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  return () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      fn();
+    }, delay);
+  };
 }

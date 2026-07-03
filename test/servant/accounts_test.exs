@@ -40,4 +40,24 @@ defmodule Servant.AccountsTest do
                Accounts.change_password(user, "wrong-current", "newpassword456")
     end
   end
+
+  describe "update_profile/2 timezone" do
+    setup do
+      %{user: user_fixture(%{"username" => "tzuser", "password" => "password123"})}
+    end
+
+    test "defaults to UTC", %{user: user} do
+      assert user.timezone == "UTC"
+    end
+
+    test "accepts a valid IANA timezone", %{user: user} do
+      assert {:ok, updated} = Accounts.update_profile(user, %{"timezone" => "Europe/Paris"})
+      assert updated.timezone == "Europe/Paris"
+    end
+
+    test "rejects a malformed timezone", %{user: user} do
+      assert {:error, changeset} = Accounts.update_profile(user, %{"timezone" => "not a tz!"})
+      assert %{timezone: ["must be a valid timezone"]} = errors_on(changeset)
+    end
+  end
 end

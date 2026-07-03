@@ -10,6 +10,7 @@ defmodule Servant.Accounts.User do
     field :display_name, :string
     field :email, :string
     field :avatar_path, :string
+    field :timezone, :string, default: "UTC"
     field :password, :string, virtual: true, redact: true
 
     timestamps(type: :utc_datetime)
@@ -27,9 +28,19 @@ defmodule Servant.Accounts.User do
 
   def profile_changeset(user, attrs) do
     user
-    |> cast(attrs, [:display_name, :email])
+    |> cast(attrs, [:display_name, :email, :timezone])
     |> validate_length(:display_name, max: 100)
     |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/, message: "must be a valid email")
+    |> validate_timezone()
+  end
+
+  # The IANA tz database lives in the browser (used for display), so the server
+  # only sanity-checks the string: a bare IANA-style name like "Europe/Paris" or
+  # "UTC". Keeps out junk without pulling in a tz dependency.
+  defp validate_timezone(changeset) do
+    changeset
+    |> validate_length(:timezone, max: 64)
+    |> validate_format(:timezone, ~r{^[A-Za-z0-9+._/-]+$}, message: "must be a valid timezone")
   end
 
   def avatar_changeset(user, avatar_path) do

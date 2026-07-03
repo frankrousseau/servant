@@ -63,6 +63,9 @@ defmodule Servant.Connectors.Solana.TransactionParserTest do
       assert [transfer] = parsed.transfers
       assert transfer.direction == "received"
       assert transfer.amount == 1_000_000_000
+      # Regression: incoming transfers used to always resolve counterparty to nil
+      # because the two-`if` block discarded the received-case result.
+      assert transfer.counterparty == @other
     end
   end
 

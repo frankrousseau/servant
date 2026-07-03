@@ -54,6 +54,13 @@ if config_env() == :prod do
 
   host = System.get_env("PHX_HOST") || "example.com"
 
+  # Optional dedicated key for connector-secret encryption at rest. When unset,
+  # Servant.Encrypted falls back to deriving the key from SECRET_KEY_BASE. This
+  # must actually be read here or the documented env var would be a no-op.
+  if key = System.get_env("CONNECTOR_ENCRYPTION_KEY") do
+    config :servant, :connector_encryption_key, key
+  end
+
   config :servant, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   config :servant, ServantWeb.Endpoint,

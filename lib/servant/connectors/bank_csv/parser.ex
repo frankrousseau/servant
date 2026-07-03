@@ -196,18 +196,17 @@ defmodule Servant.Connectors.BankCSV.Parser do
   end
 
   defp split_line(line, ",") do
-    line
-    |> String.trim()
-    |> then(fn trimmed ->
-      trimmed
-      |> NimbleCSV.RFC4180.parse_string()
-      |> Enum.to_list()
-      |> List.first()
-      |> case do
-        nil -> fallback_split(trimmed, ",")
-        fields -> fields
-      end
-    end)
+    trimmed = String.trim(line)
+
+    # `parse_string/1` defaults to `skip_headers: true`, which would consume this
+    # single line as a header and return `[]` — so RFC4180 parsing never ran and
+    # every comma-delimited line fell through to the naive splitter, mis-splitting
+    # quoted fields that contain commas (e.g. "Smith, John"). Disable header
+    # skipping so the one line is actually parsed.
+    case NimbleCSV.RFC4180.parse_string(trimmed, skip_headers: false) do
+      [fields | _] -> fields
+      _ -> fallback_split(trimmed, ",")
+    end
   end
 
   defp split_line(line, delimiter) do

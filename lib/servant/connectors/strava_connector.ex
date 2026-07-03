@@ -67,14 +67,25 @@ defmodule Servant.Connectors.StravaConnector do
 
   @impl true
   def sync(state) do
-    with {:ok, access_token, state} <- ensure_access_token(state),
-         {:ok, activities} <- fetch_all_activities(access_token, state.last_activity_after) do
-      entries = Enum.map(activities, &build_entry/1)
-      new_after = latest_activity_epoch(activities, state.last_activity_after)
-      {:ok, entries, %{state | last_activity_after: new_after}}
-    else
-      {:error, reason, state} -> {:error, reason, state}
-      {:error, reason} -> {:error, reason, state}
+    # Not a `with/else`: the token refresh may rotate `refresh_token` into a new
+    # `state`, and that rotated state must be returned on EVERY branch (including
+    # a later fetch error) or the rotated token is lost and the connector breaks
+    # permanently. A `with/else` would shadow `state` back to the original in the
+    # else clauses, so we thread it explicitly through nested `case`s.
+    case ensure_access_token(state) do
+      {:ok, access_token, state} ->
+        case fetch_all_activities(access_token, state.last_activity_after) do
+          {:ok, activities} ->
+            entries = Enum.map(activities, &build_entry/1)
+            new_after = latest_activity_epoch(activities, state.last_activity_after)
+            {:ok, entries, %{state | last_activity_after: new_after}}
+
+          {:error, reason} ->
+            {:error, reason, state}
+        end
+
+      {:error, reason, state} ->
+        {:error, reason, state}
     end
   end
 
@@ -103,9 +114,12 @@ defmodule Servant.Connectors.StravaConnector do
     }
 
     case Req.post(@token_url, Servant.HTTP.req_options(json: body)) do
-      {:ok, %Req.Response{status: 200, body: resp}} ->
-        access_token = resp["access_token"]
-        expires_at = resp["expires_at"]
+      {:ok,
+       %Req.Response{
+         status: 200,
+         body: %{"access_token" => access_token, "expires_at" => expires_at} = resp
+       }}
+      when is_binary(access_token) and is_integer(expires_at) ->
         new_refresh = resp["refresh_token"]
 
         # Cache the token with expiration

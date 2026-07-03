@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed } from "vue";
+import { ref, reactive, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useApi } from "../composables/useApi";
 import { useFetchData } from "../composables/useFetchData";
@@ -7,6 +7,8 @@ import { useAuthStore } from "../stores/auth";
 import { useConfirm } from "../composables/useConfirm";
 import { ArrowLeft, Trash2, Mail, Phone, Pencil, Camera, X as XIcon, Plus } from "lucide-vue-next";
 import type { Entry } from "../types";
+import { safeUrl } from "../lib/url";
+import { formatDate } from "../lib/datetime";
 
 const route = useRoute();
 const router = useRouter();
@@ -18,6 +20,7 @@ const {
   data: entry,
   loading,
   error,
+  refetch,
 } = useFetchData<Entry>(
   () => api.get<{ data: Entry }>(`/api/entries/${route.params.id}`).then((r) => r.data),
   {
@@ -26,6 +29,13 @@ const {
       if (route.query.edit) startEdit();
     },
   },
+);
+
+// The component instance is reused across /contacts/:id navigations (no router
+// key), and useFetchData only fetches on mount — so refetch when the id changes.
+watch(
+  () => route.params.id,
+  () => refetch(),
 );
 const editing = ref(false);
 const saving = ref(false);
@@ -108,7 +118,7 @@ async function uploadPhoto(event: Event) {
     fd.append("app", "contacts")
     const res = await fetch("/api/uploads", {
       method: "POST",
-      headers: { Authorization: `Bearer ${auth.token}` },
+      headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {},
       body: fd,
     });
     const data = await res.json();
@@ -311,7 +321,8 @@ async function deleteContact() {
               </div>
               <div v-if="f('url')" class="ct-meta-row">
                 <span class="ct-meta-key">Website</span>
-                <a :href="f('url')" target="_blank" rel="noopener" class="ct-link">{{ f('url') }}</a>
+                <a v-if="safeUrl(f('url'))" :href="safeUrl(f('url'))!" target="_blank" rel="noopener" class="ct-link">{{ f('url') }}</a>
+                <span v-else class="ct-link">{{ f('url') }}</span>
               </div>
               <div v-if="f('note')" class="ct-meta-row">
                 <span class="ct-meta-key">Note</span>
@@ -329,7 +340,7 @@ async function deleteContact() {
               </div>
               <div class="ct-meta-row">
                 <span class="ct-meta-key">Added</span>
-                <span>{{ new Date(entry.inserted_at).toLocaleDateString() }}</span>
+                <span>{{ formatDate(entry.inserted_at) }}</span>
               </div>
               <div v-if="entry.external_id" class="ct-meta-row">
                 <span class="ct-meta-key">External ID</span>

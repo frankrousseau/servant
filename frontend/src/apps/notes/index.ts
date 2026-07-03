@@ -63,6 +63,10 @@ function emptyNode(name: string, path: string): TreeNode {
 // Set by mount() so unmount() can flush a pending debounced save. A single
 // notes instance is mounted at a time.
 let flushPendingSave: (() => void) | null = null;
+// Detaches the delegated preview-click listener from the (persistent) mount
+// element on unmount — the element is reused across app switches, so without
+// this each Notes visit would leave another stale handler firing on it.
+let detachClick: (() => void) | null = null;
 
 // Viewport coordinates of the caret in a textarea, measured with a hidden
 // mirror div that replicates the textarea's text layout up to the caret.
@@ -661,7 +665,7 @@ const notesApp: AppModule = {
     }
 
     // Delegated wikilink and mention clicks in the preview.
-    el.addEventListener("click", (e) => {
+    const onPreviewClick = (e: MouseEvent) => {
       const mention = (e.target as HTMLElement).closest(".nt-mention") as HTMLElement | null;
       if (mention) {
         e.preventDefault();
@@ -677,7 +681,9 @@ const notesApp: AppModule = {
       const existing = resolveTarget(target);
       if (existing) void selectNote(existing.id);
       else void createNamedNote(target);
-    });
+    };
+    el.addEventListener("click", onPreviewClick);
+    detachClick = () => el.removeEventListener("click", onPreviewClick);
 
     async function createNamedNote(title: string) {
       try {
@@ -803,6 +809,8 @@ const notesApp: AppModule = {
     // Flush before clearing the DOM: save() captures input values synchronously.
     flushPendingSave?.();
     flushPendingSave = null;
+    detachClick?.();
+    detachClick = null;
     el.innerHTML = "";
     document.querySelectorAll(".nt-ac").forEach((p) => p.remove());
     document.querySelector('style[data-app="notes"]')?.remove();

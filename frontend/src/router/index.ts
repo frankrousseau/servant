@@ -1,12 +1,11 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 
-// Only the entry views (guest + landing) are eager; the rest are lazy so their
-// code (e.g. the connector catalog + its inline SVG logos) stays out of the
-// main bundle — FE-PERF-3/4.
+// Only the auth entry views are eager. The dashboard is lazy too: it pulls in
+// the connector catalog (hundreds of lines of inline SVG) and the phoenix
+// socket lib, which we don't want in the main bundle — FE-PERF-2/3.
 import LoginView from "../views/LoginView.vue";
 import RegisterView from "../views/RegisterView.vue";
-import DashboardView from "../views/DashboardView.vue";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -26,7 +25,7 @@ const router = createRouter({
     {
       path: "/",
       name: "dashboard",
-      component: DashboardView,
+      component: () => import("../views/DashboardView.vue"),
       meta: { auth: true, title: "Dashboard" },
     },
     {

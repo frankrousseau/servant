@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useApi } from "../composables/useApi";
 import { useAuthStore } from "../stores/auth";
 import type { ConnectorConfig, SyncLog, Schedule } from "../types";
 import { SCHEDULE_LABELS, relativeTime } from "../types";
+import { formatDate, formatDateTime } from "../lib/datetime";
 import { getConnectorDef } from "../connectors";
 import { Upload, ArrowLeft, Check, X, LoaderCircle, Copy, RefreshCw, ToggleLeft, ToggleRight, Trash2 } from "lucide-vue-next";
 import { useConfirm } from "../composables/useConfirm";
@@ -67,9 +68,7 @@ async function uploadCSV(event: Event) {
   try {
     const res = await fetch(`/api/connectors/${connectorId.value}/import`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${auth.token}`,
-      },
+      headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {},
       body: formData,
     });
 
@@ -92,45 +91,47 @@ async function uploadCSV(event: Event) {
 
 const connectorId = computed(() => route.params.id as string);
 
-async function fetchConnector() {
-  loading.value = true;
+// `silent` skips the loading toggle so background polling doesn't tear the whole
+// view down to a "Loading…" state every 2s (and drop focus on the title).
+async function fetchConnector(silent = false) {
+  if (!silent) loading.value = true;
   try {
     const res = await api.get<{ data: ConnectorConfig }>(
       `/api/connectors/${connectorId.value}`,
     );
     connector.value = res.data;
   } catch {
-    connector.value = null;
+    if (!silent) connector.value = null;
   } finally {
-    loading.value = false;
+    if (!silent) loading.value = false;
   }
 }
 
-async function fetchLogs() {
-  logsLoading.value = true;
+async function fetchLogs(silent = false) {
+  if (!silent) logsLoading.value = true;
   try {
     const res = await api.get<{ data: SyncLog[] }>(
       `/api/connectors/${connectorId.value}/logs`,
     );
     logs.value = res.data;
   } catch {
-    logs.value = [];
+    if (!silent) logs.value = [];
   } finally {
-    logsLoading.value = false;
+    if (!silent) logsLoading.value = false;
   }
 }
 
 async function saveName(event: Event) {
-  const el = event.target as HTMLElement;
-  const newName = el.textContent?.trim() || "";
+  const el = event.target as HTMLInputElement;
+  const newName = el.value.trim();
   if (!connector.value || newName === (connector.value.name || "")) return;
 
   try {
     await api.put(`/api/connectors/${connectorId.value}`, { name: newName });
     connector.value.name = newName;
   } catch {
-    // Revert on failure
-    el.textContent = connector.value.name || connectorDef.value?.name || connector.value.connector_type;
+    // Revert the field to the last saved value on failure.
+    el.value = connector.value.name || "";
   }
 }
 
@@ -155,20 +156,32 @@ async function syncNow() {
   pollSync();
 }
 
-async function pollSync() {
+const pollTimer = ref<ReturnType<typeof setInterval> | null>(null);
+
+function stopPolling() {
+  if (pollTimer.value) {
+    clearInterval(pollTimer.value);
+    pollTimer.value = null;
+  }
+}
+
+function pollSync() {
+  stopPolling();
   let attempts = 0;
-  const poll = setInterval(async () => {
+  pollTimer.value = setInterval(async () => {
     attempts++;
-    await fetchLogs();
-    await fetchConnector();
+    await fetchLogs(true);
+    await fetchConnector(true);
     // Stop polling when the latest log is no longer "running", or after 60s
     const latest = logs.value[0];
     if (!latest || latest.status !== "running" || attempts >= 30) {
-      clearInterval(poll);
+      stopPolling();
       syncing.value = false;
     }
   }, 2000);
 }
+
+onUnmounted(stopPolling);
 
 function showFeedback(msg: string) {
   actionFeedback.value = msg;
@@ -248,13 +261,14 @@ onMounted(() => {
           class="header-logo"
           v-html="connectorDef.logo"
         ></div>
-        <h1
+        <input
           v-if="connector"
           class="editable-name"
-          contenteditable="true"
+          :value="connector.name || ''"
+          :placeholder="connectorDef?.name || connector.connector_type"
           @blur="saveName"
-          @keydown.enter.prevent="($event.target as HTMLElement).blur()"
-        >{{ connector.name || connectorDef?.name || connector.connector_type }}</h1>
+          @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
+        />
         <h1 v-else>Connector</h1>
       </div>
     </div>
@@ -302,9 +316,7 @@ onMounted(() => {
               <template v-if="connector.last_synced_at">
                 {{ relativeTime(connector.last_synced_at) }}
                 <span class="detail-sub">
-                  ({{
-                    new Date(connector.last_synced_at).toLocaleString()
-                  }})
+                  ({{ formatDateTime(connector.last_synced_at) }})
                 </span>
               </template>
               <template v-else>Never</template>
@@ -313,7 +325,7 @@ onMounted(() => {
           <div class="detail-item">
             <span class="detail-label">Created</span>
             <span class="detail-val">
-              {{ new Date(connector.inserted_at).toLocaleDateString() }}
+              {{ formatDate(connector.inserted_at) }}
             </span>
           </div>
         </div>
@@ -434,7 +446,7 @@ onMounted(() => {
         <button
           v-if="!logsLoading"
           class="small refresh-btn"
-          @click="fetchLogs"
+          @click="fetchLogs()"
         >
           Refresh
         </button>
@@ -471,7 +483,14 @@ onMounted(() => {
 
 .editable-name {
   outline: none;
+  border: none;
   border-bottom: 1px dashed transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 1.5rem;
+  font-weight: 600;
+  padding: 0;
   transition: border-color 0.15s;
   cursor: text;
   min-width: 60px;

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted } from "vue";
 import type { AppContext, Entry } from "../types";
+import { formatFileSize } from "../../types";
+import { formatDateTime } from "../../lib/datetime";
 
 const props = defineProps<{ ctx: AppContext }>();
 
@@ -16,6 +18,7 @@ const tagFilter = ref("");
 const peopleFilter = ref("");
 const uploading = ref(false);
 const loading = ref(true);
+const loadError = ref("");
 const selectionMode = ref(false);
 const peopleSearchActive = ref(false);
 const peopleSearchQuery = ref("");
@@ -33,12 +36,6 @@ function field(e: Entry, k: string): unknown {
 const getThumbPath = (e: Entry) => (field(e, "thumb_path") || field(e, "path")) as string;
 const getTags = (e: Entry): string[] => (e.data.tags as string[]) || [];
 const getPeople = (e: Entry): Person[] => (e.data.people as Person[]) || [];
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 const albums = computed(() => {
   const set = new Set<string>();
@@ -124,50 +121,62 @@ function setFilter(opts: { tag?: string; person?: string }) {
 }
 
 async function reload() {
-  const [photos, contacts] = await Promise.all([
-    props.ctx.api.entries.list({ kind: "photo" }),
-    allContacts.value.length
-      ? Promise.resolve(allContacts.value)
-      : props.ctx.api.entries.list({ kind: "contact" }),
-  ]);
-  allPhotos.value = photos.sort(
-    (a, b) => new Date(b.inserted_at).getTime() - new Date(a.inserted_at).getTime(),
-  );
-  allContacts.value = contacts;
-  loading.value = false;
+  loadError.value = "";
+  try {
+    const [photos, contacts] = await Promise.all([
+      props.ctx.api.entries.list({ kind: "photo" }),
+      allContacts.value.length
+        ? Promise.resolve(allContacts.value)
+        : props.ctx.api.entries.list({ kind: "contact" }),
+    ]);
+    allPhotos.value = photos.sort(
+      (a, b) => new Date(b.inserted_at).getTime() - new Date(a.inserted_at).getTime(),
+    );
+    allContacts.value = contacts;
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : "Failed to load photos";
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function uploadFiles(files: File[]) {
   const images = files.filter((f) => f.type.startsWith("image/"));
   if (!images.length) return;
   uploading.value = true;
-  for (const file of images) {
-    const result = (await props.ctx.api.upload(file, "photos")) as unknown as Record<string, unknown>;
-    const data: Record<string, unknown> = {
-      filename: file.name,
-      size: result.size,
-      mime_type: result.mime_type,
-      path: result.path,
-      album: albumFilter.value || null,
-      tags: [],
-    };
-    if (result.date_taken) data.date_taken = result.date_taken;
-    if (result.latitude != null) {
-      data.latitude = result.latitude;
-      data.longitude = result.longitude;
-    }
-    if (result.camera) data.camera = result.camera;
-    if (result.thumb_path) data.thumb_path = result.thumb_path;
+  loadError.value = "";
+  try {
+    for (const file of images) {
+      const result = (await props.ctx.api.upload(file, "photos")) as unknown as Record<string, unknown>;
+      const data: Record<string, unknown> = {
+        filename: file.name,
+        size: result.size,
+        mime_type: result.mime_type,
+        path: result.path,
+        album: albumFilter.value || null,
+        tags: [],
+      };
+      if (result.date_taken) data.date_taken = result.date_taken;
+      if (result.latitude != null) {
+        data.latitude = result.latitude;
+        data.longitude = result.longitude;
+      }
+      if (result.camera) data.camera = result.camera;
+      if (result.thumb_path) data.thumb_path = result.thumb_path;
 
-    await props.ctx.api.entries.create({
-      kind: "photo",
-      source: "photos_app",
-      title: file.name,
-      occurred_at: (result.date_taken as string) || null,
-      data,
-    });
+      await props.ctx.api.entries.create({
+        kind: "photo",
+        source: "photos_app",
+        title: file.name,
+        occurred_at: (result.date_taken as string) || null,
+        data,
+      });
+    }
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : "Upload failed";
+  } finally {
+    uploading.value = false;
   }
-  uploading.value = false;
   await reload();
 }
 
@@ -211,7 +220,12 @@ async function deletePhotos(ids: string[]) {
   const label = ids.length === 1 ? "this photo" : `${ids.length} photos`;
   const ok = await props.ctx.confirm.ask({ message: `Delete ${label}?`, danger: true, confirmLabel: "Delete" });
   if (!ok) return;
-  for (const id of ids) await props.ctx.api.entries.delete(id);
+  loadError.value = "";
+  try {
+    for (const id of ids) await props.ctx.api.entries.delete(id);
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : "Delete failed";
+  }
   selectedIds.value.clear();
   selectionMode.value = false;
   await reload();
@@ -302,7 +316,7 @@ function openViewer(photoId: string) {
   const photos = filtered.value;
   const items = photos.map((p) => {
     const meta: Record<string, string | number | null> = {};
-    if (p.data.date_taken) meta["Date taken"] = new Date(p.data.date_taken as string).toLocaleString();
+    if (p.data.date_taken) meta["Date taken"] = formatDateTime(p.data.date_taken as string);
     if (p.data.camera) meta["Camera"] = p.data.camera as string;
     if (p.data.latitude != null)
       meta["Location"] = `${(p.data.latitude as number).toFixed(5)}, ${(p.data.longitude as number).toFixed(5)}`;
@@ -340,6 +354,7 @@ onMounted(() => {
 
 <template>
   <p v-if="loading" class="ph-loading">Loading photos...</p>
+  <p v-else-if="loadError" class="ph-loading">{{ loadError }}</p>
   <div
     v-else
     class="ph-layout"

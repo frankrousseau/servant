@@ -103,7 +103,7 @@ defmodule Servant.Connectors.ICalConnector do
   defp fetch_ical(url) do
     with :ok <- Servant.HTTP.ensure_public_url(url),
          {:ok, %Req.Response{status: 200, body: body}} when is_binary(body) <-
-           Req.get(url, Servant.HTTP.req_options()) do
+           Req.get(url, Servant.HTTP.req_options(verify: false)) do
       {:ok, body}
     else
       {:error, :blocked_url} -> {:error, "Refusing to fetch a non-public URL"}
@@ -190,11 +190,7 @@ defmodule Servant.Connectors.ICalConnector do
         <<y::binary-4, m::binary-2, d::binary-2, ?T, h::binary-2, mi::binary-2, s::binary-2, ?Z>> =
           str
 
-        DateTime.new(
-          Date.new!(String.to_integer(y), String.to_integer(m), String.to_integer(d)),
-          Time.new!(String.to_integer(h), String.to_integer(mi), String.to_integer(s)),
-          "Etc/UTC"
-        )
+        build_datetime(y, m, d, h, mi, s)
 
       # 20250315T120000 (no timezone, treat as UTC)
       Regex.match?(~r/^\d{8}T\d{6}$/, str) ->
@@ -204,14 +200,25 @@ defmodule Servant.Connectors.ICalConnector do
       Regex.match?(~r/^\d{8}$/, str) ->
         <<y::binary-4, m::binary-2, d::binary-2>> = str
 
-        DateTime.new(
-          Date.new!(String.to_integer(y), String.to_integer(m), String.to_integer(d)),
-          ~T[00:00:00],
-          "Etc/UTC"
-        )
+        build_datetime(y, m, d, "00", "00", "00")
 
       true ->
         {:error, :invalid_format}
     end
   end
+
+  # Uses the non-raising Date.new/Time.new: the regexes above only validate the
+  # digit *shape*, not the values, so a well-formed-but-invalid stamp (Feb 30,
+  # hour 24 — both emitted by some broken calendar generators) must return
+  # {:error, _} rather than raise and crash the worker on a single bad VEVENT.
+  defp build_datetime(y, m, d, h, mi, s) do
+    with {:ok, date} <- Date.new(int(y), int(m), int(d)),
+         {:ok, time} <- Time.new(int(h), int(mi), int(s)) do
+      DateTime.new(date, time, "Etc/UTC")
+    else
+      _ -> {:error, :invalid_format}
+    end
+  end
+
+  defp int(bin), do: String.to_integer(bin)
 end

@@ -122,7 +122,7 @@ defmodule Servant.Connectors.EVMConnector do
         %{
           "kind" => "blockchain_tx",
           "source" => unquote(chain),
-          "external_id" => "#{parsed.tx_hash}-#{transfer.type}",
+          "external_id" => external_id(parsed, transfer),
           "title" => title,
           "occurred_at" => parsed.timestamp,
           "data" => %{
@@ -137,6 +137,21 @@ defmodule Servant.Connectors.EVMConnector do
           "metadata" => %{}
         }
       end
+
+      # Native transfers are one-per-tx, so hash+type is unique. ERC-20 transfers
+      # can be many-per-tx; disambiguate with the log index (falling back to the
+      # token address so identical-token multi-transfers still differ).
+      defp external_id(%{log_index: log_index} = parsed, transfer)
+           when not is_nil(log_index) do
+        "#{parsed.tx_hash}-#{transfer.type}-#{log_index}"
+      end
+
+      defp external_id(parsed, %{token_address: token_address} = transfer)
+           when not is_nil(token_address) do
+        "#{parsed.tx_hash}-#{transfer.type}-#{token_address}"
+      end
+
+      defp external_id(parsed, transfer), do: "#{parsed.tx_hash}-#{transfer.type}"
 
       defp build_title(nil), do: "#{unquote(name)} transaction"
 

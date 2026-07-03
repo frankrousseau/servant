@@ -2,7 +2,7 @@
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useApi } from "../composables/useApi";
-import { useSocket } from "../composables/useSocket";
+import { useSocket, debounce } from "../composables/useSocket";
 import type { Entry, ConnectorConfig } from "../types";
 import { relativeTime } from "../types";
 import { getConnectorDef } from "../connectors";
@@ -17,11 +17,13 @@ const totalEntries = ref(0);
 const connectors = ref<ConnectorConfig[]>([]);
 const loading = ref(true);
 
-const { onEntryChange } = useSocket();
+const { onEntryChange, onBulkChange } = useSocket();
 
-onEntryChange(() => {
-  fetchData();
-});
+// Coalesce refetches: a connector sync can fire many entry events in a burst,
+// and each fetchData() is several requests. Debounce so we refresh once.
+const refresh = debounce(() => fetchData());
+onEntryChange(refresh);
+onBulkChange(refresh);
 
 async function fetchData() {
   try {

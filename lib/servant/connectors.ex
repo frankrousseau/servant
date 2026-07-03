@@ -48,7 +48,8 @@ defmodule Servant.Connectors do
   end
 
   @redacted_secret "••••••"
-  @sensitive_substrings ~w(password secret token totp apikey api_key private_key)
+  @sensitive_substrings ~w(password secret token totp apikey api_key private_key
+    key credential cookie session auth pin passphrase mnemonic seed_phrase)
 
   def update_connector_config(user_id, id, attrs) do
     config = get_connector_config!(user_id, id)
@@ -226,9 +227,11 @@ defmodule Servant.Connectors do
     config = get_connector_config!(user_id, config_id)
     workspace = Servant.Storage.tmp_workspace(user_id)
     staged = Path.join(workspace, "import#{Path.extname(filename)}")
-    File.cp!(path, staged)
 
     try do
+      # Inside the try so a failing copy (e.g. disk full) still hits the `after`
+      # cleanup and doesn't leak the tmp workspace.
+      File.cp!(path, staged)
       content = staged |> File.read!() |> Servant.Util.strip_bom()
 
       case Map.get(@importable_types, config.connector_type) do
@@ -339,28 +342,31 @@ defmodule Servant.Connectors do
 
   def put_env(connector_type, namespace, key, value, expires_at \\ nil) do
     expires_at = if expires_at, do: DateTime.truncate(expires_at, :second)
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    case Repo.get_by(ConnectorEnvironment,
-           connector_type: connector_type,
-           namespace: namespace,
-           key: key
-         ) do
-      nil ->
-        %ConnectorEnvironment{}
-        |> ConnectorEnvironment.changeset(%{
+    # Atomic upsert on the unique (connector_type, namespace, key) index: a plain
+    # get-then-insert races when two workers resolve the same new key at once
+    # (both see nil, the second insert hits the constraint). insert_all with
+    # on_conflict avoids the crash entirely.
+    Repo.insert_all(
+      ConnectorEnvironment,
+      [
+        %{
+          id: Ecto.UUID.generate(),
           connector_type: connector_type,
           namespace: namespace,
           key: key,
           value: value,
-          expires_at: expires_at
-        })
-        |> Repo.insert()
+          expires_at: expires_at,
+          inserted_at: now,
+          updated_at: now
+        }
+      ],
+      on_conflict: {:replace, [:value, :expires_at, :updated_at]},
+      conflict_target: [:connector_type, :namespace, :key]
+    )
 
-      existing ->
-        existing
-        |> ConnectorEnvironment.changeset(%{value: value, expires_at: expires_at})
-        |> Repo.update()
-    end
+    :ok
   end
 
   def cleanup_expired_env do

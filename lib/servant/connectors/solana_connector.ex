@@ -16,7 +16,6 @@ defmodule Servant.Connectors.SolanaConnector do
   @tx_fetch_delay_ms 1_000
   @sigs_per_page 1000
   @max_pages 10
-  @max_consecutive_errors 3
   # Cap transactions processed per sync. At ~1s/tx (rate-limit throttling), an
   # unbounded backfill would block the worker GenServer for many minutes. The
   # persisted `last_signature` cursor lets the next scheduled sync continue.
@@ -96,13 +95,12 @@ defmodule Servant.Connectors.SolanaConnector do
 
                 {:error, reason} ->
                   Logger.warning("Failed to fetch tx #{signature}: #{inspect(reason)}")
-                  # Don't advance last_signature past a failed fetch so we retry it next sync.
-                  # Stop after too many consecutive errors to avoid hammering a failing RPC.
-                  if errors + 1 >= @max_consecutive_errors do
-                    {:halt, {acc, last_sig, errors + 1}}
-                  else
-                    {:cont, {acc, last_sig, errors + 1}}
-                  end
+                  # Halt at the first fetch error and keep the cursor at the last
+                  # successfully-processed signature. Continuing would let a later
+                  # success advance last_signature *past* this failed tx, which the
+                  # next sync (querying only signatures newer than the cursor)
+                  # would then never re-fetch — silent, permanent data loss.
+                  {:halt, {acc, last_sig, errors + 1}}
               end
             end
           end)

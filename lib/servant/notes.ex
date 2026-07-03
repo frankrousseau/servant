@@ -343,14 +343,32 @@ defmodule Servant.Notes do
     end)
   end
 
-  # Maps each target string to a note id when a matching note exists.
+  # Maps each target string to a note id when a matching note exists. A
+  # full-path key (`folder/title`) is unique per user and always wins; a bare
+  # `title` key only resolves when exactly one note carries it — otherwise the
+  # link is left unresolved rather than pointing at an arbitrary same-named note.
   defp resolve_targets(_user_id, []), do: %{}
 
   defp resolve_targets(user_id, targets) do
-    notes_query(user_id)
-    |> Repo.all()
-    |> Enum.flat_map(fn note -> Enum.map(note_keys(note), &{&1, note.id}) end)
-    |> Map.new()
+    notes = notes_query(user_id) |> Repo.all()
+
+    by_path =
+      Map.new(notes, fn note ->
+        folder = note.data |> Map.get("folder", "") |> to_string()
+        {canon(full_path(folder, note.title || "")), note.id}
+      end)
+
+    by_title =
+      notes
+      |> Enum.group_by(fn note -> canon(note.title || "") end, & &1.id)
+      |> Enum.flat_map(fn
+        {title, [id]} -> [{title, id}]
+        {_title, _ids} -> []
+      end)
+      |> Map.new()
+
+    by_title
+    |> Map.merge(by_path)
     |> Map.take(targets)
   end
 

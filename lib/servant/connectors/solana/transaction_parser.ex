@@ -107,9 +107,13 @@ defmodule Servant.Connectors.Solana.TransactionParser do
       if idx != my_index do
         other_diff = post - pre
 
-        # Opposite direction and similar magnitude
-        if diff > 0 and other_diff < 0, do: pubkey_at(account_keys, idx)
-        if diff < 0 and other_diff > 0, do: pubkey_at(account_keys, idx)
+        # The account whose balance moved the opposite way is the counterparty.
+        # Must be a single expression: a block's value is its LAST expression, so
+        # two separate `if`s would discard the first (the received-transfer case)
+        # and always return nil for incoming transfers.
+        if (diff > 0 and other_diff < 0) or (diff < 0 and other_diff > 0) do
+          pubkey_at(account_keys, idx)
+        end
       end
     end)
   end

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import type { AppContext, Entry } from "../types";
+import { formatFileSize } from "../../types";
+import { formatDate } from "../../lib/datetime";
 
 const props = defineProps<{ ctx: AppContext }>();
 
@@ -10,6 +12,7 @@ const selectedId = ref<string | null>(null);
 const folderPath = ref<{ id: string | null; name: string }[]>([{ id: null, name: "Files" }]);
 const dragover = ref(false);
 const loading = ref(true);
+const loadError = ref("");
 
 const FILE_ICONS: Record<string, string> = {
   folder: "📁",
@@ -39,12 +42,6 @@ function fileIcon(e: Entry): string {
   return FILE_ICONS.default;
 }
 
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 const currentItems = computed(() =>
   allFiles.value
     .filter((f) => parentId(f) === currentFolder.value)
@@ -61,8 +58,14 @@ const selected = computed(() =>
 );
 
 async function reload() {
-  allFiles.value = await props.ctx.api.entries.list({ kind: "file" });
-  loading.value = false;
+  loadError.value = "";
+  try {
+    allFiles.value = await props.ctx.api.entries.list({ kind: "file" });
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : "Failed to load files";
+  } finally {
+    loading.value = false;
+  }
 }
 
 function navigateCrumb(idx: number) {
@@ -133,6 +136,7 @@ onMounted(reload);
 
 <template>
   <p v-if="loading" class="fs-loading">Loading files...</p>
+  <p v-else-if="loadError" class="fs-loading">{{ loadError }}</p>
   <div v-else class="fs-layout">
     <div class="fs-main">
       <div class="fs-toolbar">
@@ -167,7 +171,7 @@ onMounted(reload);
         >
           <span class="fs-icon">{{ fileIcon(f) }}</span>
           <span class="fs-name">{{ fileName(f) }}</span>
-          <span v-if="!isFolder(f)" class="fs-size">{{ formatSize(fileSize(f)) }}</span>
+          <span v-if="!isFolder(f)" class="fs-size">{{ formatFileSize(fileSize(f)) }}</span>
         </div>
         <p v-if="currentItems.length === 0" class="fs-empty">This folder is empty</p>
       </div>
@@ -179,7 +183,7 @@ onMounted(reload);
         <div v-if="!isFolder(selected)" class="fs-detail-meta">
           <div class="fs-meta-row">
             <span class="fs-meta-label">Size</span>
-            <span>{{ formatSize(fileSize(selected)) }}</span>
+            <span>{{ formatFileSize(fileSize(selected)) }}</span>
           </div>
           <div class="fs-meta-row">
             <span class="fs-meta-label">Type</span>
@@ -187,7 +191,7 @@ onMounted(reload);
           </div>
           <div class="fs-meta-row">
             <span class="fs-meta-label">Added</span>
-            <span>{{ new Date(selected.inserted_at).toLocaleDateString() }}</span>
+            <span>{{ formatDate(selected.inserted_at) }}</span>
           </div>
           <a
             v-if="filePath(selected)"
@@ -205,7 +209,7 @@ onMounted(reload);
           </div>
           <div class="fs-meta-row">
             <span class="fs-meta-label">Created</span>
-            <span>{{ new Date(selected.inserted_at).toLocaleDateString() }}</span>
+            <span>{{ formatDate(selected.inserted_at) }}</span>
           </div>
         </div>
         <button class="fs-delete" @click="deleteItem(selected)">Delete</button>

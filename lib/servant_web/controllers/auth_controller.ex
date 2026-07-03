@@ -91,6 +91,7 @@ defmodule ServantWeb.AuthController do
         display_name: user.display_name,
         email: user.email,
         avatar_path: user.avatar_path,
+        timezone: user.timezone,
         inserted_at: user.inserted_at
       }
     })
@@ -107,7 +108,8 @@ defmodule ServantWeb.AuthController do
             username: user.username,
             display_name: user.display_name,
             email: user.email,
-            avatar_path: user.avatar_path
+            avatar_path: user.avatar_path,
+            timezone: user.timezone
           }
         })
 

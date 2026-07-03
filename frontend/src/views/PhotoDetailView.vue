@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useApi } from "../composables/useApi";
 import { useFetchData } from "../composables/useFetchData";
 import { ArrowLeft, Download, Trash2 } from "lucide-vue-next";
 import { useConfirm } from "../composables/useConfirm";
 import type { Entry } from "../types";
+import { formatFileSize } from "../types";
+import { formatDateTime } from "../lib/datetime";
 
 const route = useRoute();
 const router = useRouter();
@@ -15,29 +17,31 @@ const {
   data: entry,
   loading,
   error,
+  refetch,
 } = useFetchData<Entry>(
   () => api.get<{ data: Entry }>(`/api/entries/${route.params.id}`).then((r) => r.data),
   { fallbackError: "Photo not found" },
 );
 const imgError = ref(false);
+// Refetch when the id changes: the instance is reused across /photos/:id links.
+watch(
+  () => route.params.id,
+  () => {
+    imgError.value = false;
+    refetch();
+  },
+);
 
 const photoPath = computed(() => (entry.value?.data?.path as string) || "");
 const filename = computed(() => (entry.value?.data?.filename as string) || "");
 const mimeType = computed(() => (entry.value?.data?.mime_type as string) || "");
-const fileSize = computed(() => {
-  const bytes = (entry.value?.data?.size as number) || 0;
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-});
+const fileSize = computed(() => formatFileSize((entry.value?.data?.size as number) || 0));
 const album = computed(() => (entry.value?.data?.album as string) || "");
 const dateTaken = computed(() => (entry.value?.data?.date_taken as string) || "");
 const camera = computed(() => (entry.value?.data?.camera as string) || "");
 const latitude = computed(() => entry.value?.data?.latitude as number | undefined);
 const longitude = computed(() => entry.value?.data?.longitude as number | undefined);
-const createdAt = computed(() =>
-  entry.value ? new Date(entry.value.inserted_at).toLocaleString() : "",
-);
+const createdAt = computed(() => formatDateTime(entry.value?.inserted_at));
 
 const { ask } = useConfirm();
 
@@ -93,7 +97,7 @@ async function deletePhoto() {
               </div>
               <div v-if="dateTaken" class="meta-row">
                 <span class="meta-key">Date taken</span>
-                <span>{{ new Date(dateTaken).toLocaleString() }}</span>
+                <span>{{ formatDateTime(dateTaken) }}</span>
               </div>
               <div v-if="camera" class="meta-row">
                 <span class="meta-key">Camera</span>

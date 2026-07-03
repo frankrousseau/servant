@@ -80,6 +80,14 @@ defmodule Servant.Connectors.ICalConnectorTest do
     test "returns error for invalid format" do
       assert {:error, :invalid_format} = ICalConnector.parse_ical_datetime("not-a-date")
     end
+
+    test "returns error (not a crash) for well-shaped but invalid stamps" do
+      # These match the digit-shape regexes but are out of range; the parser must
+      # not raise (a single bad VEVENT would otherwise take down the worker).
+      assert {:error, :invalid_format} = ICalConnector.parse_ical_datetime("20250230T120000Z")
+      assert {:error, :invalid_format} = ICalConnector.parse_ical_datetime("20250401T240000Z")
+      assert {:error, :invalid_format} = ICalConnector.parse_ical_datetime("20251340")
+    end
   end
 
   describe "init/2" do

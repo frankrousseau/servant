@@ -3,6 +3,12 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import flatpickr from "flatpickr";
 import "flatpickr/dist/flatpickr.min.css";
 import type { AppContext, Entry } from "../types";
+import {
+  formatTime,
+  zonedToUtcISO,
+  utcToZonedParts,
+  todayInUserTz,
+} from "../../lib/datetime";
 
 const props = defineProps<{ ctx: AppContext }>();
 
@@ -17,6 +23,7 @@ const viewMode = ref<"calendar" | "list">("calendar");
 const currentYear = ref(new Date().getFullYear());
 const currentMonth = ref(new Date().getMonth());
 const loading = ref(true);
+const loadError = ref("");
 
 const modalOpen = ref(false);
 const modalEditId = ref<string | null>(null);
@@ -34,24 +41,21 @@ const endInput = ref<HTMLInputElement | null>(null);
 let fpStart: flatpickr.Instance | null = null;
 let fpEnd: flatpickr.Instance | null = null;
 
-function sameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
+// Civil "YYYY-MM-DD" of a picked Date (from flatpickr, in the browser's tz) —
+// the calendar-day the user actually clicked. This is a wall-clock label, later
+// combined with the picked time and interpreted in the user's tz on save.
 function formatISODate(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
-function formatTime(dt: string): string {
-  return new Date(dt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-}
-function formatDateHeader(iso: string): string {
-  return new Date(iso + "T12:00:00").toLocaleDateString(undefined, {
+
+// Day header for the list view. `dateStr` is a civil date label; format it
+// without any tz shift (it's not an instant).
+function formatDateHeader(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -59,18 +63,20 @@ function formatDateHeader(iso: string): string {
   });
 }
 
-function eventsForDate(date: Date): Entry[] {
+// The user-timezone calendar date(s) an event's UTC instant falls on.
+function eventDateStr(iso: string): string {
+  return utcToZonedParts(iso).date;
+}
+
+function eventsForDateStr(dateStr: string): Entry[] {
   return events.value.filter((e) => {
     if (!e.occurred_at) return false;
-    const start = new Date(e.occurred_at);
-    const endStr = (e.data.end_at as string) || (e.data.dtend as string);
-    if (endStr) {
-      const end = new Date(endStr);
-      const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-      const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59);
-      return start <= dayEnd && end >= dayStart;
+    const startDate = eventDateStr(e.occurred_at);
+    const endStr = e.data.end_at as string | undefined;
+    if (endStr && !isNaN(new Date(endStr).getTime())) {
+      return startDate <= dateStr && eventDateStr(endStr) >= dateStr;
     }
-    return sameDay(start, date);
+    return startDate === dateStr;
   });
 }
 
@@ -83,31 +89,35 @@ interface Cell {
 }
 
 const calendarCells = computed<Cell[]>(() => {
+  // Weekday of the 1st is a civil-calendar fact (tz-independent). Cells carry a
+  // pure "YYYY-MM-DD" label; events are bucketed by their user-tz date.
   const firstDay = new Date(currentYear.value, currentMonth.value, 1);
   let startDow = firstDay.getDay() - 1;
   if (startDow < 0) startDow = 6;
   const daysInMonth = new Date(currentYear.value, currentMonth.value + 1, 0).getDate();
-  const today = new Date();
+  const today = todayInUserTz();
+  const ym = `${currentYear.value}-${String(currentMonth.value + 1).padStart(2, "0")}`;
   const cells: Cell[] = [];
   for (let i = 0; i < startDow; i++) cells.push({ empty: true });
   for (let day = 1; day <= daysInMonth; day++) {
-    const date = new Date(currentYear.value, currentMonth.value, day);
+    const dateStr = `${ym}-${String(day).padStart(2, "0")}`;
     cells.push({
       empty: false,
       day,
-      dateStr: date.toISOString().slice(0, 10),
-      isToday: sameDay(date, today),
-      events: eventsForDate(date),
+      dateStr,
+      isToday: dateStr === today,
+      events: eventsForDateStr(dateStr),
     });
   }
   return cells;
 });
 
 const upcomingDays = computed(() => {
-  const today = new Date().toISOString().slice(0, 10);
+  // Group by the event's date in the user's timezone, from today (user tz) on.
+  const today = todayInUserTz();
   const grouped: Record<string, Entry[]> = {};
   for (const e of events.value) {
-    const key = e.occurred_at ? new Date(e.occurred_at).toISOString().slice(0, 10) : "unknown";
+    const key = e.occurred_at ? eventDateStr(e.occurred_at) : "unknown";
     (grouped[key] ||= []).push(e);
   }
   return Object.keys(grouped)
@@ -149,17 +159,18 @@ function openModal(dateStr: string) {
 
 function openEditModal(entry: Entry) {
   modalEditId.value = entry.id;
-  const startDt = entry.occurred_at ? new Date(entry.occurred_at) : new Date();
-  modalDate.value = formatISODate(startDt);
-  modalTime.value =
-    String(startDt.getHours()).padStart(2, "0") + ":" + String(startDt.getMinutes()).padStart(2, "0");
+  // Show the stored UTC instant as wall-clock date/time in the user's timezone.
+  const start = entry.occurred_at
+    ? utcToZonedParts(entry.occurred_at)
+    : { date: todayInUserTz(), time: "09:00" };
+  modalDate.value = start.date;
+  modalTime.value = start.time;
 
-  const endStr = (entry.data.end_at as string) || (entry.data.dtend as string);
-  if (endStr) {
-    const endDt = new Date(endStr);
-    modalEndDate.value = formatISODate(endDt);
-    modalEndTime.value =
-      String(endDt.getHours()).padStart(2, "0") + ":" + String(endDt.getMinutes()).padStart(2, "0");
+  const endStr = entry.data.end_at as string | undefined;
+  if (endStr && !isNaN(new Date(endStr).getTime())) {
+    const end = utcToZonedParts(endStr);
+    modalEndDate.value = end.date;
+    modalEndTime.value = end.time;
   } else {
     modalEndDate.value = modalDate.value;
     modalEndTime.value = "";
@@ -186,11 +197,13 @@ async function saveEvent() {
   if (!modalDate.value || !modalTitle.value.trim()) return;
   modalSaving.value = true;
 
-  const dtstart = modalDate.value.replace(/-/g, "") + "T" + modalTime.value.replace(":", "") + "00";
   const endDateStr = modalEndDate.value || modalDate.value;
-  const dtend = endDateStr.replace(/-/g, "") + "T" + (modalEndTime.value || "23:59").replace(":", "") + "00";
-  const occurredAt = modalDate.value + "T" + modalTime.value + ":00Z";
-  const endAt = endDateStr + "T" + (modalEndTime.value || "23:59") + ":00Z";
+  const endTimeStr = modalEndTime.value || "23:59";
+  const dtstart = modalDate.value.replace(/-/g, "") + "T" + modalTime.value.replace(":", "") + "00";
+  const dtend = endDateStr.replace(/-/g, "") + "T" + endTimeStr.replace(":", "") + "00";
+  // Interpret the picked wall-clock time in the user's timezone, store as UTC.
+  const occurredAt = zonedToUtcISO(modalDate.value, modalTime.value);
+  const endAt = zonedToUtcISO(endDateStr, endTimeStr);
 
   const attrs = {
     kind: "event",
@@ -285,8 +298,14 @@ watch(modalOpen, async (open) => {
 });
 
 async function reload() {
-  events.value = await props.ctx.api.entries.list({ kind: "event" });
-  loading.value = false;
+  loadError.value = "";
+  try {
+    events.value = await props.ctx.api.entries.list({ kind: "event" });
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : "Failed to load events";
+  } finally {
+    loading.value = false;
+  }
 }
 
 onMounted(reload);
@@ -295,6 +314,7 @@ onUnmounted(destroyPickers);
 
 <template>
   <p v-if="loading" class="cal-loading">Loading events...</p>
+  <p v-else-if="loadError" class="cal-loading">{{ loadError }}</p>
   <div v-else class="cal-container">
     <div class="cal-header">
       <template v-if="viewMode === 'calendar'">

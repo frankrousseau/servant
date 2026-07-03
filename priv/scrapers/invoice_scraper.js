@@ -45,6 +45,15 @@ async function main() {
     process.exit(1);
   }
 
+  // Guard against path traversal: the provider name is turned into a filesystem
+  // path below, so reject anything but a bare identifier. Without this a name
+  // like "../../evil" would `require` (and execute) arbitrary JS. The Elixir
+  // side allowlists too; this is defense in depth.
+  if (!/^[a-z0-9_]+$/.test(providerName)) {
+    log(`ERROR: invalid provider name "${providerName}"`);
+    process.exit(1);
+  }
+
   // Load provider recipe
   let provider;
   try {

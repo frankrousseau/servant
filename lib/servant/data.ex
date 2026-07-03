@@ -8,6 +8,17 @@ defmodule Servant.Data do
   alias Servant.Data.Entry
 
   @default_per_page 50
+  @max_per_page 1000
+
+  @doc """
+  Clamps a requested `per_page` into `[1, #{@max_per_page}]`, falling back to the
+  default for non-integers. Shared with the controller so pagination metadata
+  (total_pages) and the query LIMIT agree — and so `per_page=0` can't reach a
+  `total/per_page` division or `per_page` negative a `LIMIT -1`.
+  """
+  def clamp_per_page(val) do
+    val |> Servant.Util.parse_int(@default_per_page) |> max(1) |> min(@max_per_page)
+  end
 
   def list_entries(user_id, filters \\ %{}) do
     Entry
@@ -18,9 +29,10 @@ defmodule Servant.Data do
     |> Repo.all()
   end
 
-  def all_entries(user_id) do
+  def all_entries(user_id, filters \\ %{}) do
     Entry
     |> where(user_id: ^user_id)
+    |> apply_filters(filters)
     |> order_by(desc: :occurred_at, desc: :inserted_at)
     |> Repo.all()
   end
@@ -77,17 +89,29 @@ defmodule Servant.Data do
 
   Returns `{:ok, inserted_count}`.
   """
+  # Chunk size for bulk inserts: each row binds ~11 columns, so 500 rows ≈ 5.5k
+  # bound params — comfortably under SQLite's default 32k variable limit even if
+  # the schema grows, while keeping the number of round-trips low.
+  @insert_chunk_size 500
+
   def create_entries(_user_id, []), do: {:ok, 0}
 
   def create_entries(user_id, attrs_list) when is_list(attrs_list) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
-    rows = Enum.map(attrs_list, &entry_row(user_id, &1, now))
 
-    {count, _} =
-      Repo.insert_all(Entry, rows,
-        on_conflict: :nothing,
-        conflict_target: [:user_id, :source, :external_id]
-      )
+    count =
+      attrs_list
+      |> Stream.map(&entry_row(user_id, &1, now))
+      |> Stream.chunk_every(@insert_chunk_size)
+      |> Enum.reduce(0, fn rows, acc ->
+        {inserted, _} =
+          Repo.insert_all(Entry, rows,
+            on_conflict: :nothing,
+            conflict_target: [:user_id, :source, :external_id]
+          )
+
+        acc + inserted
+      end)
 
     if count > 0, do: broadcast(user_id, {:entries_changed, %{count: count}})
     {:ok, count}
@@ -211,8 +235,8 @@ defmodule Servant.Data do
   defp apply_pagination(query, filters) do
     per_page =
       case filters do
-        %{"per_page" => pp} -> parse_int(pp, @default_per_page)
-        %{per_page: pp} -> parse_int(pp, @default_per_page)
+        %{"per_page" => pp} -> clamp_per_page(pp)
+        %{per_page: pp} -> clamp_per_page(pp)
         _ -> @default_per_page
       end
 

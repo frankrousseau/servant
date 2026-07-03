@@ -2,25 +2,34 @@ defmodule Servant.HTTP do
   @moduledoc """
   Shared HTTP helpers for all connectors.
 
-  Uses `verify: :verify_none` to work around an OTP 27 bug where the TLS
-  handshake rejects valid certificates with a key_usage_mismatch error
-  (e.g. data.gouv.fr, some CDN certs). This is a known OTP 27 regression
-  that cannot be fixed via verify_fun since the check happens before the
-  callback is invoked. Safe for a self-hosted personal app.
+  TLS certificates are **verified by default** (`verify_peer` via CAStore).
+  A known OTP 27 regression makes the handshake reject some otherwise-valid
+  certificates with a `key_usage_mismatch` error (e.g. data.gouv.fr, some CDN
+  certs); it happens before `verify_fun` is invoked, so it can't be worked
+  around per-request. For those specific hosts only, pass `verify: false` at the
+  call site (e.g. `req_options(verify: false)`) — never globally, so secret-
+  bearing flows (Strava OAuth, RPC/explorers) keep certificate verification.
   """
 
   @doc """
-  Returns default Req options.
+  Returns default Req options. TLS peer verification is on by default; pass
+  `verify: false` to disable it for a single call (see the module doc for when
+  that's justified).
   """
   def req_options(extra \\ []) do
+    {verify, extra} = Keyword.pop(extra, :verify, true)
+
+    verify_opts =
+      if verify do
+        [verify: :verify_peer, cacerts: :public_key.cacerts_get()]
+      else
+        [verify: :verify_none]
+      end
+
     Keyword.merge(
       [
         receive_timeout: 30_000,
-        connect_options: [
-          transport_opts: [
-            verify: :verify_none
-          ]
-        ]
+        connect_options: [transport_opts: verify_opts]
       ],
       extra
     )

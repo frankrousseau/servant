@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { watch, onUnmounted } from "vue";
 import { useConfirm } from "../composables/useConfirm";
 import { AlertTriangle } from "lucide-vue-next";
 
@@ -8,9 +9,27 @@ function onOverlayClick(e: MouseEvent) {
   if (e.target === e.currentTarget) resolve(false);
 }
 
+// The overlay never gets focus, so a keydown bound to it never fires. Listen at
+// the document level (capture phase) while visible so Escape cancels the confirm
+// — and stop propagation so an underlying MediaViewer's Escape handler doesn't
+// also fire and close the layer beneath the dialog.
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === "Escape") resolve(false);
+  if (!visible.value) return;
+  if (e.key === "Escape") {
+    e.stopPropagation();
+    resolve(false);
+  }
 }
+
+watch(visible, (isVisible) => {
+  if (isVisible) {
+    document.addEventListener("keydown", onKeydown, true);
+  } else {
+    document.removeEventListener("keydown", onKeydown, true);
+  }
+});
+
+onUnmounted(() => document.removeEventListener("keydown", onKeydown, true));
 </script>
 
 <template>
