@@ -1,16 +1,8 @@
 import type { AppModule, AppContext, Entry } from "../types";
+import { escapeHtml } from "../escapeHtml";
 import { renderMarkdown, canon } from "./render";
 
 type Note = Entry;
-
-// Also escapes quotes — this output is interpolated into HTML attributes.
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 function noteFolder(n: Note): string {
   return ((n.data.folder as string) || "").trim();

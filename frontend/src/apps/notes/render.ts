@@ -1,14 +1,8 @@
 import MarkdownIt from "markdown-it";
 
-const md = new MarkdownIt({ breaks: true, linkify: true });
+import { escapeHtml } from "../escapeHtml";
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+const md = new MarkdownIt({ breaks: true, linkify: true });
 
 /**
  * Canonical form for note slugs and wikilink matching — must mirror the
