@@ -64,9 +64,10 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
       Fuite d'écouteur `keydown` (retiré seulement sur Échap, pas sur Annuler/overlay/unmount). **(quick win)**
       Fix : retirer `onKey` dans `closeCreateModal` et `unmount`.
       ✅ *Fait (2026-07-03)* : `onKey` hissé dans le scope de `mount` et retiré dans `closeCreateModal` (appelé sur Échap/overlay/Annuler) → nettoyage sur tous les chemins de fermeture.
-- [ ] **FE-BUG-4** · 🟡 medium · `createContext.ts:48` · effort: medium
+- [x] **FE-BUG-4** · 🟡 medium · `createContext.ts:48` · effort: medium
       `entries.list` charge jusqu'à 10 000 entrées côté client.
       Fix : pagination/chargement incrémental, ou filtrage côté serveur. *(lié à FE-PERF-1)*
+      ✅ *Fait (2026-07-03)* : `entries.list` **pagine** désormais par lots de 1000 (`page`/`per_page` + `meta.total_pages`) jusqu'à épuisement, au lieu d'un `per_page=10000` unique. Corrige le **cap** (les entrées > 10 000 étaient silencieusement perdues) et borne le payload par requête. Note : les apps reçoivent toujours la liste complète (leurs filtres/recherche sont côté client) — une vraie pagination *à la demande* par app (scroll infini, recherche serveur) reste un chantier séparé plus large.
 - [x] **FE-BUG-5** · ⚪ low · apps impératives · effort: large
       Ré-render `innerHTML` complet détruit focus/scroll/sélection (contourné ponctuellement).
       Fix : migration en composants Vue. *(doublon de FE-ARCH-1)*

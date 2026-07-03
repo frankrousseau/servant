@@ -16,10 +16,24 @@ export function createAppContext(viewer: ViewerAPI): AppContext {
     api: {
       entries: {
         async list(filters?: Record<string, string>): Promise<Entry[]> {
-          const res = await apiJson<{ data: Entry[] }>("GET", "/api/entries", {
-            params: { per_page: "10000", ...(filters || {}) },
-          });
-          return res.data;
+          // Page through the results instead of a single hardcoded per_page=10000
+          // request: that cap silently dropped entries beyond 10k and sent one
+          // huge payload. Bounded pages, no cap.
+          const perPage = 1000;
+          const all: Entry[] = [];
+          let page = 1;
+          let totalPages = 1;
+          do {
+            const res = await apiJson<{ data: Entry[]; meta: { total_pages: number } }>(
+              "GET",
+              "/api/entries",
+              { params: { ...(filters || {}), per_page: String(perPage), page: String(page) } },
+            );
+            all.push(...res.data);
+            totalPages = res.meta?.total_pages ?? page;
+            page++;
+          } while (page <= totalPages);
+          return all;
         },
         async get(id: string): Promise<Entry> {
           const res = await apiJson<{ data: Entry }>("GET", `/api/entries/${id}`);
