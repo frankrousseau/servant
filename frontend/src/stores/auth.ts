@@ -2,22 +2,33 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import type { User } from "../types";
 
-export const useAuthStore = defineStore("auth", () => {
-  const token = ref<string | null>(localStorage.getItem("auth_token"));
-  const user = ref<User | null>(null);
+// Only a non-sensitive "are we logged in?" flag is persisted. The actual auth
+// token lives in an HttpOnly cookie (unreadable by JS) plus an in-memory copy
+// used to open the realtime socket — never in localStorage (FE-SEC-3).
+const LOGGED_IN_KEY = "servant_logged_in";
 
-  const isAuthenticated = computed(() => !!token.value);
+export const useAuthStore = defineStore("auth", () => {
+  // Drop any token left by the pre-cookie version.
+  localStorage.removeItem("auth_token");
+
+  const token = ref<string | null>(null);
+  const user = ref<User | null>(null);
+  const loggedIn = ref(localStorage.getItem(LOGGED_IN_KEY) === "1");
+
+  const isAuthenticated = computed(() => loggedIn.value || !!user.value);
 
   function setAuth(newToken: string, newUser: User) {
     token.value = newToken;
     user.value = newUser;
-    localStorage.setItem("auth_token", newToken);
+    loggedIn.value = true;
+    localStorage.setItem(LOGGED_IN_KEY, "1");
   }
 
   function clearAuth() {
     token.value = null;
     user.value = null;
-    localStorage.removeItem("auth_token");
+    loggedIn.value = false;
+    localStorage.removeItem(LOGGED_IN_KEY);
   }
 
   async function login(username: string, password: string) {
@@ -36,11 +47,7 @@ export const useAuthStore = defineStore("auth", () => {
     setAuth(data.token, data.user);
   }
 
-  async function register(
-    username: string,
-    password: string,
-    display_name: string,
-  ) {
+  async function register(username: string, password: string, display_name: string) {
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -57,30 +64,28 @@ export const useAuthStore = defineStore("auth", () => {
   }
 
   function logout() {
-    // Clear the HttpOnly file-auth cookie server-side (BE-SEC-1), then locally.
+    // Clear the HttpOnly cookie server-side, then local state.
     fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
     clearAuth();
   }
 
-  // On a page reload the token is restored from localStorage but `user` is not.
-  // Fetch it so realtime (useSocket needs auth.user) and user-dependent UI work
-  // again after a refresh. Clears auth on an expired/invalid token.
+  // On boot, if the flag says we were logged in, confirm via /auth/me — the
+  // HttpOnly cookie authenticates the request. Populates the user and an
+  // in-memory token (for the socket); clears state if the cookie is gone/expired.
   async function hydrate() {
-    if (!token.value || user.value) return;
+    if (user.value || !loggedIn.value) return;
 
     try {
-      const res = await fetch("/api/auth/me", {
-        headers: { Authorization: `Bearer ${token.value}` },
-      });
-
+      const res = await fetch("/api/auth/me");
       if (res.ok) {
-        const data = await res.json();
-        user.value = data.data;
+        const body = await res.json();
+        user.value = body.data;
+        token.value = body.token ?? null;
       } else if (res.status === 401) {
         clearAuth();
       }
     } catch {
-      // Network error — keep the token and retry on the next boot.
+      // Network error — keep the flag and retry on the next boot.
     }
   }
 

@@ -92,9 +92,10 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
       Aucune CSP ni en-tête de sécurité → toute XSS s'exécute librement.
       Fix : CSP stricte (`default-src 'self'`, `script-src 'self'`) sur la réponse HTML du SPA. ⚠️ retirer d'abord les handlers inline (FE-SEC-5).
       ✅ *Fait (2026-07-03)* : CSP + en-têtes (`X-Content-Type-Options: nosniff`, `Referrer-Policy`, `X-Frame-Options: DENY`) posés dans `SpaController`. `script-src 'self'` strict (aucun script inline — HTML buildé n'a qu'un `<script src=...>` externe, FE-SEC-5 a retiré le dernier handler). `style-src 'self' 'unsafe-inline'` conservé (styles inline des apps/Vue). Ne s'applique qu'en **prod** (Vite sert l'index en dev). Test `spa_controller_test.exs`. ⚠️ **À vérifier en navigateur (prod)** : temps réel `/socket` (ws via `connect-src 'self'`), images `/files`, upload — je ne peux pas tester le rendu navigateur ici.
-- [ ] **FE-SEC-3** · 🟡 medium · `auth.ts:6,14` · effort: medium
+- [x] **FE-SEC-3** · 🟡 medium · `auth.ts:6,14` · effort: medium
       Token en `localStorage` → volable par XSS.
       Fix (défense en profondeur) : cookie `HttpOnly`+`SameSite`, ou a minima réduire la surface XSS + CSP.
+      ✅ *Fait (2026-07-03)* : le token n'est **plus en localStorage**. Auth de toute l'API par le cookie `HttpOnly` `_servant_auth` (`SameSite=Lax` → CSRF) : le plug `ServantWeb.Auth` accepte Bearer **ou** cookie ; le cookie est posé au login/register. Le front ne persiste qu'un flag non-sensible (`servant_logged_in`) et garde un token **en mémoire** (pour le socket), récupéré au boot via `/api/auth/me` (authentifié par cookie, renvoie un token frais). Tests : cookie-auth API sans Bearer, cookie login/logout. `vue-tsc`+build+`mix test` (246, 0) OK. ⚠️ **Vérif navigateur critique** (flux d'auth) ; les users déjà connectés se **reconnectent une fois**. *(complété par CSP FE-SEC-2 + suppression de la surface XSS FE-ARCH-1/SEC-1/4/5)*
 - [x] **FE-SEC-4** · 🟡 medium · apps (`innerHTML` ~17×) · effort: large
       Surface XSS large par conception (échappement manuel partout — pas d'oubli trouvé, mais régression facile).
       Fix : migration en composants Vue. *(doublon de FE-ARCH-1)*

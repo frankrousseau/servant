@@ -11,7 +11,7 @@ defmodule ServantWeb.AuthController do
           token = Auth.sign_token(conn, user.id)
 
           conn
-          |> Auth.put_file_cookie(token)
+          |> Auth.put_auth_cookie(token)
           |> put_status(:created)
           |> json(%{
             token: token,
@@ -48,7 +48,7 @@ defmodule ServantWeb.AuthController do
         token = Auth.sign_token(conn, user.id)
 
         conn
-        |> Auth.put_file_cookie(token)
+        |> Auth.put_auth_cookie(token)
         |> json(%{
           token: token,
           user: %{
@@ -73,14 +73,18 @@ defmodule ServantWeb.AuthController do
 
   def logout(conn, _params) do
     conn
-    |> Auth.delete_file_cookie()
+    |> Auth.delete_auth_cookie()
     |> json(%{status: "ok"})
   end
 
   def me(conn, _params) do
     user = conn.assigns.current_user
 
+    # Also hand back a fresh token: after a reload the SPA has no token in memory
+    # (it isn't stored in localStorage anymore) and uses this — authenticated via
+    # the HttpOnly cookie — to open the realtime socket.
     json(conn, %{
+      token: Auth.sign_token(conn, user.id),
       data: %{
         id: user.id,
         username: user.username,

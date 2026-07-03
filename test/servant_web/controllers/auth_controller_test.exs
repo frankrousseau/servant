@@ -61,14 +61,14 @@ defmodule ServantWeb.AuthControllerTest do
       conn =
         post(conn, "/api/auth/login", %{"username" => "loginuser", "password" => "password123"})
 
-      cookie = conn.resp_cookies["_servant_file_auth"]
+      cookie = conn.resp_cookies["_servant_auth"]
       assert cookie.http_only
       assert is_binary(cookie.value) and cookie.value != ""
     end
 
     test "logout clears the file-auth cookie", %{conn: conn} do
       conn = post(conn, "/api/auth/logout", %{})
-      assert conn.resp_cookies["_servant_file_auth"].max_age == 0
+      assert conn.resp_cookies["_servant_auth"].max_age == 0
     end
 
     test "401 for a wrong password", %{conn: conn} do
@@ -104,6 +104,21 @@ defmodule ServantWeb.AuthControllerTest do
       conn = get(conn, "/api/auth/me")
       assert %{"data" => data} = json_response(conn, 200)
       assert data["id"] == user.id
+    end
+
+    test "authenticates via the HttpOnly cookie without a Bearer header (FE-SEC-3)", %{conn: conn} do
+      user = user_fixture()
+      token = ServantWeb.Auth.sign_token(ServantWeb.Endpoint, user.id)
+
+      conn =
+        conn
+        |> Plug.Test.put_req_cookie(ServantWeb.Auth.auth_cookie_name(), token)
+        |> get("/api/auth/me")
+
+      assert %{"data" => data, "token" => new_token} = json_response(conn, 200)
+      assert data["id"] == user.id
+      # me/2 hands back a fresh token for the SPA to open the socket with
+      assert is_binary(new_token)
     end
   end
 end

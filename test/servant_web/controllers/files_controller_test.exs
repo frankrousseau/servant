@@ -29,7 +29,7 @@ defmodule ServantWeb.FilesControllerTest do
 
   defp with_cookie(conn, user_id) do
     token = Auth.sign_token(ServantWeb.Endpoint, user_id)
-    Plug.Test.put_req_cookie(conn, Auth.file_cookie_name(), token)
+    Plug.Test.put_req_cookie(conn, Auth.auth_cookie_name(), token)
   end
 
   test "serves the owner's file with a valid cookie", %{conn: conn, dir: dir} do

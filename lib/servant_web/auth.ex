@@ -1,26 +1,29 @@
 defmodule ServantWeb.Auth do
   @moduledoc """
-  Plug that authenticates users via Bearer token.
+  Authenticates users from either an `Authorization: Bearer` header or the
+  HttpOnly `_servant_auth` cookie. The cookie lets the token stay out of
+  JavaScript-readable storage (defense in depth against XSS) and is sent
+  automatically on same-origin requests, including `<img src="/files/…">`.
   """
 
   import Plug.Conn
   alias Servant.Accounts
 
   @max_age 86_400 * 30
-  @file_cookie "_servant_file_auth"
+  @auth_cookie "_servant_auth"
 
   def init(opts), do: opts
 
-  @doc "Name of the HttpOnly cookie used to authenticate `/files/…` requests."
-  def file_cookie_name, do: @file_cookie
+  @doc "Name of the HttpOnly cookie carrying the auth token."
+  def auth_cookie_name, do: @auth_cookie
 
   @doc """
-  Sets an HttpOnly auth cookie carrying `token`, so the browser sends it
-  automatically on `<img src="/files/…">` requests (which can't set an
-  Authorization header). `Secure` is only set over HTTPS so dev over http works.
+  Sets the HttpOnly auth cookie carrying `token`. `SameSite=Lax` keeps
+  state-changing cross-site requests from carrying it (CSRF), while same-origin
+  API/file requests still send it. `Secure` only over HTTPS so dev over http works.
   """
-  def put_file_cookie(conn, token) do
-    Plug.Conn.put_resp_cookie(conn, @file_cookie, token,
+  def put_auth_cookie(conn, token) do
+    Plug.Conn.put_resp_cookie(conn, @auth_cookie, token,
       http_only: true,
       same_site: "Lax",
       secure: conn.scheme == :https,
@@ -28,15 +31,15 @@ defmodule ServantWeb.Auth do
     )
   end
 
-  @doc "Clears the file auth cookie (logout)."
-  def delete_file_cookie(conn) do
-    Plug.Conn.delete_resp_cookie(conn, @file_cookie, http_only: true, same_site: "Lax")
+  @doc "Clears the auth cookie (logout)."
+  def delete_auth_cookie(conn) do
+    Plug.Conn.delete_resp_cookie(conn, @auth_cookie, http_only: true, same_site: "Lax")
   end
 
   def call(conn, _opts) do
-    with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
+    with {:ok, token} <- fetch_token(conn),
          {:ok, user_id} <- verify_token(conn, token),
-         user <- Accounts.get_user!(user_id) do
+         user when not is_nil(user) <- Accounts.get_user(user_id) do
       assign(conn, :current_user, user)
     else
       _ ->
@@ -44,6 +47,22 @@ defmodule ServantWeb.Auth do
         |> put_status(:unauthorized)
         |> Phoenix.Controller.json(%{error: "Unauthorized"})
         |> halt()
+    end
+  end
+
+  # Bearer header takes precedence; fall back to the HttpOnly cookie.
+  defp fetch_token(conn) do
+    case get_req_header(conn, "authorization") do
+      ["Bearer " <> token] ->
+        {:ok, token}
+
+      _ ->
+        conn = fetch_cookies(conn)
+
+        case conn.cookies[@auth_cookie] do
+          token when is_binary(token) -> {:ok, token}
+          _ -> :error
+        end
     end
   end
 

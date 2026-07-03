@@ -1,6 +1,6 @@
 defmodule ServantWeb.Plugs.FileAuth do
   @moduledoc """
-  Authenticates `/files/…` requests from the HttpOnly `_servant_file_auth`
+  Authenticates `/files/…` requests from the HttpOnly `_servant_auth`
   cookie (browsers can't attach a Bearer header to `<img>`/`<a>` requests).
   Assigns `:current_user` or responds 401.
   """
@@ -14,7 +14,7 @@ defmodule ServantWeb.Plugs.FileAuth do
   def call(conn, _opts) do
     conn = fetch_cookies(conn)
 
-    with token when is_binary(token) <- conn.cookies[Auth.file_cookie_name()],
+    with token when is_binary(token) <- conn.cookies[Auth.auth_cookie_name()],
          {:ok, user_id} <- Auth.verify_token(conn, token),
          user when not is_nil(user) <- Accounts.get_user(user_id) do
       assign(conn, :current_user, user)
