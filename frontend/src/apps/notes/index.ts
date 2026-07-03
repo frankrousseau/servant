@@ -24,6 +24,29 @@ function noteTags(n: Note): string[] {
   return (n.data.tags as string[]) || [];
 }
 
+// A contact or event entry reachable via an @[[mention]].
+interface Mentionable {
+  id: string;
+  kind: "contact" | "event";
+  name: string;
+}
+
+// vcard contact titles look like "Name — org — email"; prefer the clean
+// display name — mirror backend mention_keys.
+function mentionName(e: Entry): string {
+  return ((e.data.display_name as string) || (e.title || "").split(" — ")[0] || "").trim();
+}
+
+function dedupeByName(list: Mentionable[]): Mentionable[] {
+  const seen = new Set<string>();
+  return list.filter((m) => {
+    const k = canon(m.name);
+    if (!m.name || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
 function fullPath(folder: string, title: string): string {
   return folder ? `${folder}/${title}` : title;
 }
@@ -114,6 +137,7 @@ function buildTree(list: Note[]): TreeNode {
 const notesApp: AppModule = {
   mount(el: HTMLElement, ctx: AppContext) {
     let notes: Note[] = [];
+    let mentionables: Mentionable[] = [];
     let selectedId: string | null = null;
     let backlinks: Note[] = [];
     let searchQuery = "";
@@ -171,6 +195,11 @@ const notesApp: AppModule = {
     function resolveTarget(target: string): Note | null {
       const c = canon(target);
       return notes.find((n) => noteKeys(n).includes(c)) || null;
+    }
+
+    function resolveMention(target: string): Mentionable | null {
+      const c = canon(target);
+      return mentionables.find((m) => canon(m.name) === c) || null;
     }
 
     function filteredNotes(): Note[] {
@@ -360,7 +389,11 @@ const notesApp: AppModule = {
       const preview = el.querySelector(".nt-preview");
       if (!preview) return;
       const keys = keySet();
-      preview.innerHTML = renderMarkdown(currentBody(), (t) => keys.has(canon(t)));
+      preview.innerHTML = renderMarkdown(
+        currentBody(),
+        (t) => keys.has(canon(t)),
+        (t) => resolveMention(t)?.kind ?? null,
+      );
     }
 
     function renderBacklinks() {
@@ -382,16 +415,23 @@ const notesApp: AppModule = {
       );
     }
 
-    // ----- wikilink autocomplete -----
+    // ----- wikilink / mention autocomplete -----
 
-    let acMatches: string[] = [];
+    interface AcItem {
+      label: string;
+      icon: string;
+      // Full replacement for the `acReplaceLen` chars before the caret.
+      text: string;
+    }
+
+    let acItems: AcItem[] = [];
     let acIndex = 0;
-    let acPartialLen = 0;
+    let acReplaceLen = 0;
 
     function hideAutocomplete() {
       // The popup lives in document.body (not in `el`), so search the document.
       document.querySelectorAll(".nt-ac").forEach((p) => p.remove());
-      acMatches = [];
+      acItems = [];
     }
 
     function highlightAcItem() {
@@ -402,45 +442,72 @@ const notesApp: AppModule = {
     }
 
     function handleAutocompleteKey(e: KeyboardEvent, ta: HTMLTextAreaElement) {
-      if (!acMatches.length || !document.querySelector(".nt-ac")) return;
+      if (!acItems.length || !document.querySelector(".nt-ac")) return;
       if (e.key === "Escape") {
         hideAutocomplete();
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
-        acIndex = (acIndex + 1) % acMatches.length;
+        acIndex = (acIndex + 1) % acItems.length;
         highlightAcItem();
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        acIndex = (acIndex - 1 + acMatches.length) % acMatches.length;
+        acIndex = (acIndex - 1 + acItems.length) % acItems.length;
         highlightAcItem();
       } else if (e.key === "Enter" || e.key === "Tab") {
         e.preventDefault();
-        insertWikilink(ta, acPartialLen, acMatches[acIndex]);
+        applyCompletion(ta, acItems[acIndex]);
       }
+    }
+
+    function mentionItems(query: string, close: boolean): AcItem[] {
+      const q = query.toLowerCase();
+      return mentionables
+        .filter((m) => m.name.toLowerCase().includes(q))
+        .slice(0, 8)
+        .map((m) => ({
+          label: m.name,
+          icon: m.kind === "event" ? "📅" : "👤",
+          text: close ? `${m.name}]]` : `@[[${m.name}]]`,
+        }));
     }
 
     function updateAutocomplete(ta: HTMLTextAreaElement) {
       const before = ta.value.slice(0, ta.selectionStart);
-      const m = before.match(/\[\[([^\][]*)$/);
       hideAutocomplete();
-      if (!m) return;
 
-      const query = m[1].toLowerCase();
-      acPartialLen = m[1].length;
-      acMatches = sortNotes(
-        notes.filter((n) => (n.title || "").toLowerCase().includes(query)),
-      )
-        .slice(0, 8)
-        .map((n) => n.title || "");
-      if (!acMatches.length) return;
+      // Three triggers: `[[` completes notes, `@[[` and bare `@` complete
+      // contact/event mentions (the lookbehind keeps them disjoint).
+      const wiki = before.match(/(?<!@)\[\[([^\][]*)$/);
+      const openMention = wiki ? null : before.match(/@\[\[([^\][]*)$/);
+      const bareMention =
+        wiki || openMention ? null : before.match(/(?<![\w@])@([\p{L}\p{N} '’_-]*)$/u);
+
+      if (wiki) {
+        const q = wiki[1].toLowerCase();
+        acReplaceLen = wiki[1].length;
+        acItems = sortNotes(
+          notes.filter((n) => (n.title || "").toLowerCase().includes(q)),
+        )
+          .slice(0, 8)
+          .map((n) => ({ label: n.title || "", icon: "", text: `${n.title || ""}]]` }));
+      } else if (openMention) {
+        acReplaceLen = openMention[1].length;
+        acItems = mentionItems(openMention[1], true);
+      } else if (bareMention) {
+        acReplaceLen = bareMention[1].length + 1;
+        acItems = mentionItems(bareMention[1], false);
+      } else {
+        return;
+      }
+      if (!acItems.length) return;
       acIndex = 0;
 
       const pop = document.createElement("div");
       pop.className = "nt-ac";
-      pop.innerHTML = acMatches
+      pop.innerHTML = acItems
         .map(
-          (title, i) =>
-            `<div class="nt-ac-item${i === 0 ? " nt-ac-item--active" : ""}" data-title="${escapeHtml(title)}">${escapeHtml(title)}</div>`,
+          (item, i) =>
+            `<div class="nt-ac-item${i === 0 ? " nt-ac-item--active" : ""}" data-index="${i}">${item.icon ? `${item.icon} ` : ""}${escapeHtml(item.label)}</div>`,
         )
         .join("");
 
@@ -461,18 +528,17 @@ const notesApp: AppModule = {
       pop.querySelectorAll(".nt-ac-item").forEach((item) =>
         item.addEventListener("mousedown", (e) => {
           e.preventDefault();
-          insertWikilink(ta, acPartialLen, (item as HTMLElement).dataset.title!);
+          applyCompletion(ta, acItems[Number((item as HTMLElement).dataset.index)]);
         }),
       );
     }
 
-    function insertWikilink(ta: HTMLTextAreaElement, partialLen: number, title: string) {
+    function applyCompletion(ta: HTMLTextAreaElement, item: AcItem) {
       const pos = ta.selectionStart;
-      const before = ta.value.slice(0, pos - partialLen);
+      const before = ta.value.slice(0, pos - acReplaceLen);
       const after = ta.value.slice(pos);
-      const inserted = `${title}]]`;
-      ta.value = before + inserted + after;
-      const newPos = before.length + inserted.length;
+      ta.value = before + item.text + after;
+      const newPos = before.length + item.text.length;
       ta.setSelectionRange(newPos, newPos);
       hideAutocomplete();
       ta.focus();
@@ -602,8 +668,16 @@ const notesApp: AppModule = {
       }
     }
 
-    // Delegated wikilink clicks in the preview.
+    // Delegated wikilink and mention clicks in the preview.
     el.addEventListener("click", (e) => {
+      const mention = (e.target as HTMLElement).closest(".nt-mention") as HTMLElement | null;
+      if (mention) {
+        e.preventDefault();
+        const item = resolveMention(mention.dataset.target || "");
+        if (item?.kind === "contact") ctx.navigate(`/contacts/${item.id}`);
+        else if (item?.kind === "event") ctx.navigate("/apps/calendar");
+        return;
+      }
       const link = (e.target as HTMLElement).closest(".nt-wikilink") as HTMLElement | null;
       if (!link) return;
       e.preventDefault();
@@ -670,6 +744,9 @@ const notesApp: AppModule = {
       ".nt-wikilink { color: var(--primary); text-decoration: none; border-bottom: 1px solid transparent; cursor: pointer; }",
       ".nt-wikilink:hover { border-bottom-color: var(--primary); }",
       ".nt-wikilink--new { color: var(--danger); }",
+      ".nt-mention { display: inline-block; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 999px; padding: 0 0.5em; font-size: 0.85em; color: var(--text); cursor: pointer; text-decoration: none; }",
+      ".nt-mention:hover { border-color: var(--primary); color: var(--primary); }",
+      ".nt-mention--unknown { opacity: 0.6; border-style: dashed; cursor: default; }",
       ".nt-tag { display: inline-block; background: rgba(108, 140, 255, 0.15); color: var(--primary); border-radius: 6px; padding: 0 0.4em; font-size: 0.85em; }",
       ".nt-backlinks { border-top: 1px solid var(--border); padding: 0.5rem 1.25rem; max-height: 30%; overflow-y: auto; }",
       ".nt-backlinks:empty { display: none; }",
@@ -701,6 +778,32 @@ const notesApp: AppModule = {
       .catch(() => {
         const main = el.querySelector(".nt-main");
         if (main) main.innerHTML = '<p class="nt-placeholder">Failed to load notes.</p>';
+      });
+
+    // Contacts and events feed @[[mention]] autocomplete and chip resolution;
+    // the app degrades gracefully without them.
+    Promise.all([
+      ctx.api.entries.list({ kind: "contact" }),
+      ctx.api.entries.list({ kind: "event" }),
+    ])
+      .then(([contacts, events]) => {
+        const contactItems = dedupeByName(
+          contacts
+            .map((c) => ({ id: c.id, kind: "contact" as const, name: mentionName(c) }))
+            .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase())),
+        );
+        const eventItems = dedupeByName(
+          events
+            .slice()
+            // Recent first, so recurring event titles resolve to the latest one.
+            .sort((a, b) => (b.occurred_at || "").localeCompare(a.occurred_at || ""))
+            .map((e) => ({ id: e.id, kind: "event" as const, name: (e.title || "").trim() })),
+        );
+        mentionables = [...contactItems, ...eventItems];
+        updatePreview();
+      })
+      .catch(() => {
+        // mention chips render as unresolved without this data
       });
   },
 

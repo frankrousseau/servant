@@ -1,8 +1,14 @@
 defmodule Servant.Notes.NoteLink do
   @moduledoc """
-  A directed `[[wikilink]]` from one note to a target path/slug. Maintained by
-  `Servant.Notes` on every note save and used to compute backlinks (and, later,
-  the note graph). `target_note_id` is resolved when the target note exists.
+  A directed link from one note to a target entry, maintained by
+  `Servant.Notes` on every note save. Two kinds:
+
+    * `"wikilink"` — a `[[link]]` to another note (by title or folder/title
+      path); powers backlinks and, later, the note graph.
+    * `"mention"` — a `@[[mention]]` of a contact or event entry.
+
+  `target_note_id` is resolved when the target entry exists (a note for
+  wikilinks, a contact/event for mentions).
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -11,6 +17,7 @@ defmodule Servant.Notes.NoteLink do
   @foreign_key_type :binary_id
   schema "note_links" do
     field :target_path, :string
+    field :kind, :string, default: "wikilink"
 
     belongs_to :user, Servant.Accounts.User
     belongs_to :source_note, Servant.Data.Entry
@@ -21,7 +28,8 @@ defmodule Servant.Notes.NoteLink do
 
   def changeset(note_link, attrs) do
     note_link
-    |> cast(attrs, [:target_path, :target_note_id])
+    |> cast(attrs, [:target_path, :target_note_id, :kind])
     |> validate_required([:target_path])
+    |> validate_inclusion(:kind, ["wikilink", "mention"])
   end
 end

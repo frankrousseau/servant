@@ -3,9 +3,10 @@ defmodule Servant.Notes do
   The Notes context. A note is a `Servant.Data.Entry` with `kind: "note"` and
   `source: "notes"`, so notes flow through the universal data browser, search,
   timeline and realtime channels for free. This context owns the note-specific
-  concerns: slug/path derivation, `[[wikilink]]` and `#tag` parsing, and
-  maintenance of the `note_links` table (used for backlinks and, later, the
-  note graph). All functions are scoped by `user_id`.
+  concerns: slug/path derivation, `[[wikilink]]`, `@[[mention]]` (contacts and
+  events) and `#tag` parsing, and maintenance of the `note_links` table (used
+  for backlinks, mention lookups and, later, the note graph). All functions are
+  scoped by `user_id`.
 
   Storage convention on the entry:
     * `title`            — the note title (last path segment)
@@ -23,8 +24,11 @@ defmodule Servant.Notes do
 
   @kind "note"
   @source "notes"
+  @mention_kinds ["contact", "event"]
 
-  @wikilink_re ~r/\[\[([^\]\[]+)\]\]/
+  # `(?<!@)` keeps plain wikilinks from also matching the tail of `@[[mention]]`.
+  @wikilink_re ~r/(?<!@)\[\[([^\]\[]+)\]\]/
+  @mention_re ~r/@\[\[([^\]\[]+)\]\]/
   # `#tag` not preceded by a word char (so it ignores markdown headings, which
   # are `#` + space) and made of letters/digits/_/-/ nested paths.
   @tag_re ~r/(?<![\w#])#([\p{L}0-9_][\p{L}0-9_\/-]*)/u
@@ -115,7 +119,7 @@ defmodule Servant.Notes do
 
     source_ids =
       from(l in NoteLink,
-        where: l.user_id == ^user_id and l.target_path in ^keys,
+        where: l.user_id == ^user_id and l.kind == "wikilink" and l.target_path in ^keys,
         select: l.source_note_id,
         distinct: true
       )
@@ -139,6 +143,17 @@ defmodule Servant.Notes do
 
   def parse_wikilinks(_), do: []
 
+  @doc "Extracts canonical `@[[mention]]` targets (contacts/events) from markdown body."
+  def parse_mentions(body) when is_binary(body) do
+    @mention_re
+    |> Regex.scan(body, capture: :all_but_first)
+    |> Enum.map(fn [target] -> canon(target) end)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
+
+  def parse_mentions(_), do: []
+
   @doc "Extracts `#hashtag` tags from markdown body (headings are ignored)."
   def parse_tags(body) when is_binary(body) do
     @tag_re
@@ -151,33 +166,40 @@ defmodule Servant.Notes do
 
   @doc """
   Recomputes a note's outgoing `note_links`: drops the old rows and inserts one
-  per distinct wikilink target, resolving `target_note_id` when the target note
-  already exists. Bulk-write pattern mirrors `Servant.Data.create_entries/2`.
+  per distinct `[[wikilink]]` target (kind `"wikilink"`, resolved to a note)
+  and per distinct `@[[mention]]` target (kind `"mention"`, resolved to a
+  contact/event entry). Bulk-write pattern mirrors `Servant.Data.create_entries/2`.
   """
   def sync_links(user_id, %Entry{} = note) do
-    targets = note.data |> Map.get("body", "") |> parse_wikilinks()
+    body = Map.get(note.data, "body", "")
+    wikilinks = parse_wikilinks(body)
+    mentions = parse_mentions(body)
+
     Repo.delete_all(from l in NoteLink, where: l.source_note_id == ^note.id)
 
-    if targets != [] do
-      now = DateTime.utc_now() |> DateTime.truncate(:second)
-      resolved = resolve_targets(user_id, targets)
+    rows =
+      link_rows(user_id, note, wikilinks, resolve_targets(user_id, wikilinks), "wikilink") ++
+        link_rows(user_id, note, mentions, resolve_mentions(user_id, mentions), "mention")
 
-      rows =
-        Enum.map(targets, fn target ->
-          %{
-            id: Ecto.UUID.generate(),
-            user_id: user_id,
-            source_note_id: note.id,
-            target_path: target,
-            target_note_id: Map.get(resolved, target),
-            inserted_at: now
-          }
-        end)
-
-      Repo.insert_all(NoteLink, rows)
-    end
+    if rows != [], do: Repo.insert_all(NoteLink, rows)
 
     :ok
+  end
+
+  defp link_rows(user_id, note, targets, resolved, kind) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    Enum.map(targets, fn target ->
+      %{
+        id: Ecto.UUID.generate(),
+        user_id: user_id,
+        source_note_id: note.id,
+        target_path: target,
+        target_note_id: Map.get(resolved, target),
+        kind: kind,
+        inserted_at: now
+      }
+    end)
   end
 
   # ----- internals -----
@@ -235,11 +257,15 @@ defmodule Servant.Notes do
     keys = note_keys(note)
 
     from(l in NoteLink,
-      where: l.user_id == ^user_id and l.target_note_id == ^note.id and l.target_path not in ^keys
+      where:
+        l.user_id == ^user_id and l.kind == "wikilink" and l.target_note_id == ^note.id and
+          l.target_path not in ^keys
     )
     |> Repo.update_all(set: [target_note_id: nil])
 
-    from(l in NoteLink, where: l.user_id == ^user_id and l.target_path in ^keys)
+    from(l in NoteLink,
+      where: l.user_id == ^user_id and l.kind == "wikilink" and l.target_path in ^keys
+    )
     |> Repo.update_all(set: [target_note_id: note.id])
 
     :ok
@@ -249,7 +275,7 @@ defmodule Servant.Notes do
   # self-links get rewritten on rename too).
   defp inbound_source_ids(%Entry{} = note) do
     from(l in NoteLink,
-      where: l.target_note_id == ^note.id,
+      where: l.kind == "wikilink" and l.target_note_id == ^note.id,
       select: l.source_note_id,
       distinct: true
     )
@@ -318,12 +344,45 @@ defmodule Servant.Notes do
   end
 
   # Maps each target string to a note id when a matching note exists.
+  defp resolve_targets(_user_id, []), do: %{}
+
   defp resolve_targets(user_id, targets) do
     notes_query(user_id)
     |> Repo.all()
     |> Enum.flat_map(fn note -> Enum.map(note_keys(note), &{&1, note.id}) end)
     |> Map.new()
     |> Map.take(targets)
+  end
+
+  # Maps each mention string to a contact/event entry id when one matches. A
+  # contact is mentionable by its display name (or bare title as fallback), an
+  # event by its title.
+  defp resolve_mentions(_user_id, []), do: %{}
+
+  defp resolve_mentions(user_id, names) do
+    from(e in Entry,
+      where: e.user_id == ^user_id and e.kind in ^@mention_kinds,
+      select: {e.id, e.title, fragment("json_extract(?, '$.display_name')", e.data)}
+    )
+    |> Repo.all()
+    |> Enum.flat_map(fn {id, title, display_name} ->
+      for key <- mention_keys(title, display_name), key != "", do: {key, id}
+    end)
+    |> Map.new()
+    |> Map.take(names)
+  end
+
+  # vcard contact titles look like "Name — org — email"; the display name (or
+  # the title's first segment) is the handle people actually type.
+  defp mention_keys(title, display_name) do
+    title = to_string(title)
+
+    [
+      canon(to_string(display_name)),
+      canon(title),
+      title |> String.split(" — ") |> hd() |> canon()
+    ]
+    |> Enum.uniq()
   end
 
   defp notes_query(user_id) do

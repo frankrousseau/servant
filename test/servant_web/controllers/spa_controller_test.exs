@@ -9,7 +9,12 @@ defmodule ServantWeb.SpaControllerTest do
         false
       else
         File.mkdir_p!(Path.dirname(@index_path))
-        File.write!(@index_path, "<!doctype html><html><body><div id=\"app\"></div></body></html>")
+
+        File.write!(
+          @index_path,
+          "<!doctype html><html><body><div id=\"app\"></div></body></html>"
+        )
+
         true
       end
 

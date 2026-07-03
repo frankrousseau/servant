@@ -148,9 +148,70 @@ defmodule Servant.NotesTest do
     end
   end
 
+  describe "mentions" do
+    test "@[[mention]] links resolve to contact and event entries", %{user: user} do
+      contact =
+        entry_fixture(user.id, %{
+          "kind" => "contact",
+          "title" => "Jean Dupont — CGWire — jean@cg-wire.com",
+          "data" => %{"display_name" => "Jean Dupont"}
+        })
+
+      event = entry_fixture(user.id, %{"kind" => "event", "title" => "Kickoff Servant"})
+
+      {:ok, note} =
+        Notes.create_note(user.id, %{
+          "title" => "Réunion",
+          "body" => "Avec @[[Jean Dupont]] pour @[[Kickoff Servant]] et @[[Inconnu]]"
+        })
+
+      links =
+        Repo.all(
+          from l in NoteLink,
+            where: l.source_note_id == ^note.id,
+            order_by: l.target_path
+        )
+
+      assert Enum.map(links, &{&1.kind, &1.target_path, &1.target_note_id}) == [
+               {"mention", "inconnu", nil},
+               {"mention", "jean dupont", contact.id},
+               {"mention", "kickoff servant", event.id}
+             ]
+    end
+
+    test "mentions never pollute note backlinks or rename propagation", %{user: user} do
+      entry_fixture(user.id, %{
+        "kind" => "contact",
+        "title" => "Sam",
+        "data" => %{"display_name" => "Sam"}
+      })
+
+      # A note that happens to share the contact's name.
+      {:ok, sam_note} = Notes.create_note(user.id, %{"title" => "Sam", "body" => ""})
+
+      {:ok, mentioning} =
+        Notes.create_note(user.id, %{"title" => "Journal", "body" => "lunch with @[[Sam]]"})
+
+      # The mention targets the contact, not the note, so no backlink appears
+      # and renaming the note leaves the mention text untouched.
+      assert Notes.backlinks(user.id, sam_note) == []
+
+      {:ok, _} = Notes.update_note(user.id, sam_note.id, %{"title" => "Sam 2"})
+
+      mentioning = Notes.get_note!(user.id, mentioning.id)
+      assert mentioning.data["body"] == "lunch with @[[Sam]]"
+    end
+  end
+
   describe "parse_wikilinks/1 and parse_tags/1" do
     test "extracts unique canonical wikilink targets" do
       assert Notes.parse_wikilinks("[[One]] and [[ Two ]] and [[one]]") == ["one", "two"]
+    end
+
+    test "wikilinks and mentions do not overlap" do
+      body = "note [[Plan]] vs mention @[[Jean]]"
+      assert Notes.parse_wikilinks(body) == ["plan"]
+      assert Notes.parse_mentions(body) == ["jean"]
     end
 
     test "tags ignore markdown headings" do

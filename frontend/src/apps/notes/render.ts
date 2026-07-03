@@ -18,17 +18,30 @@ export function canon(str: string): string {
   return str.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+export type MentionKind = "contact" | "event" | null;
+
 /**
- * Renders markdown to HTML, then turns `[[wikilinks]]` into anchors (flagged
- * `--new` when the target note doesn't exist yet, à la Obsidian) and `#tags`
- * into pills. Post-processing the rendered HTML keeps wikilink/tag text as
- * literal brackets/hashes that markdown-it leaves untouched.
+ * Renders markdown to HTML, then turns `@[[mentions]]` into contact/event
+ * chips, `[[wikilinks]]` into anchors (flagged `--new` when the target note
+ * doesn't exist yet, à la Obsidian) and `#tags` into pills. Post-processing
+ * the rendered HTML keeps wikilink/tag text as literal brackets/hashes that
+ * markdown-it leaves untouched. Mentions are replaced first so the wikilink
+ * pass only sees plain `[[...]]`.
  */
 export function renderMarkdown(
   body: string,
   resolved: (target: string) => boolean,
+  mentionKind: (target: string) => MentionKind = () => null,
 ): string {
   let html = md.render(body || "");
+
+  html = html.replace(/@\[\[([^\][]+)\]\]/g, (_m, raw: string) => {
+    const target = raw.trim();
+    const kind = mentionKind(target);
+    const icon = kind === "event" ? "📅" : "👤";
+    const cls = kind ? "nt-mention" : "nt-mention nt-mention--unknown";
+    return `<a class="${cls}" data-target="${escapeHtml(target)}">${icon} ${escapeHtml(target)}</a>`;
+  });
 
   html = html.replace(/\[\[([^\][]+)\]\]/g, (_m, raw: string) => {
     const target = raw.trim();
