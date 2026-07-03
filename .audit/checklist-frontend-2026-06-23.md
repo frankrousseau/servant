@@ -153,9 +153,10 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
       Mises à jour mineures sûres (`vue 3.5.30→3.5.38`, `vue-tsc`, `@vueuse/core`, `phoenix 1.8.5→1.8.8`).
       Fix : `npm update` (dans les contraintes `^`).
       ✅ *Fait (2026-07-03)* : `npm update` (32 paquets), `npm audit` = 0 vuln, `vue-tsc` + build OK.
-- [ ] **FE-DEP-4** · ⚪ low · `package.json` · effort: medium
+- [x] **FE-DEP-4** · ⚪ low · `package.json` · effort: medium
       Majeures à planifier (`vue-router 4→5`, `typescript 5.9→6`, `@types/node 24→26`).
       Fix : traiter séparément avec relecture des changelogs.
+      ✅ *Fait (2026-07-03)* : **TypeScript 6**, **@types/node 26**, **vue-tsc 3.3**, **vue-router 5** installés. `vue-tsc -b` + `vite build` verts, `npm audit` = 0 vuln. Les API routeur utilisées (createWebHistory/createRouter/`beforeEach`/`useRoute`/`RouterView`) sont compatibles v5 (aucune erreur de type). ⚠️ **Runtime routeur à vérifier au navigateur** (navigation, garde d'auth, deep links) — revert `vue-router@^4` trivial si régression.
 
 ## Documentation
 
@@ -167,6 +168,7 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
       Système d'« apps » pluggables (`AppModule`/`AppContext`) non documenté.
       Fix : `apps/README.md` ou section DEVELOPMENT.md (« comment ajouter une app »).
       ✅ *Fait (2026-07-03)* : `frontend/src/apps/README.md` (comment ajouter une app, contrat `AppContext`, conventions escapeHtml/cleanup/fichiers).
-- [ ] **FE-DOC-3** · ⚪ low · frontend (JSDoc rare) · effort: small
+- [x] **FE-DOC-3** · ⚪ low · frontend (JSDoc rare) · effort: small
       Seul `useFetchData.ts` est commenté.
       Fix : quelques commentaires d'intention sur les apps impératives.
+      ✅ *Fait (2026-07-03, via FE-ARCH-1)* : les apps impératives visées n'existent plus (réécrites en SFC). Les nouveaux modules portent des commentaires d'intention là où c'est non-évident (`apiClient.ts`, `auth.ts`, `escapeHtml.ts`, wrappers `index.ts`, fallback image, etc.) + `apps/README.md` (FE-DOC-2) documente le contrat.
