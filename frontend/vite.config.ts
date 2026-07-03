@@ -8,6 +8,15 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, "../priv/static"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Split the rarely-changing framework core into a cacheable vendor
+        // chunk; route-specific deps (e.g. flatpickr) stay with their chunk.
+        manualChunks(id) {
+          if (/node_modules\/(@?vue|pinia|@vue)\//.test(id)) return "vendor";
+        },
+      },
+    },
   },
   server: {
     proxy: {

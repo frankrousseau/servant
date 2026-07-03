@@ -115,12 +115,14 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
       Avatars non lazy-loadés (1 seule occurrence de `loading="lazy"` dans tout le front). **(quick win)**
       Fix : ajouter `loading="lazy"` aux `<img>` de listes.
       ✅ *Fait (2026-07-03)* : `loading="lazy"` ajouté aux 2 avatars contacts (liste + détail). Les vignettes photos l'avaient déjà.
-- [ ] **FE-PERF-3** · ⚪ low · `connectors.ts` (13 logos SVG inline) · effort: small
+- [x] **FE-PERF-3** · ⚪ low · `connectors.ts` (13 logos SVG inline) · effort: small
       Logos SVG embarqués dans le chunk principal.
       Fix : externaliser en `.svg` ou charger à la demande si le catalogue grandit.
-- [ ] **FE-PERF-4** · ⚪ low · `vite.config.ts` · effort: small
+      ✅ *Fait (2026-07-03)* : les vues `ConnectorsView`/`ConnectorDetailView` (qui importent `connectors.ts` + ses SVG) étaient importées **statiquement** → passées en **lazy** (`() => import()`). Les SVG quittent le chunk principal (« charger à la demande »). Chunk `index` **135 Ko → 81 Ko**. Pas d'externalisation de 13 fichiers ni de changement de rendu.
+- [x] **FE-PERF-4** · ⚪ low · `vite.config.ts` · effort: small
       Pas de configuration de chunking (non bloquant).
       Fix : optionnel, surveiller la taille du chunk vendor.
+      ✅ *Fait (2026-07-03)* : `manualChunks` isole le cœur framework (`vue`/`pinia`) dans un chunk `vendor` cacheable (~81 Ko) ; les deps par route (ex. flatpickr) restent dans leur chunk. + lazy-loading des vues secondaires (Data/Settings/App/Connectors).
 
 ## Clean code
 

@@ -1,14 +1,12 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 
+// Only the entry views (guest + landing) are eager; the rest are lazy so their
+// code (e.g. the connector catalog + its inline SVG logos) stays out of the
+// main bundle — FE-PERF-3/4.
 import LoginView from "../views/LoginView.vue";
 import RegisterView from "../views/RegisterView.vue";
 import DashboardView from "../views/DashboardView.vue";
-import DataBrowserView from "../views/DataBrowserView.vue";
-import ConnectorsView from "../views/ConnectorsView.vue";
-import ConnectorDetailView from "../views/ConnectorDetailView.vue";
-import SettingsView from "../views/SettingsView.vue";
-import AppView from "../views/AppView.vue";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -34,31 +32,31 @@ const router = createRouter({
     {
       path: "/data",
       name: "data",
-      component: DataBrowserView,
+      component: () => import("../views/DataBrowserView.vue"),
       meta: { auth: true, title: "Data Browser" },
     },
     {
       path: "/connectors",
       name: "connectors",
-      component: ConnectorsView,
+      component: () => import("../views/ConnectorsView.vue"),
       meta: { auth: true, title: "Connectors" },
     },
     {
       path: "/connectors/:id",
       name: "connector-detail",
-      component: ConnectorDetailView,
+      component: () => import("../views/ConnectorDetailView.vue"),
       meta: { auth: true, title: "Connector" },
     },
     {
       path: "/settings",
       name: "settings",
-      component: SettingsView,
+      component: () => import("../views/SettingsView.vue"),
       meta: { auth: true, title: "Settings" },
     },
     {
       path: "/apps/:appId",
       name: "app",
-      component: AppView,
+      component: () => import("../views/AppView.vue"),
       meta: { auth: true },
     },
     {
