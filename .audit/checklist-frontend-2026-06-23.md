@@ -17,6 +17,8 @@
 |---|---|---|---|---|---|
 | Frontend | 0 | 8 | 11 | 5 | 24 |
 
+> **État (2026-07-03)** : **22/24 traités**. Seuls **FE-TEST-1/2** restent (reportés par choix — infra Vitest à monter plus tard). ⚠️ Plusieurs gros changements (réécriture des 4 apps, CSP, auth cookie, vue-router 5) **exigent un smoke-test navigateur** — non testables en headless.
+
 ### Progression (boucle `/loop`)
 
 Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décision requise · ⏭️ = sauté (risqué/large, à arbitrer).
