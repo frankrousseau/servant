@@ -27,15 +27,16 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
 - **2026-07-03 — Bugs + Deps + Doc (agent notes terminé)** : FE-BUG-2 ✅ (erreurs affichées : validation JSON + `formError`/`pageError`), FE-DEP-3 ✅ (`npm update` mineurs, 0 vuln, build OK), FE-DOC-2 ✅ (`apps/README.md` : contrat AppModule/AppContext) · signalés low/optionnels : FE-PERF-3 ⏭️ (13 logos SVG inline — conditionnel « si le catalogue grandit »), FE-PERF-4 ⏭️ (chunking vite — « non bloquant »), FE-DOC-3 ⏭️ (JSDoc — faible valeur), FE-DEP-4 ⏭️ (majeures : vue-router 5, TS 6 — à planifier avec changelogs).
 - **2026-07-03 — Client HTTP unifié** : FE-ARCH-3 ✅ + FE-CLEAN-3 ✅ (`composables/apiClient.ts` partagé). **17 items frontend faits** cette session.
 - **2026-07-03 — Reste à faire (larges / décisions)** : FE-ARCH-1 ⏭️ (réécriture des 4 apps impératives en Vue — **racine** de FE-BUG-5, FE-SEC-4, FE-PERF-1, FE-CLEAN-2, tous doublons à traiter avec) ; FE-BUG-4 ⏭️ (`entries.list` charge 10 000 entrées côté client — pagination/filtrage serveur, lié à la réécriture des apps) ; FE-SEC-3 ⚠️ **décision** (token en `localStorage` → cookie `HttpOnly` : l'infra cookie existe déjà pour `/files`, l'étendre à toute l'API est un choix transversal) ; FE-TEST-1/2 ⚠️ **décision** (monter Vitest + `@vue/test-utils` + happy-dom — nouvelle infra de tests, 0 test actuellement).
+- **2026-07-03 — FE-ARCH-1 : les 4 apps réécrites en composants Vue** : `files`, `contacts`, `calendar`, `photos` → SFC (`*App.vue`), montés via un wrapper `createApp` mince (contrat `AppModule` conservé). Plus **aucun `innerHTML`**, plus aucun `escapeHtml` manuel, plus de gestion manuelle des listeners (Vue échappe/nettoie/rend en réactif). Résout **FE-BUG-5** (perte focus/scroll), **FE-SEC-4** (surface XSS `innerHTML`), **FE-PERF-1** (re-render `innerHTML` complet) ; améliore **FE-CLEAN-2** (template/script/style séparés). `vue-tsc` + build OK à chaque app. ⚠️ **À smoke-tester en navigateur** (je ne peux pas tester le rendu ici). Reste **FE-BUG-4** (chargement 10 000 entrées → pagination serveur, séparé).
 
 ---
 
 ## Architecture
 
-- [ ] **FE-ARCH-1** · 🟠 high · `apps/{contacts,calendar,files,photos}/index.ts` (~2500 LOC) · effort: large
+- [x] **FE-ARCH-1** · 🟠 high · `apps/{contacts,calendar,files,photos}/index.ts` (~2500 LOC) · effort: large
       Deux paradigmes : Vue réactif (SFC) vs DOM impératif (`innerHTML` + listeners manuels) → surface XSS, fuites, perte focus/scroll.
       Fix : réécrire les apps en composants Vue (le contrat `AppContext` peut rester). *(racine de FE-SEC-1/4, FE-BUG-3/5, FE-CLEAN-1/2)*
-      ⏭️ *Signalé — refactor large (2026-07-03)* : réécriture des 4 apps impératives (~2500 LOC) en composants Vue. Gros chantier structurel à planifier ; racine de plusieurs items (FE-SEC-1/4, FE-BUG-3/5, FE-CLEAN-1/2). À faire par app, séparément.
+      ✅ *Fait (2026-07-03)* : les 4 apps réécrites en SFC (`FilesApp.vue`, `ContactsApp.vue`, `CalendarApp.vue`, `PhotosApp.vue`), montées via un wrapper `createApp` conservant le contrat `AppModule`. Comportement préservé ; plus aucun `innerHTML`/`escapeHtml`/listener manuel. `vue-tsc` + build OK. ⚠️ smoke-test navigateur requis.
 - [x] **FE-ARCH-2** · 🟠 high · `auth.ts:7`, `main.ts`/`App.vue` · effort: small
       `auth.user` non réhydraté au rechargement → `useSocket.connect()` sort (temps réel jamais connecté après refresh, cause 3/3).
       Fix : au boot, si `token` présent, charger `/auth/me` et peupler `user`. *(complète BE-BUG-1/2)*
@@ -66,9 +67,10 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
 - [ ] **FE-BUG-4** · 🟡 medium · `createContext.ts:48` · effort: medium
       `entries.list` charge jusqu'à 10 000 entrées côté client.
       Fix : pagination/chargement incrémental, ou filtrage côté serveur. *(lié à FE-PERF-1)*
-- [ ] **FE-BUG-5** · ⚪ low · apps impératives · effort: large
+- [x] **FE-BUG-5** · ⚪ low · apps impératives · effort: large
       Ré-render `innerHTML` complet détruit focus/scroll/sélection (contourné ponctuellement).
       Fix : migration en composants Vue. *(doublon de FE-ARCH-1)*
+      ✅ *Fait (2026-07-03, via FE-ARCH-1)* : rendu réactif Vue → plus de re-render `innerHTML` complet, focus/scroll préservés (les hacks de re-focus des inputs ont été supprimés).
 
 ## Tests & couverture
 
@@ -92,9 +94,10 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
 - [ ] **FE-SEC-3** · 🟡 medium · `auth.ts:6,14` · effort: medium
       Token en `localStorage` → volable par XSS.
       Fix (défense en profondeur) : cookie `HttpOnly`+`SameSite`, ou a minima réduire la surface XSS + CSP.
-- [ ] **FE-SEC-4** · 🟡 medium · apps (`innerHTML` ~17×) · effort: large
+- [x] **FE-SEC-4** · 🟡 medium · apps (`innerHTML` ~17×) · effort: large
       Surface XSS large par conception (échappement manuel partout — pas d'oubli trouvé, mais régression facile).
       Fix : migration en composants Vue. *(doublon de FE-ARCH-1)*
+      ✅ *Fait (2026-07-03, via FE-ARCH-1)* : plus aucun `innerHTML` dans les apps ; l'interpolation Vue `{{ }}` échappe automatiquement → surface XSS supprimée par conception.
 - [x] **FE-SEC-5** · 🟡 medium · `photos/index.ts:217` · effort: quick
       Handler inline `onerror=` dans `innerHTML` (bloque une CSP sans `unsafe-inline`). **(quick win)**
       Fix : retirer le handler inline (prérequis de FE-SEC-2).
@@ -102,9 +105,10 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
 
 ## Performance
 
-- [ ] **FE-PERF-1** · 🟠 high · `createContext.ts:48` + ré-render `innerHTML` · effort: large
+- [x] **FE-PERF-1** · 🟠 high · `createContext.ts:48` + ré-render `innerHTML` · effort: large
       Chargement de toutes les entrées + reconstruction DOM complète à chaque interaction → payload lourd + jank.
       Fix : pagination/scroll infini côté serveur + rendu réactif granulaire. *(lié à FE-BUG-4, FE-ARCH-1)*
+      🔶 *Partiel (2026-07-03, via FE-ARCH-1)* : la **reconstruction DOM complète** est éliminée (rendu réactif granulaire). Le **chargement de toutes les entrées** (per_page=10000) reste — c'est FE-BUG-4 (pagination/scroll serveur), non traité.
 - [x] **FE-PERF-2** · 🟡 medium · `contacts/index.ts:221,334`, `photos/index.ts:112` · effort: quick
       Avatars non lazy-loadés (1 seule occurrence de `loading="lazy"` dans tout le front). **(quick win)**
       Fix : ajouter `loading="lazy"` aux `<img>` de listes.
@@ -125,6 +129,7 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
 - [ ] **FE-CLEAN-2** · 🟡 medium · `photos/index.ts` (934 l.), `ConnectorDetailView.vue` (860), etc. · effort: large
       Fichiers volumineux mêlant rendu/logique/état/HTML.
       Fix : découper en sous-composants ; la migration Vue réduirait mécaniquement la taille. *(lié à FE-ARCH-1)*
+      🔶 *Amélioré (2026-07-03, via FE-ARCH-1)* : les apps sont désormais des SFC (template/script/style **séparés**) au lieu de chaînes HTML mêlées à la logique. Reste possible : découper `PhotosApp.vue`/`ConnectorDetailView.vue` en sous-composants (non fait — optionnel).
 - [x] **FE-CLEAN-3** · 🟡 medium · `useApi.ts`, `createContext.ts`, `auth.ts` + couleurs hard-codées · effort: medium
       Trois clients HTTP / jetons de thème dupliqués.
       Fix : centraliser. *(doublon de FE-ARCH-3/4)*
