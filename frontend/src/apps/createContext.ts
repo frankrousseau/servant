@@ -2,65 +2,23 @@ import { useAuthStore } from "../stores/auth";
 import { useRouter } from "vue-router";
 import type { AppContext, Entry, UploadResult, ViewerAPI } from "./types";
 import { useConfirm } from "../composables/useConfirm";
+import { apiFetch, apiJson } from "../composables/apiClient";
 
 export function createAppContext(viewer: ViewerAPI): AppContext {
   const auth = useAuthStore();
   const router = useRouter();
   const { ask } = useConfirm();
 
-  function authHeaders(): Record<string, string> {
-    const h: Record<string, string> = { "Content-Type": "application/json" };
-    if (auth.token) h["Authorization"] = `Bearer ${auth.token}`;
-    return h;
-  }
-
-  // Turns API error payloads into a readable message: either `{error: "..."}`
-  // or a changeset-style `{errors: {field: ["msg", ...]}}`.
-  function errorMessage(err: unknown): string | null {
-    if (typeof err !== "object" || err === null) return null;
-    const e = err as { error?: unknown; errors?: unknown };
-    if (typeof e.error === "string") return e.error;
-    if (typeof e.errors === "object" && e.errors !== null) {
-      const parts = Object.entries(e.errors as Record<string, unknown>).map(
-        ([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(", ") : String(msgs)}`,
-      );
-      if (parts.length) return parts.join("; ");
-    }
-    return null;
-  }
-
-  async function apiFetch(path: string, opts: RequestInit = {}): Promise<Response> {
-    const res = await fetch(path, {
-      ...opts,
-      headers: { ...authHeaders(), ...(opts.headers as Record<string, string> || {}) },
-    });
-    if (res.status === 401) {
-      auth.logout();
-      throw new Error("Unauthorized");
-    }
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(errorMessage(err) || `Request failed: ${res.status}`);
-    }
-    return res;
-  }
-
-  async function apiJson<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const res = await apiFetch(path, {
-      method,
-      body: body != null ? JSON.stringify(body) : undefined,
-    });
-    if (res.status === 204) return undefined as T;
-    return res.json();
-  }
-
   return {
-    navigate(path: string) { router.push(path); },
+    navigate(path: string) {
+      router.push(path);
+    },
     api: {
       entries: {
         async list(filters?: Record<string, string>): Promise<Entry[]> {
-          const params = new URLSearchParams(filters);
-          const res = await apiJson<{ data: Entry[] }>("GET", `/api/entries?per_page=10000&${params}`);
+          const res = await apiJson<{ data: Entry[] }>("GET", "/api/entries", {
+            params: { per_page: "10000", ...(filters || {}) },
+          });
           return res.data;
         },
         async get(id: string): Promise<Entry> {
@@ -68,11 +26,11 @@ export function createAppContext(viewer: ViewerAPI): AppContext {
           return res.data;
         },
         async create(attrs: Record<string, unknown>): Promise<Entry> {
-          const res = await apiJson<{ data: Entry }>("POST", "/api/entries", attrs);
+          const res = await apiJson<{ data: Entry }>("POST", "/api/entries", { body: attrs });
           return res.data;
         },
         async update(id: string, attrs: Record<string, unknown>): Promise<Entry> {
-          const res = await apiJson<{ data: Entry }>("PUT", `/api/entries/${id}`, attrs);
+          const res = await apiJson<{ data: Entry }>("PUT", `/api/entries/${id}`, { body: attrs });
           return res.data;
         },
         async delete(id: string): Promise<void> {
@@ -83,13 +41,15 @@ export function createAppContext(viewer: ViewerAPI): AppContext {
           return res.data;
         },
       },
+      // Multipart upload keeps its own fetch: the browser must set the
+      // multipart Content-Type boundary, so it can't go through apiFetch.
       async upload(file: File, app = "files"): Promise<UploadResult> {
-        const form = new FormData()
-        form.append("file", file)
-        form.append("app", app)
+        const form = new FormData();
+        form.append("file", file);
+        form.append("app", app);
         const res = await fetch("/api/uploads", {
           method: "POST",
-          headers: { Authorization: `Bearer ${auth.token}` },
+          headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {},
           body: form,
         });
         if (!res.ok) {

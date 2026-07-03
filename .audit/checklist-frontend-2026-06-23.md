@@ -38,10 +38,10 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
       `auth.user` non réhydraté au rechargement → `useSocket.connect()` sort (temps réel jamais connecté après refresh, cause 3/3).
       Fix : au boot, si `token` présent, charger `/auth/me` et peupler `user`. *(complète BE-BUG-1/2)*
       ✅ *Fait (2026-07-03)* : `auth.hydrate()` charge `/api/auth/me` au boot (`main.ts`) si token présent (clear si 401) ; `useSocket` se connecte désormais quand `token` **et** `user` sont là (watch mis à jour). Complète BE-BUG-1/2 → temps réel fonctionnel après rechargement. `vue-tsc` OK.
-- [ ] **FE-ARCH-3** · 🟡 medium · `useApi.ts`, `createContext.ts`, `auth.ts` · effort: medium
+- [x] **FE-ARCH-3** · 🟡 medium · `useApi.ts`, `createContext.ts`, `auth.ts` · effort: medium
       Trois implémentations du client HTTP (Bearer/401/parse d'erreur dupliqués).
       Fix : un seul client partagé. *(lié à FE-CLEAN-3)*
-      ⏭️ *Reporté (2026-07-03)* : sera traité avec FE-CLEAN-3 (même duplication) — un client HTTP partagé (Bearer/401/parse d'erreur).
+      ✅ *Fait (2026-07-03, avec FE-CLEAN-3)* : client unique `composables/apiClient.ts` (`apiFetch`/`apiJson`/`apiErrorMessage`). `useApi` et `createContext` délèguent (messages d'erreur enrichis partout — format changeset). `upload` multipart reste séparé (Content-Type boundary) ; `auth.ts` login/register/hydrate restent (bootstrap du token). `vue-tsc` + build OK.
 - [x] **FE-ARCH-4** · 🟡 medium · `createContext.ts:90-101` · effort: small
       Jetons de thème (couleurs hex) dupliqués vs `style.css`.
       Fix : exposer les variables CSS aux apps. *(lié à FE-CLEAN-3)*
@@ -123,9 +123,10 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
 - [ ] **FE-CLEAN-2** · 🟡 medium · `photos/index.ts` (934 l.), `ConnectorDetailView.vue` (860), etc. · effort: large
       Fichiers volumineux mêlant rendu/logique/état/HTML.
       Fix : découper en sous-composants ; la migration Vue réduirait mécaniquement la taille. *(lié à FE-ARCH-1)*
-- [ ] **FE-CLEAN-3** · 🟡 medium · `useApi.ts`, `createContext.ts`, `auth.ts` + couleurs hard-codées · effort: medium
+- [x] **FE-CLEAN-3** · 🟡 medium · `useApi.ts`, `createContext.ts`, `auth.ts` + couleurs hard-codées · effort: medium
       Trois clients HTTP / jetons de thème dupliqués.
       Fix : centraliser. *(doublon de FE-ARCH-3/4)*
+      ✅ *Fait (2026-07-03)* : clients HTTP centralisés (voir FE-ARCH-3) ; jetons de thème dupliqués déjà supprimés (FE-ARCH-4).
 
 ## Dépendances
 
