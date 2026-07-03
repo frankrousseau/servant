@@ -80,9 +80,10 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
       XSS stocké : schéma d'`href` non validé (vCard `URL:javascript:…`) → vol de token au clic.
       Fix : n'autoriser que `http:`/`https:`/`mailto:`/`tel:` pour tout `href` issu de données utilisateur.
       ✅ *Fait (2026-07-03)* : helper `safeUrl/1` (via `new URL`) → n'autorise que `http/https/mailto/tel` ; sinon l'URL est rendue en **texte** (pas de lien). `vue-tsc` OK.
-- [ ] **FE-SEC-2** · 🟠 high · backend `SpaController`/endpoint · effort: small
+- [x] **FE-SEC-2** · 🟠 high · backend `SpaController`/endpoint · effort: small
       Aucune CSP ni en-tête de sécurité → toute XSS s'exécute librement.
       Fix : CSP stricte (`default-src 'self'`, `script-src 'self'`) sur la réponse HTML du SPA. ⚠️ retirer d'abord les handlers inline (FE-SEC-5).
+      ✅ *Fait (2026-07-03)* : CSP + en-têtes (`X-Content-Type-Options: nosniff`, `Referrer-Policy`, `X-Frame-Options: DENY`) posés dans `SpaController`. `script-src 'self'` strict (aucun script inline — HTML buildé n'a qu'un `<script src=...>` externe, FE-SEC-5 a retiré le dernier handler). `style-src 'self' 'unsafe-inline'` conservé (styles inline des apps/Vue). Ne s'applique qu'en **prod** (Vite sert l'index en dev). Test `spa_controller_test.exs`. ⚠️ **À vérifier en navigateur (prod)** : temps réel `/socket` (ws via `connect-src 'self'`), images `/files`, upload — je ne peux pas tester le rendu navigateur ici.
 - [ ] **FE-SEC-3** · 🟡 medium · `auth.ts:6,14` · effort: medium
       Token en `localStorage` → volable par XSS.
       Fix (défense en profondeur) : cookie `HttpOnly`+`SameSite`, ou a minima réduire la surface XSS + CSP.
