@@ -24,6 +24,7 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
 - **2026-07-03 — Section Architecture** : FE-ARCH-2 ✅ (réhydratation `auth.user` au boot → **débloque le temps réel de bout en bout** avec BE-BUG-1/2), FE-ARCH-4 ✅ (bloc `theme.colors` mort supprimé — il dupliquait `style.css` sans être consommé) · FE-ARCH-1 ⏭️ (réécriture des 4 apps en Vue, large — à arbitrer), FE-ARCH-3 ⏭️ (unification des 3 clients HTTP — sera traité avec FE-CLEAN-3). Bonus : suivi front de **BE-SEC-1** (`logout` appelle `POST /api/auth/logout`). `vue-tsc` OK.
 - **2026-07-03 — Quick wins (Deps/Sécurité/Bugs/Perf)** : FE-DEP-1 ✅ + FE-DEP-2 ✅ (`npm audit fix` → 0 vulnérabilité, vite 8.1.3, build OK), FE-SEC-1 ✅ (validation schéma `href` vCard, bloque `javascript:`), FE-SEC-5 ✅ (handler `onerror` inline retiré, re-câblé en JS — plus aucun handler inline dans les apps), FE-BUG-3 ✅ (fuite listener `keydown`), FE-PERF-2 ✅ (`loading="lazy"` avatars), **FE-BUG-1 ✅** (temps réel — résolu par FE-ARCH-2 + BE-BUG-1/2 ; le câblage `onEntryChange` était déjà bon). `vue-tsc` + `npm run build` OK.
 - **2026-07-03 — Sécurité + Clean/Doc** : FE-SEC-2 ✅ (CSP + en-têtes sécurité sur la réponse SPA, `script-src 'self'` strict ; test ; ⚠️ à vérifier en navigateur prod), FE-CLEAN-1 ✅ (`escapeHtml` factorisé dans `apps/escapeHtml.ts` — 4 apps hors-notes ; les 2 copies notes appartiennent à l'agent en cours), FE-DOC-1 ✅ (README front réécrit). Note : coordination avec un autre agent actif sur l'app **notes** → je ne touche pas `notes/*` ni `createContext.ts`. `vue-tsc` + build OK.
+- **2026-07-03 — Bugs + Deps + Doc (agent notes terminé)** : FE-BUG-2 ✅ (erreurs affichées : validation JSON + `formError`/`pageError`), FE-DEP-3 ✅ (`npm update` mineurs, 0 vuln, build OK), FE-DOC-2 ✅ (`apps/README.md` : contrat AppModule/AppContext) · signalés low/optionnels : FE-PERF-3 ⏭️ (13 logos SVG inline — conditionnel « si le catalogue grandit »), FE-PERF-4 ⏭️ (chunking vite — « non bloquant »), FE-DOC-3 ⏭️ (JSDoc — faible valeur), FE-DEP-4 ⏭️ (majeures : vue-router 5, TS 6 — à planifier avec changelogs).
 
 ---
 
@@ -136,9 +137,10 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
       1 advisory modéré + 1 dev/Windows ; corrigés par le même `npm audit fix`. **(quick win)**
       Fix : `npm audit fix`.
       ✅ *Fait (2026-07-03)* : même `npm audit fix` → `postcss` + `picomatch` corrigés. `npm audit` = **0 vulnérabilité**.
-- [ ] **FE-DEP-3** · 🟡 medium · `package.json` · effort: small
+- [x] **FE-DEP-3** · 🟡 medium · `package.json` · effort: small
       Mises à jour mineures sûres (`vue 3.5.30→3.5.38`, `vue-tsc`, `@vueuse/core`, `phoenix 1.8.5→1.8.8`).
       Fix : `npm update` (dans les contraintes `^`).
+      ✅ *Fait (2026-07-03)* : `npm update` (32 paquets), `npm audit` = 0 vuln, `vue-tsc` + build OK.
 - [ ] **FE-DEP-4** · ⚪ low · `package.json` · effort: medium
       Majeures à planifier (`vue-router 4→5`, `typescript 5.9→6`, `@types/node 24→26`).
       Fix : traiter séparément avec relecture des changelogs.
@@ -149,9 +151,10 @@ Traité section par section. ✅ = fait & vérifié · ⚠️ = bloqué/décisio
       README = boilerplate Vite par défaut. **(quick win)**
       Fix : court guide (scripts, proxy Vite, lien DEVELOPMENT.md) ou suppression.
       ✅ *Fait (2026-07-03)* : README réécrit (setup, dev/build, scripts, proxy Vite, structure, liens `DEVELOPMENT.md`/`apps/types.ts`).
-- [ ] **FE-DOC-2** · 🟡 medium · `apps/types.ts` (contrat non documenté) · effort: small
+- [x] **FE-DOC-2** · 🟡 medium · `apps/types.ts` (contrat non documenté) · effort: small
       Système d'« apps » pluggables (`AppModule`/`AppContext`) non documenté.
       Fix : `apps/README.md` ou section DEVELOPMENT.md (« comment ajouter une app »).
+      ✅ *Fait (2026-07-03)* : `frontend/src/apps/README.md` (comment ajouter une app, contrat `AppContext`, conventions escapeHtml/cleanup/fichiers).
 - [ ] **FE-DOC-3** · ⚪ low · frontend (JSDoc rare) · effort: small
       Seul `useFetchData.ts` est commenté.
       Fix : quelques commentaires d'intention sur les apps impératives.
