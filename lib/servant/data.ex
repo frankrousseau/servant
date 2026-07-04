@@ -53,6 +53,27 @@ defmodule Servant.Data do
     |> Map.new()
   end
 
+  @doc """
+  Per-kind daily entry counts (UTC days) for the trailing `days` window,
+  as `%{kind => %{"YYYY-MM-DD" => count}}`. Powers the dashboard sparklines.
+  """
+  def daily_stats(user_id, days) when is_integer(days) and days > 0 do
+    cutoff =
+      Date.utc_today()
+      |> Date.add(-(days - 1))
+      |> NaiveDateTime.new!(~T[00:00:00])
+
+    Entry
+    |> where(user_id: ^user_id)
+    |> where([e], e.inserted_at >= ^cutoff)
+    |> group_by([e], [e.kind, fragment("date(?)", e.inserted_at)])
+    |> select([e], {e.kind, fragment("date(?)", e.inserted_at), count(e.id)})
+    |> Repo.all()
+    |> Enum.reduce(%{}, fn {kind, day, count}, acc ->
+      Map.update(acc, kind, %{day => count}, &Map.put(&1, day, count))
+    end)
+  end
+
   def list_sources(user_id) do
     Entry
     |> where(user_id: ^user_id)

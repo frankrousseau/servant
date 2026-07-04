@@ -39,6 +39,40 @@ defmodule ServantWeb.EntryControllerTest do
     end
   end
 
+  describe "daily stats" do
+    import Ecto.Query
+
+    test "returns per-kind daily counts scoped to the caller, excluding old entries",
+         %{conn: conn, user: user} do
+      entry_fixture(user.id, %{"kind" => "photo"})
+      entry_fixture(user.id, %{"kind" => "photo"})
+      entry_fixture(user.id, %{"kind" => "bookmark"})
+
+      old = entry_fixture(user.id, %{"kind" => "photo"})
+      old_ts = NaiveDateTime.add(NaiveDateTime.utc_now(), -40, :day)
+
+      Servant.Repo.update_all(
+        from(e in Servant.Data.Entry, where: e.id == ^old.id),
+        set: [inserted_at: old_ts]
+      )
+
+      other = user_fixture()
+      entry_fixture(other.id, %{"kind" => "photo"})
+
+      conn = get(conn, "/api/entries/stats/daily", %{"days" => "30"})
+      assert %{"data" => data, "days" => 30} = json_response(conn, 200)
+
+      today = Date.to_iso8601(Date.utc_today())
+      assert data["photo"] == %{today => 2}
+      assert data["bookmark"] == %{today => 1}
+    end
+
+    test "falls back to 30 days on invalid input", %{conn: conn} do
+      conn = get(conn, "/api/entries/stats/daily", %{"days" => "nope"})
+      assert %{"days" => 30} = json_response(conn, 200)
+    end
+  end
+
   describe "show / update / delete scoping" do
     test "shows the caller's own entry", %{conn: conn, user: user} do
       entry = entry_fixture(user.id, %{"title" => "Readable"})

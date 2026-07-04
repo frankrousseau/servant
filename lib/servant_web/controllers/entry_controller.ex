@@ -38,6 +38,18 @@ defmodule ServantWeb.EntryController do
     json(conn, %{data: stats, total: total})
   end
 
+  def daily_stats(conn, params) do
+    user_id = conn.assigns.current_user.id
+
+    days =
+      case Integer.parse(params["days"] || "30") do
+        {n, ""} when n in 1..90 -> n
+        _ -> 30
+      end
+
+    json(conn, %{data: Data.daily_stats(user_id, days), days: days})
+  end
+
   def show(conn, %{"id" => id}) do
     user_id = conn.assigns.current_user.id
     entry = Data.get_entry!(user_id, id)
