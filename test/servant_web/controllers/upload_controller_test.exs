@@ -46,7 +46,11 @@ defmodule ServantWeb.UploadControllerTest do
   end
 
   test "rejects a file over the size limit", %{conn: conn} do
-    big = :binary.copy("x", 50_000_001)
+    # Shrink the limit so the test doesn't have to write a 1GB file.
+    Application.put_env(:servant, :max_upload_size, 1_000)
+    on_exit(fn -> Application.delete_env(:servant, :max_upload_size) end)
+
+    big = :binary.copy("x", 1_001)
 
     conn =
       post(conn, "/api/uploads", %{

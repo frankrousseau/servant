@@ -1,7 +1,9 @@
 defmodule ServantWeb.UploadController do
   use ServantWeb, :controller
 
-  @max_size 50_000_000
+  @default_max_size 1_000_000_000
+
+  defp max_size, do: Application.get_env(:servant, :max_upload_size, @default_max_size)
 
   @allowed_types %{
     "image/jpeg" => ".jpg",
@@ -65,7 +67,7 @@ defmodule ServantWeb.UploadController do
           {:error, :too_large} ->
             conn
             |> put_status(:request_entity_too_large)
-            |> json(%{error: "File too large (max 50MB)"})
+            |> json(%{error: "File too large (max 1GB)"})
         end
 
       _ ->
@@ -77,8 +79,7 @@ defmodule ServantWeb.UploadController do
 
   defp validate_size(path) do
     case File.stat(path) do
-      {:ok, %{size: size}} when size > @max_size -> {:error, :too_large}
-      {:ok, _} -> :ok
+      {:ok, %{size: size}} -> if size > max_size(), do: {:error, :too_large}, else: :ok
       _ -> {:error, "Failed to read uploaded file"}
     end
   end

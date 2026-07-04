@@ -55,9 +55,9 @@ defmodule ServantWeb.Endpoint do
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
   plug Plug.Parsers,
-    # Cap JSON/urlencoded bodies at 10MB; multipart gets its own 60MB budget to
-    # accommodate the 50MB upload limit (enforced in UploadController).
-    parsers: [:urlencoded, :json, {:multipart, length: 60_000_000}],
+    # Cap JSON/urlencoded bodies at 10MB; multipart gets its own budget slightly
+    # above the 1GB upload limit (enforced in UploadController).
+    parsers: [:urlencoded, :json, {:multipart, length: 1_100_000_000}],
     pass: ["*/*"],
     length: 10_000_000,
     json_decoder: Phoenix.json_library()
