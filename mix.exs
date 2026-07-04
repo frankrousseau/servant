@@ -46,9 +46,7 @@ defmodule Servant.MixProject do
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
-      {:gettext, "~> 1.0"},
       {:jason, "~> 1.2"},
-      {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       {:bcrypt_elixir, "~> 3.0"},
       {:req, "~> 0.5"},
@@ -56,7 +54,7 @@ defmodule Servant.MixProject do
       {:saxy, "~> 1.5"},
       {:exif_parser, "~> 0.3"},
       {:nimble_csv, "~> 1.2"},
-      {:vix, "~> 0.38"},
+      {:vix, "~> 0.40"},
       {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false}
     ]
   end

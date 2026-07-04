@@ -12,7 +12,6 @@ defmodule Servant.Application do
       Servant.Repo,
       {Ecto.Migrator,
        repos: Application.fetch_env!(:servant, :ecto_repos), skip: skip_migrations?()},
-      {DNSCluster, query: Application.get_env(:servant, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Servant.PubSub},
       {Registry, keys: :unique, name: Servant.Connectors.Registry},
       {DynamicSupervisor, name: Servant.Connectors.Supervisor, strategy: :one_for_one},

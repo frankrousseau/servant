@@ -61,8 +61,6 @@ if config_env() == :prod do
     config :servant, :connector_encryption_key, key
   end
 
-  config :servant, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
-
   config :servant, ServantWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [

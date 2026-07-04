@@ -114,6 +114,20 @@ defmodule Servant.Connectors.EVM.TransactionParserTest do
       assert transfer.counterparty == @other
     end
 
+    test "captures logIndex so multi-transfer txs get distinct external_ids (BE2-BUG-5)" do
+      # Two ERC-20 transfers sharing one tx hash (e.g. a swap) must be told apart
+      # by their log index, or on_conflict:nothing would drop all but the first.
+      tx_a = token_tx(%{"logIndex" => "5"})
+      tx_b = token_tx(%{"logIndex" => "6", "tokenSymbol" => "DAI"})
+
+      assert {:ok, a} = TransactionParser.parse_token_transfer(tx_a, @wallet)
+      assert {:ok, b} = TransactionParser.parse_token_transfer(tx_b, @wallet)
+      assert a.tx_hash == b.tx_hash
+      assert a.log_index == "5"
+      assert b.log_index == "6"
+      assert a.log_index != b.log_index
+    end
+
     test "parses an outgoing token transfer" do
       tx = token_tx(%{"from" => @wallet, "to" => @other})
       assert {:ok, parsed} = TransactionParser.parse_token_transfer(tx, @wallet)

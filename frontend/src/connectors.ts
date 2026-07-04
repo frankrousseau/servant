@@ -26,7 +26,17 @@ const RSS_LOGO = `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/
   <path d="M10 10a20 20 0 0 1 20 20" stroke="#fff" stroke-width="3.5" stroke-linecap="round" fill="none"/>
 </svg>`;
 
-const SOLANA_LOGO = `<img src="https://i.pinimg.com/736x/9d/17/12/9d1712e7fc463949b4e4d1941d440111.jpg" alt="Solana" width="40" height="40" style="border-radius:8px;display:block" />`;
+const SOLANA_LOGO = `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs><linearGradient id="solg" x1="6" y1="30" x2="34" y2="10" gradientUnits="userSpaceOnUse">
+    <stop stop-color="#9945FF"/><stop offset="1" stop-color="#14F195"/>
+  </linearGradient></defs>
+  <rect width="40" height="40" rx="8" fill="#131418"/>
+  <g fill="url(#solg)">
+    <path d="M13 13h16l-3 3H10z"/>
+    <path d="M10 18.5h16l3 3H13z"/>
+    <path d="M13 24h16l-3 3H10z"/>
+  </g>
+</svg>`;
 
 const ARBITRUM_LOGO = `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
   <rect width="40" height="40" rx="8" fill="#213147"/>
@@ -76,7 +86,11 @@ const BANK_CSV_LOGO = `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3
   <circle cx="28" cy="26" r="3" fill="#95D5B2"/>
 </svg>`;
 
-const HYPEREVM_LOGO = `<img src="https://avatars.githubusercontent.com/u/129421375?s=200&v=4" alt="HyperEVM" width="40" height="40" style="border-radius:8px;display:block" />`;
+const HYPEREVM_LOGO = `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="40" height="40" rx="8" fill="#072723"/>
+  <path d="M11 27V13h3.2v5.4h5.1V13h3.2v14h-3.2v-5.7h-5.1V27z" fill="#97FCE4"/>
+  <circle cx="28" cy="14" r="2.4" fill="#97FCE4"/>
+</svg>`;
 
 const INVOICE_LOGO = `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
   <rect width="40" height="40" rx="8" fill="#5B4FC4"/>

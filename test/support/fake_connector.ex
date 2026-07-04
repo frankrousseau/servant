@@ -20,10 +20,22 @@ defmodule Servant.FakeConnector do
 
   @impl true
   def init(_credentials, config) do
-    {:ok, %{cursor: Map.get(config, "cursor", "start")}}
+    if Map.get(config, "fail_init") do
+      {:error, :init_failed}
+    else
+      {:ok,
+       %{
+         cursor: Map.get(config, "cursor", "start"),
+         fail_sync: Map.get(config, "fail_sync", false)
+       }}
+    end
   end
 
   @impl true
+  def sync(%{fail_sync: true} = state) do
+    {:error, :sync_failed, state}
+  end
+
   def sync(state) do
     entry = %{"kind" => "note", "source" => "fake", "title" => "synced"}
     {:ok, [entry], %{state | cursor: "advanced"}}

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, reactive, nextTick, onMounted, onUnmounted } from "vue";
 import type { AppContext, Entry } from "../types";
+import { useVirtualList } from "@vueuse/core";
 import { formatDate } from "../../lib/datetime";
 import { contactField, contactName, contactInitials } from "../../lib/contact";
 
@@ -74,6 +75,13 @@ const filtered = computed(() => {
     return name.includes(q) || org.includes(q) || email.includes(q) || phone.includes(q);
   });
 });
+
+// Virtualize the list so a large address book renders only the visible rows.
+const {
+  list: virtualContacts,
+  containerProps,
+  wrapperProps,
+} = useVirtualList(filtered, { itemHeight: 56, overscan: 8 });
 
 const selected = computed(
   () => allContacts.value.find((c) => c.id === selectedId.value) || null,
@@ -192,24 +200,28 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
           </svg>
         </button>
       </div>
-      <div class="ct-list">
-        <div
-          v-for="c in filtered"
-          :key="c.id"
-          class="ct-card"
-          :class="{ 'ct-card--active': c.id === selectedId }"
-          @click="selectContact(c.id)"
-        >
-          <span v-if="fld(c, 'photo')" class="ct-avatar ct-avatar--photo">
-            <img :src="fld(c, 'photo')" alt="" loading="lazy" />
-          </span>
-          <span v-else class="ct-avatar">{{ getInitials(contactName(c)) }}</span>
-          <div class="ct-card-body">
-            <span class="ct-name">{{ contactName(c) }}</span>
-            <span class="ct-sub">{{ fld(c, "org") || getEmails(c)[0]?.value || "" }}</span>
+      <div v-if="filtered.length === 0" class="ct-list">
+        <p class="ct-empty">No contacts found.</p>
+      </div>
+      <div v-else class="ct-list" v-bind="containerProps">
+        <div v-bind="wrapperProps">
+          <div
+            v-for="{ data: c } in virtualContacts"
+            :key="c.id"
+            class="ct-card"
+            :class="{ 'ct-card--active': c.id === selectedId }"
+            @click="selectContact(c.id)"
+          >
+            <span v-if="fld(c, 'photo')" class="ct-avatar ct-avatar--photo">
+              <img :src="fld(c, 'photo')" alt="" loading="lazy" />
+            </span>
+            <span v-else class="ct-avatar">{{ getInitials(contactName(c)) }}</span>
+            <div class="ct-card-body">
+              <span class="ct-name">{{ contactName(c) }}</span>
+              <span class="ct-sub">{{ fld(c, "org") || getEmails(c)[0]?.value || "" }}</span>
+            </div>
           </div>
         </div>
-        <p v-if="filtered.length === 0" class="ct-empty">No contacts found.</p>
       </div>
     </div>
 
