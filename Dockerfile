@@ -9,9 +9,9 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 
-# vite.config.ts writes the build to ../priv/static
+# vite.config.ts writes the build to ../priv/static (also copies frontend/public/)
 COPY frontend/ ./
-COPY priv/static/ /app/priv/static/
+RUN mkdir -p /app/priv/static
 RUN npm run build
 
 ###############################################################################
