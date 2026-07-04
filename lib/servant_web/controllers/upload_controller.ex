@@ -10,6 +10,8 @@ defmodule ServantWeb.UploadController do
     "image/png" => ".png",
     "image/gif" => ".gif",
     "image/webp" => ".webp",
+    "image/heic" => ".heic",
+    "image/heif" => ".heif",
     "video/mp4" => ".mp4",
     "video/quicktime" => ".mov",
     "video/webm" => ".webm",
@@ -17,8 +19,7 @@ defmodule ServantWeb.UploadController do
     "text/plain" => ".txt",
     "text/csv" => ".csv",
     "application/json" => ".json",
-    "application/zip" => ".zip",
-    "application/octet-stream" => ""
+    "application/zip" => ".zip"
   }
 
   def create(conn, params) do
@@ -91,6 +92,10 @@ defmodule ServantWeb.UploadController do
     end
   end
 
+  # Browsers often send unknown formats (e.g. .heic on Linux) as
+  # application/octet-stream: fall back to the original file's extension.
+  defp extension("application/octet-stream", original_name), do: Path.extname(original_name)
+
   defp extension(content_type, original_name) do
     Map.get(@allowed_types, content_type, Path.extname(original_name))
   end
@@ -125,13 +130,31 @@ defmodule ServantWeb.UploadController do
     end
   end
 
-  defp maybe_add_photo_thumbnail(response, "photos", "image/" <> _, relative, absolute) do
-    case Servant.Media.Thumbnail.create_for_storage(relative, absolute) do
-      {:ok, thumb_url, _} -> Map.put(response, :thumb_path, thumb_url)
-      :error -> response
+  defp maybe_add_photo_thumbnail(response, "photos", content_type, relative, absolute) do
+    if String.starts_with?(content_type, "image/") or heic?(relative) do
+      response =
+        case Servant.Media.Thumbnail.create_for_storage(relative, absolute) do
+          {:ok, thumb_url, _} -> Map.put(response, :thumb_path, thumb_url)
+          :error -> response
+        end
+
+      # Most browsers can't render HEIC: keep the original for the archive,
+      # add a full-size JPEG the viewer can display.
+      if heic?(relative) do
+        case Servant.Media.Thumbnail.create_display_for_storage(relative, absolute) do
+          {:ok, display_url, _} -> Map.put(response, :display_path, display_url)
+          :error -> response
+        end
+      else
+        response
+      end
+    else
+      response
     end
   end
 
   defp maybe_add_photo_thumbnail(response, _app_id, _content_type, _relative, _absolute),
     do: response
+
+  defp heic?(path), do: String.ends_with?(String.downcase(path), [".heic", ".heif"])
 end

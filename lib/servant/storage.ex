@@ -32,6 +32,15 @@ defmodule Servant.Storage do
     String.replace_suffix(relative_path, ext, "_thumb.jpg")
   end
 
+  @doc """
+  Relative path of the full-size display JPEG derived from `relative_path`
+  (for formats browsers can't render, e.g. HEIC).
+  """
+  def display_relative(relative_path) when is_binary(relative_path) do
+    ext = Path.extname(relative_path)
+    String.replace_suffix(relative_path, ext, "_display.jpg")
+  end
+
   def join_files(parts), do: Path.join([files_root() | parts])
 
   def join_tmp(parts), do: Path.join([tmp_root() | parts])

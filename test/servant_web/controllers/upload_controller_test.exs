@@ -40,6 +40,20 @@ defmodule ServantWeb.UploadControllerTest do
     assert size == byte_size("hello world")
   end
 
+  test "keeps the .heic extension when the browser sends octet-stream", %{conn: conn} do
+    conn =
+      post(conn, "/api/uploads", %{
+        "file" => upload("not a real heic", "IMG_0001.heic", "application/octet-stream"),
+        "app" => "photos"
+      })
+
+    assert %{"path" => path} = json_response(conn, 200)
+    assert String.ends_with?(path, ".heic")
+    # Bogus bytes: thumbnail/display generation must fail gracefully.
+    refute Map.has_key?(json_response(conn, 200), "thumb_path")
+    refute Map.has_key?(json_response(conn, 200), "display_path")
+  end
+
   test "422 when no file is given", %{conn: conn} do
     conn = post(conn, "/api/uploads", %{"app" => "files"})
     assert %{"error" => _} = json_response(conn, 422)

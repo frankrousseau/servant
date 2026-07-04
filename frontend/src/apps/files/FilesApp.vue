@@ -184,7 +184,8 @@ interface UploadProgress {
   index: number;
   total: number;
   name: string;
-  pct: number;
+  pct: number; // whole-batch progress in bytes
+  processing: boolean; // bytes sent, waiting on server work
 }
 const uploading = ref(false);
 const uploadProgress = ref<UploadProgress | null>(null);
@@ -196,13 +197,28 @@ async function uploadFiles(files: File[]) {
   uploading.value = true;
   uploadErrors.value = [];
 
+  const totalBytes = files.reduce((sum, f) => sum + f.size, 0) || 1;
+  let doneBytes = 0;
+
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
-    uploadProgress.value = { index: i + 1, total: files.length, name: file.name, pct: 0 };
+    uploadProgress.value = {
+      index: i + 1,
+      total: files.length,
+      name: file.name,
+      pct: Math.round((doneBytes / totalBytes) * 100),
+      processing: false,
+    };
     try {
       const result = await props.ctx.api.upload(file, "files", (pct) => {
-        if (uploadProgress.value) uploadProgress.value.pct = pct;
+        if (uploadProgress.value) {
+          uploadProgress.value.pct = Math.round(
+            ((doneBytes + (pct / 100) * file.size) / totalBytes) * 100,
+          );
+          uploadProgress.value.processing = pct >= 100;
+        }
       });
+      doneBytes += file.size;
       await props.ctx.api.entries.create({
         kind: "file",
         source: "files_app",
@@ -296,7 +312,9 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
           >UPLOADING {{ uploadProgress.index }}/{{ uploadProgress.total }}</span
         >
         <span class="fs-upload-name">{{ uploadProgress.name }}</span>
-        <span class="fs-upload-pct">{{ uploadProgress.pct }}%</span>
+        <span class="fs-upload-pct">{{
+          uploadProgress.processing ? "processing…" : uploadProgress.pct + "%"
+        }}</span>
         <div class="fs-upload-bar">
           <div class="fs-upload-bar-fill" :style="{ width: uploadProgress.pct + '%' }"></div>
         </div>

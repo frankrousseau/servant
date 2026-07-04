@@ -199,7 +199,8 @@ interface UploadProgress {
   index: number;
   total: number;
   name: string;
-  pct: number;
+  pct: number; // whole-batch progress in bytes
+  processing: boolean; // bytes sent, waiting on server work (thumbnails, EXIF…)
 }
 const uploadProgress = ref<UploadProgress | null>(null);
 // One entry per failed file; a failure never aborts the rest of the batch
@@ -207,18 +208,39 @@ const uploadProgress = ref<UploadProgress | null>(null);
 const uploadErrors = ref<string[]>([]);
 
 async function uploadFiles(files: File[]) {
-  const media = files.filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/"));
+  // .heic often comes with an empty/octet-stream type outside Safari: match by name too.
+  const media = files.filter(
+    (f) =>
+      f.type.startsWith("image/") ||
+      f.type.startsWith("video/") ||
+      /\.(heic|heif)$/i.test(f.name),
+  );
   if (!media.length) return;
   uploading.value = true;
   uploadErrors.value = [];
 
+  const totalBytes = media.reduce((sum, f) => sum + f.size, 0) || 1;
+  let doneBytes = 0;
+
   for (let i = 0; i < media.length; i++) {
     const file = media[i];
-    uploadProgress.value = { index: i + 1, total: media.length, name: file.name, pct: 0 };
+    uploadProgress.value = {
+      index: i + 1,
+      total: media.length,
+      name: file.name,
+      pct: Math.round((doneBytes / totalBytes) * 100),
+      processing: false,
+    };
     try {
       const result = (await props.ctx.api.upload(file, "photos", (pct) => {
-        if (uploadProgress.value) uploadProgress.value.pct = pct;
+        if (uploadProgress.value) {
+          uploadProgress.value.pct = Math.round(
+            ((doneBytes + (pct / 100) * file.size) / totalBytes) * 100,
+          );
+          uploadProgress.value.processing = pct >= 100;
+        }
       })) as unknown as Record<string, unknown>;
+      doneBytes += file.size;
       const data: Record<string, unknown> = {
         filename: file.name,
         size: result.size,
@@ -234,6 +256,7 @@ async function uploadFiles(files: File[]) {
       }
       if (result.camera) data.camera = result.camera;
       if (result.thumb_path) data.thumb_path = result.thumb_path;
+      if (result.display_path) data.display_path = result.display_path;
 
       await props.ctx.api.entries.create({
         kind: "photo",
@@ -408,7 +431,8 @@ function openViewer(photoId: string, opts: { push?: boolean } = {}) {
     if (photoPeople.length) meta["People"] = photoPeople.map((pp) => pp.name).join(", ");
     return {
       id: p.id,
-      src: field(p, "path") as string,
+      // display_path is the browser-renderable JPEG for HEIC originals
+      src: (field(p, "display_path") || field(p, "path")) as string,
       video: isVideo(p),
       title: p.title || undefined,
       subtitle: (field(p, "album") as string) || undefined,
@@ -519,7 +543,7 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
       <div class="ph-actions">
         <button class="ph-btn" @click="enterSelect">Select</button>
         <label class="ph-btn">
-          + Upload<input type="file" accept="image/*,video/*" multiple hidden @change="onFileInput" />
+          + Upload<input type="file" accept="image/*,video/*,.heic,.heif" multiple hidden @change="onFileInput" />
         </label>
       </div>
     </div>
@@ -556,7 +580,9 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
         >UPLOADING {{ uploadProgress.index }}/{{ uploadProgress.total }}</span
       >
       <span class="ph-upload-name">{{ uploadProgress.name }}</span>
-      <span class="ph-upload-pct">{{ uploadProgress.pct }}%</span>
+      <span class="ph-upload-pct">{{
+        uploadProgress.processing ? "processing…" : uploadProgress.pct + "%"
+      }}</span>
       <div class="ph-upload-bar">
         <div class="ph-upload-bar-fill" :style="{ width: uploadProgress.pct + '%' }"></div>
       </div>

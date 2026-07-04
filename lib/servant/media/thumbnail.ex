@@ -12,16 +12,18 @@ defmodule Servant.Media.Thumbnail do
 
   @max_width 400
   @quality 80
+  @display_max_width 2048
+  @display_quality 85
 
   @doc """
-  Creates a JPEG thumbnail at `dest_path` from the image at `source_path`.
-  Returns `:ok` or `:error`.
+  Creates a JPEG at `dest_path` from the image at `source_path`, downscaled
+  to at most `max_width`. Returns `:ok` or `:error`.
   """
-  def generate(source_path, dest_path) do
+  def generate(source_path, dest_path, max_width \\ @max_width, quality \\ @quality) do
     File.mkdir_p!(Path.dirname(dest_path))
 
-    with {:ok, thumb} <- Operation.thumbnail(source_path, @max_width, size: :VIPS_SIZE_DOWN),
-         :ok <- Image.write_to_file(thumb, dest_path, Q: @quality, strip: true) do
+    with {:ok, thumb} <- Operation.thumbnail(source_path, max_width, size: :VIPS_SIZE_DOWN),
+         :ok <- Image.write_to_file(thumb, dest_path, Q: quality, strip: true) do
       :ok
     else
       _ -> :error
@@ -46,6 +48,27 @@ defmodule Servant.Media.Thumbnail do
 
     case result do
       :ok -> {:ok, Storage.public_url(thumb_relative), thumb_relative}
+      :error -> :error
+    end
+  end
+
+  @doc """
+  Generates a full-size display JPEG for formats browsers can't render
+  (e.g. HEIC). Returns `{:ok, public_url, relative}` or `:error`.
+  """
+  def create_display_for_storage(relative, absolute) do
+    display_relative = Storage.display_relative(relative)
+    display_absolute = Storage.join_files([display_relative])
+
+    result =
+      if File.regular?(display_absolute) do
+        :ok
+      else
+        generate(absolute, display_absolute, @display_max_width, @display_quality)
+      end
+
+    case result do
+      :ok -> {:ok, Storage.public_url(display_relative), display_relative}
       :error -> :error
     end
   end
