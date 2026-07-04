@@ -38,23 +38,46 @@ npm install
 
 ## Running in development
 
-You need two terminals:
+From the project root:
 
+<<<<<<< Updated upstream
 **Terminal 1 — Phoenix API server (port 4001):**
+||||||| Stash base
+**Terminal 1 — Phoenix API server (port 4000):**
+=======
+```bash
+./bin/dev
+```
+
+This starts Phoenix (port 4000) and the Vite dev server (port 5173) in one terminal. Open `http://localhost:5173` in your browser. Vite proxies `/api` and `/socket` requests to Phoenix on port 4000.
+
+Alternatively, run them in separate terminals:
+>>>>>>> Stashed changes
 
 ```bash
 mix phx.server
 ```
 
+<<<<<<< Updated upstream
 **Terminal 2 — Vite dev server (port 5001):**
 
+||||||| Stash base
+**Terminal 2 — Vite dev server (port 5173):**
+
+=======
+>>>>>>> Stashed changes
 ```bash
-cd frontend
-npm run dev
+cd frontend && npm run dev
 ```
 
+<<<<<<< Updated upstream
 Open `http://localhost:5001` in your browser. Vite proxies `/api` and `/socket` requests to Phoenix on port 4001 (override with `PORT` / `PHOENIX_PORT`).
 
+||||||| Stash base
+Open `http://localhost:5173` in your browser. Vite proxies `/api` and `/socket` requests to Phoenix on port 4000.
+
+=======
+>>>>>>> Stashed changes
 ## Project structure
 
 ```

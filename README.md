@@ -2,6 +2,25 @@
 
 A self-hosted personal data hub. Aggregates data from external services (banking, photos, health, calendar, contacts, blockchain, etc.) via connectors and exposes it through a unified API and Vue.js web interface.
 
+## Local development
+
+First-time setup (Erlang 27+, Elixir 1.18+, Node.js 22+ — see [DEVELOPMENT.md](DEVELOPMENT.md) for details):
+
+```bash
+mix setup
+cd frontend && npm install
+```
+
+Start the dev environment:
+
+```bash
+./bin/dev
+```
+
+This starts Phoenix (port 4000) and the Vite frontend (port 5173) in one terminal. Open `http://localhost:5173` — Vite proxies `/api` and `/socket` requests to Phoenix.
+
+To run them separately, see [DEVELOPMENT.md](DEVELOPMENT.md).
+
 ## Features
 
 - **Universal data model** — all data stored as typed entries with JSON payloads
