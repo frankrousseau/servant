@@ -1,40 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 248">
-  <g fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
-    <!-- head with ear tufts -->
-    <path d="M 58 84
-             C 56 58 62 46 74 38
-             L 62 16
-             C 78 26 92 30 110 30
-             C 128 30 142 26 158 16
-             L 146 38
-             C 158 46 164 58 162 84
-             C 162 102 140 114 110 114
-             C 80 114 58 102 58 84 Z"/>
-    <!-- eyes -->
-    <circle cx="85" cy="70" r="15"/>
-    <circle cx="135" cy="70" r="15"/>
-    <circle cx="85" cy="70" r="4" fill="currentColor" stroke="none"/>
-    <circle cx="135" cy="70" r="4" fill="currentColor" stroke="none"/>
-    <!-- beak -->
-    <path d="M 110 80 L 103 89 L 110 99 L 117 89 Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="50 2 120 130">
+  <g fill="none" stroke="currentColor" stroke-width="3.5" stroke-linejoin="miter" stroke-linecap="square">
+    <!-- head: polygon with tufts at the top corners -->
+    <path d="M 58 76 L 60 10 L 92 26 L 128 26 L 160 10 L 162 76 L 130 98 L 90 98 Z"/>
+    <!-- eyes: plain circles, big and close-set -->
+    <circle cx="88" cy="56" r="15"/>
+    <circle cx="132" cy="56" r="15"/>
+    <!-- beak: small triangle -->
+    <path d="M 104 74 L 116 74 L 110 87 Z"/>
     <!-- bow tie -->
-    <path d="M 105 128 L 88 120 L 88 136 Z"/>
-    <path d="M 115 128 L 132 120 L 132 136 Z"/>
-    <circle cx="110" cy="128" r="4.5"/>
-    <!-- tailcoat: left panel hanging from the bow tie -->
-    <path d="M 88 136
-             C 66 148 56 182 62 212
-             L 72 234
-             C 86 212 98 190 110 166
-             Z"/>
-    <!-- tailcoat: right panel -->
-    <path d="M 132 136
-             C 154 148 164 182 158 212
-             L 148 234
-             C 134 212 122 190 110 166
-             Z"/>
-    <!-- shirt buttons -->
-    <circle cx="110" cy="148" r="2.5" fill="currentColor" stroke="none"/>
-    <circle cx="110" cy="157" r="2.5" fill="currentColor" stroke="none"/>
+    <path d="M 107 114 L 88 104 L 88 124 Z"/>
+    <path d="M 113 114 L 132 104 L 132 124 Z"/>
   </g>
 </svg>

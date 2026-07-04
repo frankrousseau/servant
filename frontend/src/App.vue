@@ -19,7 +19,17 @@ function handleLogout() {
 <template>
   <div class="app-layout" :class="{ authenticated: auth.isAuthenticated }">
     <nav v-if="auth.isAuthenticated" class="sidebar">
-      <div class="sidebar-brand">Servant</div>
+      <router-link to="/" class="sidebar-brand">
+        <svg viewBox="50 2 120 130" width="26" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linejoin="miter" stroke-linecap="square">
+          <path d="M 58 76 L 60 10 L 92 26 L 128 26 L 160 10 L 162 76 L 130 98 L 90 98 Z"/>
+          <circle cx="88" cy="56" r="15"/>
+          <circle cx="132" cy="56" r="15"/>
+          <path d="M 104 74 L 116 74 L 110 87 Z"/>
+          <path d="M 107 114 L 88 104 L 88 124 Z"/>
+          <path d="M 113 114 L 132 104 L 132 124 Z"/>
+        </svg>
+        Servant
+      </router-link>
       <ul class="sidebar-nav">
         <li>
           <router-link to="/">

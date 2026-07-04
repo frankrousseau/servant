@@ -343,7 +343,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <p v-if="loading" class="ph-loading">Loading photos...</p>
+  <p v-if="loading" class="ph-loading">Scanning archive&hellip;</p>
   <p v-else-if="loadError" class="ph-loading">{{ loadError }}</p>
   <div
     v-else
@@ -355,7 +355,7 @@ onMounted(() => {
   >
     <!-- Selection toolbar -->
     <div v-if="selectionMode" class="ph-toolbar">
-      <span class="ph-sel-count">{{ selCount }} selected</span>
+      <span class="ph-sel-count">{{ selCount }} SELECTED</span>
       <div class="ph-actions">
         <button class="ph-btn" @click="selectAll">Select all</button>
         <button class="ph-btn" @click="deselect">Deselect</button>
@@ -403,9 +403,12 @@ onMounted(() => {
     <div v-if="!selectionMode" class="ph-toolbar">
       <div class="ph-filters">
         <select class="ph-album-filter" v-model="albumFilter">
-          <option value="">All photos ({{ allPhotos.length }})</option>
+          <option value="">All photos</option>
           <option v-for="a in albums" :key="a" :value="a">{{ a }}</option>
         </select>
+        <span class="ph-status"
+          >{{ filtered.length }} <span class="ph-status-unit">IMG</span></span
+        >
       </div>
       <div class="ph-actions">
         <button class="ph-btn" @click="enterSelect">Select</button>
@@ -494,7 +497,13 @@ onMounted(() => {
           >
         </div>
       </div>
-      <p v-if="filtered.length === 0" class="ph-empty">No photos found.</p>
+      <div v-if="filtered.length === 0" class="ph-empty">
+        <template v-if="allPhotos.length === 0">
+          <div class="ph-nosignal" aria-hidden="true">NO SIGNAL</div>
+          <p class="ph-empty-hint">Drop images anywhere, or use Upload.</p>
+        </template>
+        <p v-else class="ph-empty-hint">No photos match this filter.</p>
+      </div>
     </div>
   </div>
 
@@ -545,6 +554,7 @@ onMounted(() => {
 .ph-loading {
   color: var(--text-muted);
   padding: 2rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 .ph-layout {
   display: flex;
@@ -569,8 +579,20 @@ onMounted(() => {
   min-width: 180px;
 }
 .ph-sel-count {
-  font-size: 0.9rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  color: var(--primary);
+}
+.ph-status {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+.ph-status-unit {
   color: var(--text-muted);
+  letter-spacing: 0.08em;
 }
 .ph-actions {
   display: flex;
@@ -604,7 +626,7 @@ onMounted(() => {
 .ph-btn--primary {
   background: var(--primary);
   border-color: var(--primary);
-  color: #fff;
+  color: #05070f;
 }
 .ph-btn--primary:hover {
   background: var(--primary-hover);
@@ -716,6 +738,7 @@ onMounted(() => {
 }
 .ph-uploading {
   padding: 0.5rem 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.85rem;
   color: var(--primary);
   background: rgba(var(--primary-rgb), 0.08);
@@ -736,20 +759,28 @@ onMounted(() => {
   overflow: hidden;
   cursor: pointer;
   background: var(--bg-surface);
-  transition: transform 0.15s;
+  transition: box-shadow 0.15s;
 }
+/* Photos are the light: on hover the image brightens inside a phosphor ring */
 .ph-thumb:hover {
-  transform: scale(1.03);
+  box-shadow:
+    0 0 0 2px rgba(var(--primary-rgb), 0.7),
+    0 0 14px rgba(var(--primary-rgb), 0.25);
 }
 .ph-thumb--selected {
-  outline: 3px solid var(--primary);
-  outline-offset: -3px;
+  box-shadow:
+    0 0 0 2px var(--primary),
+    0 0 14px rgba(var(--primary-rgb), 0.35);
 }
 .ph-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: filter 0.15s;
+}
+.ph-thumb:hover img {
+  filter: brightness(1.12);
 }
 .ph-thumb-delete {
   position: absolute;
@@ -851,8 +882,20 @@ onMounted(() => {
 .ph-empty {
   color: var(--text-muted);
   text-align: center;
-  padding: 3rem;
+  padding: 4rem 1rem;
   grid-column: 1 / -1;
+}
+.ph-nosignal {
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  letter-spacing: 0.18em;
+  color: var(--primary);
+  text-shadow: 0 0 14px rgba(var(--primary-rgb), 0.5);
+  margin-bottom: 0.5rem;
+}
+.ph-empty-hint {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88rem;
 }
 .ph-modal-overlay {
   position: fixed;

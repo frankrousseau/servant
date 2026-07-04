@@ -521,22 +521,27 @@ onMounted(fetchData);
   font-size: 0.85rem;
 }
 
-/* Two-column layout */
+/* The dashboard owns the viewport: MOTD fixed on top, then two
+   independently scrolling columns. */
+.view {
+  height: calc(100vh - 4rem);
+  display: flex;
+  flex-direction: column;
+}
+
 .dashboard-layout {
   display: grid;
   grid-template-columns: 1fr 300px;
   gap: 2rem;
-  align-items: start;
-}
-
-@media (max-width: 860px) {
-  .dashboard-layout {
-    grid-template-columns: 1fr;
-  }
+  flex: 1;
+  min-height: 0;
 }
 
 .dashboard-main {
   min-width: 0;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 0.75rem;
 }
 
 /* Sidebar */
@@ -544,6 +549,22 @@ onMounted(fetchData);
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 0.75rem;
+}
+
+@media (max-width: 860px) {
+  .view {
+    height: auto;
+  }
+  .dashboard-layout {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-main,
+  .dashboard-sidebar {
+    overflow-y: visible;
+  }
 }
 
 .sidebar-section h2 {
