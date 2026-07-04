@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { useAuthStore } from "./stores/auth";
 import { useRouter } from "vue-router";
-import { LayoutDashboard, Database, Cable, Settings, LogOut, UserRound, CalendarDays, FolderOpen, Image, NotebookPen } from "lucide-vue-next";
+import { LayoutDashboard, Database, Cable, Settings, LogOut, UserRound, CalendarDays, FolderOpen, Image, NotebookPen, ListChecks } from "lucide-vue-next";
 import { BUILTIN_APPS } from "./apps/registry";
 import ConfirmModal from "./components/ConfirmModal.vue";
 
-const appIcons: Record<string, unknown> = { UserRound, CalendarDays, FolderOpen, Image, NotebookPen };
+const appIcons: Record<string, unknown> = { UserRound, CalendarDays, FolderOpen, Image, NotebookPen, ListChecks };
 
 const auth = useAuthStore();
 const router = useRouter();

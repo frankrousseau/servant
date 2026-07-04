@@ -36,6 +36,13 @@ export const BUILTIN_APPS: AppDef[] = [
     builtin: true,
     load: () => import("./notes"),
   },
+  {
+    id: "checklists",
+    name: "Checklists",
+    icon: "ListChecks",
+    builtin: true,
+    load: () => import("./checklists"),
+  },
 ];
 
 export function getAppDef(id: string): AppDef | undefined {

@@ -1,0 +1,777 @@
+<script setup lang="ts">
+import { ref, reactive, computed, nextTick, onMounted, onBeforeUnmount } from "vue";
+import type { AppContext, Entry } from "../types";
+import { createFolderOrder } from "../folderOrder";
+
+const props = defineProps<{ ctx: AppContext }>();
+const ctx = props.ctx;
+
+const folderOrder = createFolderOrder(ctx, "checklists");
+
+interface Item {
+  text: string;
+  done: boolean;
+}
+
+// ----- helpers -----
+
+const folderOf = (l: Entry) => ((l.data.folder as string) || "").trim();
+const itemsOf = (l: Entry) => (l.data.items as Item[]) || [];
+const doneCount = (l: Entry) => itemsOf(l).filter((i) => i.done).length;
+const isRecurring = (l: Entry) => l.data.recurring === true;
+const isOnDashboard = (l: Entry) => l.data.show_on_dashboard === true;
+
+function ensureItems(l: Entry): Item[] {
+  if (!Array.isArray(l.data.items)) l.data.items = [];
+  return l.data.items as Item[];
+}
+
+// ----- reactive state -----
+
+const lists = ref<Entry[]>([]);
+const selectedId = ref<string | null>(null);
+const searchQuery = ref("");
+const collapsed = reactive(new Set<string>());
+const loadState = ref<"loading" | "ready" | "error">("loading");
+const newItemText = ref("");
+const saveState = ref<"idle" | "saving" | "saved" | "error">("idle");
+const saveError = ref("");
+
+const selected = computed(() => lists.value.find((l) => l.id === selectedId.value) || null);
+const items = computed(() => (selected.value ? itemsOf(selected.value) : []));
+const recurring = computed(() => !!selected.value && isRecurring(selected.value));
+const onDashboard = computed(() => !!selected.value && isOnDashboard(selected.value));
+
+const editTitle = computed({
+  get: () => selected.value?.title || "",
+  set: (v: string) => {
+    if (selected.value) selected.value.title = v;
+  },
+});
+const editFolder = computed({
+  get: () => (selected.value?.data.folder as string) || "",
+  set: (v: string) => {
+    if (selected.value) selected.value.data.folder = v;
+  },
+});
+
+const saveStatusLabel = computed(() => {
+  if (saveState.value === "error") return saveError.value || "Save failed";
+  return { idle: "", saving: "Saving…", saved: "Saved" }[saveState.value] || "";
+});
+
+// ----- sidebar rows (single-level folders) -----
+
+const filtered = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  if (!q) return lists.value;
+  return lists.value.filter((l) =>
+    [l.title || "", folderOf(l), ...itemsOf(l).map((i) => i.text)]
+      .join(" ")
+      .toLowerCase()
+      .includes(q),
+  );
+});
+
+interface Row {
+  kind: "folder" | "list";
+  name: string;
+  list?: Entry;
+  collapsed?: boolean;
+  depth: number;
+}
+
+const rows = computed<Row[]>(() => {
+  const searching = !!searchQuery.value.trim();
+  const byFolder = new Map<string, Entry[]>();
+  for (const l of filtered.value) {
+    const f = folderOf(l);
+    if (!byFolder.has(f)) byFolder.set(f, []);
+    byFolder.get(f)!.push(l);
+  }
+  const sortLists = (ls: Entry[]) =>
+    [...ls].sort((a, b) =>
+      (a.title || "").toLowerCase().localeCompare((b.title || "").toLowerCase()),
+    );
+
+  const out: Row[] = [];
+  for (const l of sortLists(byFolder.get("") || [])) {
+    out.push({ kind: "list", name: l.title || "Untitled", list: l, depth: 0 });
+  }
+  const folders = [...byFolder.keys()].filter(Boolean).sort(folderOrder.compare);
+  for (const f of folders) {
+    const isCollapsed = !searching && collapsed.has(f);
+    out.push({ kind: "folder", name: f, collapsed: isCollapsed, depth: 0 });
+    if (!isCollapsed) {
+      for (const l of sortLists(byFolder.get(f)!)) {
+        out.push({ kind: "list", name: l.title || "Untitled", list: l, depth: 1 });
+      }
+    }
+  }
+  return out;
+});
+
+function toggleFolder(name: string) {
+  if (collapsed.has(name)) collapsed.delete(name);
+  else collapsed.add(name);
+}
+
+// ----- folder rename -----
+
+const renamingFolder = ref<string | null>(null);
+const renameValue = ref("");
+
+async function startRenameFolder(name: string) {
+  renamingFolder.value = name;
+  renameValue.value = name;
+  await nextTick();
+  const el = document.querySelector(".cl-folder-rename") as HTMLInputElement | null;
+  el?.focus();
+  el?.select();
+}
+
+function commitRenameFolder() {
+  const from = renamingFolder.value;
+  const to = renameValue.value.trim();
+  renamingFolder.value = null;
+  if (!from || !to || to === from) return;
+  for (const l of lists.value.filter((x) => folderOf(x) === from)) {
+    l.data.folder = to;
+    void save(l);
+  }
+  folderOrder.rename(from, to);
+}
+
+// ----- drag & drop (move a checklist into a folder / to the root,
+//       drag a folder onto another folder to reorder) -----
+
+const draggingId = ref<string | null>(null);
+const draggingFolder = ref<string | null>(null);
+const dragOverFolder = ref<string | null>(null);
+
+const allFolders = computed(() =>
+  [...new Set(lists.value.map(folderOf).filter(Boolean))].sort(folderOrder.compare),
+);
+
+function onDragStart(l: Entry, e: DragEvent) {
+  draggingId.value = l.id;
+  e.dataTransfer?.setData("text/plain", l.id);
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+}
+
+function onFolderDragStart(name: string, e: DragEvent) {
+  draggingFolder.value = name;
+  e.dataTransfer?.setData("text/plain", name);
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+}
+
+function onDrop(target: string) {
+  dragOverFolder.value = null;
+
+  if (draggingFolder.value) {
+    // Reorder: insert the dragged folder before the target (end when dropped
+    // on the tree background).
+    const from = draggingFolder.value;
+    draggingFolder.value = null;
+    if (from === target) return;
+    const seq = allFolders.value.filter((f) => f !== from);
+    const idx = target ? seq.indexOf(target) : seq.length;
+    seq.splice(idx === -1 ? seq.length : idx, 0, from);
+    folderOrder.setGroup(seq);
+    return;
+  }
+
+  const l = lists.value.find((x) => x.id === draggingId.value);
+  draggingId.value = null;
+  if (!l || folderOf(l) === target.trim()) return;
+  l.data.folder = target;
+  void save(l);
+}
+
+// ----- save (debounced for text edits, immediate for structural ones, serialized) -----
+
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
+let pending: Entry | null = null;
+let saveChain: Promise<void> = Promise.resolve();
+
+function save(l: Entry): Promise<void> {
+  saveState.value = "saving";
+  saveChain = saveChain
+    .then(() => ctx.api.entries.update(l.id, { title: l.title, data: l.data }))
+    .then(() => {
+      saveState.value = "saved";
+      saveError.value = "";
+    })
+    .catch((e) => {
+      saveState.value = "error";
+      saveError.value = e instanceof Error ? e.message : "Save failed";
+    });
+  return saveChain;
+}
+
+function flushPending() {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = undefined;
+  if (pending) {
+    const l = pending;
+    pending = null;
+    void save(l);
+  }
+}
+
+function scheduleSave() {
+  if (!selected.value) return;
+  pending = selected.value;
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushPending, 600);
+}
+
+function saveNow() {
+  if (!selected.value) return;
+  pending = selected.value;
+  flushPending();
+}
+
+onBeforeUnmount(flushPending);
+
+// ----- selection / CRUD -----
+
+function selectList(id: string) {
+  flushPending();
+  saveState.value = "idle";
+  saveError.value = "";
+  newItemText.value = "";
+  selectedId.value = id;
+}
+
+function uniqueTitle(base: string): string {
+  const existing = new Set(lists.value.map((l) => (l.title || "").toLowerCase()));
+  if (!existing.has(base.toLowerCase())) return base;
+  let i = 2;
+  while (existing.has(`${base} ${i}`.toLowerCase())) i++;
+  return `${base} ${i}`;
+}
+
+async function createList(folder = "") {
+  flushPending();
+  try {
+    const created = await ctx.api.entries.create({
+      kind: "checklist",
+      source: "manual",
+      title: uniqueTitle("Untitled"),
+      data: { folder, recurring: false, items: [] },
+    });
+    lists.value.push(created);
+    selectedId.value = created.id;
+    saveState.value = "idle";
+    saveError.value = "";
+    newItemText.value = "";
+    await nextTick();
+    const el = document.querySelector(".cl-title") as HTMLInputElement | null;
+    el?.focus();
+    el?.select();
+  } catch {
+    // ignore
+  }
+}
+
+async function deleteSelected() {
+  const l = selected.value;
+  if (!l) return;
+  const ok = await ctx.confirm.ask({
+    title: "Delete checklist",
+    message: `Delete "${l.title || "Untitled"}"? This cannot be undone.`,
+    confirmLabel: "Delete",
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    await ctx.api.entries.delete(l.id);
+    lists.value = lists.value.filter((x) => x.id !== l.id);
+    if (selectedId.value === l.id) selectedId.value = null;
+  } catch {
+    // ignore
+  }
+}
+
+// ----- item / recurring actions -----
+
+function addItem() {
+  const l = selected.value;
+  const text = newItemText.value.trim();
+  if (!l || !text) return;
+  ensureItems(l).push({ text, done: false });
+  newItemText.value = "";
+  saveNow();
+}
+
+function removeItem(index: number) {
+  const l = selected.value;
+  if (!l) return;
+  ensureItems(l).splice(index, 1);
+  saveNow();
+}
+
+function resetList() {
+  const l = selected.value;
+  if (!l) return;
+  for (const item of ensureItems(l)) item.done = false;
+  saveNow();
+}
+
+function toggleRecurring(e: Event) {
+  const l = selected.value;
+  if (!l) return;
+  l.data.recurring = (e.target as HTMLInputElement).checked;
+  saveNow();
+}
+
+function toggleOnDashboard(e: Event) {
+  const l = selected.value;
+  if (!l) return;
+  l.data.show_on_dashboard = (e.target as HTMLInputElement).checked;
+  saveNow();
+}
+
+// ----- load -----
+
+onMounted(async () => {
+  void folderOrder.load();
+  try {
+    lists.value = await ctx.api.entries.list({ kind: "checklist" });
+    loadState.value = "ready";
+  } catch {
+    loadState.value = "error";
+  }
+});
+</script>
+
+<template>
+  <div class="cl-layout">
+    <div class="cl-sidebar">
+      <div class="cl-side-head">
+        <input
+          class="cl-search"
+          type="text"
+          placeholder="Search checklists..."
+          v-model="searchQuery"
+        />
+        <button
+          class="cl-new-btn"
+          title="New checklist"
+          aria-label="New checklist"
+          @click="createList()"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
+      </div>
+      <div class="cl-tree" @dragover.prevent @drop.prevent="onDrop('')">
+        <template v-if="rows.length">
+          <div
+            v-for="row in rows"
+            :key="row.kind === 'folder' ? 'f:' + row.name : 'l:' + row.list!.id"
+          >
+            <div
+              v-if="row.kind === 'folder'"
+              class="cl-folder"
+              :class="{ 'cl-folder--drop': dragOverFolder === row.name }"
+              draggable="true"
+              @click="toggleFolder(row.name)"
+              @dragstart="onFolderDragStart(row.name, $event)"
+              @dragend="draggingFolder = null"
+              @dragover.prevent="dragOverFolder = row.name"
+              @dragleave="dragOverFolder = null"
+              @drop.prevent.stop="onDrop(row.name)"
+            >
+              <span class="cl-folder-caret">{{ row.collapsed ? "▸" : "▾" }}</span>
+              <input
+                v-if="renamingFolder === row.name"
+                class="cl-folder-rename"
+                v-model="renameValue"
+                @click.stop
+                @keyup.enter="commitRenameFolder"
+                @keyup.esc="renamingFolder = null"
+                @blur="commitRenameFolder"
+              />
+              <template v-else>
+                <span class="cl-folder-name">{{ row.name }}</span>
+                <button
+                  class="cl-folder-edit"
+                  title="Rename folder"
+                  @click.stop="startRenameFolder(row.name)"
+                >
+                  ✎
+                </button>
+              </template>
+            </div>
+            <div
+              v-else
+              class="cl-row"
+              :class="{ 'cl-row--active': row.list!.id === selectedId }"
+              :style="{ paddingLeft: row.depth * 12 + 8 + 'px' }"
+              draggable="true"
+              @dragstart="onDragStart(row.list!, $event)"
+              @dragend="draggingId = null"
+              @dragover.prevent
+              @drop.prevent.stop="onDrop(folderOf(row.list!))"
+              @click="selectList(row.list!.id)"
+            >
+              <span class="cl-row-title">
+                <span v-if="isRecurring(row.list!)" class="cl-row-recurring" title="Recurring">↻</span>
+                {{ row.name }}
+              </span>
+              <span v-if="itemsOf(row.list!).length" class="cl-row-count">
+                {{ doneCount(row.list!) }}/{{ itemsOf(row.list!).length }}
+              </span>
+            </div>
+          </div>
+        </template>
+        <p v-else class="cl-empty">
+          {{ loadState === "error" ? "Failed to load checklists." : "No checklists yet." }}
+        </p>
+      </div>
+    </div>
+
+    <div class="cl-main">
+      <p v-if="loadState === 'loading'" class="cl-placeholder">Loading checklists…</p>
+      <p v-else-if="!selected" class="cl-placeholder">
+        Select or create a checklist to get started.
+      </p>
+      <template v-else>
+        <div class="cl-toolbar">
+          <input class="cl-title" v-model="editTitle" placeholder="Untitled" @input="scheduleSave()" />
+          <input
+            class="cl-folder-input"
+            v-model="editFolder"
+            placeholder="Folder"
+            @input="scheduleSave()"
+          />
+          <span
+            class="cl-save-status"
+            :class="{ 'cl-save-status--error': saveState === 'error' }"
+            :title="saveState === 'error' ? saveError : ''"
+            >{{ saveStatusLabel }}</span
+          >
+          <label class="cl-recurring-toggle" title="Recurring lists can be reset">
+            <input type="checkbox" :checked="recurring" @change="toggleRecurring" />
+            Recurring
+          </label>
+          <label class="cl-recurring-toggle" title="Show pending items on the dashboard">
+            <input type="checkbox" :checked="onDashboard" @change="toggleOnDashboard" />
+            Dashboard
+          </label>
+          <button v-if="recurring" class="cl-reset-btn" title="Uncheck all items" @click="resetList">
+            ↻ Reset
+          </button>
+          <button class="cl-delete" title="Delete checklist" @click="deleteSelected">🗑</button>
+        </div>
+
+        <div class="cl-items">
+          <div v-if="items.length" class="cl-progress">
+            {{ doneCount(selected) }}/{{ items.length }} done
+          </div>
+          <div
+            v-for="(item, i) in items"
+            :key="i"
+            class="cl-item"
+            :class="{ 'cl-item--done': item.done }"
+          >
+            <input type="checkbox" v-model="item.done" @change="saveNow()" />
+            <input class="cl-item-text" v-model="item.text" @input="scheduleSave()" />
+            <button class="cl-item-del" title="Remove item" @click="removeItem(i)">×</button>
+          </div>
+          <form class="cl-add" @submit.prevent="addItem">
+            <input class="cl-add-input" v-model="newItemText" placeholder="Add an item…" />
+            <button type="submit" class="cl-add-btn" :disabled="!newItemText.trim()">Add</button>
+          </form>
+        </div>
+      </template>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.cl-layout {
+  display: flex;
+  height: calc(100vh - 4rem);
+}
+.cl-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+}
+.cl-side-head {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.cl-search {
+  flex: 1;
+  min-width: 0;
+}
+.cl-new-btn {
+  width: 32px;
+  flex-shrink: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.cl-new-btn:hover,
+.cl-new-btn:focus-visible {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+.cl-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.375rem 0.25rem;
+}
+.cl-folder {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+.cl-folder:hover {
+  background: var(--bg-hover);
+}
+.cl-folder-caret {
+  width: 0.9em;
+  flex-shrink: 0;
+}
+.cl-folder--drop {
+  background: var(--bg-hover);
+  color: var(--primary);
+}
+.cl-folder-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cl-folder-edit {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 0.25rem;
+  font-size: 0.8rem;
+  visibility: hidden;
+}
+.cl-folder:hover .cl-folder-edit {
+  visibility: visible;
+}
+.cl-folder-edit:hover {
+  color: var(--primary);
+}
+.cl-folder-rename {
+  flex: 1;
+  min-width: 0;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.85rem;
+  border-radius: 6px;
+}
+.cl-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.cl-row:hover {
+  background: var(--bg-hover);
+}
+.cl-row--active {
+  background: var(--bg-hover);
+  color: var(--primary);
+}
+.cl-row-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cl-row-recurring {
+  color: var(--text-muted);
+}
+.cl-row-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.cl-empty,
+.cl-placeholder {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 2.5rem 1rem;
+}
+.cl-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.cl-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.cl-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+.cl-folder-input {
+  width: 160px;
+}
+.cl-save-status {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.cl-save-status--error {
+  color: var(--danger);
+}
+.cl-recurring-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cl-reset-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  padding: 0.35rem 0.7rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cl-reset-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.cl-delete {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 8px;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+}
+.cl-delete:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.cl-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.25rem;
+  max-width: 640px;
+}
+.cl-progress {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.6rem;
+}
+.cl-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.15rem 0;
+}
+/* The global stylesheet gives every input width:100% + heavy padding; undo it
+   for checkboxes (same trick as `.toggle input` in style.css). */
+.cl-item input[type="checkbox"],
+.cl-recurring-toggle input {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--primary);
+}
+.cl-item-text {
+  flex: 1;
+  min-width: 0;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.95rem;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+}
+.cl-item-text:hover,
+.cl-item-text:focus {
+  border-color: var(--border);
+}
+.cl-item--done .cl-item-text {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+.cl-item-del {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  visibility: hidden;
+}
+.cl-item:hover .cl-item-del {
+  visibility: visible;
+}
+.cl-item-del:hover {
+  color: var(--danger);
+}
+.cl-add {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.cl-add-input {
+  flex: 1;
+  min-width: 0;
+}
+.cl-add-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  padding: 0.35rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.cl-add-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.cl-add-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+</style>
