@@ -16,7 +16,7 @@ npm run dev
 ```
 
 Runs Vite on <http://localhost:5173> and proxies `/api`, `/socket`, `/files` and
-`/uploads` to the Phoenix server on port 4000 (see `vite.config.ts`). Start the
+`/uploads` to the Phoenix server on port 4001 (see `vite.config.ts`). Start the
 backend separately with `mix phx.server` — see [`DEVELOPMENT.md`](../DEVELOPMENT.md).
 
 ## Build

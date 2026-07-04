@@ -2,6 +2,9 @@ import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import path from "path";
 
+// Phoenix dev server address; override with PHOENIX_PORT=4002 npm run dev
+const target = `http://localhost:${process.env.PHOENIX_PORT ?? 4001}`;
+
 export default defineConfig({
   plugins: [vue()],
   base: "/",
@@ -21,20 +24,20 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://localhost:4000",
+        target,
         changeOrigin: true,
       },
       "/socket": {
-        target: "http://localhost:4000",
+        target,
         changeOrigin: true,
         ws: true,
       },
       "/files": {
-        target: "http://localhost:4000",
+        target,
         changeOrigin: true,
       },
       "/uploads": {
-        target: "http://localhost:4000",
+        target,
         changeOrigin: true,
       },
     },

@@ -40,7 +40,7 @@ npm install
 
 You need two terminals:
 
-**Terminal 1 — Phoenix API server (port 4000):**
+**Terminal 1 — Phoenix API server (port 4001):**
 
 ```bash
 mix phx.server
@@ -53,7 +53,7 @@ cd frontend
 npm run dev
 ```
 
-Open `http://localhost:5173` in your browser. Vite proxies `/api` and `/socket` requests to Phoenix on port 4000.
+Open `http://localhost:5173` in your browser. Vite proxies `/api` and `/socket` requests to Phoenix on port 4001 (override with `PORT` / `PHOENIX_PORT`).
 
 ## Project structure
 
