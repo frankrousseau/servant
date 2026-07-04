@@ -263,6 +263,13 @@ a:hover {
     inset 0 0 24px rgba(var(--primary-rgb), 0.04);
 }
 
+.auth-card .field label {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 .auth-card input:focus {
   box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.35);
 }
@@ -280,7 +287,7 @@ a:hover {
   display: block;
   margin: 0 auto 1rem;
   color: var(--text);
-  filter: drop-shadow(0 0 8px rgba(var(--primary-rgb), 0.55));
+  filter: drop-shadow(0 0 4px rgba(var(--primary-rgb), 0.3));
 }
 
 .auth-card h1 {
