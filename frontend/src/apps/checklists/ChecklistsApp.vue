@@ -236,12 +236,22 @@ onBeforeUnmount(flushPending);
 
 // ----- selection / CRUD -----
 
-function selectList(id: string) {
+function selectList(id: string, opts: { push?: boolean } = {}) {
   flushPending();
   saveState.value = "idle";
   saveError.value = "";
   newItemText.value = "";
   selectedId.value = id;
+  if (opts.push !== false) {
+    history.pushState(null, "", `/apps/checklists?selected=${id}`);
+  }
+}
+
+function onPopState() {
+  flushPending();
+  const id = new URLSearchParams(window.location.search).get("selected");
+  if (id) selectList(id, { push: false });
+  else selectedId.value = null;
 }
 
 function uniqueTitle(base: string): string {
@@ -262,10 +272,7 @@ async function createList(folder = "") {
       data: { folder, recurring: false, items: [] },
     });
     lists.value.push(created);
-    selectedId.value = created.id;
-    saveState.value = "idle";
-    saveError.value = "";
-    newItemText.value = "";
+    selectList(created.id);
     await nextTick();
     const el = document.querySelector(".cl-title") as HTMLInputElement | null;
     el?.focus();
@@ -288,7 +295,10 @@ async function deleteSelected() {
   try {
     await ctx.api.entries.delete(l.id);
     lists.value = lists.value.filter((x) => x.id !== l.id);
-    if (selectedId.value === l.id) selectedId.value = null;
+    if (selectedId.value === l.id) {
+      selectedId.value = null;
+      history.replaceState(null, "", "/apps/checklists");
+    }
   } catch {
     // ignore
   }
@@ -336,6 +346,7 @@ function toggleOnDashboard(e: Event) {
 // ----- load -----
 
 onMounted(async () => {
+  window.addEventListener("popstate", onPopState);
   void folderOrder.load();
   try {
     lists.value = await ctx.api.entries.list({ kind: "checklist" });
@@ -343,7 +354,12 @@ onMounted(async () => {
   } catch {
     loadState.value = "error";
   }
+  const initial = new URLSearchParams(window.location.search).get("selected");
+  if (initial && lists.value.some((l) => l.id === initial)) {
+    selectList(initial, { push: false });
+  }
 });
+onBeforeUnmount(() => window.removeEventListener("popstate", onPopState));
 </script>
 
 <template>
@@ -600,9 +616,10 @@ onMounted(async () => {
 .cl-row:hover {
   background: var(--bg-hover);
 }
+/* Cursor row: violet rail + tint, same language as Contacts/Files */
 .cl-row--active {
-  background: var(--bg-hover);
-  color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.1);
+  box-shadow: inset 2px 0 0 var(--primary);
 }
 .cl-row-title {
   flex: 1;
@@ -623,6 +640,8 @@ onMounted(async () => {
   color: var(--text-muted);
   text-align: center;
   padding: 2.5rem 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88rem;
 }
 .cl-main {
   flex: 1;
@@ -646,6 +665,7 @@ onMounted(async () => {
   width: 160px;
 }
 .cl-save-status {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.75rem;
   color: var(--text-muted);
   white-space: nowrap;
@@ -694,8 +714,12 @@ onMounted(async () => {
   padding: 1rem 1.25rem;
   max-width: 640px;
 }
+/* Status readout: 3/7 DONE */
 .cl-progress {
-  font-size: 0.8rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   color: var(--text-muted);
   margin-bottom: 0.6rem;
 }

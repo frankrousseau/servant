@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted } from "vue";
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import type { AppContext, Entry } from "../types";
 import { formatFileSize } from "../../types";
 import { formatDate, formatDateTime, utcToZonedParts } from "../../lib/datetime";
@@ -367,7 +367,11 @@ async function removeTagAction() {
   await reload();
 }
 
-function openViewer(photoId: string) {
+function openViewer(photoId: string, opts: { push?: boolean } = {}) {
+  // Opening a photo is a history entry so the browser back button closes it.
+  if (opts.push !== false) {
+    history.pushState(null, "", `/apps/photos?photo=${photoId}`);
+  }
   const photos = filtered.value;
   const items = photos.map((p) => {
     const meta: Record<string, string | number | null> = {};
@@ -399,13 +403,23 @@ watch(peopleSearchActive, (active) => {
   if (active) nextTick(() => peopleInput.value?.focus());
 });
 
-onMounted(() => {
+function onPopState() {
+  const id = new URLSearchParams(window.location.search).get("photo");
+  if (id) openViewer(id, { push: false });
+  else props.ctx.viewer.close();
+}
+
+onMounted(async () => {
+  window.addEventListener("popstate", onPopState);
   props.ctx.viewer.onDelete(async (id) => {
     await props.ctx.api.entries.delete(id);
     await reload();
   });
-  reload();
+  await reload();
+  const initial = new URLSearchParams(window.location.search).get("photo");
+  if (initial) openViewer(initial, { push: false });
 });
+onUnmounted(() => window.removeEventListener("popstate", onPopState));
 </script>
 
 <template>

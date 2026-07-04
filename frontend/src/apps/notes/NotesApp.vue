@@ -398,7 +398,7 @@ function syncEditorFrom(note: Note | null) {
   editBody.value = note ? noteBody(note) : "";
 }
 
-async function selectNote(id: string) {
+async function selectNote(id: string, opts: { push?: boolean } = {}) {
   await flushSave();
   saveState.value = "idle";
   saveError.value = "";
@@ -406,11 +406,24 @@ async function selectNote(id: string) {
   backlinks.value = [];
   hideAutocomplete();
   syncEditorFrom(selected.value);
+  if (opts.push !== false) {
+    history.pushState(null, "", `/apps/notes?selected=${id}`);
+  }
   try {
     const bl = await apiBacklinks(id);
     if (selectedId.value === id) backlinks.value = bl;
   } catch {
     // ignore
+  }
+}
+
+function onPopState() {
+  const id = new URLSearchParams(window.location.search).get("selected");
+  if (id) void selectNote(id, { push: false });
+  else {
+    void flushSave();
+    selectedId.value = null;
+    syncEditorFrom(null);
   }
 }
 
@@ -432,6 +445,7 @@ async function createNote(folder = "") {
     saveError.value = "";
     viewMode.value = "split";
     syncEditorFrom(created);
+    history.pushState(null, "", `/apps/notes?selected=${created.id}`);
     await nextTick();
     const titleEl = document.querySelector(".nt-title") as HTMLInputElement | null;
     titleEl?.focus();
@@ -677,12 +691,18 @@ watch(selected, (note) => {
 // ----- bootstrap -----
 
 onMounted(async () => {
+  window.addEventListener("popstate", onPopState);
   void folderOrder.load();
   try {
     notes.value = await apiList();
     loadState.value = "ready";
   } catch {
     loadState.value = "error";
+  }
+
+  const initial = new URLSearchParams(window.location.search).get("selected");
+  if (initial && notes.value.some((n) => n.id === initial)) {
+    void selectNote(initial, { push: false });
   }
 
   // Contacts and events feed @[[mention]] autocomplete/chips; degrade gracefully.
@@ -710,6 +730,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener("popstate", onPopState);
   // Fire-and-forget: persist any pending debounced edit before teardown.
   void flushSave();
 });
@@ -983,15 +1004,18 @@ onBeforeUnmount(() => {
 .nt-note:hover {
   background: var(--bg-hover);
 }
+/* Cursor row: violet rail + tint, same language as Contacts/Files */
 .nt-note--active {
-  background: var(--bg-hover);
-  color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.1);
+  box-shadow: inset 2px 0 0 var(--primary);
 }
 .nt-empty,
 .nt-placeholder {
   color: var(--text-muted);
   text-align: center;
   padding: 2.5rem 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88rem;
 }
 .nt-main {
   flex: 1;
@@ -1019,6 +1043,7 @@ onBeforeUnmount(() => {
 }
 .nt-save-status {
   flex-shrink: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.75rem;
   color: var(--text-muted);
   max-width: 240px;
@@ -1049,7 +1074,7 @@ onBeforeUnmount(() => {
 }
 .nt-vb--active {
   background: var(--primary);
-  color: #fff;
+  color: #05070f;
 }
 .nt-delete {
   background: transparent;
