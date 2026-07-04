@@ -30,6 +30,9 @@ RUN mix local.hex --force && mix local.rebar --force
 
 ENV MIX_ENV=prod
 
+# Compile-time placeholder — runtime.exs replaces this when the container starts.
+ENV SECRET_KEY_BASE=build-time-placeholder-for-mix-compile-only-replaced-at-container-start-64
+
 # Dependencies first for better layer caching
 COPY mix.exs mix.lock ./
 RUN mix deps.get --only prod
