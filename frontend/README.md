@@ -42,3 +42,4 @@ as the SPA in production.
 - `src/apps/` — pluggable "apps" (photos, contacts, files, calendar, notes); see `src/apps/types.ts` for the `AppModule`/`AppContext` contract
 - `src/composables/` — `useApi`, `useSocket`, …
 - `src/stores/` — Pinia stores (`auth`)
+- `public/` — static assets. `logo.svg` is the official logo (owl butler in a bow tie, monoline, drawn with `currentColor` so it inherits the surrounding text color); `favicon.svg` is the same mark with a thicker stroke so it stays legible at 16–32 px. The sidebar brand in `src/App.vue` inlines the same SVG and links back to the dashboard.

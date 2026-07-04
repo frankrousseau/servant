@@ -82,6 +82,7 @@ servant/
 │       ├── router.ex          # API routes + SPA fallback
 │       └── endpoint.ex
 ├── frontend/
+│   ├── public/                # logo.svg (owl-butler logo), favicon.svg
 │   ├── src/
 │   │   ├── composables/       # useApi, useSocket
 │   │   ├── stores/            # Pinia stores (auth)
