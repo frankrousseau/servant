@@ -267,11 +267,14 @@ onUnmounted(() => {
   bottom: 0;
   padding: 1rem 0.75rem 0.35rem;
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
-  transition: opacity 0.2s;
+  /* Fade back in quickly… */
+  transition: opacity 0.15s ease-out;
 }
 .vp--idle .vp-controls {
   opacity: 0;
   pointer-events: none;
+  /* …but fade out slowly (the rule of the state being entered wins). */
+  transition: opacity 0.5s ease;
 }
 .vp-seek {
   position: relative;
