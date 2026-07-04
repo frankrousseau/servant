@@ -180,29 +180,58 @@ async function newFolder() {
   await reload();
 }
 
+interface UploadProgress {
+  index: number;
+  total: number;
+  name: string;
+  pct: number;
+}
+const uploading = ref(false);
+const uploadProgress = ref<UploadProgress | null>(null);
+// One entry per failed file; a failure never aborts the rest of the batch.
+const uploadErrors = ref<string[]>([]);
+
 async function uploadFiles(files: File[]) {
-  for (const file of files) {
-    const result = await props.ctx.api.upload(file, "files");
-    await props.ctx.api.entries.create({
-      kind: "file",
-      source: "files_app",
-      title: file.name,
-      data: {
-        filename: file.name,
-        size: result.size,
-        mime_type: result.mime_type,
-        path: result.path,
-        parent_id: currentFolder.value,
-        is_folder: false,
-      },
-    });
+  if (!files.length) return;
+  uploading.value = true;
+  uploadErrors.value = [];
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    uploadProgress.value = { index: i + 1, total: files.length, name: file.name, pct: 0 };
+    try {
+      const result = await props.ctx.api.upload(file, "files", (pct) => {
+        if (uploadProgress.value) uploadProgress.value.pct = pct;
+      });
+      await props.ctx.api.entries.create({
+        kind: "file",
+        source: "files_app",
+        title: file.name,
+        data: {
+          filename: file.name,
+          size: result.size,
+          mime_type: result.mime_type,
+          path: result.path,
+          parent_id: currentFolder.value,
+          is_folder: false,
+        },
+      });
+      // Refresh after each file so they appear as they land.
+      await reload();
+    } catch (e) {
+      uploadErrors.value.push(`${file.name}: ${e instanceof Error ? e.message : "upload failed"}`);
+    }
   }
-  await reload();
+
+  uploadProgress.value = null;
+  uploading.value = false;
 }
 
 function onFileInput(e: Event) {
   const input = e.target as HTMLInputElement;
   if (input.files?.length) uploadFiles(Array.from(input.files));
+  // Reset so picking the same file(s) again re-triggers the change event.
+  input.value = "";
 }
 
 function onDrop(e: DragEvent) {
@@ -261,6 +290,20 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
             <input type="file" multiple hidden @change="onFileInput" />
           </label>
         </div>
+      </div>
+      <div v-if="uploading && uploadProgress" class="fs-uploading">
+        <span class="fs-upload-count"
+          >UPLOADING {{ uploadProgress.index }}/{{ uploadProgress.total }}</span
+        >
+        <span class="fs-upload-name">{{ uploadProgress.name }}</span>
+        <span class="fs-upload-pct">{{ uploadProgress.pct }}%</span>
+        <div class="fs-upload-bar">
+          <div class="fs-upload-bar-fill" :style="{ width: uploadProgress.pct + '%' }"></div>
+        </div>
+      </div>
+      <div v-if="uploadErrors.length" class="fs-upload-errors" role="alert">
+        <div v-for="(err, i) in uploadErrors" :key="i">{{ err }}</div>
+        <button class="fs-upload-dismiss" @click="uploadErrors = []">Dismiss</button>
       </div>
       <div
         class="fs-list"
@@ -448,6 +491,73 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
   display: inline-flex;
   align-items: center;
 }
+/* Upload progress + errors, same language as Photos */
+.fs-uploading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.08);
+}
+.fs-upload-count {
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
+}
+.fs-upload-name {
+  color: var(--text-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fs-upload-pct {
+  flex-shrink: 0;
+  min-width: 3em;
+  text-align: right;
+}
+.fs-upload-bar {
+  flex: 1;
+  min-width: 80px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(var(--primary-rgb), 0.15);
+  overflow: hidden;
+}
+.fs-upload-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 3px;
+  transition: width 0.15s;
+}
+.fs-upload-errors {
+  padding: 0.5rem 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  color: var(--danger);
+  background: rgba(255, 92, 122, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.fs-upload-dismiss {
+  align-self: flex-start;
+  margin-top: 0.25rem;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.78rem;
+  background: transparent;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.fs-upload-dismiss:hover {
+  background: var(--danger);
+  color: #05070f;
+}
+
 /* Directory listing, ls style */
 .fs-list {
   flex: 1;

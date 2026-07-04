@@ -942,15 +942,21 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   padding: 0.375rem 0.25rem;
 }
+/* Folders are structure: mono uppercase labels, clearly distinct from the
+   note titles they group. */
 .nt-folder {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.3rem 0.4rem;
+  padding: 0.4rem;
+  margin-top: 0.4rem;
   border-radius: 6px;
   cursor: pointer;
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 .nt-folder:hover {
   background: var(--bg-hover);
@@ -993,13 +999,13 @@ onBeforeUnmount(() => {
   border-radius: 6px;
 }
 .nt-note {
-  padding: 0.3rem 0.4rem;
+  padding: 0.45rem 0.5rem;
   border-radius: 6px;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
 }
 .nt-note:hover {
   background: var(--bg-hover);
@@ -1027,11 +1033,13 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.6rem 0.75rem;
+  padding: 0.85rem 0.75rem;
   border-bottom: 1px solid var(--border);
 }
 .nt-title {
   font-weight: 600;
+  font-size: 1.2rem;
+  padding: 0.5rem 0.75rem;
   flex: 1;
   min-width: 0;
 }

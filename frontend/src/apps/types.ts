@@ -42,7 +42,7 @@ export interface AppContext {
   confirm: ConfirmAPI;
   api: {
     entries: EntriesAPI;
-    upload(file: File, app?: string): Promise<UploadResult>;
+    upload(file: File, app?: string, onProgress?: (pct: number) => void): Promise<UploadResult>;
     fetch(path: string, opts?: RequestInit): Promise<Response>;
   };
   viewer: ViewerAPI;

@@ -730,15 +730,36 @@ onBeforeUnmount(() => window.removeEventListener("popstate", onPopState));
   padding: 0.15rem 0;
 }
 /* The global stylesheet gives every input width:100% + heavy padding; undo it
-   for checkboxes (same trick as `.toggle input` in style.css). */
+   for checkboxes, and draw them in the terminal language: square cell,
+   phosphor fill + dark check when on. */
 .cl-item input[type="checkbox"],
 .cl-recurring-toggle input {
+  appearance: none;
+  -webkit-appearance: none;
   width: 16px;
   height: 16px;
   padding: 0;
   margin: 0;
   flex-shrink: 0;
-  accent-color: var(--primary);
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
+}
+.cl-item input[type="checkbox"]:hover,
+.cl-recurring-toggle input:hover {
+  border-color: var(--primary);
+}
+.cl-item input[type="checkbox"]:checked,
+.cl-recurring-toggle input:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%2305070f' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E");
+  background-size: 12px;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.4);
 }
 .cl-item-text {
   flex: 1;

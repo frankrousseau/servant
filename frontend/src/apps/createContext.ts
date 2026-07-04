@@ -55,22 +55,42 @@ export function createAppContext(viewer: ViewerAPI): AppContext {
           return res.data;
         },
       },
-      // Multipart upload keeps its own fetch: the browser must set the
-      // multipart Content-Type boundary, so it can't go through apiFetch.
-      async upload(file: File, app = "files"): Promise<UploadResult> {
+      // Multipart upload keeps its own request: the browser must set the
+      // multipart Content-Type boundary, and XHR (unlike fetch) can report
+      // upload progress.
+      upload(file: File, app = "files", onProgress?: (pct: number) => void): Promise<UploadResult> {
         const form = new FormData();
         form.append("file", file);
         form.append("app", app);
-        const res = await fetch("/api/uploads", {
-          method: "POST",
-          headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {},
-          body: form,
+        return new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/api/uploads");
+          if (auth.token) xhr.setRequestHeader("Authorization", `Bearer ${auth.token}`);
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable && onProgress) {
+              onProgress(Math.round((e.loaded / e.total) * 100));
+            }
+          };
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                resolve(JSON.parse(xhr.responseText));
+              } catch {
+                reject(new Error("Invalid server response"));
+              }
+            } else {
+              let msg = "Upload failed";
+              try {
+                msg = JSON.parse(xhr.responseText).error || msg;
+              } catch {
+                // keep the generic message
+              }
+              reject(new Error(msg));
+            }
+          };
+          xhr.onerror = () => reject(new Error("Network error during upload"));
+          xhr.send(form);
         });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || "Upload failed");
-        }
-        return res.json();
       },
       fetch: apiFetch,
     },

@@ -195,14 +195,30 @@ async function reload() {
   }
 }
 
+interface UploadProgress {
+  index: number;
+  total: number;
+  name: string;
+  pct: number;
+}
+const uploadProgress = ref<UploadProgress | null>(null);
+// One entry per failed file; a failure never aborts the rest of the batch
+// and never replaces the whole view (loadError is reserved for load failures).
+const uploadErrors = ref<string[]>([]);
+
 async function uploadFiles(files: File[]) {
   const media = files.filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/"));
   if (!media.length) return;
   uploading.value = true;
-  loadError.value = "";
-  try {
-    for (const file of media) {
-      const result = (await props.ctx.api.upload(file, "photos")) as unknown as Record<string, unknown>;
+  uploadErrors.value = [];
+
+  for (let i = 0; i < media.length; i++) {
+    const file = media[i];
+    uploadProgress.value = { index: i + 1, total: media.length, name: file.name, pct: 0 };
+    try {
+      const result = (await props.ctx.api.upload(file, "photos", (pct) => {
+        if (uploadProgress.value) uploadProgress.value.pct = pct;
+      })) as unknown as Record<string, unknown>;
       const data: Record<string, unknown> = {
         filename: file.name,
         size: result.size,
@@ -226,18 +242,22 @@ async function uploadFiles(files: File[]) {
         occurred_at: (result.date_taken as string) || null,
         data,
       });
+      // Refresh after each file so photos appear as they land.
+      await reload();
+    } catch (e) {
+      uploadErrors.value.push(`${file.name}: ${e instanceof Error ? e.message : "upload failed"}`);
     }
-  } catch (e) {
-    loadError.value = e instanceof Error ? e.message : "Upload failed";
-  } finally {
-    uploading.value = false;
   }
-  await reload();
+
+  uploadProgress.value = null;
+  uploading.value = false;
 }
 
 function onFileInput(e: Event) {
   const input = e.target as HTMLInputElement;
   if (input.files?.length) uploadFiles(Array.from(input.files));
+  // Reset so picking the same file(s) again re-triggers the change event.
+  input.value = "";
 }
 const dragover = ref(false);
 function onDrop(e: DragEvent) {
@@ -531,7 +551,20 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
       >
     </div>
 
-    <div v-if="uploading" class="ph-uploading">Uploading...</div>
+    <div v-if="uploading && uploadProgress" class="ph-uploading">
+      <span class="ph-upload-count"
+        >UPLOADING {{ uploadProgress.index }}/{{ uploadProgress.total }}</span
+      >
+      <span class="ph-upload-name">{{ uploadProgress.name }}</span>
+      <span class="ph-upload-pct">{{ uploadProgress.pct }}%</span>
+      <div class="ph-upload-bar">
+        <div class="ph-upload-bar-fill" :style="{ width: uploadProgress.pct + '%' }"></div>
+      </div>
+    </div>
+    <div v-if="uploadErrors.length" class="ph-upload-errors" role="alert">
+      <div v-for="(err, i) in uploadErrors" :key="i" class="ph-upload-error">{{ err }}</div>
+      <button class="ph-upload-dismiss" @click="uploadErrors = []">Dismiss</button>
+    </div>
 
     <div class="ph-scroll">
       <template v-for="g in groups" :key="g.key">
@@ -849,11 +882,69 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
   background: rgba(108, 206, 201, 0.7);
 }
 .ph-uploading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   padding: 0.5rem 1rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   color: var(--primary);
   background: rgba(var(--primary-rgb), 0.08);
+}
+.ph-upload-count {
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
+}
+.ph-upload-name {
+  color: var(--text-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ph-upload-pct {
+  flex-shrink: 0;
+  min-width: 3em;
+  text-align: right;
+}
+.ph-upload-bar {
+  flex: 1;
+  min-width: 80px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(var(--primary-rgb), 0.15);
+  overflow: hidden;
+}
+.ph-upload-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 3px;
+  transition: width 0.15s;
+}
+.ph-upload-errors {
+  padding: 0.5rem 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  color: var(--danger);
+  background: rgba(255, 92, 122, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.ph-upload-dismiss {
+  align-self: flex-start;
+  margin-top: 0.25rem;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.78rem;
+  background: transparent;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.ph-upload-dismiss:hover {
+  background: var(--danger);
+  color: #05070f;
 }
 .ph-scroll {
   flex: 1;
