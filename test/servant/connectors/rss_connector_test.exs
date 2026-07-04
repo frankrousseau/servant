@@ -52,8 +52,6 @@ defmodule Servant.Connectors.RSSConnectorTest do
       assert String.starts_with?(id, "sha256:")
       # stable for the same content
       assert id == RSSConnector.external_id(item)
-      # never nil — so the unique constraint can actually dedupe
-      refute is_nil(id)
     end
   end
 end

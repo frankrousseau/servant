@@ -5,8 +5,6 @@ defmodule Servant.Connectors.RSSConnector do
 
   use Servant.Connectors.Connector
 
-  require Logger
-
   @rfc822_months %{
     "jan" => 1,
     "feb" => 2,

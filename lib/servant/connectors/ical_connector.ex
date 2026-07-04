@@ -6,8 +6,6 @@ defmodule Servant.Connectors.ICalConnector do
 
   use Servant.Connectors.Connector
 
-  require Logger
-
   @impl true
   def id, do: "ical"
 

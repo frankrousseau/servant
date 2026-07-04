@@ -6,8 +6,6 @@ defmodule Servant.Connectors.VCardConnector do
 
   use Servant.Connectors.Connector
 
-  require Logger
-
   @impl true
   def id, do: "vcard"
 

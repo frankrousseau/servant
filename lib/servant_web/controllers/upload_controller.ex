@@ -63,11 +63,6 @@ defmodule ServantWeb.UploadController do
             conn
             |> put_status(:request_entity_too_large)
             |> json(%{error: "File too large (max 50MB)"})
-
-          _ ->
-            conn
-            |> put_status(:unprocessable_entity)
-            |> json(%{error: "Failed to store file"})
         end
 
       _ ->

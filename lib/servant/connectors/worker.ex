@@ -98,11 +98,7 @@ defmodule Servant.Connectors.Worker do
   defp run_sync(%__MODULE__{} = state, sync_log) do
     case state.connector_module.sync(state.state) do
       {:ok, entries, new_connector_state} ->
-        inserted =
-          case Data.create_entries(state.user_id, entries) do
-            {:ok, count} -> count
-            _ -> 0
-          end
+        {:ok, inserted} = Data.create_entries(state.user_id, entries)
 
         Connectors.complete_sync_log(sync_log, inserted)
 

@@ -17,7 +17,7 @@ RUN npm run build
 ###############################################################################
 # Stage 2 — build the Elixir release
 ###############################################################################
-FROM hexpm/elixir:1.18.3-erlang-27.3.4-debian-bookworm-20260112-slim AS build
+FROM hexpm/elixir:1.20.2-erlang-29.0.3-debian-bookworm-20260623-slim AS build
 
 # Build tools for the exqlite NIF (SQLite is compiled in, no system sqlite needed)
 RUN apt-get update -y \
