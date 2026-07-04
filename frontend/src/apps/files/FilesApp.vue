@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import {
   Folder,
   File,
@@ -52,6 +52,73 @@ const currentItems = computed(() =>
     }),
 );
 
+// ----- search + type filter -----
+
+const searchQuery = ref("");
+const typeFilter = ref("");
+
+function matchesType(e: Entry): boolean {
+  const mime = field<string>(e, "mime_type") || "";
+  switch (typeFilter.value) {
+    case "":
+      return true;
+    case "folder":
+      return isFolder(e);
+    case "image":
+      return mime.startsWith("image/");
+    case "video":
+      return mime.startsWith("video/");
+    case "doc":
+      return mime === "application/pdf" || mime.startsWith("text/");
+    case "archive":
+      return mime.includes("zip");
+    default:
+      return (
+        !isFolder(e) &&
+        !mime.startsWith("image/") &&
+        !mime.startsWith("video/") &&
+        mime !== "application/pdf" &&
+        !mime.startsWith("text/") &&
+        !mime.includes("zip")
+      );
+  }
+}
+
+// ----- folder paths (for search results and history restore) -----
+
+const byId = computed(() => new Map(allFiles.value.map((f) => [f.id, f])));
+
+// Ancestor chain of a folder id, root first. The guard caps a corrupt
+// parent_id cycle.
+function chainTo(id: string | null): Entry[] {
+  const chain: Entry[] = [];
+  let cur = id ? byId.value.get(id) : undefined;
+  let guard = 0;
+  while (cur && guard++ < 50) {
+    chain.unshift(cur);
+    const pid = parentId(cur);
+    cur = pid ? byId.value.get(pid) : undefined;
+  }
+  return chain;
+}
+
+function folderPathOf(e: Entry): string {
+  const parts = chainTo(parentId(e)).map(fileName);
+  return "~/" + parts.map((p) => p + "/").join("");
+}
+
+// Searching looks across the whole tree (flat results, files only);
+// otherwise we list the current folder.
+const displayed = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  if (q) {
+    return allFiles.value
+      .filter((f) => !isFolder(f) && fileName(f).toLowerCase().includes(q) && matchesType(f))
+      .sort((a, b) => fileName(a).toLowerCase().localeCompare(fileName(b).toLowerCase()));
+  }
+  return currentItems.value.filter(matchesType);
+});
+
 const selected = computed(() =>
   selectedId.value ? allFiles.value.find((f) => f.id === selectedId.value) || null : null,
 );
@@ -67,17 +134,38 @@ async function reload() {
   }
 }
 
-function navigateCrumb(idx: number) {
-  folderPath.value = folderPath.value.slice(0, idx + 1);
-  currentFolder.value = folderPath.value[folderPath.value.length - 1].id;
+// Folder navigation goes through the browser history (?folder=<id>) so
+// back/forward work as expected.
+function setFolder(id: string | null, opts: { push?: boolean } = {}) {
+  currentFolder.value = id;
+  folderPath.value = [
+    { id: null, name: "~" },
+    ...chainTo(id).map((c) => ({ id: c.id as string | null, name: fileName(c) })),
+  ];
   selectedId.value = null;
+  if (opts.push) {
+    history.pushState(null, "", id ? `/apps/files?folder=${id}` : "/apps/files");
+  }
+}
+
+function navigateCrumb(idx: number) {
+  setFolder(folderPath.value[idx].id, { push: true });
 }
 
 function openFolder(f: Entry) {
   if (!isFolder(f)) return;
-  currentFolder.value = f.id;
-  folderPath.value.push({ id: f.id, name: fileName(f) });
-  selectedId.value = null;
+  setFolder(f.id, { push: true });
+}
+
+// Jump from a search result to its containing folder.
+function goToFolderOf(e: Entry) {
+  searchQuery.value = "";
+  setFolder(parentId(e), { push: true });
+  selectedId.value = e.id;
+}
+
+function onPopState() {
+  setFolder(new URLSearchParams(window.location.search).get("folder"));
 }
 
 async function newFolder() {
@@ -130,7 +218,13 @@ async function deleteItem(f: Entry) {
   await reload();
 }
 
-onMounted(reload);
+onMounted(async () => {
+  window.addEventListener("popstate", onPopState);
+  await reload();
+  const initial = new URLSearchParams(window.location.search).get("folder");
+  if (initial) setFolder(initial);
+});
+onUnmounted(() => window.removeEventListener("popstate", onPopState));
 </script>
 
 <template>
@@ -146,6 +240,21 @@ onMounted(reload);
           </template>
         </div>
         <div class="fs-actions">
+          <input
+            v-model="searchQuery"
+            class="fs-search"
+            type="text"
+            placeholder="Search files..."
+          />
+          <select v-model="typeFilter" class="fs-type-filter">
+            <option value="">All types</option>
+            <option value="folder">Folders</option>
+            <option value="image">Images</option>
+            <option value="video">Videos</option>
+            <option value="doc">Documents</option>
+            <option value="archive">Archives</option>
+            <option value="other">Other</option>
+          </select>
           <button class="fs-btn" @click="newFolder">+ Folder</button>
           <label class="fs-btn fs-upload-label">
             + Upload
@@ -167,7 +276,7 @@ onMounted(reload);
           <span>Added</span>
         </div>
         <div
-          v-for="f in currentItems"
+          v-for="f in displayed"
           :key="f.id"
           class="fs-row"
           :class="{ 'fs-row--active': f.id === selectedId }"
@@ -177,15 +286,27 @@ onMounted(reload);
           <span class="fs-row-icon" :class="{ 'fs-row-icon--folder': isFolder(f) }">
             <component :is="fileIcon(f)" :size="16" />
           </span>
-          <span class="fs-name"
-            >{{ fileName(f) }}<span v-if="isFolder(f)" class="fs-slash">/</span></span
-          >
+          <span class="fs-name-cell">
+            <span class="fs-name"
+              >{{ fileName(f) }}<span v-if="isFolder(f)" class="fs-slash">/</span></span
+            >
+            <button
+              v-if="searchQuery.trim()"
+              class="fs-row-path"
+              title="Go to folder"
+              @click.stop="goToFolderOf(f)"
+            >
+              {{ folderPathOf(f) }}
+            </button>
+          </span>
           <span class="fs-size fs-col-size">{{
             isFolder(f) ? "—" : formatFileSize(fileSize(f))
           }}</span>
           <span class="fs-date">{{ formatDate(f.inserted_at) }}</span>
         </div>
-        <p v-if="currentItems.length === 0" class="fs-empty">Empty directory</p>
+        <p v-if="displayed.length === 0" class="fs-empty">
+          {{ searchQuery || typeFilter ? "No match." : "Empty directory" }}
+        </p>
       </div>
     </div>
     <div class="fs-detail-col">
@@ -295,6 +416,19 @@ onMounted(reload);
   display: flex;
   gap: 0.375rem;
   flex-shrink: 0;
+  align-items: center;
+}
+.fs-search {
+  width: 180px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.85rem;
+  border-radius: 8px;
+}
+.fs-type-filter {
+  width: auto;
+  padding: 0.4rem 2rem 0.4rem 0.65rem;
+  font-size: 0.85rem;
+  border-radius: 8px;
 }
 .fs-btn {
   background: transparent;
@@ -323,8 +457,8 @@ onMounted(reload);
 .fs-list-head,
 .fs-row {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) 90px 110px;
-  gap: 0.6rem;
+  grid-template-columns: 24px minmax(0, 1fr) 120px 110px;
+  gap: 1rem;
   align-items: center;
   padding: 0.35rem 0.5rem;
 }
@@ -361,10 +495,37 @@ onMounted(reload);
 .fs-row-icon--folder {
   color: var(--primary);
 }
+.fs-name-cell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
 .fs-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
+}
+.fs-row-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.fs-row-path:hover {
+  color: var(--primary);
+  background: none;
+  text-decoration: underline;
 }
 .fs-slash {
   color: var(--text-muted);
@@ -409,7 +570,8 @@ onMounted(reload);
 }
 .fs-detail-name {
   margin: 0;
-  font-size: 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.95rem;
   text-align: center;
   word-break: break-word;
 }

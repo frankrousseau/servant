@@ -238,29 +238,31 @@ onMounted(() => {
 
 <template>
   <div class="view">
-    <div class="view-header">
-      <h1>Data Browser</h1>
-      <button @click="openCreate">+ New Entry</button>
-    </div>
+    <div class="browser-head">
+      <div class="view-header">
+        <h1>Data Browser</h1>
+        <button @click="openCreate">+ New Entry</button>
+      </div>
 
-    <p v-if="pageError" class="error-banner" role="alert">
-      {{ pageError }}
-      <button class="error-banner-close" @click="pageError = null" aria-label="Dismiss">×</button>
-    </p>
+      <p v-if="pageError" class="error-banner" role="alert">
+        {{ pageError }}
+        <button class="error-banner-close" @click="pageError = null" aria-label="Dismiss">×</button>
+      </p>
 
-    <!-- Filters -->
-    <div class="filters">
-      <select v-model="filterKind" class="capitalize">
-        <option value="">All kinds</option>
-        <option v-for="k in kinds" :key="k" :value="k">{{ k }}</option>
-      </select>
-      <select v-model="filterSource" class="capitalize">
-        <option value="">All sources</option>
-        <option v-for="s in sources" :key="s" :value="s">{{ s }}</option>
-      </select>
-      <input v-model="filterDateFrom" type="date" title="From date" />
-      <input v-model="filterDateTo" type="date" title="To date" />
-      <span class="filter-count" v-if="!loading">{{ meta.total }} entries</span>
+      <!-- Filters -->
+      <div class="filters">
+        <select v-model="filterKind" class="capitalize">
+          <option value="">All kinds</option>
+          <option v-for="k in kinds" :key="k" :value="k">{{ k }}</option>
+        </select>
+        <select v-model="filterSource" class="capitalize">
+          <option value="">All sources</option>
+          <option v-for="s in sources" :key="s" :value="s">{{ s }}</option>
+        </select>
+        <input v-model="filterDateFrom" type="date" title="From date" />
+        <input v-model="filterDateTo" type="date" title="To date" />
+        <span class="filter-count" v-if="!loading">{{ meta.total }} entries</span>
+      </div>
     </div>
 
     <p v-if="loading" class="loading-text">Loading...</p>
@@ -457,10 +459,21 @@ onMounted(() => {
   font-size: 0.9rem;
 }
 
+/* Sticky header: negative margin swallows the content's 2rem top padding so
+   the opaque background reaches the viewport edge when pinned. */
+.browser-head {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg);
+  padding: 2rem 0 0.75rem;
+  margin: -2rem 0 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
 .filters {
   display: flex;
   gap: 0.75rem;
-  margin-bottom: 1rem;
   flex-wrap: wrap;
   align-items: center;
 }

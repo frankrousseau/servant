@@ -454,6 +454,7 @@ onUnmounted(destroyPickers);
 .cal-loading {
   color: var(--text-muted);
   padding: 2rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 .cal-container {
   padding: 0;
@@ -488,8 +489,11 @@ onUnmounted(destroyPickers);
   font-size: 0.85rem;
 }
 .cal-month-label {
-  font-size: 1.15rem;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   flex: 1;
 }
 .cal-header-actions {
@@ -518,8 +522,8 @@ onUnmounted(destroyPickers);
   color: var(--text);
 }
 .cal-toggle-btn--active {
-  background: var(--bg-hover);
-  color: var(--text);
+  background: var(--primary);
+  color: #05070f;
 }
 .cal-grid {
   display: grid;
@@ -533,10 +537,11 @@ onUnmounted(destroyPickers);
 .cal-grid-header {
   padding: 0.5rem;
   text-align: center;
-  font-size: 0.8rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.12em;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border);
 }
@@ -554,15 +559,18 @@ onUnmounted(destroyPickers);
 .cal-cell--empty {
   background: var(--bg-surface);
 }
+/* Today: phosphor ring inside the cell */
 .cal-cell--today {
-  background: rgba(var(--primary-rgb), 0.06);
+  background: rgba(var(--primary-rgb), 0.08);
+  box-shadow: inset 0 0 0 1px rgba(var(--primary-rgb), 0.55);
 }
 .cal-cell--today .cal-day-num {
   color: var(--primary);
   font-weight: 700;
 }
 .cal-day-num {
-  font-size: 0.85rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
   color: var(--text-muted);
 }
 .cal-dots {
@@ -598,6 +606,8 @@ onUnmounted(destroyPickers);
 .cal-empty {
   color: var(--text-muted);
   padding: 2rem 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88rem;
 }
 .cal-day {
   margin-bottom: 1.5rem;
