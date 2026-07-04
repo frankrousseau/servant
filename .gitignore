@@ -44,7 +44,6 @@ servant-*.tar
 /priv/uploads/*
 !/priv/uploads/.gitkeep
 
-# Built frontend assets served by Phoenix
-/priv/static/assets/
-/priv/static/index.html
+# Built frontend assets served by Phoenix (Vite copies frontend/public/* here)
+/priv/static/
 
