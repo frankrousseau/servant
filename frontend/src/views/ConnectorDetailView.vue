@@ -587,7 +587,7 @@ onMounted(() => {
 .sync-banner {
   font-size: 0.9rem;
   color: var(--primary);
-  background: rgba(108, 140, 255, 0.1);
+  background: rgba(var(--primary-rgb), 0.1);
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius);
   margin-bottom: 0.5rem;
@@ -767,7 +767,7 @@ onMounted(() => {
 }
 
 .log-icon-running {
-  background: rgba(108, 140, 255, 0.15);
+  background: rgba(var(--primary-rgb), 0.15);
   color: var(--primary);
 }
 

@@ -68,12 +68,13 @@ export interface SyncLog {
 
 // Kind icons/colors for visual differentiation
 export const KIND_CONFIG: Record<string, { icon: string; color: string }> = {
-  transaction: { icon: "↔", color: "#6c8cff" },
+  transaction: { icon: "↔", color: "#9d7bff" },
   article: { icon: "¶", color: "#f0a06c" },
   email: { icon: "@", color: "#5cc98a" },
   photo: { icon: "◻", color: "#c96cd0" },
   contact: { icon: "●", color: "#6ccec9" },
   note: { icon: "✎", color: "#e0d56c" },
+  checklist: { icon: "☑", color: "#6c9bd0" },
 };
 
 export function kindIcon(kind: string): string {

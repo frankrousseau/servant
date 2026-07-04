@@ -46,14 +46,14 @@ You need two terminals:
 mix phx.server
 ```
 
-**Terminal 2 — Vite dev server (port 5173):**
+**Terminal 2 — Vite dev server (port 5001):**
 
 ```bash
 cd frontend
 npm run dev
 ```
 
-Open `http://localhost:5173` in your browser. Vite proxies `/api` and `/socket` requests to Phoenix on port 4001 (override with `PORT` / `PHOENIX_PORT`).
+Open `http://localhost:5001` in your browser. Vite proxies `/api` and `/socket` requests to Phoenix on port 4001 (override with `PORT` / `PHOENIX_PORT`).
 
 ## Project structure
 

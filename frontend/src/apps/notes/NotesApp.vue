@@ -597,7 +597,12 @@ onBeforeUnmount(() => {
           placeholder="Search notes..."
           v-model="searchQuery"
         />
-        <button class="nt-new-btn" title="New note" @click="createNote()">+</button>
+        <button class="nt-new-btn" title="New note" aria-label="New note" @click="createNote()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
       </div>
       <div class="nt-tree">
         <template v-if="treeRows.length">
@@ -734,16 +739,24 @@ onBeforeUnmount(() => {
 .nt-new-btn {
   width: 32px;
   flex-shrink: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
   border-radius: 8px;
-  font-size: 1.1rem;
   cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
 }
-.nt-new-btn:hover {
+.nt-new-btn:hover,
+.nt-new-btn:focus-visible {
   border-color: var(--primary);
-  color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+.nt-new-btn:active {
+  transform: scale(0.92);
 }
 .nt-tree {
   flex: 1;
@@ -959,7 +972,7 @@ onBeforeUnmount(() => {
 }
 .nt-tag {
   display: inline-block;
-  background: rgba(108, 140, 255, 0.15);
+  background: rgba(var(--primary-rgb), 0.15);
   color: var(--primary);
   border-radius: 6px;
   padding: 0 0.4em;

@@ -338,7 +338,7 @@ onMounted(reload);
 .fs-grid.fs-dragover {
   outline: 2px dashed var(--primary);
   outline-offset: -4px;
-  background: rgba(108, 140, 255, 0.05);
+  background: rgba(var(--primary-rgb), 0.05);
 }
 .fs-empty {
   color: var(--text-muted);

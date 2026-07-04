@@ -457,7 +457,15 @@ onMounted(() => {
           class="ph-check"
           :class="{ 'ph-check--on': selectedIds.has(p.id) }"
         ></span>
-        <button v-else class="ph-thumb-delete" title="Delete" @click.stop="deletePhotos([p.id])">×</button>
+        <button v-else class="ph-thumb-delete" title="Delete" aria-label="Delete" @click.stop="deletePhotos([p.id])">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18" />
+            <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+            <path d="M10 11v6M14 11v6" />
+          </svg>
+        </button>
         <img
           v-if="!broken.has(p.id)"
           class="ph-thumb-img"
@@ -710,7 +718,7 @@ onMounted(() => {
   padding: 0.5rem 1rem;
   font-size: 0.85rem;
   color: var(--primary);
-  background: rgba(108, 140, 255, 0.08);
+  background: rgba(var(--primary-rgb), 0.08);
 }
 .ph-grid {
   flex: 1;
@@ -748,23 +756,37 @@ onMounted(() => {
   top: 6px;
   right: 6px;
   z-index: 2;
-  width: 26px;
-  height: 26px;
-  border: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.65);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
   color: #fff;
-  font-size: 1.1rem;
-  line-height: 1;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s;
+  transform: scale(0.85);
+  transition: opacity 0.15s, transform 0.15s, background 0.15s;
 }
-.ph-thumb:hover .ph-thumb-delete {
+.ph-thumb:hover .ph-thumb-delete,
+.ph-thumb-delete:focus-visible {
   opacity: 1;
+  transform: scale(1);
 }
-.ph-thumb-delete:hover {
+.ph-thumb-delete:hover,
+.ph-thumb-delete:focus-visible {
   background: var(--danger);
+  border-color: transparent;
+}
+/* No hover on touch screens: keep the button reachable */
+@media (hover: none) {
+  .ph-thumb-delete {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 .ph-check {
   position: absolute;
@@ -814,7 +836,7 @@ onMounted(() => {
 .ph-layout.ph-dragover {
   outline: 2px dashed var(--primary);
   outline-offset: -4px;
-  background: rgba(108, 140, 255, 0.05);
+  background: rgba(var(--primary-rgb), 0.05);
 }
 .ph-broken {
   width: 100%;

@@ -555,7 +555,7 @@ onUnmounted(destroyPickers);
   background: var(--bg-surface);
 }
 .cal-cell--today {
-  background: rgba(108, 140, 255, 0.06);
+  background: rgba(var(--primary-rgb), 0.06);
 }
 .cal-cell--today .cal-day-num {
   color: var(--primary);
@@ -587,13 +587,13 @@ onUnmounted(destroyPickers);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  background: rgba(108, 140, 255, 0.12);
+  background: rgba(var(--primary-rgb), 0.12);
   padding: 1px 4px;
   border-radius: 3px;
   cursor: pointer;
 }
 .cal-cell-event:hover {
-  background: rgba(108, 140, 255, 0.25);
+  background: rgba(var(--primary-rgb), 0.25);
 }
 .cal-empty {
   color: var(--text-muted);
@@ -648,10 +648,10 @@ onUnmounted(destroyPickers);
   cursor: pointer;
 }
 .cal-cell[data-date]:hover {
-  background: rgba(108, 140, 255, 0.04);
+  background: rgba(var(--primary-rgb), 0.04);
 }
 .cal-cell--today:hover {
-  background: rgba(108, 140, 255, 0.1);
+  background: rgba(var(--primary-rgb), 0.1);
 }
 .cal-modal-overlay {
   position: fixed;

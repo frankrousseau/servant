@@ -1,17 +1,24 @@
+/*
+ * "Night terminal" — Servant as a retro machine: black-blue CRT glass,
+ * electric-violet phosphor, pale glow text. Display face is VT323, a true
+ * terminal bitmap face, used sparingly (brand, headings, counters).
+ */
 :root {
-  --bg: #0f1117;
-  --bg-surface: #1a1d27;
-  --bg-hover: #252836;
-  --border: #2e3140;
-  --text: #e1e4ed;
-  --text-muted: #8b8fa3;
-  --primary: #6c8cff;
-  --primary-hover: #5a7af0;
-  --danger: #f06c6c;
-  --danger-hover: #e05555;
-  --success: #5cc98a;
+  --bg: #05070f;
+  --bg-surface: #0a0e1c;
+  --bg-hover: #121830;
+  --border: #1c2342;
+  --text: #d6dcf5;
+  --text-muted: #7a83b3;
+  --primary: #9d7bff;
+  --primary-hover: #b394ff;
+  --primary-rgb: 157, 123, 255;
+  --danger: #ff5c7a;
+  --danger-hover: #f0435f;
+  --success: #4fd674;
   --radius: 6px;
   --sidebar-width: 220px;
+  --font-display: "VT323", "Courier New", monospace;
 }
 
 *,
@@ -38,6 +45,15 @@ a {
 
 a:hover {
   text-decoration: underline;
+}
+
+::selection {
+  background: rgba(var(--primary-rgb), 0.3);
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 /* Layout */
@@ -70,12 +86,24 @@ a:hover {
   padding: 1rem 0;
 }
 
+/* Terminal prompt with blinking cursor — the one signature element */
 .sidebar-brand {
-  font-size: 1.25rem;
-  font-weight: 700;
-  padding: 0.5rem 1.25rem 1.5rem;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.5rem 1.25rem 1.25rem;
   color: var(--primary);
+  text-shadow: 0 0 8px rgba(var(--primary-rgb), 0.55);
 }
+
+.sidebar-brand::before {
+  content: "> ";
+  color: var(--text-muted);
+  text-shadow: none;
+}
+
 
 .sidebar-nav {
   list-style: none;
@@ -182,7 +210,11 @@ a:hover {
 }
 
 .view h1 {
-  font-size: 1.5rem;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   margin-bottom: 1rem;
 }
 
@@ -227,6 +259,13 @@ a:hover {
 }
 
 .auth-card h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 1.75rem;
+  color: var(--primary);
+  text-shadow: 0 0 8px rgba(var(--primary-rgb), 0.55);
   margin-bottom: 1.5rem;
   text-align: center;
 }
@@ -281,7 +320,7 @@ select:focus {
 
 button {
   background: var(--primary);
-  color: #fff;
+  color: #05070f;
   border: none;
   padding: 0.75rem 1.4rem;
   border-radius: 10px;
@@ -384,8 +423,10 @@ th {
 }
 
 .stat-count {
-  font-size: 1.75rem;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 2.1rem;
+  font-weight: 400;
+  color: var(--primary);
 }
 
 .stat-label {

@@ -38,7 +38,7 @@ const iconMap: Record<string, typeof ArrowLeftRight> = {
 };
 
 const colorMap: Record<string, string> = {
-  transaction: "#6c8cff",
+  transaction: "#9d7bff",
   bank_tx: "#4a9c6d",
   blockchain_tx: "#9b6cff",
   article: "#f0a06c",

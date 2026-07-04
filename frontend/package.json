@@ -11,6 +11,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@fontsource/vt323": "^5.2.7",
     "@types/markdown-it": "^14.1.2",
     "@vueuse/core": "^14.2.1",
     "flatpickr": "^4.6.13",

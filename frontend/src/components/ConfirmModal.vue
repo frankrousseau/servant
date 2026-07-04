@@ -95,7 +95,7 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown, true));
   align-items: center;
   justify-content: center;
   margin: 0 auto 1rem;
-  background: rgba(108, 140, 255, 0.12);
+  background: rgba(var(--primary-rgb), 0.12);
   color: var(--primary);
 }
 

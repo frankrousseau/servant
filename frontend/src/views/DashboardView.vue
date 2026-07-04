@@ -238,13 +238,13 @@ onMounted(fetchData);
 
 .stat-card:hover {
   border-color: var(--primary);
-  box-shadow: 0 2px 12px rgba(108, 140, 255, 0.1);
+  box-shadow: 0 2px 12px rgba(var(--primary-rgb), 0.1);
 }
 
 .stat-card--total {
   grid-column: 1 / -1;
-  background: linear-gradient(135deg, rgba(108, 140, 255, 0.12), rgba(108, 140, 255, 0.04));
-  border-color: rgba(108, 140, 255, 0.3);
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.12), rgba(var(--primary-rgb), 0.04));
+  border-color: rgba(var(--primary-rgb), 0.3);
 }
 
 .stat-icon-badge {
@@ -252,7 +252,7 @@ onMounted(fetchData);
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: rgba(108, 140, 255, 0.12);
+  background: rgba(var(--primary-rgb), 0.12);
   color: var(--primary);
   display: flex;
   align-items: center;
