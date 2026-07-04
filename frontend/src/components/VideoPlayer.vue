@@ -37,6 +37,23 @@ function togglePlay() {
   wake();
 }
 
+// `timeupdate` only fires ~4x/s; drive the seekbar with rAF while playing so
+// it moves smoothly. The event stays as the paused-state fallback (seeks).
+let rafId: number | undefined;
+function tick() {
+  if (!scrubbing.value) currentTime.value = video.value?.currentTime || 0;
+  rafId = requestAnimationFrame(tick);
+}
+function startTicking() {
+  if (rafId === undefined) rafId = requestAnimationFrame(tick);
+}
+function stopTicking() {
+  if (rafId !== undefined) {
+    cancelAnimationFrame(rafId);
+    rafId = undefined;
+  }
+}
+
 function onTimeUpdate() {
   if (!scrubbing.value) currentTime.value = video.value?.currentTime || 0;
 }
@@ -55,7 +72,8 @@ function onVolumeChange() {
   muted.value = v.muted;
 }
 
-// YouTube-style auto-hide: controls fade out after inactivity while playing.
+// YouTube-style auto-hide: controls fade out after inactivity while playing,
+// and immediately when the pointer leaves the player.
 let hideTimer: ReturnType<typeof setTimeout> | undefined;
 function wake() {
   controlsVisible.value = true;
@@ -63,6 +81,10 @@ function wake() {
   hideTimer = setTimeout(() => {
     if (playing.value && !scrubbing.value) controlsVisible.value = false;
   }, 2500);
+}
+function onMouseLeave() {
+  if (hideTimer) clearTimeout(hideTimer);
+  if (playing.value && !scrubbing.value) controlsVisible.value = false;
 }
 
 // ----- seekbar scrubbing (click or drag anywhere on the bar) -----
@@ -126,11 +148,12 @@ onUnmounted(() => {
   document.removeEventListener("fullscreenchange", onFsChange);
   document.removeEventListener("keydown", onKeydown);
   if (hideTimer) clearTimeout(hideTimer);
+  stopTicking();
 });
 </script>
 
 <template>
-  <div ref="root" class="vp" :class="{ 'vp--idle': idle }" @mousemove="wake">
+  <div ref="root" class="vp" :class="{ 'vp--idle': idle }" @mousemove="wake" @mouseleave="onMouseLeave">
     <video
       ref="video"
       class="vp-video"
@@ -139,9 +162,9 @@ onUnmounted(() => {
       playsinline
       @click="togglePlay"
       @dblclick="toggleFullscreen"
-      @play="playing = true; wake();"
-      @pause="playing = false; wake();"
-      @ended="playing = false; controlsVisible = true;"
+      @play="playing = true; startTicking(); wake();"
+      @pause="playing = false; stopTicking(); wake();"
+      @ended="playing = false; stopTicking(); controlsVisible = true;"
       @timeupdate="onTimeUpdate"
       @loadedmetadata="onLoadedMetadata"
       @progress="onProgress"
