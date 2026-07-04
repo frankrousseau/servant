@@ -3,6 +3,10 @@ defmodule Servant.Connectors.SolanaConnector do
   Connector for Solana wallet transactions.
   Tracks SOL and SPL token transfers for a given wallet address
   using incremental sync via the last seen transaction signature.
+
+  The wallet address may be a `.sol` domain (Solana Name Service); it is
+  resolved to the owner's pubkey at sync time and cached for the worker's
+  lifetime, so a re-pointed domain is picked up on the next restart.
   """
 
   use Servant.Connectors.Connector
@@ -51,6 +55,7 @@ defmodule Servant.Connectors.SolanaConnector do
         {:ok,
          %{
            wallet_address: address,
+           resolved_address: nil,
            rpc_url: Map.get(config, "rpc_url"),
            min_lamports: Map.get(config, "min_sol_amount", @default_min_lamports),
            last_signature: Map.get(config, "last_signature")
@@ -63,9 +68,50 @@ defmodule Servant.Connectors.SolanaConnector do
 
   @impl true
   def sync(state) do
+    case resolve_wallet(state) do
+      {:ok, state} -> do_sync(state)
+      {:error, reason} -> {:error, reason, state}
+    end
+  end
+
+  @doc false
+  # Public for tests. Maps the configured address to the actual wallet pubkey:
+  # `.sol` domains are resolved through SNS, plain addresses pass through.
+  def resolve_wallet(%{resolved_address: address} = state) when is_binary(address),
+    do: {:ok, state}
+
+  def resolve_wallet(%{wallet_address: address} = state) do
+    if String.ends_with?(String.downcase(address), ".sol") do
+      case resolve_sol_domain(address) do
+        {:ok, resolved} -> {:ok, %{state | resolved_address: resolved}}
+        {:error, reason} -> {:error, {:sns_resolution_failed, reason}}
+      end
+    else
+      {:ok, %{state | resolved_address: address}}
+    end
+  end
+
+  # ponytail: resolves via Bonfida's public SNS proxy (one GET, no crypto);
+  # switch to on-chain PDA derivation through the RPC if the proxy goes away.
+  defp resolve_sol_domain(domain) do
+    url = "https://sns-sdk-proxy.bonfida.workers.dev/resolve/#{URI.encode(domain)}"
+
+    case Req.get(url, Servant.HTTP.req_options()) do
+      {:ok, %Req.Response{status: 200, body: %{"s" => "ok", "result" => address}}} ->
+        {:ok, address}
+
+      {:ok, %Req.Response{body: body}} ->
+        {:error, body}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp do_sync(state) do
     rpc_opts = if state.rpc_url, do: [rpc_url: state.rpc_url], else: []
 
-    case fetch_all_signatures(state.wallet_address, state.last_signature, rpc_opts) do
+    case fetch_all_signatures(state.resolved_address, state.last_signature, rpc_opts) do
       {:ok, []} ->
         {:ok, [], state}
 
@@ -171,9 +217,9 @@ defmodule Servant.Connectors.SolanaConnector do
         :skip
 
       {:ok, tx} ->
-        case TransactionParser.parse(tx, state.wallet_address, min_lamports: state.min_lamports) do
+        case TransactionParser.parse(tx, state.resolved_address, min_lamports: state.min_lamports) do
           {:ok, parsed} ->
-            {:ok, build_entry(parsed, state.wallet_address)}
+            {:ok, build_entry(parsed, state.resolved_address)}
 
           :skip ->
             :skip

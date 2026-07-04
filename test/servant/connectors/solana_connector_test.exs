@@ -26,6 +26,25 @@ defmodule Servant.Connectors.SolanaConnectorTest do
     test "fails without wallet_address" do
       assert {:error, :missing_wallet_address} = SolanaConnector.init(%{}, %{})
     end
+
+    test "accepts a .sol domain, resolution deferred to sync" do
+      assert {:ok, state} = SolanaConnector.init(%{}, %{"wallet_address" => "frank.sol"})
+      assert state.wallet_address == "frank.sol"
+      assert state.resolved_address == nil
+    end
+  end
+
+  describe "resolve_wallet/1" do
+    test "plain address passes through without resolution" do
+      {:ok, state} = SolanaConnector.init(%{}, %{"wallet_address" => "abc123"})
+      assert {:ok, resolved} = SolanaConnector.resolve_wallet(state)
+      assert resolved.resolved_address == "abc123"
+    end
+
+    test "already-resolved state is returned as-is (no HTTP call)" do
+      state = %{wallet_address: "frank.sol", resolved_address: "abc123"}
+      assert {:ok, ^state} = SolanaConnector.resolve_wallet(state)
+    end
   end
 
   describe "metadata" do

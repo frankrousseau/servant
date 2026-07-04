@@ -2,9 +2,12 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, watch } from "vue";
 import type { AppContext, Entry } from "../types";
 import { renderMarkdown, canon } from "./render";
+import { createFolderOrder } from "../folderOrder";
 
 const props = defineProps<{ ctx: AppContext }>();
 const ctx = props.ctx;
+
+const folderOrder = createFolderOrder(ctx, "notes");
 
 type Note = Entry;
 
@@ -165,6 +168,7 @@ interface TreeRow {
   path?: string;
   id?: string;
   collapsed?: boolean;
+  folder?: string; // containing folder path, for note rows
 }
 
 // Flatten the folder tree into rows honouring the collapsed set (everything is
@@ -174,7 +178,7 @@ const treeRows = computed<TreeRow[]>(() => {
   const rows: TreeRow[] = [];
   const walk = (node: TreeNode, depth: number) => {
     const folders = [...node.folders.values()].sort((a, b) =>
-      a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
+      folderOrder.compare(a.path, b.path),
     );
     for (const f of folders) {
       const isCollapsed = !searching && collapsed.has(f.path);
@@ -182,7 +186,7 @@ const treeRows = computed<TreeRow[]>(() => {
       if (!isCollapsed) walk(f, depth + 1);
     }
     for (const n of sortNotes(node.notes)) {
-      rows.push({ kind: "note", depth, name: n.title || "Untitled", id: n.id });
+      rows.push({ kind: "note", depth, name: n.title || "Untitled", id: n.id, folder: node.path });
     }
   };
   walk(buildTree(filteredNotes.value), 0);
@@ -205,6 +209,129 @@ const saveStatusLabel = computed(() => {
 function toggleFolder(path: string) {
   if (collapsed.has(path)) collapsed.delete(path);
   else collapsed.add(path);
+}
+
+// ----- folder rename / drag & drop / ordering -----
+
+const renamingFolder = ref<string | null>(null); // full path being renamed
+const renameValue = ref(""); // last segment only
+const draggingNoteId = ref<string | null>(null);
+const draggingFolderPath = ref<string | null>(null);
+const dragOverFolder = ref<string | null>(null);
+
+const parentOf = (p: string) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "");
+
+// Every folder path present in the tree (including intermediate segments).
+const allFolderPaths = computed(() => {
+  const s = new Set<string>();
+  for (const n of notes.value) {
+    let path = "";
+    for (const seg of noteFolder(n).split("/").map((x) => x.trim()).filter(Boolean)) {
+      path = path ? `${path}/${seg}` : seg;
+      s.add(path);
+    }
+  }
+  return [...s];
+});
+
+// Moves/renames rewrite [[folder/title]] wikilinks server-side; reload so we
+// don't hold (and later save back) stale bodies.
+async function reloadNotes() {
+  try {
+    notes.value = await apiList();
+  } catch {
+    // keep what we have
+  }
+}
+
+async function startRenameFolder(path: string) {
+  renamingFolder.value = path;
+  renameValue.value = path.split("/").pop() || "";
+  await nextTick();
+  const el = document.querySelector(".nt-folder-rename") as HTMLInputElement | null;
+  el?.focus();
+  el?.select();
+}
+
+async function commitRenameFolder() {
+  const path = renamingFolder.value;
+  const seg = renameValue.value.trim();
+  renamingFolder.value = null;
+  if (!path || !seg || seg.includes("/")) return;
+  const parent = parentOf(path);
+  const newPath = parent ? `${parent}/${seg}` : seg;
+  if (newPath === path) return;
+  await flushSave();
+  const affected = notes.value.filter((n) => {
+    const f = noteFolder(n);
+    return f === path || f.startsWith(path + "/");
+  });
+  try {
+    for (const n of affected) {
+      await apiUpdate(n.id, {
+        title: n.title || "",
+        folder: newPath + noteFolder(n).slice(path.length),
+        body: noteBody(n),
+      });
+    }
+  } catch {
+    // partial rename: the reload below shows the actual state
+  }
+  folderOrder.rename(path, newPath);
+  await reloadNotes();
+}
+
+function onNoteDragStart(id: string, e: DragEvent) {
+  draggingNoteId.value = id;
+  e.dataTransfer?.setData("text/plain", id);
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+}
+
+function onFolderDragStart(path: string, e: DragEvent) {
+  draggingFolderPath.value = path;
+  e.dataTransfer?.setData("text/plain", path);
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+}
+
+async function moveNoteToFolder(id: string, folder: string) {
+  const n = notes.value.find((x) => x.id === id);
+  if (!n || noteFolder(n) === folder) return;
+  await flushSave();
+  try {
+    await apiUpdate(n.id, { title: n.title || "", folder, body: noteBody(n) });
+  } catch {
+    return;
+  }
+  await reloadNotes();
+}
+
+// Reordering only makes sense between siblings; dropping a root-level folder
+// on the tree background sends it to the end.
+function reorderFolder(from: string, target: string) {
+  if (from === target) return;
+  const parent = parentOf(from);
+  if (target ? parentOf(target) !== parent : parent !== "") return;
+  const seq = allFolderPaths.value
+    .filter((p) => parentOf(p) === parent && p !== from)
+    .sort(folderOrder.compare);
+  const idx = target ? seq.indexOf(target) : seq.length;
+  seq.splice(idx === -1 ? seq.length : idx, 0, from);
+  folderOrder.setGroup(seq);
+}
+
+function onTreeDrop(target: string) {
+  dragOverFolder.value = null;
+  if (draggingFolderPath.value) {
+    const from = draggingFolderPath.value;
+    draggingFolderPath.value = null;
+    reorderFolder(from, target);
+    return;
+  }
+  if (draggingNoteId.value) {
+    const id = draggingNoteId.value;
+    draggingNoteId.value = null;
+    void moveNoteToFolder(id, target);
+  }
 }
 
 // ----- save (debounced + serialized) -----
@@ -550,6 +677,7 @@ watch(selected, (note) => {
 // ----- bootstrap -----
 
 onMounted(async () => {
+  void folderOrder.load();
   try {
     notes.value = await apiList();
     loadState.value = "ready";
@@ -604,7 +732,7 @@ onBeforeUnmount(() => {
           </svg>
         </button>
       </div>
-      <div class="nt-tree">
+      <div class="nt-tree" @dragover.prevent @drop.prevent="onTreeDrop('')">
         <template v-if="treeRows.length">
           <div
             v-for="row in treeRows"
@@ -613,17 +741,47 @@ onBeforeUnmount(() => {
             <div
               v-if="row.kind === 'folder'"
               class="nt-folder"
+              :class="{ 'nt-folder--drop': dragOverFolder === row.path }"
               :style="{ paddingLeft: row.depth * 12 + 8 + 'px' }"
+              draggable="true"
               @click="toggleFolder(row.path!)"
+              @dragstart="onFolderDragStart(row.path!, $event)"
+              @dragend="draggingFolderPath = null"
+              @dragover.prevent="dragOverFolder = row.path!"
+              @dragleave="dragOverFolder = null"
+              @drop.prevent.stop="onTreeDrop(row.path!)"
             >
               <span class="nt-folder-caret">{{ row.collapsed ? "▸" : "▾" }}</span>
-              <span class="nt-folder-name">{{ row.name }}</span>
+              <input
+                v-if="renamingFolder === row.path"
+                class="nt-folder-rename"
+                v-model="renameValue"
+                @click.stop
+                @keyup.enter="commitRenameFolder"
+                @keyup.esc="renamingFolder = null"
+                @blur="commitRenameFolder"
+              />
+              <template v-else>
+                <span class="nt-folder-name">{{ row.name }}</span>
+                <button
+                  class="nt-folder-edit"
+                  title="Rename folder"
+                  @click.stop="startRenameFolder(row.path!)"
+                >
+                  ✎
+                </button>
+              </template>
             </div>
             <div
               v-else
               class="nt-note"
               :class="{ 'nt-note--active': row.id === selectedId }"
               :style="{ paddingLeft: row.depth * 12 + 22 + 'px' }"
+              draggable="true"
+              @dragstart="onNoteDragStart(row.id!, $event)"
+              @dragend="draggingNoteId = null"
+              @dragover.prevent
+              @drop.prevent.stop="onTreeDrop(row.folder ?? '')"
               @click="selectNote(row.id!)"
             >
               <span class="nt-note-title">{{ row.name }}</span>
@@ -779,6 +937,39 @@ onBeforeUnmount(() => {
 .nt-folder-caret {
   width: 0.9em;
   flex-shrink: 0;
+}
+.nt-folder--drop {
+  background: var(--bg-hover);
+  color: var(--primary);
+}
+.nt-folder-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nt-folder-edit {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 0.25rem;
+  font-size: 0.8rem;
+  visibility: hidden;
+}
+.nt-folder:hover .nt-folder-edit {
+  visibility: visible;
+}
+.nt-folder-edit:hover {
+  color: var(--primary);
+}
+.nt-folder-rename {
+  flex: 1;
+  min-width: 0;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.85rem;
+  border-radius: 6px;
 }
 .nt-note {
   padding: 0.3rem 0.4rem;

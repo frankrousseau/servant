@@ -102,4 +102,41 @@ describe("NotesApp", () => {
     expect(update).toHaveBeenCalledWith("1", expect.objectContaining({ body: "x edited" }));
     vi.useRealTimers();
   });
+
+  it("renames a folder across all its notes (children included)", async () => {
+    const { ctx, update } = makeCtx([
+      note("1", "Alpha", "Proj", ""),
+      note("2", "Beta", "Proj/Sub", ""),
+      note("3", "Gamma", "", ""),
+    ]);
+    const wrapper = mount(NotesApp, { props: { ctx: ctx as never } });
+    await flushPromises();
+
+    // Rename the top-level "Proj" folder (first pencil in the tree).
+    await wrapper.find(".nt-folder-edit").trigger("click");
+    const input = wrapper.find(".nt-folder-rename");
+    await input.setValue("Projects");
+    await input.trigger("keyup.enter");
+    await flushPromises();
+
+    expect(update).toHaveBeenCalledWith("1", expect.objectContaining({ folder: "Projects" }));
+    expect(update).toHaveBeenCalledWith("2", expect.objectContaining({ folder: "Projects/Sub" }));
+    expect(update).not.toHaveBeenCalledWith("3", expect.anything());
+  });
+
+  it("moves a note into a folder via drag & drop", async () => {
+    const { ctx, update } = makeCtx([
+      note("1", "Alpha", "", ""),
+      note("2", "Beta", "Proj", ""),
+    ]);
+    const wrapper = mount(NotesApp, { props: { ctx: ctx as never } });
+    await flushPromises();
+
+    const alpha = wrapper.findAll(".nt-note").find((n) => n.text().includes("Alpha"))!;
+    await alpha.trigger("dragstart");
+    await wrapper.find(".nt-folder").trigger("drop");
+    await flushPromises();
+
+    expect(update).toHaveBeenCalledWith("1", expect.objectContaining({ folder: "Proj" }));
+  });
 });

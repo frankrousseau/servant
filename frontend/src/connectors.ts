@@ -160,7 +160,7 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
         key: "wallet_address",
         label: "Wallet address",
         type: "text",
-        placeholder: "Your Solana address",
+        placeholder: "Your Solana address or name.sol",
         required: true,
       },
       {
