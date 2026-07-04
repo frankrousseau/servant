@@ -185,7 +185,7 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
         key: "wallet_address",
         label: "Wallet address",
         type: "text",
-        placeholder: "0x...",
+        placeholder: "0x... or name.eth",
         required: true,
       },
       {
@@ -214,7 +214,7 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
         key: "wallet_address",
         label: "Wallet address",
         type: "text",
-        placeholder: "0x...",
+        placeholder: "0x... or name.eth",
         required: true,
       },
       {
@@ -243,7 +243,7 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
         key: "wallet_address",
         label: "Wallet address",
         type: "text",
-        placeholder: "0x...",
+        placeholder: "0x... or name.eth",
         required: true,
       },
       {
@@ -268,7 +268,7 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
         key: "wallet_address",
         label: "Wallet address",
         type: "text",
-        placeholder: "0x...",
+        placeholder: "0x... or name.eth",
         required: true,
       },
       {

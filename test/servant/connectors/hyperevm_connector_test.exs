@@ -32,6 +32,25 @@ defmodule Servant.Connectors.HyperEVMConnectorTest do
     test "fails without wallet_address" do
       assert {:error, :missing_wallet_address} = HyperEVMConnector.init(%{}, %{})
     end
+
+    test "accepts a .eth name, resolution deferred to sync" do
+      assert {:ok, state} = HyperEVMConnector.init(%{}, %{"wallet_address" => "frank.eth"})
+      assert state.wallet_address == "frank.eth"
+      assert state.resolved_address == nil
+    end
+  end
+
+  describe "resolve_wallet/1" do
+    test "plain address passes through without resolution" do
+      {:ok, state} = HyperEVMConnector.init(%{}, %{"wallet_address" => "0xabc123"})
+      assert {:ok, resolved} = HyperEVMConnector.resolve_wallet(state)
+      assert resolved.resolved_address == "0xabc123"
+    end
+
+    test "already-resolved state is returned as-is (no HTTP call)" do
+      state = %{wallet_address: "frank.eth", resolved_address: "0xabc123"}
+      assert {:ok, ^state} = HyperEVMConnector.resolve_wallet(state)
+    end
   end
 
   describe "metadata" do

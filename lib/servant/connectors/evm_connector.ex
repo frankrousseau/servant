@@ -3,6 +3,10 @@ defmodule Servant.Connectors.EVMConnector do
   Generic EVM chain connector. Use this macro to create a connector
   for any EVM chain with an Etherscan/Blockscout-compatible explorer API.
 
+  The wallet address may be a `.eth` name (ENS, resolved on mainnet); it is
+  resolved to the wallet address at sync time and cached for the worker's
+  lifetime, so a re-pointed name is picked up on the next restart.
+
   ## Usage
 
       defmodule MyApp.Connectors.ArbitrumConnector do
@@ -61,6 +65,7 @@ defmodule Servant.Connectors.EVMConnector do
             {:ok,
              %{
                wallet_address: address,
+               resolved_address: nil,
                explorer_url: config_value(config, "explorer_url", unquote(default_explorer_url)),
                min_wei: config_value(config, "min_wei", @default_min_wei),
                last_block: config_value(config, "last_block", 0)
@@ -73,30 +78,55 @@ defmodule Servant.Connectors.EVMConnector do
 
       @impl true
       def sync(state) do
+        case resolve_wallet(state) do
+          {:ok, state} -> do_sync(state)
+          {:error, reason} -> {:error, reason, state}
+        end
+      end
+
+      @doc false
+      # Public for tests. Maps the configured address to the actual wallet
+      # address: `.eth` names are resolved through ENS, plain addresses pass
+      # through.
+      def resolve_wallet(%{resolved_address: address} = state) when is_binary(address),
+        do: {:ok, state}
+
+      def resolve_wallet(%{wallet_address: address} = state) do
+        if String.ends_with?(String.downcase(address), ".eth") do
+          case Servant.Connectors.EVM.ENS.resolve(address) do
+            {:ok, resolved} -> {:ok, %{state | resolved_address: resolved}}
+            {:error, reason} -> {:error, {:ens_resolution_failed, reason}}
+          end
+        else
+          {:ok, %{state | resolved_address: address}}
+        end
+      end
+
+      defp do_sync(state) do
         start_block = state.last_block + 1
 
         with {:ok, txs} <-
-               Explorer.list_transactions(state.wallet_address, state.explorer_url,
+               Explorer.list_transactions(state.resolved_address, state.explorer_url,
                  start_block: start_block
                ),
              {:ok, token_txs} <-
-               Explorer.list_token_transfers(state.wallet_address, state.explorer_url,
+               Explorer.list_token_transfers(state.resolved_address, state.explorer_url,
                  start_block: start_block
                ) do
           native_entries =
             Enum.flat_map(txs, fn tx ->
-              case TransactionParser.parse_transaction(tx, state.wallet_address,
+              case TransactionParser.parse_transaction(tx, state.resolved_address,
                      min_wei: state.min_wei
                    ) do
-                {:ok, parsed} -> [build_entry(parsed, state.wallet_address)]
+                {:ok, parsed} -> [build_entry(parsed, state.resolved_address)]
                 _ -> []
               end
             end)
 
           token_entries =
             Enum.flat_map(token_txs, fn tx ->
-              case TransactionParser.parse_token_transfer(tx, state.wallet_address) do
-                {:ok, parsed} -> [build_entry(parsed, state.wallet_address)]
+              case TransactionParser.parse_token_transfer(tx, state.resolved_address) do
+                {:ok, parsed} -> [build_entry(parsed, state.resolved_address)]
                 _ -> []
               end
             end)
