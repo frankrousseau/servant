@@ -1,0 +1,346 @@
+<script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted } from "vue";
+import { Play, Pause, Volume2, VolumeX, Maximize, Minimize } from "lucide-vue-next";
+import { formatDuration } from "../lib/datetime";
+
+const props = defineProps<{ src: string; autoplay?: boolean }>();
+const emit = defineEmits<{ error: [] }>();
+
+const root = ref<HTMLElement | null>(null);
+const video = ref<HTMLVideoElement | null>(null);
+const bar = ref<HTMLElement | null>(null);
+
+const playing = ref(false);
+const currentTime = ref(0);
+const duration = ref(0);
+const bufferedEnd = ref(0);
+const volume = ref(1);
+const muted = ref(false);
+const fullscreen = ref(false);
+const controlsVisible = ref(true);
+const scrubbing = ref(false);
+
+const playedPct = computed(() => (duration.value ? (currentTime.value / duration.value) * 100 : 0));
+const bufferedPct = computed(() =>
+  duration.value ? (bufferedEnd.value / duration.value) * 100 : 0,
+);
+const timeLabel = computed(
+  () => `${formatDuration(currentTime.value)} / ${formatDuration(duration.value)}`,
+);
+const idle = computed(() => playing.value && !controlsVisible.value);
+
+function togglePlay() {
+  const v = video.value;
+  if (!v) return;
+  if (v.paused) void v.play();
+  else v.pause();
+  wake();
+}
+
+function onTimeUpdate() {
+  if (!scrubbing.value) currentTime.value = video.value?.currentTime || 0;
+}
+function onLoadedMetadata() {
+  const d = video.value?.duration || 0;
+  duration.value = Number.isFinite(d) ? d : 0;
+}
+function onProgress() {
+  const v = video.value;
+  if (v && v.buffered.length) bufferedEnd.value = v.buffered.end(v.buffered.length - 1);
+}
+function onVolumeChange() {
+  const v = video.value;
+  if (!v) return;
+  volume.value = v.volume;
+  muted.value = v.muted;
+}
+
+// YouTube-style auto-hide: controls fade out after inactivity while playing.
+let hideTimer: ReturnType<typeof setTimeout> | undefined;
+function wake() {
+  controlsVisible.value = true;
+  if (hideTimer) clearTimeout(hideTimer);
+  hideTimer = setTimeout(() => {
+    if (playing.value && !scrubbing.value) controlsVisible.value = false;
+  }, 2500);
+}
+
+// ----- seekbar scrubbing (click or drag anywhere on the bar) -----
+
+function barFraction(e: PointerEvent): number {
+  const rect = bar.value!.getBoundingClientRect();
+  return Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+}
+function startScrub(e: PointerEvent) {
+  if (!video.value || !duration.value) return;
+  scrubbing.value = true;
+  (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  currentTime.value = barFraction(e) * duration.value;
+}
+function moveScrub(e: PointerEvent) {
+  if (scrubbing.value) currentTime.value = barFraction(e) * duration.value;
+}
+function endScrub(e: PointerEvent) {
+  if (!scrubbing.value) return;
+  scrubbing.value = false;
+  if (video.value) video.value.currentTime = barFraction(e) * duration.value;
+  wake();
+}
+
+// ----- volume / fullscreen -----
+
+function toggleMute() {
+  const v = video.value;
+  if (v) v.muted = !v.muted;
+}
+function onVolumeInput(e: Event) {
+  const v = video.value;
+  if (!v) return;
+  v.volume = parseFloat((e.target as HTMLInputElement).value);
+  v.muted = v.volume === 0;
+}
+function toggleFullscreen() {
+  if (document.fullscreenElement) void document.exitFullscreen();
+  else void root.value?.requestFullscreen();
+}
+function onFsChange() {
+  fullscreen.value = !!document.fullscreenElement;
+}
+
+// Space / K toggle playback (unless typing somewhere).
+function onKeydown(e: KeyboardEvent) {
+  if (e.key !== " " && e.key !== "k") return;
+  const t = e.target as HTMLElement;
+  if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t.isContentEditable)
+    return;
+  e.preventDefault();
+  togglePlay();
+}
+
+onMounted(() => {
+  document.addEventListener("fullscreenchange", onFsChange);
+  document.addEventListener("keydown", onKeydown);
+  wake();
+});
+onUnmounted(() => {
+  document.removeEventListener("fullscreenchange", onFsChange);
+  document.removeEventListener("keydown", onKeydown);
+  if (hideTimer) clearTimeout(hideTimer);
+});
+</script>
+
+<template>
+  <div ref="root" class="vp" :class="{ 'vp--idle': idle }" @mousemove="wake">
+    <video
+      ref="video"
+      class="vp-video"
+      :src="src"
+      :autoplay="autoplay"
+      playsinline
+      @click="togglePlay"
+      @dblclick="toggleFullscreen"
+      @play="playing = true; wake();"
+      @pause="playing = false; wake();"
+      @ended="playing = false; controlsVisible = true;"
+      @timeupdate="onTimeUpdate"
+      @loadedmetadata="onLoadedMetadata"
+      @progress="onProgress"
+      @volumechange="onVolumeChange"
+      @error="emit('error')"
+    ></video>
+
+    <button v-if="!playing" class="vp-bigplay" aria-label="Play" @click="togglePlay">
+      <Play :size="30" fill="currentColor" />
+    </button>
+
+    <div class="vp-controls" @click.stop @dblclick.stop>
+      <div
+        ref="bar"
+        class="vp-seek"
+        :class="{ 'vp-seek--active': scrubbing }"
+        @pointerdown="startScrub"
+        @pointermove="moveScrub"
+        @pointerup="endScrub"
+        @pointercancel="endScrub"
+      >
+        <div class="vp-seek-bg"></div>
+        <div class="vp-seek-buffered" :style="{ width: bufferedPct + '%' }"></div>
+        <div class="vp-seek-played" :style="{ width: playedPct + '%' }">
+          <div class="vp-knob"></div>
+        </div>
+      </div>
+      <div class="vp-row">
+        <button class="vp-btn" :title="playing ? 'Pause' : 'Play'" @click="togglePlay">
+          <Pause v-if="playing" :size="20" /><Play v-else :size="20" />
+        </button>
+        <button class="vp-btn" :title="muted ? 'Unmute' : 'Mute'" @click="toggleMute">
+          <VolumeX v-if="muted || volume === 0" :size="20" /><Volume2 v-else :size="20" />
+        </button>
+        <input
+          class="vp-volume"
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          :value="muted ? 0 : volume"
+          @input="onVolumeInput"
+        />
+        <span class="vp-time">{{ timeLabel }}</span>
+        <span class="vp-spacer"></span>
+        <button
+          class="vp-btn"
+          :title="fullscreen ? 'Exit full screen' : 'Full screen'"
+          @click="toggleFullscreen"
+        >
+          <Minimize v-if="fullscreen" :size="20" /><Maximize v-else :size="20" />
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.vp {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  overflow: hidden;
+}
+.vp--idle {
+  cursor: none;
+}
+.vp-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.vp-bigplay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0 0 0 4px;
+}
+.vp-bigplay:hover {
+  background: rgba(var(--primary-rgb), 0.85);
+}
+.vp-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 1rem 0.75rem 0.35rem;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  transition: opacity 0.2s;
+}
+.vp--idle .vp-controls {
+  opacity: 0;
+  pointer-events: none;
+}
+.vp-seek {
+  position: relative;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  touch-action: none;
+}
+.vp-seek-bg,
+.vp-seek-buffered,
+.vp-seek-played {
+  position: absolute;
+  height: 3px;
+  border-radius: 2px;
+  transition: height 0.1s;
+  pointer-events: none;
+}
+.vp-seek-bg {
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.25);
+}
+.vp-seek-buffered {
+  background: rgba(255, 255, 255, 0.45);
+}
+.vp-seek-played {
+  background: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.vp-seek:hover .vp-seek-bg,
+.vp-seek:hover .vp-seek-buffered,
+.vp-seek:hover .vp-seek-played,
+.vp-seek--active .vp-seek-bg,
+.vp-seek--active .vp-seek-buffered,
+.vp-seek--active .vp-seek-played {
+  height: 5px;
+}
+.vp-knob {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--primary);
+  margin-right: -6px;
+  transform: scale(0);
+  transition: transform 0.1s;
+}
+.vp-seek:hover .vp-knob,
+.vp-seek--active .vp-knob {
+  transform: scale(1);
+}
+.vp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.vp-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  opacity: 0.85;
+  cursor: pointer;
+  padding: 0;
+}
+.vp-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.12);
+}
+.vp-volume {
+  width: 70px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  accent-color: #fff;
+  cursor: pointer;
+}
+.vp-time {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.8rem;
+  margin-left: 0.5rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.vp-spacer {
+  flex: 1;
+}
+</style>

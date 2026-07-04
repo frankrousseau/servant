@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { ChevronLeft, ChevronRight, X, Download, Trash2, ZoomIn, ZoomOut, ExternalLink, Info } from "lucide-vue-next";
 import { useConfirm } from "../composables/useConfirm";
+import VideoPlayer from "./VideoPlayer.vue";
 
 export interface ViewerItem {
   id: string;
@@ -86,15 +87,14 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
     <div class="mv-overlay" @click.self="emit('close')">
       <!-- Main image / video -->
       <div class="mv-stage">
-        <video
+        <VideoPlayer
           v-if="current && current.video && !imgError"
+          :key="current.id"
+          class="mv-player"
           :src="current.src"
-          class="mv-image"
-          controls
           autoplay
-          playsinline
           @error="imgError = true"
-        ></video>
+        />
         <img
           v-else-if="current && !imgError"
           :src="current.src"
@@ -276,6 +276,12 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
   object-fit: contain;
   transition: transform 0.2s;
   user-select: none;
+}
+
+.mv-player {
+  width: 90%;
+  height: 92%;
+  background: transparent;
 }
 
 .mv-broken {

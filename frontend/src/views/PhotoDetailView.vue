@@ -5,6 +5,7 @@ import { useApi } from "../composables/useApi";
 import { useFetchData } from "../composables/useFetchData";
 import { ArrowLeft, Download, Trash2 } from "lucide-vue-next";
 import { useConfirm } from "../composables/useConfirm";
+import VideoPlayer from "../components/VideoPlayer.vue";
 import type { Entry } from "../types";
 import { formatFileSize } from "../types";
 import { formatDateTime } from "../lib/datetime";
@@ -70,13 +71,12 @@ async function deletePhoto() {
     <template v-if="entry && !loading">
       <div class="photo-layout">
         <div class="photo-preview">
-          <video
+          <VideoPlayer
             v-if="isVideo && !imgError"
+            class="photo-player"
             :src="photoPath"
-            controls
-            playsinline
             @error="imgError = true"
-          ></video>
+          />
           <img v-else-if="!imgError" :src="photoPath" :alt="entry.title || ''" @error="imgError = true" />
           <div v-else class="photo-broken">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
@@ -203,12 +203,17 @@ async function deletePhoto() {
   justify-content: center;
 }
 
-.photo-preview img,
-.photo-preview video {
+.photo-preview img {
   max-width: 100%;
   max-height: calc(100vh - 12rem);
   object-fit: contain;
   display: block;
+}
+.photo-player {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: calc(100vh - 12rem);
+  border-radius: 8px;
 }
 
 .photo-broken {

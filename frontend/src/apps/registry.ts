@@ -1,19 +1,27 @@
 import type { AppDef } from "./types";
 
+// Alphabetical by name — this array is the sidebar display order.
 export const BUILTIN_APPS: AppDef[] = [
-  {
-    id: "contacts",
-    name: "Contacts",
-    icon: "UserRound",
-    builtin: true,
-    load: () => import("./contacts"),
-  },
   {
     id: "calendar",
     name: "Calendar",
     icon: "CalendarDays",
     builtin: true,
     load: () => import("./calendar"),
+  },
+  {
+    id: "checklists",
+    name: "Checklists",
+    icon: "ListChecks",
+    builtin: true,
+    load: () => import("./checklists"),
+  },
+  {
+    id: "contacts",
+    name: "Contacts",
+    icon: "UserRound",
+    builtin: true,
+    load: () => import("./contacts"),
   },
   {
     id: "files",
@@ -23,13 +31,6 @@ export const BUILTIN_APPS: AppDef[] = [
     load: () => import("./files"),
   },
   {
-    id: "photos",
-    name: "Photos",
-    icon: "Image",
-    builtin: true,
-    load: () => import("./photos"),
-  },
-  {
     id: "notes",
     name: "Notes",
     icon: "NotebookPen",
@@ -37,11 +38,11 @@ export const BUILTIN_APPS: AppDef[] = [
     load: () => import("./notes"),
   },
   {
-    id: "checklists",
-    name: "Checklists",
-    icon: "ListChecks",
+    id: "photos",
+    name: "Photos",
+    icon: "Image",
     builtin: true,
-    load: () => import("./checklists"),
+    load: () => import("./photos"),
   },
 ];
 

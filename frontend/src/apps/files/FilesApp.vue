@@ -1,5 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
+import {
+  Folder,
+  File,
+  FileText,
+  FileArchive,
+  Image as ImageIcon,
+  Video,
+} from "lucide-vue-next";
 import type { AppContext, Entry } from "../types";
 import { formatFileSize } from "../../types";
 import { formatDate } from "../../lib/datetime";
@@ -9,19 +17,10 @@ const props = defineProps<{ ctx: AppContext }>();
 const allFiles = ref<Entry[]>([]);
 const currentFolder = ref<string | null>(null);
 const selectedId = ref<string | null>(null);
-const folderPath = ref<{ id: string | null; name: string }[]>([{ id: null, name: "Files" }]);
+const folderPath = ref<{ id: string | null; name: string }[]>([{ id: null, name: "~" }]);
 const dragover = ref(false);
 const loading = ref(true);
 const loadError = ref("");
-
-const FILE_ICONS: Record<string, string> = {
-  folder: "📁",
-  pdf: "📄",
-  image: "🖼️",
-  text: "📝",
-  zip: "📦",
-  default: "📎",
-};
 
 function field<T = unknown>(e: Entry, k: string): T {
   return e.data[k] as T;
@@ -32,14 +31,14 @@ const fileSize = (e: Entry) => field<number>(e, "size") || 0;
 const parentId = (e: Entry) => field<string>(e, "parent_id") || null;
 const filePath = (e: Entry) => field<string>(e, "path") || null;
 
-function fileIcon(e: Entry): string {
-  if (isFolder(e)) return FILE_ICONS.folder;
+function fileIcon(e: Entry): typeof Folder {
+  if (isFolder(e)) return Folder;
   const mime = field<string>(e, "mime_type") || "";
-  if (mime.startsWith("image/")) return FILE_ICONS.image;
-  if (mime === "application/pdf") return FILE_ICONS.pdf;
-  if (mime.startsWith("text/")) return FILE_ICONS.text;
-  if (mime.includes("zip")) return FILE_ICONS.zip;
-  return FILE_ICONS.default;
+  if (mime.startsWith("image/")) return ImageIcon;
+  if (mime.startsWith("video/")) return Video;
+  if (mime === "application/pdf" || mime.startsWith("text/")) return FileText;
+  if (mime.includes("zip")) return FileArchive;
+  return File;
 }
 
 const currentItems = computed(() =>
@@ -135,7 +134,7 @@ onMounted(reload);
 </script>
 
 <template>
-  <p v-if="loading" class="fs-loading">Loading files...</p>
+  <p v-if="loading" class="fs-loading">Reading directory&hellip;</p>
   <p v-else-if="loadError" class="fs-loading">{{ loadError }}</p>
   <div v-else class="fs-layout">
     <div class="fs-main">
@@ -155,30 +154,45 @@ onMounted(reload);
         </div>
       </div>
       <div
-        class="fs-grid"
+        class="fs-list"
         :class="{ 'fs-dragover': dragover }"
         @dragover.prevent="dragover = true"
         @dragleave="dragover = false"
         @drop.prevent="onDrop"
       >
+        <div class="fs-list-head" aria-hidden="true">
+          <span></span>
+          <span>Name</span>
+          <span class="fs-col-size">Size</span>
+          <span>Added</span>
+        </div>
         <div
           v-for="f in currentItems"
           :key="f.id"
-          class="fs-item"
-          :class="{ 'fs-item--active': f.id === selectedId }"
+          class="fs-row"
+          :class="{ 'fs-row--active': f.id === selectedId }"
           @click="selectedId = f.id"
           @dblclick="openFolder(f)"
         >
-          <span class="fs-icon">{{ fileIcon(f) }}</span>
-          <span class="fs-name">{{ fileName(f) }}</span>
-          <span v-if="!isFolder(f)" class="fs-size">{{ formatFileSize(fileSize(f)) }}</span>
+          <span class="fs-row-icon" :class="{ 'fs-row-icon--folder': isFolder(f) }">
+            <component :is="fileIcon(f)" :size="16" />
+          </span>
+          <span class="fs-name"
+            >{{ fileName(f) }}<span v-if="isFolder(f)" class="fs-slash">/</span></span
+          >
+          <span class="fs-size fs-col-size">{{
+            isFolder(f) ? "—" : formatFileSize(fileSize(f))
+          }}</span>
+          <span class="fs-date">{{ formatDate(f.inserted_at) }}</span>
         </div>
-        <p v-if="currentItems.length === 0" class="fs-empty">This folder is empty</p>
+        <p v-if="currentItems.length === 0" class="fs-empty">Empty directory</p>
       </div>
     </div>
     <div class="fs-detail-col">
       <div v-if="selected" class="fs-detail">
-        <span class="fs-detail-icon">{{ fileIcon(selected) }}</span>
+        <span class="fs-detail-icon" :class="{ 'fs-row-icon--folder': isFolder(selected) }">
+          <component :is="fileIcon(selected)" :size="40" :stroke-width="1.5" />
+        </span>
         <h3 class="fs-detail-name">{{ fileName(selected) }}</h3>
         <div v-if="!isFolder(selected)" class="fs-detail-meta">
           <div class="fs-meta-row">
@@ -223,6 +237,7 @@ onMounted(reload);
 .fs-loading {
   color: var(--text-muted);
   padding: 2rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 .fs-layout {
   display: flex;
@@ -249,11 +264,13 @@ onMounted(reload);
   border-bottom: 1px solid var(--border);
   gap: 0.5rem;
 }
+/* The path is a prompt: ~/documents/taxes */
 .fs-breadcrumbs {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  font-size: 0.9rem;
+  gap: 0.15rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88rem;
   min-width: 0;
   overflow: hidden;
 }
@@ -265,9 +282,11 @@ onMounted(reload);
 .fs-crumb:hover {
   color: var(--text);
 }
+.fs-crumb:first-child {
+  color: var(--primary);
+}
 .fs-crumb:last-child {
   color: var(--text);
-  font-weight: 500;
 }
 .fs-crumb-sep {
   color: var(--text-muted);
@@ -295,47 +314,72 @@ onMounted(reload);
   display: inline-flex;
   align-items: center;
 }
-.fs-grid {
+/* Directory listing, ls style */
+.fs-list {
   flex: 1;
   overflow-y: auto;
-  padding: 0.75rem;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 0.5rem;
-  align-content: start;
+  padding: 0.5rem 0.75rem 0.75rem;
 }
-.fs-item {
-  display: flex;
-  flex-direction: column;
+.fs-list-head,
+.fs-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 90px 110px;
+  gap: 0.6rem;
   align-items: center;
-  gap: 0.35rem;
-  padding: 1rem 0.5rem;
-  border-radius: 10px;
+  padding: 0.35rem 0.5rem;
+}
+.fs-list-head {
+  position: sticky;
+  top: -0.5rem; /* cancel .fs-list padding */
+  z-index: 2;
+  background: var(--bg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+.fs-row {
+  border-radius: var(--radius);
   cursor: pointer;
   transition: background 0.1s;
-  text-align: center;
 }
-.fs-item:hover {
+.fs-row:hover {
   background: var(--bg-hover);
 }
-.fs-item--active {
-  background: var(--bg-hover);
-  outline: 1px solid var(--primary);
+/* Cursor row: violet rail + tint, same language as Contacts */
+.fs-row--active {
+  background: rgba(var(--primary-rgb), 0.1);
+  box-shadow: inset 2px 0 0 var(--primary);
 }
-.fs-icon {
-  font-size: 2rem;
-  line-height: 1;
-}
-.fs-name {
-  font-size: 0.85rem;
-  word-break: break-word;
-  max-width: 100%;
-}
-.fs-size {
-  font-size: 0.75rem;
+.fs-row-icon {
+  display: flex;
+  align-items: center;
   color: var(--text-muted);
 }
-.fs-grid.fs-dragover {
+.fs-row-icon--folder {
+  color: var(--primary);
+}
+.fs-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fs-slash {
+  color: var(--text-muted);
+}
+.fs-size,
+.fs-date {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.fs-col-size {
+  text-align: right;
+}
+.fs-list.fs-dragover {
   outline: 2px dashed var(--primary);
   outline-offset: -4px;
   background: rgba(var(--primary-rgb), 0.05);
@@ -344,12 +388,15 @@ onMounted(reload);
   color: var(--text-muted);
   text-align: center;
   padding: 3rem;
-  grid-column: 1 / -1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88rem;
 }
 .fs-placeholder {
   color: var(--text-muted);
   text-align: center;
   padding: 3rem 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88rem;
 }
 .fs-detail {
   display: flex;
@@ -358,7 +405,7 @@ onMounted(reload);
   gap: 0.5rem;
 }
 .fs-detail-icon {
-  font-size: 3rem;
+  color: var(--text-muted);
 }
 .fs-detail-name {
   margin: 0;

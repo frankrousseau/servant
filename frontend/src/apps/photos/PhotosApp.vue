@@ -36,6 +36,12 @@ function field(e: Entry, k: string): unknown {
 }
 const getThumbPath = (e: Entry) => (field(e, "thumb_path") || field(e, "path")) as string;
 const isVideo = (e: Entry) => (((field(e, "mime_type") as string) || "").startsWith("video/"));
+
+// Thumbnail frame: the first frame is often black; show the middle one instead.
+function seekThumbFrame(e: Event) {
+  const v = e.target as HTMLVideoElement;
+  if (Number.isFinite(v.duration) && v.duration > 0) v.currentTime = v.duration / 2;
+}
 const getTags = (e: Entry): string[] => (e.data.tags as string[]) || [];
 const getPeople = (e: Entry): Person[] => (e.data.people as Person[]) || [];
 
@@ -541,8 +547,8 @@ onMounted(() => {
             <path d="M10 11v6M14 11v6" />
           </svg>
         </button>
-        <!-- preload="metadata" makes the browser render the first frame, so
-             no server-side video thumbnailing (ffmpeg) is needed. -->
+        <!-- preload="metadata" + a seek to the middle makes the browser render
+             a representative frame — no server-side thumbnailing (ffmpeg). -->
         <video
           v-if="isVideo(p) && !broken.has(p.id)"
           class="ph-thumb-img"
@@ -550,6 +556,7 @@ onMounted(() => {
           preload="metadata"
           muted
           playsinline
+          @loadedmetadata="seekThumbFrame"
           @error="broken.add(p.id)"
         ></video>
         <img
@@ -903,14 +910,16 @@ onMounted(() => {
     0 0 0 2px var(--primary),
     0 0 14px rgba(var(--primary-rgb), 0.35);
 }
-.ph-thumb img {
+.ph-thumb img,
+.ph-thumb video {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
   transition: filter 0.15s;
 }
-.ph-thumb:hover img {
+.ph-thumb:hover img,
+.ph-thumb:hover video {
   filter: brightness(1.12);
 }
 .ph-thumb-delete {

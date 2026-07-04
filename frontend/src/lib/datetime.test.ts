@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { zonedToUtcISO, utcToZonedParts, todayInUserTz, formatDate } from "./datetime";
+import { zonedToUtcISO, utcToZonedParts, todayInUserTz, formatDate, formatDuration } from "./datetime";
 
 describe("zonedToUtcISO", () => {
   it("interprets wall-clock time in the given zone (Paris summer, UTC+2)", () => {
@@ -47,5 +47,24 @@ describe("formatDate", () => {
 
   it("formats a valid ISO date to a non-empty string", () => {
     expect(formatDate("2026-07-15T07:00:00.000Z")).not.toBe("");
+  });
+});
+
+describe("formatDuration", () => {
+  it("formats seconds and minutes", () => {
+    expect(formatDuration(0)).toBe("0:00");
+    expect(formatDuration(7)).toBe("0:07");
+    expect(formatDuration(83.9)).toBe("1:23");
+  });
+
+  it("switches to h:mm:ss past the hour", () => {
+    expect(formatDuration(3600)).toBe("1:00:00");
+    expect(formatDuration(3661)).toBe("1:01:01");
+  });
+
+  it("is defensive about invalid input", () => {
+    expect(formatDuration(NaN)).toBe("0:00");
+    expect(formatDuration(Infinity)).toBe("0:00");
+    expect(formatDuration(-5)).toBe("0:00");
   });
 });

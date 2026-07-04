@@ -177,7 +177,7 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
 </script>
 
 <template>
-  <p v-if="loading" class="ct-loading">Loading contacts...</p>
+  <p v-if="loading" class="ct-loading">Scanning address book&hellip;</p>
   <p v-else-if="loadError" class="ct-loading">{{ loadError }}</p>
   <div v-else class="ct-layout">
     <div class="ct-list-col">
@@ -189,7 +189,9 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
           v-model="searchQuery"
           @input="onSearch"
         />
-        <span class="ct-count">{{ filtered.length }}</span>
+        <span class="ct-count"
+          >{{ filtered.length }} <span class="ct-count-unit">REC</span></span
+        >
         <button class="ct-add-contact-btn" title="New contact" @click="openCreate">
           <svg
             width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -201,7 +203,10 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
         </button>
       </div>
       <div v-if="filtered.length === 0" class="ct-list">
-        <p class="ct-empty">No contacts found.</p>
+        <p v-if="allContacts.length === 0" class="ct-empty">
+          No contacts yet. Add one, or connect a vCard source.
+        </p>
+        <p v-else class="ct-empty">No match.</p>
       </div>
       <div v-else class="ct-list" v-bind="containerProps">
         <div v-bind="wrapperProps">
@@ -396,6 +401,7 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
 .ct-loading {
   color: var(--text-muted);
   padding: 2rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 .ct-layout {
   display: flex;
@@ -424,9 +430,14 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
   flex: 1;
 }
 .ct-count {
-  font-size: 0.8rem;
-  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  color: var(--text);
   white-space: nowrap;
+}
+.ct-count-unit {
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
 }
 .ct-list {
   flex: 1;
@@ -445,8 +456,10 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
 .ct-card:hover {
   background: var(--bg-hover);
 }
+/* Cursor row: violet rail + tint, like a terminal selection */
 .ct-card--active {
-  background: var(--bg-hover);
+  background: rgba(var(--primary-rgb), 0.1);
+  box-shadow: inset 2px 0 0 var(--primary);
 }
 .ct-avatar {
   width: 36px;
@@ -489,6 +502,8 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
   color: var(--text-muted);
   text-align: center;
   padding: 3rem 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88rem;
 }
 .ct-detail-header {
   display: flex;
@@ -498,7 +513,10 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
 }
 .ct-detail-name {
   margin: 0;
-  font-size: 1.25rem;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.6rem;
+  letter-spacing: 0.03em;
 }
 .ct-detail-sub {
   font-size: 0.9rem;
@@ -529,9 +547,10 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
 }
 .ct-section-title {
   margin: 0 0 0.6rem;
-  font-size: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.12em;
   color: var(--text-muted);
 }
 .ct-info-row {
@@ -668,7 +687,11 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
 }
 .ct-modal-title {
   margin: 0 0 1.25rem;
-  font-size: 1.15rem;
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 1.4rem;
 }
 .ct-modal-form {
   display: flex;
@@ -738,7 +761,7 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
 .ct-modal-btn--primary {
   background: var(--primary);
   border: 1px solid var(--primary);
-  color: #fff;
+  color: #05070f;
 }
 .ct-modal-btn--primary:hover {
   background: var(--primary-hover);
