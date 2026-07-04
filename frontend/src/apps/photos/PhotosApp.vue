@@ -2,7 +2,7 @@
 import { ref, computed, watch, nextTick, onMounted } from "vue";
 import type { AppContext, Entry } from "../types";
 import { formatFileSize } from "../../types";
-import { formatDateTime } from "../../lib/datetime";
+import { formatDate, formatDateTime, utcToZonedParts } from "../../lib/datetime";
 import { contactName, contactInitials } from "../../lib/contact";
 
 const props = defineProps<{ ctx: AppContext }>();
@@ -35,6 +35,7 @@ function field(e: Entry, k: string): unknown {
   return e.data[k];
 }
 const getThumbPath = (e: Entry) => (field(e, "thumb_path") || field(e, "path")) as string;
+const isVideo = (e: Entry) => (((field(e, "mime_type") as string) || "").startsWith("video/"));
 const getTags = (e: Entry): string[] => (e.data.tags as string[]) || [];
 const getPeople = (e: Entry): Person[] => (e.data.people as Person[]) || [];
 
@@ -67,6 +68,64 @@ const filtered = computed(() => {
   if (tagFilter.value) list = list.filter((p) => getTags(p).includes(tagFilter.value));
   if (peopleFilter.value) list = list.filter((p) => getPeople(p).some((pp) => pp.id === peopleFilter.value));
   return list;
+});
+
+// ----- grouping by shot date (occurred_at, i.e. EXIF date, else upload date) -----
+
+const groupBy = ref<"" | "year" | "month" | "week">("");
+
+const photoDate = (p: Entry) => (p.occurred_at || p.inserted_at) as string;
+
+function isoWeek(y: number, m: number, d: number): { year: number; week: number } {
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((date.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
+  return { year: date.getUTCFullYear(), week };
+}
+
+interface PhotoGroup {
+  key: string;
+  label: string;
+  photos: Entry[];
+}
+
+const groups = computed<PhotoGroup[]>(() => {
+  if (!groupBy.value) return [{ key: "", label: "", photos: filtered.value }];
+
+  const list = [...filtered.value].sort((a, b) => (photoDate(a) < photoDate(b) ? 1 : -1));
+  const out: PhotoGroup[] = [];
+  const idx = new Map<string, number>();
+
+  for (const p of list) {
+    const iso = photoDate(p);
+    const dateStr = utcToZonedParts(iso).date; // wall-clock day in the user's tz
+    let key: string;
+    let label: string;
+
+    if (groupBy.value === "year") {
+      key = dateStr.slice(0, 4);
+      label = key;
+    } else if (groupBy.value === "month") {
+      key = dateStr.slice(0, 7);
+      label = formatDate(iso, { month: "long", year: "numeric" });
+    } else {
+      const [y, m, d] = dateStr.split("-").map(Number);
+      const w = isoWeek(y, m, d);
+      key = `${w.year}-W${String(w.week).padStart(2, "0")}`;
+      label = `W${String(w.week).padStart(2, "0")} · ${w.year}`;
+    }
+
+    let i = idx.get(key);
+    if (i === undefined) {
+      i = out.length;
+      idx.set(key, i);
+      out.push({ key, label, photos: [] });
+    }
+    out[i].photos.push(p);
+  }
+  return out;
 });
 
 const selCount = computed(() => selectedIds.value.size);
@@ -131,12 +190,12 @@ async function reload() {
 }
 
 async function uploadFiles(files: File[]) {
-  const images = files.filter((f) => f.type.startsWith("image/"));
-  if (!images.length) return;
+  const media = files.filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/"));
+  if (!media.length) return;
   uploading.value = true;
   loadError.value = "";
   try {
-    for (const file of images) {
+    for (const file of media) {
       const result = (await props.ctx.api.upload(file, "photos")) as unknown as Record<string, unknown>;
       const data: Record<string, unknown> = {
         filename: file.name,
@@ -320,6 +379,7 @@ function openViewer(photoId: string) {
     return {
       id: p.id,
       src: field(p, "path") as string,
+      video: isVideo(p),
       title: p.title || undefined,
       subtitle: (field(p, "album") as string) || undefined,
       meta: Object.keys(meta).length ? meta : undefined,
@@ -406,6 +466,12 @@ onMounted(() => {
           <option value="">All photos</option>
           <option v-for="a in albums" :key="a" :value="a">{{ a }}</option>
         </select>
+        <select class="ph-album-filter ph-group-select" v-model="groupBy">
+          <option value="">No grouping</option>
+          <option value="year">By year</option>
+          <option value="month">By month</option>
+          <option value="week">By week</option>
+        </select>
         <span class="ph-status"
           >{{ filtered.length }} <span class="ph-status-unit">IMG</span></span
         >
@@ -413,7 +479,7 @@ onMounted(() => {
       <div class="ph-actions">
         <button class="ph-btn" @click="enterSelect">Select</button>
         <label class="ph-btn">
-          + Upload<input type="file" accept="image/*" multiple hidden @change="onFileInput" />
+          + Upload<input type="file" accept="image/*,video/*" multiple hidden @change="onFileInput" />
         </label>
       </div>
     </div>
@@ -447,9 +513,15 @@ onMounted(() => {
 
     <div v-if="uploading" class="ph-uploading">Uploading...</div>
 
-    <div class="ph-grid">
+    <div class="ph-scroll">
+      <template v-for="g in groups" :key="g.key">
+        <div v-if="g.label" class="ph-group-header">
+          <span class="ph-group-label">{{ g.label }}</span>
+          <span class="ph-group-count">{{ g.photos.length }}</span>
+        </div>
+        <div class="ph-grid">
       <div
-        v-for="p in filtered"
+        v-for="p in g.photos"
         :key="p.id"
         class="ph-thumb"
         :class="{ 'ph-thumb--selected': selectionMode && selectedIds.has(p.id) }"
@@ -469,14 +541,31 @@ onMounted(() => {
             <path d="M10 11v6M14 11v6" />
           </svg>
         </button>
+        <!-- preload="metadata" makes the browser render the first frame, so
+             no server-side video thumbnailing (ffmpeg) is needed. -->
+        <video
+          v-if="isVideo(p) && !broken.has(p.id)"
+          class="ph-thumb-img"
+          :src="getThumbPath(p)"
+          preload="metadata"
+          muted
+          playsinline
+          @error="broken.add(p.id)"
+        ></video>
         <img
-          v-if="!broken.has(p.id)"
+          v-else-if="!broken.has(p.id)"
           class="ph-thumb-img"
           :src="getThumbPath(p)"
           :alt="p.title || ''"
           loading="lazy"
           @error="broken.add(p.id)"
         />
+        <span v-if="isVideo(p) && !broken.has(p.id)" class="ph-thumb-play" aria-hidden="true">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="12" cy="12" r="11" fill="rgba(0, 0, 0, 0.5)" />
+            <path d="M10 8l6 4-6 4z" fill="#fff" />
+          </svg>
+        </span>
         <div v-else class="ph-broken">
           <svg
             width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -497,10 +586,12 @@ onMounted(() => {
           >
         </div>
       </div>
+        </div>
+      </template>
       <div v-if="filtered.length === 0" class="ph-empty">
         <template v-if="allPhotos.length === 0">
           <div class="ph-nosignal" aria-hidden="true">NO SIGNAL</div>
-          <p class="ph-empty-hint">Drop images anywhere, or use Upload.</p>
+          <p class="ph-empty-hint">Drop images or videos anywhere, or use Upload.</p>
         </template>
         <p v-else class="ph-empty-hint">No photos match this filter.</p>
       </div>
@@ -743,14 +834,46 @@ onMounted(() => {
   color: var(--primary);
   background: rgba(var(--primary-rgb), 0.08);
 }
-.ph-grid {
+.ph-scroll {
   flex: 1;
   overflow-y: auto;
   padding: 0.75rem;
+}
+.ph-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 0.5rem;
   align-content: start;
+  margin-bottom: 1rem;
+}
+.ph-grid:last-of-type {
+  margin-bottom: 0;
+}
+.ph-group-header {
+  position: sticky;
+  top: -0.75rem; /* cancel .ph-scroll padding so it pins to the very top */
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0 0.45rem;
+  margin: 0 -0.1rem 0.5rem;
+  background: var(--bg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.ph-group-header::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--border);
+}
+.ph-group-label {
+  color: var(--text);
+}
+.ph-group-count {
+  color: var(--text-muted);
 }
 .ph-thumb {
   position: relative;
@@ -760,6 +883,14 @@ onMounted(() => {
   cursor: pointer;
   background: var(--bg-surface);
   transition: box-shadow 0.15s;
+}
+.ph-thumb-play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
 }
 /* Photos are the light: on hover the image brightens inside a phosphor ring */
 .ph-thumb:hover {

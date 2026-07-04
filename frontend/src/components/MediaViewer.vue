@@ -6,6 +6,7 @@ import { useConfirm } from "../composables/useConfirm";
 export interface ViewerItem {
   id: string;
   src: string;
+  video?: boolean;
   title?: string;
   subtitle?: string;
   meta?: Record<string, string | number | null>;
@@ -83,10 +84,19 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
 <template>
   <Teleport to="body">
     <div class="mv-overlay" @click.self="emit('close')">
-      <!-- Main image -->
+      <!-- Main image / video -->
       <div class="mv-stage">
+        <video
+          v-if="current && current.video && !imgError"
+          :src="current.src"
+          class="mv-image"
+          controls
+          autoplay
+          playsinline
+          @error="imgError = true"
+        ></video>
         <img
-          v-if="current && !imgError"
+          v-else-if="current && !imgError"
           :src="current.src"
           :alt="current.title || ''"
           class="mv-image"
@@ -96,7 +106,7 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
         />
         <div v-else class="mv-broken">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-          <span>Image unavailable</span>
+          <span>Media unavailable</span>
         </div>
       </div>
 
@@ -108,8 +118,10 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
         </div>
         <div class="mv-counter">{{ currentIndex + 1 }} / {{ items.length }}</div>
         <div class="mv-top-actions">
-          <button class="mv-btn" @click="zoomOut" title="Zoom out"><ZoomOut :size="18" /></button>
-          <button class="mv-btn" @click="zoomIn" title="Zoom in"><ZoomIn :size="18" /></button>
+          <template v-if="!current?.video">
+            <button class="mv-btn" @click="zoomOut" title="Zoom out"><ZoomOut :size="18" /></button>
+            <button class="mv-btn" @click="zoomIn" title="Zoom in"><ZoomIn :size="18" /></button>
+          </template>
           <a
             v-if="current"
             class="mv-btn"

@@ -62,4 +62,48 @@ defmodule ServantWeb.FilesControllerTest do
     conn = conn |> with_cookie(user.id) |> get("/files/#{user.id}/apps/files/missing.txt")
     assert json_response(conn, 404)
   end
+
+  describe "range requests (video seeking)" do
+    setup %{conn: conn, dir: dir} do
+      user = user_fixture()
+      rel = write_file(dir, user.id, "apps/photos/clip.mp4", "0123456789")
+      %{conn: with_cookie(conn, user.id), rel: rel}
+    end
+
+    test "serves a bounded range with 206 and Content-Range", %{conn: conn, rel: rel} do
+      conn = conn |> put_req_header("range", "bytes=2-5") |> get("/files/#{rel}")
+
+      assert response(conn, 206) == "2345"
+      assert get_resp_header(conn, "content-range") == ["bytes 2-5/10"]
+      assert get_resp_header(conn, "accept-ranges") == ["bytes"]
+    end
+
+    test "serves open-ended and suffix ranges", %{conn: conn, rel: rel} do
+      open = conn |> put_req_header("range", "bytes=6-") |> get("/files/#{rel}")
+      assert response(open, 206) == "6789"
+
+      suffix = conn |> put_req_header("range", "bytes=-3") |> get("/files/#{rel}")
+      assert response(suffix, 206) == "789"
+      assert get_resp_header(suffix, "content-range") == ["bytes 7-9/10"]
+    end
+
+    test "an end past EOF is clamped to the file size", %{conn: conn, rel: rel} do
+      conn = conn |> put_req_header("range", "bytes=8-999") |> get("/files/#{rel}")
+
+      assert response(conn, 206) == "89"
+      assert get_resp_header(conn, "content-range") == ["bytes 8-9/10"]
+    end
+
+    test "416 for a start past EOF", %{conn: conn, rel: rel} do
+      conn = conn |> put_req_header("range", "bytes=42-") |> get("/files/#{rel}")
+
+      assert response(conn, 416)
+      assert get_resp_header(conn, "content-range") == ["bytes */10"]
+    end
+
+    test "a malformed range falls back to the full file", %{conn: conn, rel: rel} do
+      conn = conn |> put_req_header("range", "bytes=abc") |> get("/files/#{rel}")
+      assert response(conn, 200) == "0123456789"
+    end
+  end
 end

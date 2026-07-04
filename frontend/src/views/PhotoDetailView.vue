@@ -35,6 +35,7 @@ watch(
 const photoPath = computed(() => (entry.value?.data?.path as string) || "");
 const filename = computed(() => (entry.value?.data?.filename as string) || "");
 const mimeType = computed(() => (entry.value?.data?.mime_type as string) || "");
+const isVideo = computed(() => mimeType.value.startsWith("video/"));
 const fileSize = computed(() => formatFileSize((entry.value?.data?.size as number) || 0));
 const album = computed(() => (entry.value?.data?.album as string) || "");
 const dateTaken = computed(() => (entry.value?.data?.date_taken as string) || "");
@@ -69,7 +70,14 @@ async function deletePhoto() {
     <template v-if="entry && !loading">
       <div class="photo-layout">
         <div class="photo-preview">
-          <img v-if="!imgError" :src="photoPath" :alt="entry.title || ''" @error="imgError = true" />
+          <video
+            v-if="isVideo && !imgError"
+            :src="photoPath"
+            controls
+            playsinline
+            @error="imgError = true"
+          ></video>
+          <img v-else-if="!imgError" :src="photoPath" :alt="entry.title || ''" @error="imgError = true" />
           <div v-else class="photo-broken">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
             <span>Image unavailable</span>
@@ -195,7 +203,8 @@ async function deletePhoto() {
   justify-content: center;
 }
 
-.photo-preview img {
+.photo-preview img,
+.photo-preview video {
   max-width: 100%;
   max-height: calc(100vh - 12rem);
   object-fit: contain;

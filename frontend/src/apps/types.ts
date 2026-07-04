@@ -21,6 +21,7 @@ export interface UploadResult {
 export interface ViewerItem {
   id: string;
   src: string;
+  video?: boolean;
   title?: string;
   subtitle?: string;
   meta?: Record<string, string | number | null>;
