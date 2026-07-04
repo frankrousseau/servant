@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
-import { ChevronLeft, ChevronRight, X, Download, Trash2, ZoomIn, ZoomOut, ExternalLink, Info } from "lucide-vue-next";
+import { ChevronLeft, ChevronRight, X, Download, Trash2, ZoomIn, ZoomOut, ExternalLink, Info, Maximize2 } from "lucide-vue-next";
 import { useConfirm } from "../composables/useConfirm";
 import VideoPlayer from "./VideoPlayer.vue";
 
 export interface ViewerItem {
   id: string;
   src: string;
+  /** Original full-resolution source when `src` is a downscaled display copy. */
+  fullSrc?: string;
   video?: boolean;
   title?: string;
   subtitle?: string;
@@ -27,8 +29,12 @@ const currentIndex = ref(props.startIndex ?? 0);
 const zoom = ref(1);
 const imgError = ref(false);
 const showInfo = ref(false);
+const showFull = ref(false);
 
 const current = computed(() => props.items[currentIndex.value]);
+const displaySrc = computed(() =>
+  showFull.value && current.value?.fullSrc ? current.value.fullSrc : current.value?.src,
+);
 const hasPrev = computed(() => currentIndex.value > 0);
 const hasNext = computed(() => currentIndex.value < props.items.length - 1);
 
@@ -47,11 +53,11 @@ watch(
 );
 
 function prev() {
-  if (hasPrev.value) { currentIndex.value--; zoom.value = 1; imgError.value = false; showInfo.value = false; }
+  if (hasPrev.value) { currentIndex.value--; zoom.value = 1; imgError.value = false; showInfo.value = false; showFull.value = false; }
 }
 
 function next() {
-  if (hasNext.value) { currentIndex.value++; zoom.value = 1; imgError.value = false; showInfo.value = false; }
+  if (hasNext.value) { currentIndex.value++; zoom.value = 1; imgError.value = false; showInfo.value = false; showFull.value = false; }
 }
 
 function zoomIn() {
@@ -97,7 +103,7 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
         />
         <img
           v-else-if="current && !imgError"
-          :src="current.src"
+          :src="displaySrc"
           :alt="current.title || ''"
           class="mv-image"
           :style="{ transform: `scale(${zoom})` }"
@@ -122,13 +128,20 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
             <button class="mv-btn" @click="zoomOut" title="Zoom out"><ZoomOut :size="18" /></button>
             <button class="mv-btn" @click="zoomIn" title="Zoom in"><ZoomIn :size="18" /></button>
           </template>
+          <button
+            v-if="current?.fullSrc && !current?.video"
+            class="mv-btn"
+            :class="{ 'mv-btn--active': showFull }"
+            @click="showFull = !showFull"
+            :title="showFull ? 'Back to fit size' : 'Load full resolution'"
+          ><Maximize2 :size="18" /></button>
           <a
             v-if="current"
             class="mv-btn"
-            :href="current.src"
+            :href="current.fullSrc || current.src"
             download
             target="_blank"
-            title="Download"
+            title="Download original"
           ><Download :size="18" /></a>
           <router-link
             v-if="current"

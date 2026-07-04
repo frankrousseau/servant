@@ -32,6 +32,7 @@ const modalEndDate = ref("");
 const modalTitle = ref("");
 const modalTime = ref("");
 const modalEndTime = ref("");
+const modalAllDay = ref(false);
 const modalLocation = ref("");
 const modalSaving = ref(false);
 
@@ -152,6 +153,7 @@ function openModal(dateStr: string) {
   modalTitle.value = "";
   modalTime.value = "09:00";
   modalEndTime.value = "10:00";
+  modalAllDay.value = false;
   modalLocation.value = "";
   modalSaving.value = false;
   modalOpen.value = true;
@@ -177,6 +179,7 @@ function openEditModal(entry: Entry) {
   }
 
   modalTitle.value = entry.title || (entry.data.summary as string) || "";
+  modalAllDay.value = entry.data.all_day === true;
   modalLocation.value = (entry.data.location as string) || "";
   modalSaving.value = false;
   modalOpen.value = true;
@@ -198,11 +201,18 @@ async function saveEvent() {
   modalSaving.value = true;
 
   const endDateStr = modalEndDate.value || modalDate.value;
-  const endTimeStr = modalEndTime.value || "23:59";
-  const dtstart = modalDate.value.replace(/-/g, "") + "T" + modalTime.value.replace(":", "") + "00";
-  const dtend = endDateStr.replace(/-/g, "") + "T" + endTimeStr.replace(":", "") + "00";
+  const allDay = modalAllDay.value;
+  const startTimeStr = allDay ? "00:00" : modalTime.value;
+  const endTimeStr = allDay ? "23:59" : modalEndTime.value || "23:59";
+  // All-day events use date-only dtstart/dtend (iCal convention).
+  const dtstart = allDay
+    ? modalDate.value.replace(/-/g, "")
+    : modalDate.value.replace(/-/g, "") + "T" + modalTime.value.replace(":", "") + "00";
+  const dtend = allDay
+    ? endDateStr.replace(/-/g, "")
+    : endDateStr.replace(/-/g, "") + "T" + endTimeStr.replace(":", "") + "00";
   // Interpret the picked wall-clock time in the user's timezone, store as UTC.
-  const occurredAt = zonedToUtcISO(modalDate.value, modalTime.value);
+  const occurredAt = zonedToUtcISO(modalDate.value, startTimeStr);
   const endAt = zonedToUtcISO(endDateStr, endTimeStr);
 
   const attrs = {
@@ -215,6 +225,7 @@ async function saveEvent() {
       dtstart,
       dtend,
       end_at: endAt,
+      all_day: allDay,
       location: modalLocation.value.trim() || null,
       calendar: modalEditId.value
         ? events.value.find((e) => e.id === modalEditId.value)?.data.calendar || "Manual"
@@ -367,9 +378,13 @@ onUnmounted(destroyPickers);
             v-for="ev in (cell.events || []).slice(0, 2)"
             :key="ev.id"
             class="cal-cell-event"
+            :class="{ 'cal-cell-event--allday': ev.data?.all_day }"
             @click.stop="onEventClick(ev.id)"
           >
-            {{ ev.title || "Untitled" }}
+            <span v-if="!ev.data?.all_day && ev.occurred_at" class="cal-chip-time">{{
+              formatTime(ev.occurred_at)
+            }}</span>
+            <span class="cal-chip-title">{{ ev.title || "Untitled" }}</span>
           </div>
         </template>
       </div>
@@ -386,7 +401,7 @@ onUnmounted(destroyPickers);
           @click.stop="onEventClick(e.id)"
         >
           <div class="cal-event-time">
-            {{ e.data.dtstart ? formatTime(e.occurred_at || "") : "All day" }}
+            {{ e.data.all_day || !e.data.dtstart ? "All day" : formatTime(e.occurred_at || "") }}
           </div>
           <div class="cal-event-body">
             <span class="cal-event-title">{{ e.title || "Untitled" }}</span>
@@ -420,7 +435,11 @@ onUnmounted(destroyPickers);
             <label>End date</label><input ref="endInput" type="date" />
           </div>
         </div>
-        <div class="cal-modal-row">
+        <label class="cal-allday-toggle">
+          <input type="checkbox" v-model="modalAllDay" />
+          All day
+        </label>
+        <div v-if="!modalAllDay" class="cal-modal-row">
           <div class="cal-modal-field">
             <label>Start time</label><input v-model="modalTime" type="time" />
           </div>
@@ -588,20 +607,42 @@ onUnmounted(destroyPickers);
   font-size: 0.65rem;
   color: var(--text-muted);
 }
+/* Event chips: violet rail + tint, mono time — same selection language as
+   the rest of the system */
 .cal-cell-event {
-  font-size: 0.75rem;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 0.72rem;
   color: var(--text);
   margin-top: 2px;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
-  background: rgba(var(--primary-rgb), 0.12);
-  padding: 1px 4px;
+  background: rgba(var(--primary-rgb), 0.1);
+  border-left: 2px solid var(--primary);
+  padding: 1px 4px 1px 5px;
   border-radius: 3px;
   cursor: pointer;
+  transition: background 0.1s;
 }
 .cal-cell-event:hover {
   background: rgba(var(--primary-rgb), 0.25);
+}
+/* All-day: a solid band, no rail, no time */
+.cal-cell-event--allday {
+  background: rgba(var(--primary-rgb), 0.22);
+  border-left-color: transparent;
+}
+.cal-chip-time {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.68rem;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+.cal-chip-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .cal-empty {
   color: var(--text-muted);
@@ -633,10 +674,11 @@ onUnmounted(destroyPickers);
   background: var(--bg-hover);
 }
 .cal-event-time {
-  width: 60px;
+  width: 64px;
   flex-shrink: 0;
-  font-size: 0.9rem;
-  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  color: var(--primary);
 }
 .cal-event-body {
   display: flex;
@@ -662,6 +704,23 @@ onUnmounted(destroyPickers);
 }
 .cal-cell--today:hover {
   background: rgba(var(--primary-rgb), 0.1);
+}
+.cal-allday-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin: 0.25rem 0;
+}
+.cal-allday-toggle input {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--primary);
 }
 .cal-modal-overlay {
   position: fixed;

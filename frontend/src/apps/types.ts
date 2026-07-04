@@ -21,6 +21,8 @@ export interface UploadResult {
 export interface ViewerItem {
   id: string;
   src: string;
+  /** Original full-resolution source when `src` is a downscaled display copy. */
+  fullSrc?: string;
   video?: boolean;
   title?: string;
   subtitle?: string;

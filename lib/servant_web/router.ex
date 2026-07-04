@@ -32,6 +32,7 @@ defmodule ServantWeb.Router do
     get "/entries/sources", EntryController, :sources
     get "/entries/stats", EntryController, :stats
     get "/entries/stats/daily", EntryController, :daily_stats
+    post "/entries/backfill_media", EntryController, :backfill_media
     resources "/entries", EntryController, except: [:new, :edit]
 
     get "/notes/:id/backlinks", NotesController, :backlinks

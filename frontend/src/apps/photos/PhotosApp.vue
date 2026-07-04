@@ -135,6 +135,32 @@ const groups = computed<PhotoGroup[]>(() => {
 });
 
 const selCount = computed(() => selectedIds.value.size);
+
+// ----- preview backfill (thumbnails/display JPEGs missing on old entries) -----
+
+const rebuilding = ref(false);
+const missingPreviews = computed(
+  () =>
+    allPhotos.value.filter(
+      (p) => !isVideo(p) && (!p.data.thumb_path || !p.data.display_path),
+    ).length,
+);
+
+async function rebuildPreviews() {
+  rebuilding.value = true;
+  try {
+    await props.ctx.api.fetch("/api/entries/backfill_media", { method: "POST" });
+    // The server regenerates in the background: poll until nothing is
+    // missing anymore, up to ~1 minute.
+    for (let i = 0; i < 15; i++) {
+      await new Promise((r) => setTimeout(r, 4000));
+      await reload();
+      if (missingPreviews.value === 0) break;
+    }
+  } finally {
+    rebuilding.value = false;
+  }
+}
 const hasFilters = computed(() => allTags.value.length > 0 || allPeople.value.length > 0);
 
 const matchingContacts = computed(() => {
@@ -200,7 +226,22 @@ interface UploadProgress {
   total: number;
   name: string;
   pct: number; // whole-batch progress in bytes
+  converting: boolean; // decoding HEIC in the browser before sending
   processing: boolean; // bytes sent, waiting on server work (thumbnails, EXIF…)
+}
+
+const isHeic = (f: File) =>
+  /\.(heic|heif)$/i.test(f.name) || f.type === "image/heic" || f.type === "image/heif";
+
+// The bundled server-side libvips can't decode HEVC, and neither can most
+// browsers: decode HEIC to JPEG in the browser (wasm, lazy-loaded only when
+// a HEIC is actually picked). ponytail: the original HEIC is not kept — the
+// JPEG becomes the archived file; revisit if originals matter.
+async function toUploadable(file: File): Promise<File> {
+  if (!isHeic(file)) return file;
+  const { default: heic2any } = await import("heic2any");
+  const blob = (await heic2any({ blob: file, toType: "image/jpeg", quality: 0.9 })) as Blob;
+  return new File([blob], file.name.replace(/\.(heic|heif)$/i, ".jpg"), { type: "image/jpeg" });
 }
 const uploadProgress = ref<UploadProgress | null>(null);
 // One entry per failed file; a failure never aborts the rest of the batch
@@ -223,24 +264,29 @@ async function uploadFiles(files: File[]) {
   let doneBytes = 0;
 
   for (let i = 0; i < media.length; i++) {
-    const file = media[i];
+    const original = media[i];
     uploadProgress.value = {
       index: i + 1,
       total: media.length,
-      name: file.name,
+      name: original.name,
       pct: Math.round((doneBytes / totalBytes) * 100),
+      converting: isHeic(original),
       processing: false,
     };
     try {
+      const file = await toUploadable(original);
+      if (uploadProgress.value) uploadProgress.value.converting = false;
       const result = (await props.ctx.api.upload(file, "photos", (pct) => {
         if (uploadProgress.value) {
+          // Weight by the original size: totalBytes was computed from the
+          // picked files, before any HEIC→JPEG conversion.
           uploadProgress.value.pct = Math.round(
-            ((doneBytes + (pct / 100) * file.size) / totalBytes) * 100,
+            ((doneBytes + (pct / 100) * original.size) / totalBytes) * 100,
           );
           uploadProgress.value.processing = pct >= 100;
         }
       })) as unknown as Record<string, unknown>;
-      doneBytes += file.size;
+      doneBytes += original.size;
       const data: Record<string, unknown> = {
         filename: file.name,
         size: result.size,
@@ -258,17 +304,26 @@ async function uploadFiles(files: File[]) {
       if (result.thumb_path) data.thumb_path = result.thumb_path;
       if (result.display_path) data.display_path = result.display_path;
 
+      // No EXIF/container date: fall back to the file's mtime, which for
+      // phone media is usually the capture time.
+      const fallbackDate = original.lastModified
+        ? new Date(original.lastModified).toISOString()
+        : null;
+
       await props.ctx.api.entries.create({
         kind: "photo",
         source: "photos_app",
         title: file.name,
-        occurred_at: (result.date_taken as string) || null,
+        occurred_at: (result.date_taken as string) || fallbackDate,
         data,
       });
       // Refresh after each file so photos appear as they land.
       await reload();
     } catch (e) {
-      uploadErrors.value.push(`${file.name}: ${e instanceof Error ? e.message : "upload failed"}`);
+      doneBytes += original.size;
+      uploadErrors.value.push(
+        `${original.name}: ${e instanceof Error ? e.message : "upload failed"}`,
+      );
     }
   }
 
@@ -315,7 +370,10 @@ function deselect() {
 
 async function deletePhotos(ids: string[]) {
   if (!ids.length) return;
-  const label = ids.length === 1 ? "this photo" : `${ids.length} photos`;
+  const single = ids.length === 1 ? allPhotos.value.find((p) => p.id === ids[0]) : undefined;
+  const label = single
+    ? `"${single.title || (single.data.filename as string) || "this photo"}"`
+    : `${ids.length} photos`;
   const ok = await props.ctx.confirm.ask({ message: `Delete ${label}?`, danger: true, confirmLabel: "Delete" });
   if (!ok) return;
   loadError.value = "";
@@ -431,8 +489,9 @@ function openViewer(photoId: string, opts: { push?: boolean } = {}) {
     if (photoPeople.length) meta["People"] = photoPeople.map((pp) => pp.name).join(", ");
     return {
       id: p.id,
-      // display_path is the browser-renderable JPEG for HEIC originals
+      // display_path is the fast 1920px JPEG; the original stays one click away
       src: (field(p, "display_path") || field(p, "path")) as string,
+      fullSrc: field(p, "display_path") ? (field(p, "path") as string) : undefined,
       video: isVideo(p),
       title: p.title || undefined,
       subtitle: (field(p, "album") as string) || undefined,
@@ -541,6 +600,14 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
         >
       </div>
       <div class="ph-actions">
+        <button
+          v-if="missingPreviews > 0"
+          class="ph-btn"
+          :disabled="rebuilding"
+          @click="rebuildPreviews"
+        >
+          {{ rebuilding ? "Rebuilding…" : `Fix previews (${missingPreviews})` }}
+        </button>
         <button class="ph-btn" @click="enterSelect">Select</button>
         <label class="ph-btn">
           + Upload<input type="file" accept="image/*,video/*,.heic,.heif" multiple hidden @change="onFileInput" />
@@ -581,7 +648,11 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
       >
       <span class="ph-upload-name">{{ uploadProgress.name }}</span>
       <span class="ph-upload-pct">{{
-        uploadProgress.processing ? "processing…" : uploadProgress.pct + "%"
+        uploadProgress.converting
+          ? "converting…"
+          : uploadProgress.processing
+            ? "processing…"
+            : uploadProgress.pct + "%"
       }}</span>
       <div class="ph-upload-bar">
         <div class="ph-upload-bar-fill" :style="{ width: uploadProgress.pct + '%' }"></div>
@@ -909,8 +980,9 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
 }
 .ph-uploading {
   display: flex;
+  flex-wrap: wrap; /* the bar takes its own full row: label changes can't resize it */
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.35rem 0.75rem;
   padding: 0.5rem 1rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.82rem;
@@ -930,12 +1002,11 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
 }
 .ph-upload-pct {
   flex-shrink: 0;
-  min-width: 3em;
+  margin-left: auto;
   text-align: right;
 }
 .ph-upload-bar {
-  flex: 1;
-  min-width: 80px;
+  flex-basis: 100%;
   height: 6px;
   border-radius: 3px;
   background: rgba(var(--primary-rgb), 0.15);

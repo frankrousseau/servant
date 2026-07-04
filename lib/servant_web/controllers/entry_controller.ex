@@ -50,6 +50,21 @@ defmodule ServantWeb.EntryController do
     json(conn, %{data: Data.daily_stats(user_id, days), days: days})
   end
 
+  @doc """
+  Regenerates missing photo previews (thumbnails + display JPEGs) for the
+  caller. Runs in the background; the client polls its photo list to see
+  results land.
+  """
+  def backfill_media(conn, _params) do
+    user_id = conn.assigns.current_user.id
+
+    # ponytail: fire-and-forget Task, no progress reporting — the client
+    # polls. Move under a Task.Supervisor if this ever needs shutdown safety.
+    Task.start(fn -> Servant.Media.Thumbnail.backfill_missing(user_id) end)
+
+    json(conn, %{status: "started"})
+  end
+
   def show(conn, %{"id" => id}) do
     user_id = conn.assigns.current_user.id
     entry = Data.get_entry!(user_id, id)

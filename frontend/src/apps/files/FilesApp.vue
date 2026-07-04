@@ -512,8 +512,9 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
 /* Upload progress + errors, same language as Photos */
 .fs-uploading {
   display: flex;
+  flex-wrap: wrap; /* the bar takes its own full row: label changes can't resize it */
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.35rem 0.75rem;
   padding: 0.5rem 1rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.82rem;
@@ -533,12 +534,11 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
 }
 .fs-upload-pct {
   flex-shrink: 0;
-  min-width: 3em;
+  margin-left: auto;
   text-align: right;
 }
 .fs-upload-bar {
-  flex: 1;
-  min-width: 80px;
+  flex-basis: 100%;
   height: 6px;
   border-radius: 3px;
   background: rgba(var(--primary-rgb), 0.15);

@@ -56,6 +56,7 @@ defmodule ServantWeb.UploadController do
           response =
             response
             |> apply_exif(exif)
+            |> maybe_video_date(content_type, absolute)
             |> maybe_add_photo_thumbnail(app_id, content_type, relative, absolute)
 
           json(conn, response)
@@ -130,6 +131,17 @@ defmodule ServantWeb.UploadController do
     end
   end
 
+  # MP4/MOV carry their recording date in the moov/mvhd box; expose it the
+  # same way as photo EXIF so entries sort by capture date.
+  defp maybe_video_date(response, "video/" <> _, absolute) do
+    case Servant.Media.VideoMeta.creation_date(absolute) do
+      {:ok, dt} -> Map.put_new(response, :date_taken, DateTime.to_iso8601(dt))
+      :error -> response
+    end
+  end
+
+  defp maybe_video_date(response, _content_type, _absolute), do: response
+
   defp maybe_add_photo_thumbnail(response, "photos", content_type, relative, absolute) do
     if String.starts_with?(content_type, "image/") or heic?(relative) do
       response =
@@ -138,15 +150,11 @@ defmodule ServantWeb.UploadController do
           :error -> response
         end
 
-      # Most browsers can't render HEIC: keep the original for the archive,
-      # add a full-size JPEG the viewer can display.
-      if heic?(relative) do
-        case Servant.Media.Thumbnail.create_display_for_storage(relative, absolute) do
-          {:ok, display_url, _} -> Map.put(response, :display_path, display_url)
-          :error -> response
-        end
-      else
-        response
+      # Fast 1920px JPEG for the viewer; the original stays archived and is
+      # loadable on demand.
+      case Servant.Media.Thumbnail.create_display_for_storage(relative, absolute) do
+        {:ok, display_url, _} -> Map.put(response, :display_path, display_url)
+        :error -> response
       end
     else
       response

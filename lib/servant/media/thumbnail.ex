@@ -12,7 +12,7 @@ defmodule Servant.Media.Thumbnail do
 
   @max_width 400
   @quality 80
-  @display_max_width 2048
+  @display_max_width 1920
   @display_quality 85
 
   @doc """
@@ -91,16 +91,33 @@ defmodule Servant.Media.Thumbnail do
   def create_for_public_path(_), do: :error
 
   @doc """
-  Generates missing thumbnails for photo entries and updates their `thumb_path`.
+  Generates a display JPEG from a public file URL (`/files/…` or legacy `/uploads/…`).
+  """
+  def create_display_for_public_path(public_path) when is_binary(public_path) do
+    relative = relative_from_public(public_path)
+
+    case Storage.resolve_public_path(relative) do
+      {:ok, absolute} -> create_display_for_storage(relative, absolute)
+      :error -> :error
+    end
+  end
+
+  def create_display_for_public_path(_), do: :error
+
+  @doc """
+  Generates missing thumbnails and display JPEGs for photo entries and
+  updates their `thumb_path` / `display_path`. Pass a `user_id` to scope
+  the run to one user (the API endpoint), or nil for all (release task).
   Returns a list of `{:ok, entry_id}` or `{:error, entry_id, reason}` tuples.
   """
   @backfill_batch_size 100
 
-  def backfill_missing do
+  def backfill_missing(user_id \\ nil) do
     Entry
     |> where([e], e.kind == "photo")
+    |> then(fn q -> if user_id, do: where(q, [e], e.user_id == ^user_id), else: q end)
     |> stream_in_batches(@backfill_batch_size)
-    |> Stream.filter(&missing_thumb?/1)
+    |> Stream.filter(&needs_media?/1)
     |> Stream.map(&backfill_entry/1)
     |> Enum.to_list()
   end
@@ -129,30 +146,48 @@ defmodule Servant.Media.Thumbnail do
   end
 
   defp backfill_entry(%Entry{} = entry) do
-    case create_for_public_path(entry.data["path"]) do
-      {:ok, thumb_url, _} ->
-        new_data = Map.put(entry.data, "thumb_path", thumb_url)
+    path = entry.data["path"]
 
+    updates =
+      %{}
+      |> maybe_generate(entry.data, "thumb_path", &create_for_public_path/1, path)
+      |> maybe_generate(entry.data, "display_path", &create_display_for_public_path/1, path)
+
+    cond do
+      updates == %{} ->
+        {:error, entry.id, :thumbnail_failed}
+
+      true ->
         case entry
-             |> Entry.changeset(%{data: new_data})
+             |> Entry.changeset(%{data: Map.merge(entry.data, updates)})
              |> Repo.update() do
           {:ok, _} -> {:ok, entry.id}
           {:error, reason} -> {:error, entry.id, reason}
         end
-
-      :error ->
-        {:error, entry.id, :thumbnail_failed}
     end
   end
 
-  defp missing_thumb?(%Entry{data: data}) when is_map(data) do
-    path = Map.get(data, "path")
-    thumb = Map.get(data, "thumb_path")
-
-    is_binary(path) and path != "" and (not is_binary(thumb) or thumb == "")
+  defp maybe_generate(updates, data, key, generator, path) do
+    if blank?(Map.get(data, key)) do
+      case generator.(path) do
+        {:ok, url, _} -> Map.put(updates, key, url)
+        :error -> updates
+      end
+    else
+      updates
+    end
   end
 
-  defp missing_thumb?(_), do: false
+  defp needs_media?(%Entry{data: data}) when is_map(data) do
+    path = Map.get(data, "path")
+
+    is_binary(path) and path != "" and
+      (blank?(Map.get(data, "thumb_path")) or blank?(Map.get(data, "display_path")))
+  end
+
+  defp needs_media?(_), do: false
+
+  defp blank?(value), do: not is_binary(value) or value == ""
 
   defp relative_from_public(public_path) do
     public_path
