@@ -41,6 +41,21 @@ defmodule ServantWeb.AuthControllerTest do
     end
   end
 
+  describe "GET /api/auth/config" do
+    test "reports registration open by default", %{conn: conn} do
+      conn = get(conn, "/api/auth/config")
+      assert %{"registration_enabled" => true} = json_response(conn, 200)
+    end
+
+    test "reports registration closed without requiring auth", %{conn: conn} do
+      Application.put_env(:servant, :registration_enabled, false)
+      on_exit(fn -> Application.put_env(:servant, :registration_enabled, true) end)
+
+      conn = get(conn, "/api/auth/config")
+      assert %{"registration_enabled" => false} = json_response(conn, 200)
+    end
+  end
+
   describe "POST /api/auth/login" do
     setup do
       %{user: user_fixture(%{"username" => "loginuser", "password" => "password123"})}

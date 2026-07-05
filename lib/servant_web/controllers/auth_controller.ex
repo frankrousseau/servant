@@ -42,6 +42,14 @@ defmodule ServantWeb.AuthController do
 
   defp registration_enabled?, do: Application.get_env(:servant, :registration_enabled, true)
 
+  @doc """
+  Public auth capabilities, so the SPA can hide the register page/link when
+  the operator closed self-registration (REGISTRATION_ENABLED=false).
+  """
+  def config(conn, _params) do
+    json(conn, %{registration_enabled: registration_enabled?()})
+  end
+
   def login(conn, %{"username" => username, "password" => password}) do
     case Accounts.authenticate_user(username, password) do
       {:ok, user} ->

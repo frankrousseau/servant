@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
+import { fetchRegistrationEnabled } from "../composables/authConfig";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -10,6 +11,11 @@ const username = ref("");
 const password = ref("");
 const error = ref("");
 const loading = ref(false);
+const registrationEnabled = ref(true);
+
+onMounted(async () => {
+  registrationEnabled.value = await fetchRegistrationEnabled();
+});
 
 async function handleLogin() {
   error.value = "";
@@ -63,7 +69,7 @@ async function handleLogin() {
           {{ loading ? "Signing in..." : "Sign In" }}
         </button>
       </form>
-      <p class="alt-link">
+      <p v-if="registrationEnabled" class="alt-link">
         Don't have an account?
         <router-link to="/register">Register</router-link>
       </p>

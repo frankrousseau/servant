@@ -16,6 +16,7 @@ defmodule ServantWeb.Router do
   scope "/api", ServantWeb do
     pipe_through :api
 
+    get "/auth/config", AuthController, :config
     post "/auth/register", AuthController, :register
     post "/auth/login", AuthController, :login
     post "/auth/logout", AuthController, :logout

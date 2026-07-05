@@ -1,10 +1,17 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
+import { fetchRegistrationEnabled } from "../composables/authConfig";
 
 const auth = useAuthStore();
 const router = useRouter();
+
+// Closed instance (REGISTRATION_ENABLED=false): this page has no reason to
+// exist — bounce to sign-in. The server refuses the POST regardless.
+onMounted(async () => {
+  if (!(await fetchRegistrationEnabled())) router.replace("/login");
+});
 
 const username = ref("");
 const password = ref("");
