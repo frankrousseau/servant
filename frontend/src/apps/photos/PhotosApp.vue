@@ -416,15 +416,17 @@ async function uploadFiles(files: File[]) {
         ? new Date(original.lastModified).toISOString()
         : null;
 
-      await props.ctx.api.entries.create({
+      const created = await props.ctx.api.entries.create({
         kind: "photo",
         source: "photos_app",
         title: file.name,
         occurred_at: (result.date_taken as string) || fallbackDate,
         data,
       });
-      // Refresh after each file so photos appear as they land.
-      await reload();
+      // Show it right away by inserting locally: a full reload per file made
+      // Vue re-patch the entire grid once per photo and froze the app on
+      // 100-photo drops. One true-up reload happens after the batch.
+      allPhotos.value.unshift(created);
     } catch (e) {
       doneBytes += original.size;
       uploadErrors.value.push(
@@ -435,6 +437,7 @@ async function uploadFiles(files: File[]) {
 
   uploadProgress.value = null;
   uploading.value = false;
+  await reload();
 }
 
 function onFileInput(e: Event) {

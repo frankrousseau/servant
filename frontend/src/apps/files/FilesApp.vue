@@ -219,7 +219,7 @@ async function uploadFiles(files: File[]) {
         }
       });
       doneBytes += file.size;
-      await props.ctx.api.entries.create({
+      const created = await props.ctx.api.entries.create({
         kind: "file",
         source: "files_app",
         title: file.name,
@@ -232,8 +232,9 @@ async function uploadFiles(files: File[]) {
           is_folder: false,
         },
       });
-      // Refresh after each file so they appear as they land.
-      await reload();
+      // Insert locally so it appears as it lands; a reload per file froze
+      // the app on big drops. One true-up reload after the batch.
+      allFiles.value.push(created);
     } catch (e) {
       uploadErrors.value.push(`${file.name}: ${e instanceof Error ? e.message : "upload failed"}`);
     }
@@ -241,6 +242,7 @@ async function uploadFiles(files: File[]) {
 
   uploadProgress.value = null;
   uploading.value = false;
+  await reload();
 }
 
 function onFileInput(e: Event) {
