@@ -5,6 +5,21 @@ This is an **API-only** Phoenix backend (`--no-html --no-live --no-assets`) pair
 - Use `mix precommit` alias when you are done with all changes and fix any pending issues
 - Use the already included and available `:req` (`Req`) library for HTTP requests, **avoid** `:httpoison`, `:tesla`, and `:httpc`. Req is included by default and is the preferred HTTP client for Phoenix apps
 
+## Elixir style
+
+All Elixir code follows [The Elixir Style Guide](https://github.com/christopheradams/elixir_style_guide). `mix format` covers layout; the rules it does **not** enforce and that we apply here:
+
+- `@moduledoc` comes immediately after `defmodule` (use `@moduledoc false` when there is nothing to say), then directives in this order: `@behaviour`, `use`, `import`, `require`, `alias` (alphabetical), module attributes, `defstruct`, `@type`, callbacks/functions
+- Reference the current module with `__MODULE__`
+- No single-pipe expressions (`foo |> bar()` → `bar(foo)`); pipelines start from a bare value, not a function call
+- Prefer `if` over `unless` when there is an `else`; use `true ->` (never `:else ->`) as the final `cond` clause
+- Functions returning booleans end in `?`; the `is_` prefix is reserved for guards (already stated below)
+- `@spec` sits right under `@doc`, before the function head; a module's main type is named `t`
+- `defstruct` omits the square brackets; keyword lists use `[a: 1]`, never `[{:a, 1}]`
+- Exception modules end in `Error`, with lowercase unpunctuated messages
+- In tests, the actual value goes left of the operator, the expected value right (`assert actual == expected`)
+- Comment annotations are uppercase with a colon (`# TODO:`), placed on the line above the code they describe
+
 <!-- usage-rules-start -->
 
 <!-- phoenix:elixir-start -->
