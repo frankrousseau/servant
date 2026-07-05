@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
 import {
   Folder,
   File,
@@ -252,7 +252,123 @@ function onFileInput(e: Event) {
 
 function onDrop(e: DragEvent) {
   dragover.value = false;
+  // An internal row drag that missed a folder target is a no-op, not an upload.
+  if (draggingId.value) return;
   if (e.dataTransfer?.files.length) uploadFiles(Array.from(e.dataTransfer.files));
+}
+
+// ----- rename (files & folders) -----
+// Inline, in the row itself: double-click the name (or the Rename button in
+// the detail panel). Enter/blur commits, Esc cancels.
+
+const renamingId = ref<string | null>(null);
+const renameValue = ref("");
+const renameInput = ref<HTMLInputElement | null>(null);
+let renameCancelled = false;
+
+function startRename(f: Entry) {
+  renamingId.value = f.id;
+  renameValue.value = fileName(f);
+  nextTick(() => renameInput.value?.select());
+}
+
+function cancelRename() {
+  renameCancelled = true;
+  renameInput.value?.blur();
+}
+
+// Commit on blur only — Enter just blurs, so the save can't double-fire.
+async function onRenameBlur() {
+  const cancelled = renameCancelled;
+  renameCancelled = false;
+  const id = renamingId.value;
+  renamingId.value = null;
+  const f = id ? byId.value.get(id) : undefined;
+  const name = renameValue.value.trim();
+  if (cancelled || !f || !name || name === fileName(f)) return;
+  await props.ctx.api.entries.update(f.id, {
+    title: name,
+    data: { ...f.data, filename: name },
+  });
+  await reload();
+}
+
+// ----- drag & drop move -----
+
+const draggingId = ref<string | null>(null);
+const dropTargetId = ref<string | null>(null); // folder id, or "up" for the ".." row
+
+const parentOfCurrent = computed(() => {
+  const cur = currentFolder.value ? byId.value.get(currentFolder.value) : undefined;
+  return cur ? parentId(cur) : null;
+});
+
+function goUp() {
+  setFolder(parentOfCurrent.value, { push: true });
+}
+
+function onRowDragStart(f: Entry, e: DragEvent) {
+  draggingId.value = f.id;
+  if (e.dataTransfer) {
+    e.dataTransfer.setData("text/plain", f.id);
+    e.dataTransfer.effectAllowed = "move";
+  }
+}
+
+function onRowDragEnd() {
+  draggingId.value = null;
+  dropTargetId.value = null;
+}
+
+// A folder can't be dropped into itself or one of its descendants.
+function canDropOn(target: Entry): boolean {
+  const id = draggingId.value;
+  if (!id || id === target.id || !isFolder(target)) return false;
+  return !chainTo(target.id).some((a) => a.id === id);
+}
+
+function onRowDragOver(f: Entry, e: DragEvent) {
+  if (!canDropOn(f)) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+  dropTargetId.value = f.id;
+}
+
+function onRowDragLeave(f: Entry) {
+  if (dropTargetId.value === f.id) dropTargetId.value = null;
+}
+
+function onRowDrop(f: Entry, e: DragEvent) {
+  if (draggingId.value) {
+    if (canDropOn(f)) void moveTo(f.id);
+    // Only clear the highlight here; draggingId lives until dragend —
+    // clearing it now lets a stray dragover between drop and dragend
+    // re-light the upload glow (visible blink).
+    dropTargetId.value = null;
+  } else {
+    onDrop(e); // OS files dropped on a row upload into the current folder
+  }
+}
+
+function onUpDragOver(e: DragEvent) {
+  if (!draggingId.value) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+  dropTargetId.value = "up";
+}
+
+function onUpDrop() {
+  if (draggingId.value) void moveTo(parentOfCurrent.value);
+  dropTargetId.value = null;
+}
+
+async function moveTo(parent: string | null) {
+  const id = draggingId.value;
+  if (!id) return;
+  const f = byId.value.get(id);
+  if (!f || parentId(f) === parent) return;
+  await props.ctx.api.entries.update(id, { data: { ...f.data, parent_id: parent } });
+  await reload();
 }
 
 async function deleteItem(f: Entry) {
@@ -326,7 +442,7 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
       <div
         class="fs-list"
         :class="{ 'fs-dragover': dragover }"
-        @dragover.prevent="dragover = true"
+        @dragover.prevent="dragover = !draggingId"
         @dragleave="dragover = false"
         @drop.prevent="onDrop"
       >
@@ -337,18 +453,54 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
           <span>Added</span>
         </div>
         <div
+          v-if="currentFolder && !searchQuery.trim()"
+          class="fs-row fs-row--up"
+          :class="{ 'fs-row--droptarget': dropTargetId === 'up' }"
+          title="Parent directory"
+          @dblclick="goUp"
+          @dragover="onUpDragOver"
+          @dragleave="dropTargetId === 'up' && (dropTargetId = null)"
+          @drop.stop.prevent="onUpDrop"
+        >
+          <span class="fs-row-icon fs-row-icon--folder"><Folder :size="16" /></span>
+          <span class="fs-name-cell"><span class="fs-name">..</span></span>
+          <span class="fs-size fs-col-size">—</span>
+          <span></span>
+        </div>
+        <div
           v-for="f in displayed"
           :key="f.id"
           class="fs-row"
-          :class="{ 'fs-row--active': f.id === selectedId }"
+          :class="{
+            'fs-row--active': f.id === selectedId,
+            'fs-row--droptarget': dropTargetId === f.id,
+            'fs-row--dragging': draggingId === f.id,
+          }"
+          :draggable="renamingId !== f.id"
           @click="selectedId = f.id"
           @dblclick="openFolder(f)"
+          @dragstart="onRowDragStart(f, $event)"
+          @dragend="onRowDragEnd"
+          @dragover="onRowDragOver(f, $event)"
+          @dragleave="onRowDragLeave(f)"
+          @drop.stop.prevent="onRowDrop(f, $event)"
         >
           <span class="fs-row-icon" :class="{ 'fs-row-icon--folder': isFolder(f) }">
             <component :is="fileIcon(f)" :size="16" />
           </span>
           <span class="fs-name-cell">
-            <span class="fs-name"
+            <input
+              v-if="renamingId === f.id"
+              ref="renameInput"
+              v-model="renameValue"
+              class="fs-name fs-name-input"
+              @click.stop
+              @dblclick.stop
+              @keydown.enter.prevent="renameInput?.blur()"
+              @keydown.esc.prevent="cancelRename"
+              @blur="onRenameBlur"
+            />
+            <span v-else class="fs-name" title="Double-click to rename" @dblclick.stop="startRename(f)"
               >{{ fileName(f) }}<span v-if="isFolder(f)" class="fs-slash">/</span></span
             >
             <button
@@ -408,6 +560,7 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
             <span>{{ formatDate(selected.inserted_at) }}</span>
           </div>
         </div>
+        <button class="fs-rename-btn" @click="startRename(selected)">Rename</button>
         <button class="fs-delete" @click="deleteItem(selected)">Delete</button>
       </div>
       <p v-else class="fs-placeholder">Select a file to view details</p>
@@ -617,6 +770,16 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
   box-shadow: inset 2px 0 0 var(--primary);
   border-radius: 0 var(--radius) var(--radius) 0;
 }
+.fs-row--droptarget {
+  background: rgba(var(--primary-rgb), 0.15);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+.fs-row--dragging {
+  opacity: 0.4;
+}
+.fs-row--up .fs-name {
+  color: var(--text-muted);
+}
 .fs-row-icon {
   display: flex;
   align-items: center;
@@ -730,8 +893,28 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
 .fs-download:hover {
   text-decoration: underline;
 }
-.fs-delete {
+.fs-name-input {
+  width: 100%;
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+}
+.fs-rename-btn {
   margin-top: 1rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 0.4rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  width: 100%;
+}
+.fs-rename-btn:hover {
+  border-color: var(--primary);
+  color: var(--text);
+}
+.fs-delete {
+  margin-top: 0.5rem;
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text-muted);
