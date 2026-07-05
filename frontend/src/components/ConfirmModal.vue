@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { watch, onUnmounted } from "vue";
-import { useConfirm } from "../composables/useConfirm";
-import { AlertTriangle } from "lucide-vue-next";
+import { watch, onUnmounted } from 'vue'
+import { useConfirm } from '../composables/useConfirm'
+import { AlertTriangle } from 'lucide-vue-next'
 
-const { visible, title, message, confirmLabel, danger, resolve } = useConfirm();
+const { visible, title, message, confirmLabel, danger, resolve } = useConfirm()
 
 function onOverlayClick(e: MouseEvent) {
-  if (e.target === e.currentTarget) resolve(false);
+  if (e.target === e.currentTarget) resolve(false)
 }
 
 // The overlay never gets focus, so a keydown bound to it never fires. Listen at
@@ -14,22 +14,22 @@ function onOverlayClick(e: MouseEvent) {
 // — and stop propagation so an underlying MediaViewer's Escape handler doesn't
 // also fire and close the layer beneath the dialog.
 function onKeydown(e: KeyboardEvent) {
-  if (!visible.value) return;
-  if (e.key === "Escape") {
-    e.stopPropagation();
-    resolve(false);
+  if (!visible.value) return
+  if (e.key === 'Escape') {
+    e.stopPropagation()
+    resolve(false)
   }
 }
 
-watch(visible, (isVisible) => {
+watch(visible, isVisible => {
   if (isVisible) {
-    document.addEventListener("keydown", onKeydown, true);
+    document.addEventListener('keydown', onKeydown, true)
   } else {
-    document.removeEventListener("keydown", onKeydown, true);
+    document.removeEventListener('keydown', onKeydown, true)
   }
-});
+})
 
-onUnmounted(() => document.removeEventListener("keydown", onKeydown, true));
+onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
 </script>
 
 <template>
@@ -48,7 +48,10 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown, true));
           <h3 class="confirm-title">{{ title }}</h3>
           <p class="confirm-message">{{ message }}</p>
           <div class="confirm-actions">
-            <button class="confirm-btn confirm-btn--cancel" @click="resolve(false)">
+            <button
+              class="confirm-btn confirm-btn--cancel"
+              @click="resolve(false)"
+            >
               Cancel
             </button>
             <button
@@ -128,7 +131,9 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown, true));
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 
 .confirm-btn--cancel {

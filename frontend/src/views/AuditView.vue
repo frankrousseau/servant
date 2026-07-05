@@ -1,156 +1,171 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
-import { useApi } from "../composables/useApi";
-import { formatFileSize } from "../types";
-import { utcToZonedParts } from "../lib/datetime";
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useApi } from '../composables/useApi'
+import { formatFileSize } from '../types'
+import { utcToZonedParts } from '../lib/datetime'
 
 interface SystemStats {
   cpu: {
-    cores: number | string;
-    schedulers: number;
-    load: { avg1: number | null; avg5: number | null; avg15: number | null } | null;
-  };
+    cores: number | string
+    schedulers: number
+    load: {
+      avg1: number | null
+      avg5: number | null
+      avg15: number | null
+    } | null
+  }
   memory: {
-    total_bytes: number | null;
-    available_bytes: number | null;
-    cgroup_limit_bytes: number | null;
-    cgroup_used_bytes: number | null;
-  };
+    total_bytes: number | null
+    available_bytes: number | null
+    cgroup_limit_bytes: number | null
+    cgroup_used_bytes: number | null
+  }
   server: {
-    os_pid: string;
-    rss_bytes: number | null;
-    beam_memory_bytes: number;
-    process_count: number;
-    uptime_seconds: number;
-  };
+    os_pid: string
+    rss_bytes: number | null
+    beam_memory_bytes: number
+    process_count: number
+    uptime_seconds: number
+  }
   workers: Array<{
-    user_id: string;
-    config_id: string;
-    connector_type: string | null;
-    name: string | null;
-    memory_bytes: number | null;
-    message_queue_len: number | null;
-  }>;
+    user_id: string
+    config_id: string
+    connector_type: string | null
+    name: string | null
+    memory_bytes: number | null
+    message_queue_len: number | null
+  }>
   disk: {
     volume: {
-      total_bytes: number;
-      used_bytes: number;
-      available_bytes: number;
-      mount: string;
-    } | null;
-    data_bytes: number | null;
-    database_bytes: number | null;
-  };
+      total_bytes: number
+      used_bytes: number
+      available_bytes: number
+      mount: string
+    } | null
+    data_bytes: number | null
+    database_bytes: number | null
+  }
 }
 
 interface AccessLog {
-  at: string;
-  method: string;
-  path: string;
-  query: string;
-  status: number | null;
-  duration_us: number;
-  ip: string | null;
-  user_id: string | null;
+  at: string
+  method: string
+  path: string
+  query: string
+  status: number | null
+  duration_us: number
+  ip: string | null
+  user_id: string | null
 }
 
 interface ErrorLog {
-  at: string;
-  level: string;
-  message: string;
+  at: string
+  level: string
+  message: string
 }
 
-const api = useApi();
+const api = useApi()
 
-type Tab = "resources" | "access" | "errors";
-const tab = ref<Tab>("resources");
+type Tab = 'resources' | 'access' | 'errors'
+const tab = ref<Tab>('resources')
 
 const TABS: Array<{ id: Tab; label: string }> = [
-  { id: "resources", label: "Resources" },
-  { id: "access", label: "Access log" },
-  { id: "errors", label: "Error log" },
-];
+  { id: 'resources', label: 'Resources' },
+  { id: 'access', label: 'Access log' },
+  { id: 'errors', label: 'Error log' }
+]
 
-const stats = ref<SystemStats | null>(null);
-const accessLogs = ref<AccessLog[]>([]);
-const errorLogs = ref<ErrorLog[]>([]);
-const loadError = ref("");
+const stats = ref<SystemStats | null>(null)
+const accessLogs = ref<AccessLog[]>([])
+const errorLogs = ref<ErrorLog[]>([])
+const loadError = ref('')
 
 async function refresh() {
-  loadError.value = "";
+  loadError.value = ''
   try {
-    if (tab.value === "resources") {
-      stats.value = (await api.get<{ data: SystemStats }>("/api/audit/system")).data;
-    } else if (tab.value === "access") {
-      accessLogs.value = (await api.get<{ data: AccessLog[] }>("/api/audit/logs")).data;
+    if (tab.value === 'resources') {
+      stats.value = (
+        await api.get<{ data: SystemStats }>('/api/audit/system')
+      ).data
+    } else if (tab.value === 'access') {
+      accessLogs.value = (
+        await api.get<{ data: AccessLog[] }>('/api/audit/logs')
+      ).data
     } else {
       errorLogs.value = (
-        await api.get<{ data: ErrorLog[] }>("/api/audit/logs", { type: "error" })
-      ).data;
+        await api.get<{ data: ErrorLog[] }>('/api/audit/logs', {
+          type: 'error'
+        })
+      ).data
     }
   } catch (e) {
-    loadError.value = e instanceof Error ? e.message : "Failed to load audit data";
+    loadError.value =
+      e instanceof Error ? e.message : 'Failed to load audit data'
   }
 }
 
 function selectTab(t: Tab) {
-  tab.value = t;
-  refresh();
+  tab.value = t
+  refresh()
 }
 
-let timer: ReturnType<typeof setInterval> | null = null;
+let timer: ReturnType<typeof setInterval> | null = null
 onMounted(() => {
-  refresh();
-  timer = setInterval(refresh, 5000);
-});
+  refresh()
+  timer = setInterval(refresh, 5000)
+})
 onUnmounted(() => {
-  if (timer) clearInterval(timer);
-});
+  if (timer) clearInterval(timer)
+})
 
 // ----- resources helpers -----
 
 // In Docker the cgroup limit is the real budget; the host numbers otherwise.
 const ramUsed = computed(() => {
-  const m = stats.value?.memory;
-  if (!m) return null;
-  if (m.cgroup_limit_bytes && m.cgroup_used_bytes != null) return m.cgroup_used_bytes;
-  if (m.total_bytes != null && m.available_bytes != null) return m.total_bytes - m.available_bytes;
-  return null;
-});
+  const m = stats.value?.memory
+  if (!m) return null
+  if (m.cgroup_limit_bytes && m.cgroup_used_bytes != null)
+    return m.cgroup_used_bytes
+  if (m.total_bytes != null && m.available_bytes != null)
+    return m.total_bytes - m.available_bytes
+  return null
+})
 const ramTotal = computed(() => {
-  const m = stats.value?.memory;
-  return m?.cgroup_limit_bytes ?? m?.total_bytes ?? null;
-});
+  const m = stats.value?.memory
+  return m?.cgroup_limit_bytes ?? m?.total_bytes ?? null
+})
 
 const pct = (used: number | null, total: number | null) =>
-  used != null && total ? Math.min(100, Math.round((used / total) * 100)) : null;
+  used != null && total ? Math.min(100, Math.round((used / total) * 100)) : null
 
 function uptime(seconds: number): string {
-  const d = Math.floor(seconds / 86400);
-  const h = Math.floor((seconds % 86400) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h ${m}m`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
+  const d = Math.floor(seconds / 86400)
+  const h = Math.floor((seconds % 86400) / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (d > 0) return `${d}d ${h}h ${m}m`
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
 }
 
-const bytes = (n: number | null | undefined) => (n == null ? "—" : formatFileSize(n));
+const bytes = (n: number | null | undefined) =>
+  n == null ? '—' : formatFileSize(n)
 
 // ----- logs helpers -----
 
 function stamp(iso: string): string {
-  const p = utcToZonedParts(iso);
-  return `${p.date} ${p.time}`;
+  const p = utcToZonedParts(iso)
+  return `${p.date} ${p.time}`
 }
 
 function statusClass(status: number | null): string {
-  if (status == null) return "";
-  if (status >= 500) return "au-status--5xx";
-  if (status >= 400) return "au-status--4xx";
-  return "au-status--ok";
+  if (status == null) return ''
+  if (status >= 500) return 'au-status--5xx'
+  if (status >= 400) return 'au-status--4xx'
+  return 'au-status--ok'
 }
 
-const ms = (us: number) => (us >= 1000 ? `${Math.round(us / 1000)}ms` : `${us}µs`);
+const ms = (us: number) =>
+  us >= 1000 ? `${Math.round(us / 1000)}ms` : `${us}µs`
 </script>
 
 <template>
@@ -189,12 +204,17 @@ const ms = (us: number) => (us >= 1000 ? `${Math.round(us / 1000)}ms` : `${us}µ
           </div>
           <div class="au-row">
             <span class="au-label">{{
-              stats.memory.cgroup_limit_bytes ? "RAM (container limit)" : "RAM"
+              stats.memory.cgroup_limit_bytes ? 'RAM (container limit)' : 'RAM'
             }}</span>
-            <span class="au-value">{{ bytes(ramUsed) }} / {{ bytes(ramTotal) }}</span>
+            <span class="au-value"
+              >{{ bytes(ramUsed) }} / {{ bytes(ramTotal) }}</span
+            >
           </div>
           <div v-if="pct(ramUsed, ramTotal) != null" class="au-bar">
-            <div class="au-bar-fill" :style="{ width: pct(ramUsed, ramTotal) + '%' }"></div>
+            <div
+              class="au-bar-fill"
+              :style="{ width: pct(ramUsed, ramTotal) + '%' }"
+            ></div>
           </div>
         </section>
 
@@ -206,7 +226,9 @@ const ms = (us: number) => (us >= 1000 ? `${Math.round(us / 1000)}ms` : `${us}µ
           </div>
           <div class="au-row">
             <span class="au-label">BEAM memory</span>
-            <span class="au-value">{{ bytes(stats.server.beam_memory_bytes) }}</span>
+            <span class="au-value">{{
+              bytes(stats.server.beam_memory_bytes)
+            }}</span>
           </div>
           <div class="au-row">
             <span class="au-label">Erlang processes</span>
@@ -214,7 +236,9 @@ const ms = (us: number) => (us >= 1000 ? `${Math.round(us / 1000)}ms` : `${us}µ
           </div>
           <div class="au-row">
             <span class="au-label">Uptime</span>
-            <span class="au-value">{{ uptime(stats.server.uptime_seconds) }}</span>
+            <span class="au-value">{{
+              uptime(stats.server.uptime_seconds)
+            }}</span>
           </div>
           <div class="au-row">
             <span class="au-label">OS pid</span>
@@ -236,13 +260,19 @@ const ms = (us: number) => (us >= 1000 ? `${Math.round(us / 1000)}ms` : `${us}µ
               <div
                 class="au-bar-fill"
                 :style="{
-                  width: pct(stats.disk.volume.used_bytes, stats.disk.volume.total_bytes) + '%',
+                  width:
+                    pct(
+                      stats.disk.volume.used_bytes,
+                      stats.disk.volume.total_bytes
+                    ) + '%'
                 }"
               ></div>
             </div>
             <div class="au-row">
               <span class="au-label">Available</span>
-              <span class="au-value">{{ bytes(stats.disk.volume.available_bytes) }}</span>
+              <span class="au-value">{{
+                bytes(stats.disk.volume.available_bytes)
+              }}</span>
             </div>
           </template>
           <div class="au-row">
@@ -257,7 +287,9 @@ const ms = (us: number) => (us >= 1000 ? `${Math.round(us / 1000)}ms` : `${us}µ
 
         <section class="au-panel au-panel--wide">
           <h2 class="au-panel-title">Workers ({{ stats.workers.length }})</h2>
-          <p v-if="stats.workers.length === 0" class="au-empty">No connector workers running.</p>
+          <p v-if="stats.workers.length === 0" class="au-empty">
+            No connector workers running.
+          </p>
           <table v-else class="au-table">
             <thead>
               <tr>
@@ -270,9 +302,9 @@ const ms = (us: number) => (us >= 1000 ? `${Math.round(us / 1000)}ms` : `${us}µ
             <tbody>
               <tr v-for="w in stats.workers" :key="w.config_id">
                 <td>{{ w.name || w.config_id }}</td>
-                <td>{{ w.connector_type || "—" }}</td>
+                <td>{{ w.connector_type || '—' }}</td>
                 <td class="au-num">{{ bytes(w.memory_bytes) }}</td>
-                <td class="au-num">{{ w.message_queue_len ?? "—" }}</td>
+                <td class="au-num">{{ w.message_queue_len ?? '—' }}</td>
               </tr>
             </tbody>
           </table>
@@ -283,20 +315,30 @@ const ms = (us: number) => (us >= 1000 ? `${Math.round(us / 1000)}ms` : `${us}µ
 
     <!-- ===== Access log ===== -->
     <div v-else-if="tab === 'access'" class="au-logs">
-      <p v-if="accessLogs.length === 0" class="au-empty">No requests recorded yet.</p>
+      <p v-if="accessLogs.length === 0" class="au-empty">
+        No requests recorded yet.
+      </p>
       <div v-for="(l, i) in accessLogs" :key="i" class="au-line">
         <span class="au-stamp">{{ stamp(l.at) }}</span>
         <span class="au-method">{{ l.method }}</span>
-        <span class="au-path" :title="l.query ? `${l.path}?${l.query}` : l.path">{{ l.path }}</span>
-        <span class="au-status" :class="statusClass(l.status)">{{ l.status ?? "—" }}</span>
+        <span
+          class="au-path"
+          :title="l.query ? `${l.path}?${l.query}` : l.path"
+          >{{ l.path }}</span
+        >
+        <span class="au-status" :class="statusClass(l.status)">{{
+          l.status ?? '—'
+        }}</span>
         <span class="au-dur">{{ ms(l.duration_us) }}</span>
-        <span class="au-ip">{{ l.ip || "" }}</span>
+        <span class="au-ip">{{ l.ip || '' }}</span>
       </div>
     </div>
 
     <!-- ===== Error log ===== -->
     <div v-else class="au-logs">
-      <p v-if="errorLogs.length === 0" class="au-empty">No errors recorded. Quiet night.</p>
+      <p v-if="errorLogs.length === 0" class="au-empty">
+        No errors recorded. Quiet night.
+      </p>
       <div v-for="(l, i) in errorLogs" :key="i" class="au-line au-line--error">
         <span class="au-stamp">{{ stamp(l.at) }}</span>
         <span class="au-level">{{ l.level.toUpperCase() }}</span>

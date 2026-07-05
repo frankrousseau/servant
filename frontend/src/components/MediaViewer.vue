@@ -1,91 +1,118 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
-import { ChevronLeft, ChevronRight, X, Download, Trash2, ZoomIn, ZoomOut, ExternalLink, Info, Maximize2 } from "lucide-vue-next";
-import { useConfirm } from "../composables/useConfirm";
-import VideoPlayer from "./VideoPlayer.vue";
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import {
+  ChevronLeft,
+  ChevronRight,
+  X,
+  Download,
+  Trash2,
+  ZoomIn,
+  ZoomOut,
+  ExternalLink,
+  Info,
+  Maximize2
+} from 'lucide-vue-next'
+import { useConfirm } from '../composables/useConfirm'
+import VideoPlayer from './VideoPlayer.vue'
 
 export interface ViewerItem {
-  id: string;
-  src: string;
+  id: string
+  src: string
   /** Original full-resolution source when `src` is a downscaled display copy. */
-  fullSrc?: string;
-  video?: boolean;
-  title?: string;
-  subtitle?: string;
-  meta?: Record<string, string | number | null>;
+  fullSrc?: string
+  video?: boolean
+  title?: string
+  subtitle?: string
+  meta?: Record<string, string | number | null>
 }
 
 const props = defineProps<{
-  items: ViewerItem[];
-  startIndex?: number;
-}>();
+  items: ViewerItem[]
+  startIndex?: number
+}>()
 
 const emit = defineEmits<{
-  close: [];
-  delete: [id: string];
-}>();
+  close: []
+  delete: [id: string]
+}>()
 
-const currentIndex = ref(props.startIndex ?? 0);
-const zoom = ref(1);
-const imgError = ref(false);
-const showInfo = ref(false);
-const showFull = ref(false);
+const currentIndex = ref(props.startIndex ?? 0)
+const zoom = ref(1)
+const imgError = ref(false)
+const showInfo = ref(false)
+const showFull = ref(false)
 
-const current = computed(() => props.items[currentIndex.value]);
+const current = computed(() => props.items[currentIndex.value])
 const displaySrc = computed(() =>
-  showFull.value && current.value?.fullSrc ? current.value.fullSrc : current.value?.src,
-);
-const hasPrev = computed(() => currentIndex.value > 0);
-const hasNext = computed(() => currentIndex.value < props.items.length - 1);
+  showFull.value && current.value?.fullSrc
+    ? current.value.fullSrc
+    : current.value?.src
+)
+const hasPrev = computed(() => currentIndex.value > 0)
+const hasNext = computed(() => currentIndex.value < props.items.length - 1)
 
 // Keep the index in range when items shrink (e.g. deleting the last item while
 // the viewer is open) so `current` doesn't become undefined ("Image
 // unavailable" + a bogus "3 / 2" counter).
 watch(
   () => props.items.length,
-  (len) => {
+  len => {
     if (len === 0) {
-      emit("close");
+      emit('close')
     } else if (currentIndex.value > len - 1) {
-      currentIndex.value = len - 1;
+      currentIndex.value = len - 1
     }
-  },
-);
+  }
+)
 
 function prev() {
-  if (hasPrev.value) { currentIndex.value--; zoom.value = 1; imgError.value = false; showInfo.value = false; showFull.value = false; }
+  if (hasPrev.value) {
+    currentIndex.value--
+    zoom.value = 1
+    imgError.value = false
+    showInfo.value = false
+    showFull.value = false
+  }
 }
 
 function next() {
-  if (hasNext.value) { currentIndex.value++; zoom.value = 1; imgError.value = false; showInfo.value = false; showFull.value = false; }
+  if (hasNext.value) {
+    currentIndex.value++
+    zoom.value = 1
+    imgError.value = false
+    showInfo.value = false
+    showFull.value = false
+  }
 }
 
 function zoomIn() {
-  zoom.value = Math.min(zoom.value + 0.5, 5);
+  zoom.value = Math.min(zoom.value + 0.5, 5)
 }
 
 function zoomOut() {
-  zoom.value = Math.max(zoom.value - 0.5, 0.5);
+  zoom.value = Math.max(zoom.value - 0.5, 0.5)
 }
 
-const { ask } = useConfirm();
+const { ask } = useConfirm()
 
 async function handleDelete() {
-  if (!current.value) return;
-  const ok = await ask({ message: `Delete "${current.value.title || "this item"}"?` });
-  if (ok) emit("delete", current.value.id);
+  if (!current.value) return
+  const ok = await ask({
+    message: `Delete "${current.value.title || 'this item'}"?`
+  })
+  if (ok) emit('delete', current.value.id)
 }
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === "Escape") emit("close");
-  else if (e.key === "ArrowLeft") prev();
-  else if (e.key === "ArrowRight") next();
-  else if (e.key === "+" || e.key === "=") zoomIn();
-  else if (e.key === "-") zoomOut();
+  if (e.key === 'Escape') emit('close')
+  else if (e.key === 'ArrowLeft') prev()
+  else if (e.key === 'ArrowRight') next()
+  else if (e.key === '+' || e.key === '=') zoomIn()
+  else if (e.key === '-') zoomOut()
 }
 
-onMounted(() => document.addEventListener("keydown", onKeydown));
-onUnmounted(() => document.removeEventListener("keydown", onKeydown));
+onMounted(() => document.addEventListener('keydown', onKeydown))
+onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>
@@ -111,7 +138,20 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
           @error="imgError = true"
         />
         <div v-else class="mv-broken">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+          <svg
+            width="48"
+            height="48"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <path d="m21 15-5-5L5 21" />
+          </svg>
           <span>Media unavailable</span>
         </div>
       </div>
@@ -119,14 +159,22 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
       <!-- Top bar -->
       <div class="mv-topbar">
         <div class="mv-info">
-          <span class="mv-title">{{ current?.title || "" }}</span>
-          <span v-if="current?.subtitle" class="mv-subtitle">{{ current.subtitle }}</span>
+          <span class="mv-title">{{ current?.title || '' }}</span>
+          <span v-if="current?.subtitle" class="mv-subtitle">{{
+            current.subtitle
+          }}</span>
         </div>
-        <div class="mv-counter">{{ currentIndex + 1 }} / {{ items.length }}</div>
+        <div class="mv-counter">
+          {{ currentIndex + 1 }} / {{ items.length }}
+        </div>
         <div class="mv-top-actions">
           <template v-if="!current?.video">
-            <button class="mv-btn" @click="zoomOut" title="Zoom out"><ZoomOut :size="18" /></button>
-            <button class="mv-btn" @click="zoomIn" title="Zoom in"><ZoomIn :size="18" /></button>
+            <button class="mv-btn" @click="zoomOut" title="Zoom out">
+              <ZoomOut :size="18" />
+            </button>
+            <button class="mv-btn" @click="zoomIn" title="Zoom in">
+              <ZoomIn :size="18" />
+            </button>
           </template>
           <button
             v-if="current?.fullSrc && !current?.video"
@@ -134,7 +182,9 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
             :class="{ 'mv-btn--active': showFull }"
             @click="showFull = !showFull"
             :title="showFull ? 'Back to fit size' : 'Load full resolution'"
-          ><Maximize2 :size="18" /></button>
+          >
+            <Maximize2 :size="18" />
+          </button>
           <a
             v-if="current"
             class="mv-btn"
@@ -142,23 +192,35 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
             download
             target="_blank"
             title="Download original"
-          ><Download :size="18" /></a>
+            ><Download :size="18"
+          /></a>
           <router-link
             v-if="current"
             class="mv-btn"
             :to="`/photos/${current.id}`"
             title="Permalink"
             @click="emit('close')"
-          ><ExternalLink :size="18" /></router-link>
+            ><ExternalLink :size="18"
+          /></router-link>
           <button
             v-if="current?.meta && Object.keys(current.meta).length"
             class="mv-btn"
             :class="{ 'mv-btn--active': showInfo }"
             @click="showInfo = !showInfo"
             title="Info"
-          ><Info :size="18" /></button>
-          <button class="mv-btn mv-btn--danger" @click="handleDelete" title="Delete"><Trash2 :size="18" /></button>
-          <button class="mv-btn" @click="emit('close')" title="Close"><X :size="20" /></button>
+          >
+            <Info :size="18" />
+          </button>
+          <button
+            class="mv-btn mv-btn--danger"
+            @click="handleDelete"
+            title="Delete"
+          >
+            <Trash2 :size="18" />
+          </button>
+          <button class="mv-btn" @click="emit('close')" title="Close">
+            <X :size="20" />
+          </button>
         </div>
       </div>
 
@@ -179,18 +241,16 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
             class="mv-info-row"
           >
             <span class="mv-info-label">{{ key }}</span>
-            <span
-              v-if="String(key) === 'Location'"
-              class="mv-info-value"
-            >
+            <span v-if="String(key) === 'Location'" class="mv-info-value">
               <a
                 :href="`https://www.openstreetmap.org/?mlat=${String(value).split(', ')[0]}&mlon=${String(value).split(', ')[1]}#map=15/${String(value).split(', ')[0]}/${String(value).split(', ')[1]}`"
                 target="_blank"
                 rel="noopener"
                 class="mv-info-link"
-              >{{ value }}</a>
+                >{{ value }}</a
+              >
             </span>
-            <span v-else class="mv-info-value">{{ value ?? "—" }}</span>
+            <span v-else class="mv-info-value">{{ value ?? '—' }}</span>
           </div>
         </div>
       </Transition>
@@ -260,7 +320,9 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
   border: none;
   color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
   text-decoration: none;
   padding: 0;
 }
@@ -317,7 +379,9 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
   cursor: pointer;
   padding: 0.75rem 0.5rem;
   border-radius: 10px;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .mv-arrow:hover {

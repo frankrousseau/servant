@@ -18,7 +18,7 @@
   --success: #4fd674;
   --radius: 6px;
   --sidebar-width: 220px;
-  --font-display: "VT323", "Courier New", monospace;
+  --font-display: 'VT323', 'Courier New', monospace;
 }
 
 *,
@@ -30,8 +30,9 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
   font-size: 16px;
   background: var(--bg);
   color: var(--text);
@@ -106,7 +107,6 @@ a:hover {
   filter: drop-shadow(0 0 6px rgba(var(--primary-rgb), 0.45));
 }
 
-
 .sidebar-nav {
   list-style: none;
   flex: 1;
@@ -120,7 +120,9 @@ a:hover {
   color: var(--text-muted);
   font-size: 1rem;
   text-decoration: none;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .sidebar-nav li a :deep(svg) {
@@ -274,7 +276,7 @@ a:hover {
   box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.35);
 }
 
-.auth-card button[type="submit"] {
+.auth-card button[type='submit'] {
   width: 100%;
   margin-top: 0.5rem;
   font-family: var(--font-display);

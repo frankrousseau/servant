@@ -1,38 +1,42 @@
-import { describe, it, expect, vi } from "vitest";
-import { mount, flushPromises } from "@vue/test-utils";
-import NotesApp from "./NotesApp.vue";
-import type { Entry } from "../types";
+import { describe, it, expect, vi } from 'vitest'
+import { mount, flushPromises } from '@vue/test-utils'
+import NotesApp from './NotesApp.vue'
+import type { Entry } from '../types'
 
 function note(id: string, title: string, folder: string, body: string): Entry {
   return {
     id,
-    kind: "note",
-    source: "notes",
+    kind: 'note',
+    source: 'notes',
     external_id: null,
     title,
     occurred_at: null,
     data: { folder, body, tags: [] },
     metadata: {},
-    inserted_at: "2026-01-01T00:00:00Z",
-    updated_at: "2026-01-01T00:00:00Z",
-  };
+    inserted_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z'
+  }
 }
 
 function makeCtx(notes: Entry[]) {
-  const jsonRes = (data: unknown) => ({ json: async () => ({ data }) }) as Response;
-  const update = vi.fn(async (_id: string, attrs: Record<string, unknown>) => attrs);
+  const jsonRes = (data: unknown) =>
+    ({ json: async () => ({ data }) }) as Response
+  const update = vi.fn(
+    async (_id: string, attrs: Record<string, unknown>) => attrs
+  )
 
   const fetchMock = vi.fn(async (path: string, opts?: RequestInit) => {
-    if (path === "/api/notes" && (!opts || opts.method === undefined)) return jsonRes(notes);
-    if (path.endsWith("/backlinks")) return jsonRes([]);
-    if (opts?.method === "PUT") {
-      const id = path.split("/").pop()!;
-      const attrs = JSON.parse(opts.body as string);
-      await update(id, attrs);
-      return jsonRes({ ...notes.find((n) => n.id === id), title: attrs.title });
+    if (path === '/api/notes' && (!opts || opts.method === undefined))
+      return jsonRes(notes)
+    if (path.endsWith('/backlinks')) return jsonRes([])
+    if (opts?.method === 'PUT') {
+      const id = path.split('/').pop()!
+      const attrs = JSON.parse(opts.body as string)
+      await update(id, attrs)
+      return jsonRes({ ...notes.find(n => n.id === id), title: attrs.title })
     }
-    return jsonRes([]);
-  });
+    return jsonRes([])
+  })
 
   const ctx = {
     navigate: vi.fn(),
@@ -40,103 +44,123 @@ function makeCtx(notes: Entry[]) {
     api: {
       entries: { list: vi.fn().mockResolvedValue([]) },
       upload: vi.fn(),
-      fetch: fetchMock,
+      fetch: fetchMock
     },
-    viewer: { open: vi.fn(), close: vi.fn(), onDelete: vi.fn() },
-  };
-  return { ctx, fetchMock, update };
+    viewer: { open: vi.fn(), close: vi.fn(), onDelete: vi.fn() }
+  }
+  return { ctx, fetchMock, update }
 }
 
-describe("NotesApp", () => {
-  it("loads the note tree (folders + notes)", async () => {
+describe('NotesApp', () => {
+  it('loads the note tree (folders + notes)', async () => {
     const { ctx } = makeCtx([
-      note("1", "Alpha", "", "hello"),
-      note("2", "Beta", "Proj", ""),
-    ]);
-    const wrapper = mount(NotesApp, { props: { ctx: ctx as never } });
-    await flushPromises();
+      note('1', 'Alpha', '', 'hello'),
+      note('2', 'Beta', 'Proj', '')
+    ])
+    const wrapper = mount(NotesApp, { props: { ctx: ctx as never } })
+    await flushPromises()
 
-    expect(wrapper.text()).toContain("Alpha");
-    expect(wrapper.text()).toContain("Beta");
-    expect(wrapper.text()).toContain("Proj"); // folder row
-  });
+    expect(wrapper.text()).toContain('Alpha')
+    expect(wrapper.text()).toContain('Beta')
+    expect(wrapper.text()).toContain('Proj') // folder row
+  })
 
-  it("selecting a note fills the editor and resolves a known wikilink in preview", async () => {
+  it('selecting a note fills the editor and resolves a known wikilink in preview', async () => {
     const { ctx } = makeCtx([
-      note("1", "Alpha", "", "see [[Beta]]"),
-      note("2", "Beta", "", ""),
-    ]);
-    const wrapper = mount(NotesApp, { props: { ctx: ctx as never } });
-    await flushPromises();
+      note('1', 'Alpha', '', 'see [[Beta]]'),
+      note('2', 'Beta', '', '')
+    ])
+    const wrapper = mount(NotesApp, { props: { ctx: ctx as never } })
+    await flushPromises()
 
     // Click the "Alpha" note row.
-    const alpha = wrapper.findAll(".nt-note").find((n) => n.text().includes("Alpha"))!;
-    await alpha.trigger("click");
-    await flushPromises();
+    const alpha = wrapper
+      .findAll('.nt-note')
+      .find(n => n.text().includes('Alpha'))!
+    await alpha.trigger('click')
+    await flushPromises()
 
-    const body = wrapper.find("textarea.nt-body").element as HTMLTextAreaElement;
-    expect(body.value).toBe("see [[Beta]]");
-    expect((wrapper.find("input.nt-title").element as HTMLInputElement).value).toBe("Alpha");
+    const body = wrapper.find('textarea.nt-body').element as HTMLTextAreaElement
+    expect(body.value).toBe('see [[Beta]]')
+    expect(
+      (wrapper.find('input.nt-title').element as HTMLInputElement).value
+    ).toBe('Alpha')
 
     // Beta exists, so its wikilink is resolved (not flagged --new).
-    const preview = wrapper.find(".nt-preview");
-    expect(preview.html()).toContain("nt-wikilink");
-    expect(preview.html()).not.toContain("nt-wikilink--new");
-  });
+    const preview = wrapper.find('.nt-preview')
+    expect(preview.html()).toContain('nt-wikilink')
+    expect(preview.html()).not.toContain('nt-wikilink--new')
+  })
 
-  it("editing the body triggers a debounced save", async () => {
-    vi.useFakeTimers();
-    const { ctx, update } = makeCtx([note("1", "Alpha", "", "x")]);
-    const wrapper = mount(NotesApp, { props: { ctx: ctx as never } });
-    await vi.runAllTimersAsync();
+  it('editing the body triggers a debounced save', async () => {
+    vi.useFakeTimers()
+    const { ctx, update } = makeCtx([note('1', 'Alpha', '', 'x')])
+    const wrapper = mount(NotesApp, { props: { ctx: ctx as never } })
+    await vi.runAllTimersAsync()
 
-    const alpha = wrapper.findAll(".nt-note").find((n) => n.text().includes("Alpha"))!;
-    await alpha.trigger("click");
-    await vi.runAllTimersAsync();
+    const alpha = wrapper
+      .findAll('.nt-note')
+      .find(n => n.text().includes('Alpha'))!
+    await alpha.trigger('click')
+    await vi.runAllTimersAsync()
 
-    const body = wrapper.find("textarea.nt-body");
-    await body.setValue("x edited");
-    await vi.advanceTimersByTimeAsync(700);
-    await vi.runAllTimersAsync();
+    const body = wrapper.find('textarea.nt-body')
+    await body.setValue('x edited')
+    await vi.advanceTimersByTimeAsync(700)
+    await vi.runAllTimersAsync()
 
-    expect(update).toHaveBeenCalledWith("1", expect.objectContaining({ body: "x edited" }));
-    vi.useRealTimers();
-  });
+    expect(update).toHaveBeenCalledWith(
+      '1',
+      expect.objectContaining({ body: 'x edited' })
+    )
+    vi.useRealTimers()
+  })
 
-  it("renames a folder across all its notes (children included)", async () => {
+  it('renames a folder across all its notes (children included)', async () => {
     const { ctx, update } = makeCtx([
-      note("1", "Alpha", "Proj", ""),
-      note("2", "Beta", "Proj/Sub", ""),
-      note("3", "Gamma", "", ""),
-    ]);
-    const wrapper = mount(NotesApp, { props: { ctx: ctx as never } });
-    await flushPromises();
+      note('1', 'Alpha', 'Proj', ''),
+      note('2', 'Beta', 'Proj/Sub', ''),
+      note('3', 'Gamma', '', '')
+    ])
+    const wrapper = mount(NotesApp, { props: { ctx: ctx as never } })
+    await flushPromises()
 
     // Rename the top-level "Proj" folder (first pencil in the tree).
-    await wrapper.find(".nt-folder-edit").trigger("click");
-    const input = wrapper.find(".nt-folder-rename");
-    await input.setValue("Projects");
-    await input.trigger("keyup.enter");
-    await flushPromises();
+    await wrapper.find('.nt-folder-edit').trigger('click')
+    const input = wrapper.find('.nt-folder-rename')
+    await input.setValue('Projects')
+    await input.trigger('keyup.enter')
+    await flushPromises()
 
-    expect(update).toHaveBeenCalledWith("1", expect.objectContaining({ folder: "Projects" }));
-    expect(update).toHaveBeenCalledWith("2", expect.objectContaining({ folder: "Projects/Sub" }));
-    expect(update).not.toHaveBeenCalledWith("3", expect.anything());
-  });
+    expect(update).toHaveBeenCalledWith(
+      '1',
+      expect.objectContaining({ folder: 'Projects' })
+    )
+    expect(update).toHaveBeenCalledWith(
+      '2',
+      expect.objectContaining({ folder: 'Projects/Sub' })
+    )
+    expect(update).not.toHaveBeenCalledWith('3', expect.anything())
+  })
 
-  it("moves a note into a folder via drag & drop", async () => {
+  it('moves a note into a folder via drag & drop', async () => {
     const { ctx, update } = makeCtx([
-      note("1", "Alpha", "", ""),
-      note("2", "Beta", "Proj", ""),
-    ]);
-    const wrapper = mount(NotesApp, { props: { ctx: ctx as never } });
-    await flushPromises();
+      note('1', 'Alpha', '', ''),
+      note('2', 'Beta', 'Proj', '')
+    ])
+    const wrapper = mount(NotesApp, { props: { ctx: ctx as never } })
+    await flushPromises()
 
-    const alpha = wrapper.findAll(".nt-note").find((n) => n.text().includes("Alpha"))!;
-    await alpha.trigger("dragstart");
-    await wrapper.find(".nt-folder").trigger("drop");
-    await flushPromises();
+    const alpha = wrapper
+      .findAll('.nt-note')
+      .find(n => n.text().includes('Alpha'))!
+    await alpha.trigger('dragstart')
+    await wrapper.find('.nt-folder').trigger('drop')
+    await flushPromises()
 
-    expect(update).toHaveBeenCalledWith("1", expect.objectContaining({ folder: "Proj" }));
-  });
-});
+    expect(update).toHaveBeenCalledWith(
+      '1',
+      expect.objectContaining({ folder: 'Proj' })
+    )
+  })
+})

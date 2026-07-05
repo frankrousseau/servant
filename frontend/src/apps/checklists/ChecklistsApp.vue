@@ -1,303 +1,325 @@
 <script setup lang="ts">
-import { ref, reactive, computed, nextTick, onMounted, onBeforeUnmount } from "vue";
-import type { AppContext, Entry } from "../types";
-import { createFolderOrder } from "../folderOrder";
+import {
+  ref,
+  reactive,
+  computed,
+  nextTick,
+  onMounted,
+  onBeforeUnmount
+} from 'vue'
+import type { AppContext, Entry } from '../types'
+import { createFolderOrder } from '../folderOrder'
 
-const props = defineProps<{ ctx: AppContext }>();
-const ctx = props.ctx;
+const props = defineProps<{ ctx: AppContext }>()
+const ctx = props.ctx
 
-const folderOrder = createFolderOrder(ctx, "checklists");
+const folderOrder = createFolderOrder(ctx, 'checklists')
 
 interface Item {
-  text: string;
-  done: boolean;
+  text: string
+  done: boolean
 }
 
 // ----- helpers -----
 
-const folderOf = (l: Entry) => ((l.data.folder as string) || "").trim();
-const itemsOf = (l: Entry) => (l.data.items as Item[]) || [];
-const doneCount = (l: Entry) => itemsOf(l).filter((i) => i.done).length;
-const isRecurring = (l: Entry) => l.data.recurring === true;
-const isOnDashboard = (l: Entry) => l.data.show_on_dashboard === true;
+const folderOf = (l: Entry) => ((l.data.folder as string) || '').trim()
+const itemsOf = (l: Entry) => (l.data.items as Item[]) || []
+const doneCount = (l: Entry) => itemsOf(l).filter(i => i.done).length
+const isRecurring = (l: Entry) => l.data.recurring === true
+const isOnDashboard = (l: Entry) => l.data.show_on_dashboard === true
 
 function ensureItems(l: Entry): Item[] {
-  if (!Array.isArray(l.data.items)) l.data.items = [];
-  return l.data.items as Item[];
+  if (!Array.isArray(l.data.items)) l.data.items = []
+  return l.data.items as Item[]
 }
 
 // ----- reactive state -----
 
-const lists = ref<Entry[]>([]);
-const selectedId = ref<string | null>(null);
-const searchQuery = ref("");
-const collapsed = reactive(new Set<string>());
-const loadState = ref<"loading" | "ready" | "error">("loading");
-const newItemText = ref("");
-const saveState = ref<"idle" | "saving" | "saved" | "error">("idle");
-const saveError = ref("");
+const lists = ref<Entry[]>([])
+const selectedId = ref<string | null>(null)
+const searchQuery = ref('')
+const collapsed = reactive(new Set<string>())
+const loadState = ref<'loading' | 'ready' | 'error'>('loading')
+const newItemText = ref('')
+const saveState = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
+const saveError = ref('')
 
-const selected = computed(() => lists.value.find((l) => l.id === selectedId.value) || null);
-const items = computed(() => (selected.value ? itemsOf(selected.value) : []));
-const recurring = computed(() => !!selected.value && isRecurring(selected.value));
-const onDashboard = computed(() => !!selected.value && isOnDashboard(selected.value));
+const selected = computed(
+  () => lists.value.find(l => l.id === selectedId.value) || null
+)
+const items = computed(() => (selected.value ? itemsOf(selected.value) : []))
+const recurring = computed(
+  () => !!selected.value && isRecurring(selected.value)
+)
+const onDashboard = computed(
+  () => !!selected.value && isOnDashboard(selected.value)
+)
 
 const editTitle = computed({
-  get: () => selected.value?.title || "",
+  get: () => selected.value?.title || '',
   set: (v: string) => {
-    if (selected.value) selected.value.title = v;
-  },
-});
+    if (selected.value) selected.value.title = v
+  }
+})
 const editFolder = computed({
-  get: () => (selected.value?.data.folder as string) || "",
+  get: () => (selected.value?.data.folder as string) || '',
   set: (v: string) => {
-    if (selected.value) selected.value.data.folder = v;
-  },
-});
+    if (selected.value) selected.value.data.folder = v
+  }
+})
 
 const saveStatusLabel = computed(() => {
-  if (saveState.value === "error") return saveError.value || "Save failed";
-  return { idle: "", saving: "Saving…", saved: "Saved" }[saveState.value] || "";
-});
+  if (saveState.value === 'error') return saveError.value || 'Save failed'
+  return { idle: '', saving: 'Saving…', saved: 'Saved' }[saveState.value] || ''
+})
 
 // ----- sidebar rows (single-level folders) -----
 
 const filtered = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase();
-  if (!q) return lists.value;
-  return lists.value.filter((l) =>
-    [l.title || "", folderOf(l), ...itemsOf(l).map((i) => i.text)]
-      .join(" ")
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return lists.value
+  return lists.value.filter(l =>
+    [l.title || '', folderOf(l), ...itemsOf(l).map(i => i.text)]
+      .join(' ')
       .toLowerCase()
-      .includes(q),
-  );
-});
+      .includes(q)
+  )
+})
 
 interface Row {
-  kind: "folder" | "list";
-  name: string;
-  list?: Entry;
-  collapsed?: boolean;
-  depth: number;
+  kind: 'folder' | 'list'
+  name: string
+  list?: Entry
+  collapsed?: boolean
+  depth: number
 }
 
 const rows = computed<Row[]>(() => {
-  const searching = !!searchQuery.value.trim();
-  const byFolder = new Map<string, Entry[]>();
+  const searching = !!searchQuery.value.trim()
+  const byFolder = new Map<string, Entry[]>()
   for (const l of filtered.value) {
-    const f = folderOf(l);
-    if (!byFolder.has(f)) byFolder.set(f, []);
-    byFolder.get(f)!.push(l);
+    const f = folderOf(l)
+    if (!byFolder.has(f)) byFolder.set(f, [])
+    byFolder.get(f)!.push(l)
   }
   const sortLists = (ls: Entry[]) =>
     [...ls].sort((a, b) =>
-      (a.title || "").toLowerCase().localeCompare((b.title || "").toLowerCase()),
-    );
+      (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase())
+    )
 
-  const out: Row[] = [];
-  for (const l of sortLists(byFolder.get("") || [])) {
-    out.push({ kind: "list", name: l.title || "Untitled", list: l, depth: 0 });
+  const out: Row[] = []
+  for (const l of sortLists(byFolder.get('') || [])) {
+    out.push({ kind: 'list', name: l.title || 'Untitled', list: l, depth: 0 })
   }
-  const folders = [...byFolder.keys()].filter(Boolean).sort(folderOrder.compare);
+  const folders = [...byFolder.keys()].filter(Boolean).sort(folderOrder.compare)
   for (const f of folders) {
-    const isCollapsed = !searching && collapsed.has(f);
-    out.push({ kind: "folder", name: f, collapsed: isCollapsed, depth: 0 });
+    const isCollapsed = !searching && collapsed.has(f)
+    out.push({ kind: 'folder', name: f, collapsed: isCollapsed, depth: 0 })
     if (!isCollapsed) {
       for (const l of sortLists(byFolder.get(f)!)) {
-        out.push({ kind: "list", name: l.title || "Untitled", list: l, depth: 1 });
+        out.push({
+          kind: 'list',
+          name: l.title || 'Untitled',
+          list: l,
+          depth: 1
+        })
       }
     }
   }
-  return out;
-});
+  return out
+})
 
 function toggleFolder(name: string) {
-  if (collapsed.has(name)) collapsed.delete(name);
-  else collapsed.add(name);
+  if (collapsed.has(name)) collapsed.delete(name)
+  else collapsed.add(name)
 }
 
 // ----- folder rename -----
 
-const renamingFolder = ref<string | null>(null);
-const renameValue = ref("");
+const renamingFolder = ref<string | null>(null)
+const renameValue = ref('')
 
 async function startRenameFolder(name: string) {
-  renamingFolder.value = name;
-  renameValue.value = name;
-  await nextTick();
-  const el = document.querySelector(".cl-folder-rename") as HTMLInputElement | null;
-  el?.focus();
-  el?.select();
+  renamingFolder.value = name
+  renameValue.value = name
+  await nextTick()
+  const el = document.querySelector(
+    '.cl-folder-rename'
+  ) as HTMLInputElement | null
+  el?.focus()
+  el?.select()
 }
 
 function commitRenameFolder() {
-  const from = renamingFolder.value;
-  const to = renameValue.value.trim();
-  renamingFolder.value = null;
-  if (!from || !to || to === from) return;
-  for (const l of lists.value.filter((x) => folderOf(x) === from)) {
-    l.data.folder = to;
-    void save(l);
+  const from = renamingFolder.value
+  const to = renameValue.value.trim()
+  renamingFolder.value = null
+  if (!from || !to || to === from) return
+  for (const l of lists.value.filter(x => folderOf(x) === from)) {
+    l.data.folder = to
+    void save(l)
   }
-  folderOrder.rename(from, to);
+  folderOrder.rename(from, to)
 }
 
 // ----- drag & drop (move a checklist into a folder / to the root,
 //       drag a folder onto another folder to reorder) -----
 
-const draggingId = ref<string | null>(null);
-const draggingFolder = ref<string | null>(null);
-const dragOverFolder = ref<string | null>(null);
+const draggingId = ref<string | null>(null)
+const draggingFolder = ref<string | null>(null)
+const dragOverFolder = ref<string | null>(null)
 
 const allFolders = computed(() =>
-  [...new Set(lists.value.map(folderOf).filter(Boolean))].sort(folderOrder.compare),
-);
+  [...new Set(lists.value.map(folderOf).filter(Boolean))].sort(
+    folderOrder.compare
+  )
+)
 
 function onDragStart(l: Entry, e: DragEvent) {
-  draggingId.value = l.id;
-  e.dataTransfer?.setData("text/plain", l.id);
-  if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+  draggingId.value = l.id
+  e.dataTransfer?.setData('text/plain', l.id)
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
 }
 
 function onFolderDragStart(name: string, e: DragEvent) {
-  draggingFolder.value = name;
-  e.dataTransfer?.setData("text/plain", name);
-  if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+  draggingFolder.value = name
+  e.dataTransfer?.setData('text/plain', name)
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
 }
 
 function onDrop(target: string) {
-  dragOverFolder.value = null;
+  dragOverFolder.value = null
 
   if (draggingFolder.value) {
     // Reorder: insert the dragged folder before the target (end when dropped
     // on the tree background).
-    const from = draggingFolder.value;
-    draggingFolder.value = null;
-    if (from === target) return;
-    const seq = allFolders.value.filter((f) => f !== from);
-    const idx = target ? seq.indexOf(target) : seq.length;
-    seq.splice(idx === -1 ? seq.length : idx, 0, from);
-    folderOrder.setGroup(seq);
-    return;
+    const from = draggingFolder.value
+    draggingFolder.value = null
+    if (from === target) return
+    const seq = allFolders.value.filter(f => f !== from)
+    const idx = target ? seq.indexOf(target) : seq.length
+    seq.splice(idx === -1 ? seq.length : idx, 0, from)
+    folderOrder.setGroup(seq)
+    return
   }
 
-  const l = lists.value.find((x) => x.id === draggingId.value);
-  draggingId.value = null;
-  if (!l || folderOf(l) === target.trim()) return;
-  l.data.folder = target;
-  void save(l);
+  const l = lists.value.find(x => x.id === draggingId.value)
+  draggingId.value = null
+  if (!l || folderOf(l) === target.trim()) return
+  l.data.folder = target
+  void save(l)
 }
 
 // ----- save (debounced for text edits, immediate for structural ones, serialized) -----
 
-let saveTimer: ReturnType<typeof setTimeout> | undefined;
-let pending: Entry | null = null;
-let saveChain: Promise<void> = Promise.resolve();
+let saveTimer: ReturnType<typeof setTimeout> | undefined
+let pending: Entry | null = null
+let saveChain: Promise<void> = Promise.resolve()
 
 function save(l: Entry): Promise<void> {
-  saveState.value = "saving";
+  saveState.value = 'saving'
   saveChain = saveChain
     .then(() => ctx.api.entries.update(l.id, { title: l.title, data: l.data }))
     .then(() => {
-      saveState.value = "saved";
-      saveError.value = "";
+      saveState.value = 'saved'
+      saveError.value = ''
     })
-    .catch((e) => {
-      saveState.value = "error";
-      saveError.value = e instanceof Error ? e.message : "Save failed";
-    });
-  return saveChain;
+    .catch(e => {
+      saveState.value = 'error'
+      saveError.value = e instanceof Error ? e.message : 'Save failed'
+    })
+  return saveChain
 }
 
 function flushPending() {
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = undefined;
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = undefined
   if (pending) {
-    const l = pending;
-    pending = null;
-    void save(l);
+    const l = pending
+    pending = null
+    void save(l)
   }
 }
 
 function scheduleSave() {
-  if (!selected.value) return;
-  pending = selected.value;
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(flushPending, 600);
+  if (!selected.value) return
+  pending = selected.value
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(flushPending, 600)
 }
 
 function saveNow() {
-  if (!selected.value) return;
-  pending = selected.value;
-  flushPending();
+  if (!selected.value) return
+  pending = selected.value
+  flushPending()
 }
 
-onBeforeUnmount(flushPending);
+onBeforeUnmount(flushPending)
 
 // ----- selection / CRUD -----
 
 function selectList(id: string, opts: { push?: boolean } = {}) {
-  flushPending();
-  saveState.value = "idle";
-  saveError.value = "";
-  newItemText.value = "";
-  selectedId.value = id;
+  flushPending()
+  saveState.value = 'idle'
+  saveError.value = ''
+  newItemText.value = ''
+  selectedId.value = id
   if (opts.push !== false) {
-    history.pushState(null, "", `/apps/checklists?selected=${id}`);
+    history.pushState(null, '', `/apps/checklists?selected=${id}`)
   }
 }
 
 function onPopState() {
-  flushPending();
-  const id = new URLSearchParams(window.location.search).get("selected");
-  if (id) selectList(id, { push: false });
-  else selectedId.value = null;
+  flushPending()
+  const id = new URLSearchParams(window.location.search).get('selected')
+  if (id) selectList(id, { push: false })
+  else selectedId.value = null
 }
 
 function uniqueTitle(base: string): string {
-  const existing = new Set(lists.value.map((l) => (l.title || "").toLowerCase()));
-  if (!existing.has(base.toLowerCase())) return base;
-  let i = 2;
-  while (existing.has(`${base} ${i}`.toLowerCase())) i++;
-  return `${base} ${i}`;
+  const existing = new Set(lists.value.map(l => (l.title || '').toLowerCase()))
+  if (!existing.has(base.toLowerCase())) return base
+  let i = 2
+  while (existing.has(`${base} ${i}`.toLowerCase())) i++
+  return `${base} ${i}`
 }
 
-async function createList(folder = "") {
-  flushPending();
+async function createList(folder = '') {
+  flushPending()
   try {
     const created = await ctx.api.entries.create({
-      kind: "checklist",
-      source: "manual",
-      title: uniqueTitle("Untitled"),
-      data: { folder, recurring: false, items: [] },
-    });
-    lists.value.push(created);
-    selectList(created.id);
-    await nextTick();
-    const el = document.querySelector(".cl-title") as HTMLInputElement | null;
-    el?.focus();
-    el?.select();
+      kind: 'checklist',
+      source: 'manual',
+      title: uniqueTitle('Untitled'),
+      data: { folder, recurring: false, items: [] }
+    })
+    lists.value.push(created)
+    selectList(created.id)
+    await nextTick()
+    const el = document.querySelector('.cl-title') as HTMLInputElement | null
+    el?.focus()
+    el?.select()
   } catch {
     // ignore
   }
 }
 
 async function deleteSelected() {
-  const l = selected.value;
-  if (!l) return;
+  const l = selected.value
+  if (!l) return
   const ok = await ctx.confirm.ask({
-    title: "Delete checklist",
-    message: `Delete "${l.title || "Untitled"}"? This cannot be undone.`,
-    confirmLabel: "Delete",
-    danger: true,
-  });
-  if (!ok) return;
+    title: 'Delete checklist',
+    message: `Delete "${l.title || 'Untitled'}"? This cannot be undone.`,
+    confirmLabel: 'Delete',
+    danger: true
+  })
+  if (!ok) return
   try {
-    await ctx.api.entries.delete(l.id);
-    lists.value = lists.value.filter((x) => x.id !== l.id);
+    await ctx.api.entries.delete(l.id)
+    lists.value = lists.value.filter(x => x.id !== l.id)
     if (selectedId.value === l.id) {
-      selectedId.value = null;
-      history.replaceState(null, "", "/apps/checklists");
+      selectedId.value = null
+      history.replaceState(null, '', '/apps/checklists')
     }
   } catch {
     // ignore
@@ -307,95 +329,95 @@ async function deleteSelected() {
 // ----- item / recurring actions -----
 
 function addItem() {
-  const l = selected.value;
-  const text = newItemText.value.trim();
-  if (!l || !text) return;
-  ensureItems(l).push({ text, done: false });
-  newItemText.value = "";
-  saveNow();
+  const l = selected.value
+  const text = newItemText.value.trim()
+  if (!l || !text) return
+  ensureItems(l).push({ text, done: false })
+  newItemText.value = ''
+  saveNow()
 }
 
 function removeItem(index: number) {
-  const l = selected.value;
-  if (!l) return;
-  ensureItems(l).splice(index, 1);
-  saveNow();
+  const l = selected.value
+  if (!l) return
+  ensureItems(l).splice(index, 1)
+  saveNow()
 }
 
 // ----- item reordering (drag the grip onto another row) -----
 
-const dragIndex = ref<number | null>(null);
-const dropIndex = ref<number | null>(null);
+const dragIndex = ref<number | null>(null)
+const dropIndex = ref<number | null>(null)
 
 function onItemDragStart(i: number, e: DragEvent) {
-  dragIndex.value = i;
+  dragIndex.value = i
   if (e.dataTransfer) {
-    e.dataTransfer.setData("text/plain", String(i));
-    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData('text/plain', String(i))
+    e.dataTransfer.effectAllowed = 'move'
   }
 }
 
 function onItemDragOver(i: number, e: DragEvent) {
-  if (dragIndex.value === null) return;
-  e.preventDefault();
-  if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-  dropIndex.value = i;
+  if (dragIndex.value === null) return
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+  dropIndex.value = i
 }
 
 function onItemDrop(i: number) {
-  const from = dragIndex.value;
-  dropIndex.value = null;
-  const l = selected.value;
-  if (from === null || from === i || !l) return;
-  const arr = ensureItems(l);
-  const [moved] = arr.splice(from, 1);
-  arr.splice(i, 0, moved);
-  saveNow();
+  const from = dragIndex.value
+  dropIndex.value = null
+  const l = selected.value
+  if (from === null || from === i || !l) return
+  const arr = ensureItems(l)
+  const [moved] = arr.splice(from, 1)
+  arr.splice(i, 0, moved)
+  saveNow()
 }
 
 function onItemDragEnd() {
-  dragIndex.value = null;
-  dropIndex.value = null;
+  dragIndex.value = null
+  dropIndex.value = null
 }
 
 function resetList() {
-  const l = selected.value;
-  if (!l) return;
-  for (const item of ensureItems(l)) item.done = false;
-  saveNow();
+  const l = selected.value
+  if (!l) return
+  for (const item of ensureItems(l)) item.done = false
+  saveNow()
 }
 
 function toggleRecurring(e: Event) {
-  const l = selected.value;
-  if (!l) return;
-  l.data.recurring = (e.target as HTMLInputElement).checked;
-  saveNow();
+  const l = selected.value
+  if (!l) return
+  l.data.recurring = (e.target as HTMLInputElement).checked
+  saveNow()
 }
 
 function toggleOnDashboard(e: Event) {
-  const l = selected.value;
-  if (!l) return;
-  l.data.show_on_dashboard = (e.target as HTMLInputElement).checked;
-  saveNow();
+  const l = selected.value
+  if (!l) return
+  l.data.show_on_dashboard = (e.target as HTMLInputElement).checked
+  saveNow()
 }
 
 // ----- load -----
 
 onMounted(async () => {
-  window.addEventListener("popstate", onPopState);
-  void folderOrder.load();
+  window.addEventListener('popstate', onPopState)
+  void folderOrder.load()
   try {
-    lists.value = await ctx.api.entries.list({ kind: "checklist" });
-    loadState.value = "ready";
+    lists.value = await ctx.api.entries.list({ kind: 'checklist' })
+    loadState.value = 'ready'
   } catch {
-    loadState.value = "error";
+    loadState.value = 'error'
   }
-  const initial = new URLSearchParams(window.location.search).get("selected");
-  if (initial && lists.value.some((l) => l.id === initial)) {
-    selectList(initial, { push: false });
+  const initial = new URLSearchParams(window.location.search).get('selected')
+  if (initial && lists.value.some(l => l.id === initial)) {
+    selectList(initial, { push: false })
   }
-});
-onBeforeUnmount(() => window.removeEventListener("popstate", onPopState));
+})
+onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 </script>
 
 <template>
@@ -414,8 +436,16 @@ onBeforeUnmount(() => window.removeEventListener("popstate", onPopState));
           aria-label="New checklist"
           @click="createList()"
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M12 5v14M5 12h14" />
           </svg>
         </button>
@@ -438,7 +468,9 @@ onBeforeUnmount(() => window.removeEventListener("popstate", onPopState));
               @dragleave="dragOverFolder = null"
               @drop.prevent.stop="onDrop(row.name)"
             >
-              <span class="cl-folder-caret">{{ row.collapsed ? "▸" : "▾" }}</span>
+              <span class="cl-folder-caret">{{
+                row.collapsed ? '▸' : '▾'
+              }}</span>
               <input
                 v-if="renamingFolder === row.name"
                 class="cl-folder-rename"
@@ -472,7 +504,12 @@ onBeforeUnmount(() => window.removeEventListener("popstate", onPopState));
               @click="selectList(row.list!.id)"
             >
               <span class="cl-row-title">
-                <span v-if="isRecurring(row.list!)" class="cl-row-recurring" title="Recurring">↻</span>
+                <span
+                  v-if="isRecurring(row.list!)"
+                  class="cl-row-recurring"
+                  title="Recurring"
+                  >↻</span
+                >
                 {{ row.name }}
               </span>
               <span v-if="itemsOf(row.list!).length" class="cl-row-count">
@@ -482,19 +519,30 @@ onBeforeUnmount(() => window.removeEventListener("popstate", onPopState));
           </div>
         </template>
         <p v-else class="cl-empty">
-          {{ loadState === "error" ? "Failed to load checklists." : "No checklists yet." }}
+          {{
+            loadState === 'error'
+              ? 'Failed to load checklists.'
+              : 'No checklists yet.'
+          }}
         </p>
       </div>
     </div>
 
     <div class="cl-main">
-      <p v-if="loadState === 'loading'" class="cl-placeholder">Loading checklists…</p>
+      <p v-if="loadState === 'loading'" class="cl-placeholder">
+        Loading checklists…
+      </p>
       <p v-else-if="!selected" class="cl-placeholder">
         Select or create a checklist to get started.
       </p>
       <template v-else>
         <div class="cl-toolbar">
-          <input class="cl-title" v-model="editTitle" placeholder="Untitled" @input="scheduleSave()" />
+          <input
+            class="cl-title"
+            v-model="editTitle"
+            placeholder="Untitled"
+            @input="scheduleSave()"
+          />
           <input
             class="cl-folder-input"
             v-model="editFolder"
@@ -507,18 +555,43 @@ onBeforeUnmount(() => window.removeEventListener("popstate", onPopState));
             :title="saveState === 'error' ? saveError : ''"
             >{{ saveStatusLabel }}</span
           >
-          <label class="cl-recurring-toggle" title="Recurring lists can be reset">
-            <input type="checkbox" :checked="recurring" @change="toggleRecurring" />
+          <label
+            class="cl-recurring-toggle"
+            title="Recurring lists can be reset"
+          >
+            <input
+              type="checkbox"
+              :checked="recurring"
+              @change="toggleRecurring"
+            />
             Recurring
           </label>
-          <label class="cl-recurring-toggle" title="Show pending items on the dashboard">
-            <input type="checkbox" :checked="onDashboard" @change="toggleOnDashboard" />
+          <label
+            class="cl-recurring-toggle"
+            title="Show pending items on the dashboard"
+          >
+            <input
+              type="checkbox"
+              :checked="onDashboard"
+              @change="toggleOnDashboard"
+            />
             Dashboard
           </label>
-          <button v-if="recurring" class="cl-reset-btn" title="Uncheck all items" @click="resetList">
+          <button
+            v-if="recurring"
+            class="cl-reset-btn"
+            title="Uncheck all items"
+            @click="resetList"
+          >
             ↻ Reset
           </button>
-          <button class="cl-delete" title="Delete checklist" @click="deleteSelected">🗑</button>
+          <button
+            class="cl-delete"
+            title="Delete checklist"
+            @click="deleteSelected"
+          >
+            🗑
+          </button>
         </div>
 
         <div class="cl-items">
@@ -532,7 +605,7 @@ onBeforeUnmount(() => window.removeEventListener("popstate", onPopState));
             :class="{
               'cl-item--done': item.done,
               'cl-item--dragging': dragIndex === i,
-              'cl-item--droptarget': dropIndex === i && dragIndex !== i,
+              'cl-item--droptarget': dropIndex === i && dragIndex !== i
             }"
             @dragover="onItemDragOver(i, $event)"
             @dragleave="dropIndex === i && (dropIndex = null)"
@@ -548,12 +621,32 @@ onBeforeUnmount(() => window.removeEventListener("popstate", onPopState));
               >⋮⋮</span
             >
             <input type="checkbox" v-model="item.done" @change="saveNow()" />
-            <input class="cl-item-text" v-model="item.text" @input="scheduleSave()" />
-            <button class="cl-item-del" title="Remove item" @click="removeItem(i)">×</button>
+            <input
+              class="cl-item-text"
+              v-model="item.text"
+              @input="scheduleSave()"
+            />
+            <button
+              class="cl-item-del"
+              title="Remove item"
+              @click="removeItem(i)"
+            >
+              ×
+            </button>
           </div>
           <form class="cl-add" @submit.prevent="addItem">
-            <input class="cl-add-input" v-model="newItemText" placeholder="Add an item…" />
-            <button type="submit" class="cl-add-btn" :disabled="!newItemText.trim()">Add</button>
+            <input
+              class="cl-add-input"
+              v-model="newItemText"
+              placeholder="Add an item…"
+            />
+            <button
+              type="submit"
+              class="cl-add-btn"
+              :disabled="!newItemText.trim()"
+            >
+              Add
+            </button>
           </form>
         </div>
       </template>
@@ -806,7 +899,7 @@ onBeforeUnmount(() => window.removeEventListener("popstate", onPopState));
 /* The global stylesheet gives every input width:100% + heavy padding; undo it
    for checkboxes, and draw them in the terminal language: square cell,
    phosphor fill + dark check when on. */
-.cl-item input[type="checkbox"],
+.cl-item input[type='checkbox'],
 .cl-recurring-toggle input {
   appearance: none;
   -webkit-appearance: none;
@@ -819,13 +912,16 @@ onBeforeUnmount(() => window.removeEventListener("popstate", onPopState));
   border-radius: 4px;
   background: var(--bg);
   cursor: pointer;
-  transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
+  transition:
+    border-color 0.12s,
+    background 0.12s,
+    box-shadow 0.12s;
 }
-.cl-item input[type="checkbox"]:hover,
+.cl-item input[type='checkbox']:hover,
 .cl-recurring-toggle input:hover {
   border-color: var(--primary);
 }
-.cl-item input[type="checkbox"]:checked,
+.cl-item input[type='checkbox']:checked,
 .cl-recurring-toggle input:checked {
   border-color: var(--primary);
   background-color: var(--primary);

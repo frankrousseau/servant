@@ -1,192 +1,204 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { useApi } from "../composables/useApi";
-import { useSocket, debounce } from "../composables/useSocket";
-import type { Entry, PaginationMeta } from "../types";
-import { relativeTime } from "../types";
-import { formatDateTime } from "../lib/datetime";
-import KindIcon from "../components/KindIcon.vue";
-import { useConfirm } from "../composables/useConfirm";
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useApi } from '../composables/useApi'
+import { useSocket, debounce } from '../composables/useSocket'
+import type { Entry, PaginationMeta } from '../types'
+import { relativeTime } from '../types'
+import { formatDateTime } from '../lib/datetime'
+import KindIcon from '../components/KindIcon.vue'
+import { useConfirm } from '../composables/useConfirm'
 
-const api = useApi();
-const route = useRoute();
-const router = useRouter();
+const api = useApi()
+const route = useRoute()
+const router = useRouter()
 
-const entries = ref<Entry[]>([]);
-const meta = ref<PaginationMeta>({ page: 1, per_page: 50, total: 0, total_pages: 1 });
-const loading = ref(true);
+const entries = ref<Entry[]>([])
+const meta = ref<PaginationMeta>({
+  page: 1,
+  per_page: 50,
+  total: 0,
+  total_pages: 1
+})
+const loading = ref(true)
 
 // Filters
-const kinds = ref<string[]>([]);
-const sources = ref<string[]>([]);
-const filterKind = ref((route.query.kind as string) || "");
-const filterSource = ref((route.query.source as string) || "");
-const filterDateFrom = ref("");
-const filterDateTo = ref("");
-const page = ref(1);
+const kinds = ref<string[]>([])
+const sources = ref<string[]>([])
+const filterKind = ref((route.query.kind as string) || '')
+const filterSource = ref((route.query.source as string) || '')
+const filterDateFrom = ref('')
+const filterDateTo = ref('')
+const page = ref(1)
 
 // Detail
-const selectedEntry = ref<Entry | null>(null);
-const showDetail = ref(false);
+const selectedEntry = ref<Entry | null>(null)
+const showDetail = ref(false)
+
+function closeDetail() {
+  showDetail.value = false
+  router.replace({ query: {} })
+}
 
 // Create/Edit modal
-const showModal = ref(false);
-const editingEntry = ref<Entry | null>(null);
-const formKind = ref("");
-const formSource = ref("");
-const formTitle = ref("");
-const formData = ref("{}");
-const saving = ref(false);
-const formError = ref<string | null>(null);
-const pageError = ref<string | null>(null);
+const showModal = ref(false)
+const editingEntry = ref<Entry | null>(null)
+const formKind = ref('')
+const formSource = ref('')
+const formTitle = ref('')
+const formData = ref('{}')
+const saving = ref(false)
+const formError = ref<string | null>(null)
+const pageError = ref<string | null>(null)
 
 function errMessage(e: unknown, fallback: string): string {
-  return e instanceof Error && e.message ? e.message : fallback;
+  return e instanceof Error && e.message ? e.message : fallback
 }
 
 // Real-time. Debounced so a burst of entry events (e.g. a connector sync) or the
 // aggregated entries_changed signal refetches the page once, not per row.
-const { onEntryChange, onBulkChange } = useSocket();
-const refresh = debounce(() => fetchEntries());
-onEntryChange(refresh);
-onBulkChange(refresh);
+const { onEntryChange, onBulkChange } = useSocket()
+const refresh = debounce(() => fetchEntries())
+onEntryChange(refresh)
+onBulkChange(refresh)
 
 async function fetchFilters() {
   try {
     const [kindsRes, sourcesRes] = await Promise.all([
-      api.get<{ data: string[] }>("/api/entries/kinds"),
-      api.get<{ data: string[] }>("/api/entries/sources"),
-    ]);
-    kinds.value = kindsRes.data;
-    sources.value = sourcesRes.data;
+      api.get<{ data: string[] }>('/api/entries/kinds'),
+      api.get<{ data: string[] }>('/api/entries/sources')
+    ])
+    kinds.value = kindsRes.data
+    sources.value = sourcesRes.data
   } catch {
     // ignore
   }
 }
 
 async function fetchEntries() {
-  loading.value = true;
+  loading.value = true
   try {
     const params: Record<string, string> = {
       page: page.value.toString(),
-      per_page: "50",
-    };
-    if (filterKind.value) params.kind = filterKind.value;
-    if (filterSource.value) params.source = filterSource.value;
-    if (filterDateFrom.value) params.from = filterDateFrom.value + "T00:00:00Z";
-    if (filterDateTo.value) params.to = filterDateTo.value + "T23:59:59Z";
+      per_page: '50'
+    }
+    if (filterKind.value) params.kind = filterKind.value
+    if (filterSource.value) params.source = filterSource.value
+    if (filterDateFrom.value) params.from = filterDateFrom.value + 'T00:00:00Z'
+    if (filterDateTo.value) params.to = filterDateTo.value + 'T23:59:59Z'
 
     const res = await api.get<{ data: Entry[]; meta: PaginationMeta }>(
-      "/api/entries",
-      params,
-    );
-    entries.value = res.data;
-    meta.value = res.meta;
-    pageError.value = null;
+      '/api/entries',
+      params
+    )
+    entries.value = res.data
+    meta.value = res.meta
+    pageError.value = null
   } catch (e) {
-    entries.value = [];
-    pageError.value = errMessage(e, "Failed to load entries");
+    entries.value = []
+    pageError.value = errMessage(e, 'Failed to load entries')
   } finally {
-    loading.value = false;
+    loading.value = false
   }
 }
 
 function openDetail(entry: Entry) {
-  selectedEntry.value = entry;
-  showDetail.value = true;
+  selectedEntry.value = entry
+  showDetail.value = true
 }
 
 function openCreate() {
-  editingEntry.value = null;
-  formKind.value = "";
-  formSource.value = "manual";
-  formTitle.value = "";
-  formData.value = "{}";
-  formError.value = null;
-  showModal.value = true;
+  editingEntry.value = null
+  formKind.value = ''
+  formSource.value = 'manual'
+  formTitle.value = ''
+  formData.value = '{}'
+  formError.value = null
+  showModal.value = true
 }
 
 function openEdit(entry: Entry) {
-  editingEntry.value = entry;
-  formKind.value = entry.kind;
-  formSource.value = entry.source;
-  formTitle.value = entry.title || "";
-  formData.value = JSON.stringify(entry.data, null, 2);
-  formError.value = null;
-  showModal.value = true;
+  editingEntry.value = entry
+  formKind.value = entry.kind
+  formSource.value = entry.source
+  formTitle.value = entry.title || ''
+  formData.value = JSON.stringify(entry.data, null, 2)
+  formError.value = null
+  showModal.value = true
 }
 
 async function saveEntry() {
-  formError.value = null;
+  formError.value = null
 
   // Validate the JSON up front so an invalid payload shows a message instead of
   // silently freezing the modal.
-  let data: unknown;
+  let data: unknown
   try {
-    data = JSON.parse(formData.value);
+    data = JSON.parse(formData.value)
   } catch {
-    formError.value = "The Data field is not valid JSON.";
-    return;
+    formError.value = 'The Data field is not valid JSON.'
+    return
   }
 
-  saving.value = true;
+  saving.value = true
   try {
     const body = {
       kind: formKind.value,
       source: formSource.value,
       title: formTitle.value,
-      data,
-    };
-
-    if (editingEntry.value) {
-      await api.put(`/api/entries/${editingEntry.value.id}`, body);
-    } else {
-      await api.post("/api/entries", body);
+      data
     }
 
-    showModal.value = false;
-    await fetchEntries();
-    await fetchFilters();
+    if (editingEntry.value) {
+      await api.put(`/api/entries/${editingEntry.value.id}`, body)
+    } else {
+      await api.post('/api/entries', body)
+    }
+
+    showModal.value = false
+    await fetchEntries()
+    await fetchFilters()
   } catch (e) {
-    formError.value = errMessage(e, "Failed to save entry");
+    formError.value = errMessage(e, 'Failed to save entry')
   } finally {
-    saving.value = false;
+    saving.value = false
   }
 }
 
-const { ask } = useConfirm();
+const { ask } = useConfirm()
 
 async function deleteEntry(entry: Entry) {
-  const ok = await ask({ message: `Delete "${entry.title || entry.kind}" entry?` });
-  if (!ok) return;
+  const ok = await ask({
+    message: `Delete "${entry.title || entry.kind}" entry?`
+  })
+  if (!ok) return
   try {
-    await api.del(`/api/entries/${entry.id}`);
-    showDetail.value = false;
-    selectedEntry.value = null;
-    await fetchEntries();
-    await fetchFilters();
+    await api.del(`/api/entries/${entry.id}`)
+    showDetail.value = false
+    selectedEntry.value = null
+    await fetchEntries()
+    await fetchFilters()
   } catch (e) {
-    pageError.value = errMessage(e, "Failed to delete entry");
+    pageError.value = errMessage(e, 'Failed to delete entry')
   }
 }
 
 function goToPage(p: number) {
-  page.value = p;
+  page.value = p
 }
 
 const pageRange = computed(() => {
-  const total = meta.value.total_pages;
-  const current = meta.value.page;
-  const range: number[] = [];
-  const start = Math.max(1, current - 2);
-  const end = Math.min(total, current + 2);
-  for (let i = start; i <= end; i++) range.push(i);
-  return range;
-});
+  const total = meta.value.total_pages
+  const current = meta.value.page
+  const range: number[] = []
+  const start = Math.max(1, current - 2)
+  const end = Math.min(total, current + 2)
+  for (let i = start; i <= end; i++) range.push(i)
+  return range
+})
 
 function formatData(data: Record<string, unknown>): string {
-  return JSON.stringify(data, null, 2);
+  return JSON.stringify(data, null, 2)
 }
 
 // Watch filters -> reset to page 1. When already on page 1 the page watcher
@@ -194,46 +206,44 @@ function formatData(data: Record<string, unknown>): string {
 // (avoids two concurrent requests for the same params).
 watch([filterKind, filterSource, filterDateFrom, filterDateTo], () => {
   if (page.value === 1) {
-    fetchEntries();
+    fetchEntries()
   } else {
-    page.value = 1;
+    page.value = 1
   }
-});
-watch(page, fetchEntries);
+})
+watch(page, fetchEntries)
 
 // Handle deep link to entry detail
 watch(
   () => route.query.entry,
-  async (entryId) => {
+  async entryId => {
     if (entryId) {
       try {
-        const res = await api.get<{ data: Entry }>(
-          `/api/entries/${entryId}`,
-        );
-        selectedEntry.value = res.data;
-        showDetail.value = true;
+        const res = await api.get<{ data: Entry }>(`/api/entries/${entryId}`)
+        selectedEntry.value = res.data
+        showDetail.value = true
       } catch {
         // ignore
       }
     }
   },
-  { immediate: true },
-);
+  { immediate: true }
+)
 
 // Sync kind filter from route query
 watch(
   () => route.query.kind,
-  (kind) => {
+  kind => {
     if (kind && kind !== filterKind.value) {
-      filterKind.value = kind as string;
+      filterKind.value = kind as string
     }
-  },
-);
+  }
+)
 
 onMounted(() => {
-  fetchFilters();
-  fetchEntries();
-});
+  fetchFilters()
+  fetchEntries()
+})
 </script>
 
 <template>
@@ -246,7 +256,13 @@ onMounted(() => {
 
       <p v-if="pageError" class="error-banner" role="alert">
         {{ pageError }}
-        <button class="error-banner-close" @click="pageError = null" aria-label="Dismiss">×</button>
+        <button
+          class="error-banner-close"
+          @click="pageError = null"
+          aria-label="Dismiss"
+        >
+          ×
+        </button>
       </p>
 
       <!-- Filters -->
@@ -261,7 +277,9 @@ onMounted(() => {
         </select>
         <input v-model="filterDateFrom" type="date" title="From date" />
         <input v-model="filterDateTo" type="date" title="To date" />
-        <span class="filter-count" v-if="!loading">{{ meta.total }} entries</span>
+        <span class="filter-count" v-if="!loading"
+          >{{ meta.total }} entries</span
+        >
       </div>
     </div>
 
@@ -280,7 +298,7 @@ onMounted(() => {
         <KindIcon :kind="entry.kind" :size="14" />
         <div class="entry-main">
           <span class="entry-title">
-            {{ entry.title || entry.external_id || "(untitled)" }}
+            {{ entry.title || entry.external_id || '(untitled)' }}
           </span>
           <span class="entry-subtitle">
             {{ entry.source }}
@@ -326,7 +344,7 @@ onMounted(() => {
     <div
       v-if="showDetail && selectedEntry"
       class="modal-overlay"
-      @click.self="showDetail = false; router.replace({ query: {} })"
+      @click.self="closeDetail"
     >
       <div class="detail-panel">
         <div class="detail-header">
@@ -334,12 +352,7 @@ onMounted(() => {
             <KindIcon :kind="selectedEntry.kind" :size="18" />
             <h2>{{ selectedEntry.title || selectedEntry.kind }}</h2>
           </div>
-          <button
-            class="small"
-            @click="showDetail = false; router.replace({ query: {} })"
-          >
-            Close
-          </button>
+          <button class="small" @click="closeDetail">Close</button>
         </div>
 
         <div class="detail-meta">
@@ -353,7 +366,9 @@ onMounted(() => {
           </div>
           <div v-if="selectedEntry.external_id" class="detail-meta-item">
             <span class="detail-label">External ID</span>
-            <span class="detail-value mono">{{ selectedEntry.external_id }}</span>
+            <span class="detail-value mono">{{
+              selectedEntry.external_id
+            }}</span>
           </div>
           <div v-if="selectedEntry.occurred_at" class="detail-meta-item">
             <span class="detail-label">Occurred</span>
@@ -375,7 +390,9 @@ onMounted(() => {
         </div>
 
         <div
-          v-if="selectedEntry.metadata && Object.keys(selectedEntry.metadata).length"
+          v-if="
+            selectedEntry.metadata && Object.keys(selectedEntry.metadata).length
+          "
           class="detail-data"
         >
           <h3>Metadata</h3>
@@ -394,11 +411,15 @@ onMounted(() => {
     <!-- Create/Edit Modal -->
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal">
-        <h2>{{ editingEntry ? "Edit Entry" : "New Entry" }}</h2>
+        <h2>{{ editingEntry ? 'Edit Entry' : 'New Entry' }}</h2>
         <form @submit.prevent="saveEntry">
           <div class="field">
             <label>Kind</label>
-            <input v-model="formKind" placeholder="e.g. transaction, article, note" required />
+            <input
+              v-model="formKind"
+              placeholder="e.g. transaction, article, note"
+              required
+            />
           </div>
           <div class="field">
             <label>Source</label>
@@ -412,11 +433,13 @@ onMounted(() => {
             <label>Data (JSON)</label>
             <textarea v-model="formData" rows="8"></textarea>
           </div>
-          <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
+          <p v-if="formError" class="form-error" role="alert">
+            {{ formError }}
+          </p>
           <div class="modal-actions">
             <button type="button" @click="showModal = false">Cancel</button>
             <button type="submit" :disabled="saving">
-              {{ saving ? "Saving..." : "Save" }}
+              {{ saving ? 'Saving...' : 'Save' }}
             </button>
           </div>
         </form>
@@ -487,7 +510,7 @@ onMounted(() => {
   text-transform: capitalize;
 }
 
-.filters input[type="date"] {
+.filters input[type='date'] {
   width: auto;
   color-scheme: dark;
 }

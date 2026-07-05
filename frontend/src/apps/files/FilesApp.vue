@@ -1,227 +1,238 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import {
   Folder,
   File,
   FileText,
   FileArchive,
   Image as ImageIcon,
-  Video,
-} from "lucide-vue-next";
-import type { AppContext, Entry } from "../types";
-import { formatFileSize } from "../../types";
-import { formatDate } from "../../lib/datetime";
+  Video
+} from 'lucide-vue-next'
+import type { AppContext, Entry } from '../types'
+import { formatFileSize } from '../../types'
+import { formatDate } from '../../lib/datetime'
 
-const props = defineProps<{ ctx: AppContext }>();
+const props = defineProps<{ ctx: AppContext }>()
 
-const allFiles = ref<Entry[]>([]);
-const currentFolder = ref<string | null>(null);
-const selectedId = ref<string | null>(null);
-const folderPath = ref<{ id: string | null; name: string }[]>([{ id: null, name: "~" }]);
-const dragover = ref(false);
-const loading = ref(true);
-const loadError = ref("");
+const allFiles = ref<Entry[]>([])
+const currentFolder = ref<string | null>(null)
+const selectedId = ref<string | null>(null)
+const folderPath = ref<{ id: string | null; name: string }[]>([
+  { id: null, name: '~' }
+])
+const dragover = ref(false)
+const loading = ref(true)
+const loadError = ref('')
 
 function field<T = unknown>(e: Entry, k: string): T {
-  return e.data[k] as T;
+  return e.data[k] as T
 }
-const fileName = (e: Entry) => field<string>(e, "filename") || "(unnamed)";
-const isFolder = (e: Entry) => !!field(e, "is_folder");
-const fileSize = (e: Entry) => field<number>(e, "size") || 0;
-const parentId = (e: Entry) => field<string>(e, "parent_id") || null;
-const filePath = (e: Entry) => field<string>(e, "path") || null;
+const fileName = (e: Entry) => field<string>(e, 'filename') || '(unnamed)'
+const isFolder = (e: Entry) => !!field(e, 'is_folder')
+const fileSize = (e: Entry) => field<number>(e, 'size') || 0
+const parentId = (e: Entry) => field<string>(e, 'parent_id') || null
+const filePath = (e: Entry) => field<string>(e, 'path') || null
 
 function fileIcon(e: Entry): typeof Folder {
-  if (isFolder(e)) return Folder;
-  const mime = field<string>(e, "mime_type") || "";
-  if (mime.startsWith("image/")) return ImageIcon;
-  if (mime.startsWith("video/")) return Video;
-  if (mime === "application/pdf" || mime.startsWith("text/")) return FileText;
-  if (mime.includes("zip")) return FileArchive;
-  return File;
+  if (isFolder(e)) return Folder
+  const mime = field<string>(e, 'mime_type') || ''
+  if (mime.startsWith('image/')) return ImageIcon
+  if (mime.startsWith('video/')) return Video
+  if (mime === 'application/pdf' || mime.startsWith('text/')) return FileText
+  if (mime.includes('zip')) return FileArchive
+  return File
 }
 
 const currentItems = computed(() =>
   allFiles.value
-    .filter((f) => parentId(f) === currentFolder.value)
+    .filter(f => parentId(f) === currentFolder.value)
     .sort((a, b) => {
-      const af = isFolder(a) ? 0 : 1;
-      const bf = isFolder(b) ? 0 : 1;
-      if (af !== bf) return af - bf;
-      return fileName(a).toLowerCase().localeCompare(fileName(b).toLowerCase());
-    }),
-);
+      const af = isFolder(a) ? 0 : 1
+      const bf = isFolder(b) ? 0 : 1
+      if (af !== bf) return af - bf
+      return fileName(a).toLowerCase().localeCompare(fileName(b).toLowerCase())
+    })
+)
 
 // ----- search + type filter -----
 
-const searchQuery = ref("");
-const typeFilter = ref("");
+const searchQuery = ref('')
+const typeFilter = ref('')
 
 function matchesType(e: Entry): boolean {
-  const mime = field<string>(e, "mime_type") || "";
+  const mime = field<string>(e, 'mime_type') || ''
   switch (typeFilter.value) {
-    case "":
-      return true;
-    case "folder":
-      return isFolder(e);
-    case "image":
-      return mime.startsWith("image/");
-    case "video":
-      return mime.startsWith("video/");
-    case "doc":
-      return mime === "application/pdf" || mime.startsWith("text/");
-    case "archive":
-      return mime.includes("zip");
+    case '':
+      return true
+    case 'folder':
+      return isFolder(e)
+    case 'image':
+      return mime.startsWith('image/')
+    case 'video':
+      return mime.startsWith('video/')
+    case 'doc':
+      return mime === 'application/pdf' || mime.startsWith('text/')
+    case 'archive':
+      return mime.includes('zip')
     default:
       return (
         !isFolder(e) &&
-        !mime.startsWith("image/") &&
-        !mime.startsWith("video/") &&
-        mime !== "application/pdf" &&
-        !mime.startsWith("text/") &&
-        !mime.includes("zip")
-      );
+        !mime.startsWith('image/') &&
+        !mime.startsWith('video/') &&
+        mime !== 'application/pdf' &&
+        !mime.startsWith('text/') &&
+        !mime.includes('zip')
+      )
   }
 }
 
 // ----- folder paths (for search results and history restore) -----
 
-const byId = computed(() => new Map(allFiles.value.map((f) => [f.id, f])));
+const byId = computed(() => new Map(allFiles.value.map(f => [f.id, f])))
 
 // Ancestor chain of a folder id, root first. The guard caps a corrupt
 // parent_id cycle.
 function chainTo(id: string | null): Entry[] {
-  const chain: Entry[] = [];
-  let cur = id ? byId.value.get(id) : undefined;
-  let guard = 0;
+  const chain: Entry[] = []
+  let cur = id ? byId.value.get(id) : undefined
+  let guard = 0
   while (cur && guard++ < 50) {
-    chain.unshift(cur);
-    const pid = parentId(cur);
-    cur = pid ? byId.value.get(pid) : undefined;
+    chain.unshift(cur)
+    const pid = parentId(cur)
+    cur = pid ? byId.value.get(pid) : undefined
   }
-  return chain;
+  return chain
 }
 
 function folderPathOf(e: Entry): string {
-  const parts = chainTo(parentId(e)).map(fileName);
-  return "~/" + parts.map((p) => p + "/").join("");
+  const parts = chainTo(parentId(e)).map(fileName)
+  return '~/' + parts.map(p => p + '/').join('')
 }
 
 // Searching looks across the whole tree (flat results, files only);
 // otherwise we list the current folder.
 const displayed = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase();
+  const q = searchQuery.value.trim().toLowerCase()
   if (q) {
     return allFiles.value
-      .filter((f) => !isFolder(f) && fileName(f).toLowerCase().includes(q) && matchesType(f))
-      .sort((a, b) => fileName(a).toLowerCase().localeCompare(fileName(b).toLowerCase()));
+      .filter(
+        f =>
+          !isFolder(f) &&
+          fileName(f).toLowerCase().includes(q) &&
+          matchesType(f)
+      )
+      .sort((a, b) =>
+        fileName(a).toLowerCase().localeCompare(fileName(b).toLowerCase())
+      )
   }
-  return currentItems.value.filter(matchesType);
-});
+  return currentItems.value.filter(matchesType)
+})
 
 const selected = computed(() =>
-  selectedId.value ? allFiles.value.find((f) => f.id === selectedId.value) || null : null,
-);
+  selectedId.value
+    ? allFiles.value.find(f => f.id === selectedId.value) || null
+    : null
+)
 
 async function reload() {
-  loadError.value = "";
+  loadError.value = ''
   try {
-    allFiles.value = await props.ctx.api.entries.list({ kind: "file" });
+    allFiles.value = await props.ctx.api.entries.list({ kind: 'file' })
   } catch (e) {
-    loadError.value = e instanceof Error ? e.message : "Failed to load files";
+    loadError.value = e instanceof Error ? e.message : 'Failed to load files'
   } finally {
-    loading.value = false;
+    loading.value = false
   }
 }
 
 // Folder navigation goes through the browser history (?folder=<id>) so
 // back/forward work as expected.
 function setFolder(id: string | null, opts: { push?: boolean } = {}) {
-  currentFolder.value = id;
+  currentFolder.value = id
   folderPath.value = [
-    { id: null, name: "~" },
-    ...chainTo(id).map((c) => ({ id: c.id as string | null, name: fileName(c) })),
-  ];
-  selectedId.value = null;
+    { id: null, name: '~' },
+    ...chainTo(id).map(c => ({ id: c.id as string | null, name: fileName(c) }))
+  ]
+  selectedId.value = null
   if (opts.push) {
-    history.pushState(null, "", id ? `/apps/files?folder=${id}` : "/apps/files");
+    history.pushState(null, '', id ? `/apps/files?folder=${id}` : '/apps/files')
   }
 }
 
 function navigateCrumb(idx: number) {
-  setFolder(folderPath.value[idx].id, { push: true });
+  setFolder(folderPath.value[idx].id, { push: true })
 }
 
 function openFolder(f: Entry) {
-  if (!isFolder(f)) return;
-  setFolder(f.id, { push: true });
+  if (!isFolder(f)) return
+  setFolder(f.id, { push: true })
 }
 
 // Jump from a search result to its containing folder.
 function goToFolderOf(e: Entry) {
-  searchQuery.value = "";
-  setFolder(parentId(e), { push: true });
-  selectedId.value = e.id;
+  searchQuery.value = ''
+  setFolder(parentId(e), { push: true })
+  selectedId.value = e.id
 }
 
 function onPopState() {
-  setFolder(new URLSearchParams(window.location.search).get("folder"));
+  setFolder(new URLSearchParams(window.location.search).get('folder'))
 }
 
 async function newFolder() {
-  const name = prompt("Folder name:");
-  if (!name) return;
+  const name = prompt('Folder name:')
+  if (!name) return
   await props.ctx.api.entries.create({
-    kind: "file",
-    source: "files_app",
+    kind: 'file',
+    source: 'files_app',
     title: name,
-    data: { filename: name, is_folder: true, parent_id: currentFolder.value },
-  });
-  await reload();
+    data: { filename: name, is_folder: true, parent_id: currentFolder.value }
+  })
+  await reload()
 }
 
 interface UploadProgress {
-  index: number;
-  total: number;
-  name: string;
-  pct: number; // whole-batch progress in bytes
-  processing: boolean; // bytes sent, waiting on server work
+  index: number
+  total: number
+  name: string
+  pct: number // whole-batch progress in bytes
+  processing: boolean // bytes sent, waiting on server work
 }
-const uploading = ref(false);
-const uploadProgress = ref<UploadProgress | null>(null);
+const uploading = ref(false)
+const uploadProgress = ref<UploadProgress | null>(null)
 // One entry per failed file; a failure never aborts the rest of the batch.
-const uploadErrors = ref<string[]>([]);
+const uploadErrors = ref<string[]>([])
 
 async function uploadFiles(files: File[]) {
-  if (!files.length) return;
-  uploading.value = true;
-  uploadErrors.value = [];
+  if (!files.length) return
+  uploading.value = true
+  uploadErrors.value = []
 
-  const totalBytes = files.reduce((sum, f) => sum + f.size, 0) || 1;
-  let doneBytes = 0;
+  const totalBytes = files.reduce((sum, f) => sum + f.size, 0) || 1
+  let doneBytes = 0
 
   for (let i = 0; i < files.length; i++) {
-    const file = files[i];
+    const file = files[i]
     uploadProgress.value = {
       index: i + 1,
       total: files.length,
       name: file.name,
       pct: Math.round((doneBytes / totalBytes) * 100),
-      processing: false,
-    };
+      processing: false
+    }
     try {
-      const result = await props.ctx.api.upload(file, "files", (pct) => {
+      const result = await props.ctx.api.upload(file, 'files', pct => {
         if (uploadProgress.value) {
           uploadProgress.value.pct = Math.round(
-            ((doneBytes + (pct / 100) * file.size) / totalBytes) * 100,
-          );
-          uploadProgress.value.processing = pct >= 100;
+            ((doneBytes + (pct / 100) * file.size) / totalBytes) * 100
+          )
+          uploadProgress.value.processing = pct >= 100
         }
-      });
-      doneBytes += file.size;
+      })
+      doneBytes += file.size
       const created = await props.ctx.api.entries.create({
-        kind: "file",
-        source: "files_app",
+        kind: 'file',
+        source: 'files_app',
         title: file.name,
         data: {
           filename: file.name,
@@ -229,165 +240,172 @@ async function uploadFiles(files: File[]) {
           mime_type: result.mime_type,
           path: result.path,
           parent_id: currentFolder.value,
-          is_folder: false,
-        },
-      });
+          is_folder: false
+        }
+      })
       // Insert locally so it appears as it lands; a reload per file froze
       // the app on big drops. One true-up reload after the batch.
-      allFiles.value.push(created);
+      allFiles.value.push(created)
     } catch (e) {
-      uploadErrors.value.push(`${file.name}: ${e instanceof Error ? e.message : "upload failed"}`);
+      uploadErrors.value.push(
+        `${file.name}: ${e instanceof Error ? e.message : 'upload failed'}`
+      )
     }
   }
 
-  uploadProgress.value = null;
-  uploading.value = false;
-  await reload();
+  uploadProgress.value = null
+  uploading.value = false
+  await reload()
 }
 
 function onFileInput(e: Event) {
-  const input = e.target as HTMLInputElement;
-  if (input.files?.length) uploadFiles(Array.from(input.files));
+  const input = e.target as HTMLInputElement
+  if (input.files?.length) uploadFiles(Array.from(input.files))
   // Reset so picking the same file(s) again re-triggers the change event.
-  input.value = "";
+  input.value = ''
 }
 
 function onDrop(e: DragEvent) {
-  dragover.value = false;
+  dragover.value = false
   // An internal row drag that missed a folder target is a no-op, not an upload.
-  if (draggingId.value) return;
-  if (e.dataTransfer?.files.length) uploadFiles(Array.from(e.dataTransfer.files));
+  if (draggingId.value) return
+  if (e.dataTransfer?.files.length)
+    uploadFiles(Array.from(e.dataTransfer.files))
 }
 
 // ----- rename (files & folders) -----
 // Inline, in the row itself: double-click the name (or the Rename button in
 // the detail panel). Enter/blur commits, Esc cancels.
 
-const renamingId = ref<string | null>(null);
-const renameValue = ref("");
-const renameInput = ref<HTMLInputElement | null>(null);
-let renameCancelled = false;
+const renamingId = ref<string | null>(null)
+const renameValue = ref('')
+const renameInput = ref<HTMLInputElement | null>(null)
+let renameCancelled = false
 
 function startRename(f: Entry) {
-  renamingId.value = f.id;
-  renameValue.value = fileName(f);
-  nextTick(() => renameInput.value?.select());
+  renamingId.value = f.id
+  renameValue.value = fileName(f)
+  nextTick(() => renameInput.value?.select())
 }
 
 function cancelRename() {
-  renameCancelled = true;
-  renameInput.value?.blur();
+  renameCancelled = true
+  renameInput.value?.blur()
 }
 
 // Commit on blur only — Enter just blurs, so the save can't double-fire.
 async function onRenameBlur() {
-  const cancelled = renameCancelled;
-  renameCancelled = false;
-  const id = renamingId.value;
-  renamingId.value = null;
-  const f = id ? byId.value.get(id) : undefined;
-  const name = renameValue.value.trim();
-  if (cancelled || !f || !name || name === fileName(f)) return;
+  const cancelled = renameCancelled
+  renameCancelled = false
+  const id = renamingId.value
+  renamingId.value = null
+  const f = id ? byId.value.get(id) : undefined
+  const name = renameValue.value.trim()
+  if (cancelled || !f || !name || name === fileName(f)) return
   await props.ctx.api.entries.update(f.id, {
     title: name,
-    data: { ...f.data, filename: name },
-  });
-  await reload();
+    data: { ...f.data, filename: name }
+  })
+  await reload()
 }
 
 // ----- drag & drop move -----
 
-const draggingId = ref<string | null>(null);
-const dropTargetId = ref<string | null>(null); // folder id, or "up" for the ".." row
+const draggingId = ref<string | null>(null)
+const dropTargetId = ref<string | null>(null) // folder id, or "up" for the ".." row
 
 const parentOfCurrent = computed(() => {
-  const cur = currentFolder.value ? byId.value.get(currentFolder.value) : undefined;
-  return cur ? parentId(cur) : null;
-});
+  const cur = currentFolder.value
+    ? byId.value.get(currentFolder.value)
+    : undefined
+  return cur ? parentId(cur) : null
+})
 
 function goUp() {
-  setFolder(parentOfCurrent.value, { push: true });
+  setFolder(parentOfCurrent.value, { push: true })
 }
 
 function onRowDragStart(f: Entry, e: DragEvent) {
-  draggingId.value = f.id;
+  draggingId.value = f.id
   if (e.dataTransfer) {
-    e.dataTransfer.setData("text/plain", f.id);
-    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData('text/plain', f.id)
+    e.dataTransfer.effectAllowed = 'move'
   }
 }
 
 function onRowDragEnd() {
-  draggingId.value = null;
-  dropTargetId.value = null;
+  draggingId.value = null
+  dropTargetId.value = null
 }
 
 // A folder can't be dropped into itself or one of its descendants.
 function canDropOn(target: Entry): boolean {
-  const id = draggingId.value;
-  if (!id || id === target.id || !isFolder(target)) return false;
-  return !chainTo(target.id).some((a) => a.id === id);
+  const id = draggingId.value
+  if (!id || id === target.id || !isFolder(target)) return false
+  return !chainTo(target.id).some(a => a.id === id)
 }
 
 function onRowDragOver(f: Entry, e: DragEvent) {
-  if (!canDropOn(f)) return;
-  e.preventDefault();
-  if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-  dropTargetId.value = f.id;
+  if (!canDropOn(f)) return
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+  dropTargetId.value = f.id
 }
 
 function onRowDragLeave(f: Entry) {
-  if (dropTargetId.value === f.id) dropTargetId.value = null;
+  if (dropTargetId.value === f.id) dropTargetId.value = null
 }
 
 function onRowDrop(f: Entry, e: DragEvent) {
   if (draggingId.value) {
-    if (canDropOn(f)) void moveTo(f.id);
+    if (canDropOn(f)) void moveTo(f.id)
     // Only clear the highlight here; draggingId lives until dragend —
     // clearing it now lets a stray dragover between drop and dragend
     // re-light the upload glow (visible blink).
-    dropTargetId.value = null;
+    dropTargetId.value = null
   } else {
-    onDrop(e); // OS files dropped on a row upload into the current folder
+    onDrop(e) // OS files dropped on a row upload into the current folder
   }
 }
 
 function onUpDragOver(e: DragEvent) {
-  if (!draggingId.value) return;
-  e.preventDefault();
-  if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-  dropTargetId.value = "up";
+  if (!draggingId.value) return
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+  dropTargetId.value = 'up'
 }
 
 function onUpDrop() {
-  if (draggingId.value) void moveTo(parentOfCurrent.value);
-  dropTargetId.value = null;
+  if (draggingId.value) void moveTo(parentOfCurrent.value)
+  dropTargetId.value = null
 }
 
 async function moveTo(parent: string | null) {
-  const id = draggingId.value;
-  if (!id) return;
-  const f = byId.value.get(id);
-  if (!f || parentId(f) === parent) return;
-  await props.ctx.api.entries.update(id, { data: { ...f.data, parent_id: parent } });
-  await reload();
+  const id = draggingId.value
+  if (!id) return
+  const f = byId.value.get(id)
+  if (!f || parentId(f) === parent) return
+  await props.ctx.api.entries.update(id, {
+    data: { ...f.data, parent_id: parent }
+  })
+  await reload()
 }
 
 async function deleteItem(f: Entry) {
-  const ok = await props.ctx.confirm.ask({ message: "Delete this item?" });
-  if (!ok) return;
-  await props.ctx.api.entries.delete(f.id);
-  selectedId.value = null;
-  await reload();
+  const ok = await props.ctx.confirm.ask({ message: 'Delete this item?' })
+  if (!ok) return
+  await props.ctx.api.entries.delete(f.id)
+  selectedId.value = null
+  await reload()
 }
 
 onMounted(async () => {
-  window.addEventListener("popstate", onPopState);
-  await reload();
-  const initial = new URLSearchParams(window.location.search).get("folder");
-  if (initial) setFolder(initial);
-});
-onUnmounted(() => window.removeEventListener("popstate", onPopState));
+  window.addEventListener('popstate', onPopState)
+  await reload()
+  const initial = new URLSearchParams(window.location.search).get('folder')
+  if (initial) setFolder(initial)
+})
+onUnmounted(() => window.removeEventListener('popstate', onPopState))
 </script>
 
 <template>
@@ -431,15 +449,20 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
         >
         <span class="fs-upload-name">{{ uploadProgress.name }}</span>
         <span class="fs-upload-pct">{{
-          uploadProgress.processing ? "processing…" : uploadProgress.pct + "%"
+          uploadProgress.processing ? 'processing…' : uploadProgress.pct + '%'
         }}</span>
         <div class="fs-upload-bar">
-          <div class="fs-upload-bar-fill" :style="{ width: uploadProgress.pct + '%' }"></div>
+          <div
+            class="fs-upload-bar-fill"
+            :style="{ width: uploadProgress.pct + '%' }"
+          ></div>
         </div>
       </div>
       <div v-if="uploadErrors.length" class="fs-upload-errors" role="alert">
         <div v-for="(err, i) in uploadErrors" :key="i">{{ err }}</div>
-        <button class="fs-upload-dismiss" @click="uploadErrors = []">Dismiss</button>
+        <button class="fs-upload-dismiss" @click="uploadErrors = []">
+          Dismiss
+        </button>
       </div>
       <div
         class="fs-list"
@@ -464,7 +487,9 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
           @dragleave="dropTargetId === 'up' && (dropTargetId = null)"
           @drop.stop.prevent="onUpDrop"
         >
-          <span class="fs-row-icon fs-row-icon--folder"><Folder :size="16" /></span>
+          <span class="fs-row-icon fs-row-icon--folder"
+            ><Folder :size="16"
+          /></span>
           <span class="fs-name-cell"><span class="fs-name">..</span></span>
           <span class="fs-size fs-col-size">—</span>
           <span></span>
@@ -476,7 +501,7 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
           :class="{
             'fs-row--active': f.id === selectedId,
             'fs-row--droptarget': dropTargetId === f.id,
-            'fs-row--dragging': draggingId === f.id,
+            'fs-row--dragging': draggingId === f.id
           }"
           :draggable="renamingId !== f.id"
           @click="selectedId = f.id"
@@ -487,7 +512,10 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
           @dragleave="onRowDragLeave(f)"
           @drop.stop.prevent="onRowDrop(f, $event)"
         >
-          <span class="fs-row-icon" :class="{ 'fs-row-icon--folder': isFolder(f) }">
+          <span
+            class="fs-row-icon"
+            :class="{ 'fs-row-icon--folder': isFolder(f) }"
+          >
             <component :is="fileIcon(f)" :size="16" />
           </span>
           <span class="fs-name-cell">
@@ -502,8 +530,13 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
               @keydown.esc.prevent="cancelRename"
               @blur="onRenameBlur"
             />
-            <span v-else class="fs-name" title="Double-click to rename" @dblclick.stop="startRename(f)"
-              >{{ fileName(f) }}<span v-if="isFolder(f)" class="fs-slash">/</span></span
+            <span
+              v-else
+              class="fs-name"
+              title="Double-click to rename"
+              @dblclick.stop="startRename(f)"
+              >{{ fileName(f)
+              }}<span v-if="isFolder(f)" class="fs-slash">/</span></span
             >
             <button
               v-if="searchQuery.trim()"
@@ -515,18 +548,21 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
             </button>
           </span>
           <span class="fs-size fs-col-size">{{
-            isFolder(f) ? "—" : formatFileSize(fileSize(f))
+            isFolder(f) ? '—' : formatFileSize(fileSize(f))
           }}</span>
           <span class="fs-date">{{ formatDate(f.inserted_at) }}</span>
         </div>
         <p v-if="displayed.length === 0" class="fs-empty">
-          {{ searchQuery || typeFilter ? "No match." : "Empty directory" }}
+          {{ searchQuery || typeFilter ? 'No match.' : 'Empty directory' }}
         </p>
       </div>
     </div>
     <div class="fs-detail-col">
       <div v-if="selected" class="fs-detail">
-        <span class="fs-detail-icon" :class="{ 'fs-row-icon--folder': isFolder(selected) }">
+        <span
+          class="fs-detail-icon"
+          :class="{ 'fs-row-icon--folder': isFolder(selected) }"
+        >
           <component :is="fileIcon(selected)" :size="40" :stroke-width="1.5" />
         </span>
         <h3 class="fs-detail-name">{{ fileName(selected) }}</h3>
@@ -537,7 +573,7 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
           </div>
           <div class="fs-meta-row">
             <span class="fs-meta-label">Type</span>
-            <span>{{ field(selected, "mime_type") || "Unknown" }}</span>
+            <span>{{ field(selected, 'mime_type') || 'Unknown' }}</span>
           </div>
           <div class="fs-meta-row">
             <span class="fs-meta-label">Added</span>
@@ -562,7 +598,9 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
             <span>{{ formatDate(selected.inserted_at) }}</span>
           </div>
         </div>
-        <button class="fs-rename-btn" @click="startRename(selected)">Rename</button>
+        <button class="fs-rename-btn" @click="startRename(selected)">
+          Rename
+        </button>
         <button class="fs-delete" @click="deleteItem(selected)">Delete</button>
       </div>
       <p v-else class="fs-placeholder">Select a file to view details</p>

@@ -1,455 +1,504 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, watch } from "vue";
-import type { AppContext, Entry } from "../types";
-import { renderMarkdown, canon, continueListEdit } from "./render";
-import { createFolderOrder } from "../folderOrder";
+import {
+  ref,
+  reactive,
+  computed,
+  onMounted,
+  onBeforeUnmount,
+  nextTick,
+  watch
+} from 'vue'
+import type { AppContext, Entry } from '../types'
+import { renderMarkdown, canon, continueListEdit } from './render'
+import { createFolderOrder } from '../folderOrder'
 
-const props = defineProps<{ ctx: AppContext }>();
-const ctx = props.ctx;
+const props = defineProps<{ ctx: AppContext }>()
+const ctx = props.ctx
 
-const folderOrder = createFolderOrder(ctx, "notes");
+const folderOrder = createFolderOrder(ctx, 'notes')
 
-type Note = Entry;
+type Note = Entry
 
 interface Mentionable {
-  id: string;
-  kind: "contact" | "event";
-  name: string;
+  id: string
+  kind: 'contact' | 'event'
+  name: string
 }
 
 // ----- pure helpers (mirror the backend) -----
 
-const noteFolder = (n: Note) => ((n.data.folder as string) || "").trim();
-const noteBody = (n: Note) => (n.data.body as string) || "";
-const noteTags = (n: Note) => (n.data.tags as string[]) || [];
-const fullPath = (folder: string, title: string) => (folder ? `${folder}/${title}` : title);
+const noteFolder = (n: Note) => ((n.data.folder as string) || '').trim()
+const noteBody = (n: Note) => (n.data.body as string) || ''
+const noteTags = (n: Note) => (n.data.tags as string[]) || []
+const fullPath = (folder: string, title: string) =>
+  folder ? `${folder}/${title}` : title
 
 // A note is reachable as `[[title]]` or `[[folder/title]]`.
 function noteKeys(n: Note): string[] {
-  const title = n.title || "";
-  return [canon(title), canon(fullPath(noteFolder(n), title))];
+  const title = n.title || ''
+  return [canon(title), canon(fullPath(noteFolder(n), title))]
 }
 
 // vcard contact titles look like "Name — org — email"; prefer the display name.
 function mentionName(e: Entry): string {
-  return ((e.data.display_name as string) || (e.title || "").split(" — ")[0] || "").trim();
+  return (
+    (e.data.display_name as string) ||
+    (e.title || '').split(' — ')[0] ||
+    ''
+  ).trim()
 }
 
 function dedupeByName(list: Mentionable[]): Mentionable[] {
-  const seen = new Set<string>();
-  return list.filter((m) => {
-    const k = canon(m.name);
-    if (!m.name || seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
+  const seen = new Set<string>()
+  return list.filter(m => {
+    const k = canon(m.name)
+    if (!m.name || seen.has(k)) return false
+    seen.add(k)
+    return true
+  })
 }
 
 // ----- reactive state -----
 
-const notes = ref<Note[]>([]);
-const mentionables = ref<Mentionable[]>([]);
-const selectedId = ref<string | null>(null);
-const backlinks = ref<Note[]>([]);
-const searchQuery = ref("");
-const viewMode = ref<"split" | "edit" | "preview">("split");
-const collapsed = reactive(new Set<string>());
-const loadState = ref<"loading" | "ready" | "error">("loading");
+const notes = ref<Note[]>([])
+const mentionables = ref<Mentionable[]>([])
+const selectedId = ref<string | null>(null)
+const backlinks = ref<Note[]>([])
+const searchQuery = ref('')
+const viewMode = ref<'split' | 'edit' | 'preview'>('split')
+const collapsed = reactive(new Set<string>())
+const loadState = ref<'loading' | 'ready' | 'error'>('loading')
 
 // Editor fields (synced from the selected note on selection change).
-const editTitle = ref("");
-const editFolder = ref("");
-const editBody = ref("");
+const editTitle = ref('')
+const editFolder = ref('')
+const editBody = ref('')
 
-const saveState = ref<"idle" | "saving" | "saved" | "error">("idle");
-const saveError = ref("");
+const saveState = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
+const saveError = ref('')
 
-const bodyRef = ref<HTMLTextAreaElement | null>(null);
+const bodyRef = ref<HTMLTextAreaElement | null>(null)
 
-const selected = computed(() => notes.value.find((n) => n.id === selectedId.value) || null);
+const selected = computed(
+  () => notes.value.find(n => n.id === selectedId.value) || null
+)
 
-const showEditor = computed(() => viewMode.value !== "preview");
-const showPreview = computed(() => viewMode.value !== "edit");
+const showEditor = computed(() => viewMode.value !== 'preview')
+const showPreview = computed(() => viewMode.value !== 'edit')
 
 // ----- API -----
 
 async function apiList(): Promise<Note[]> {
-  const res = await ctx.api.fetch("/api/notes");
-  return (await res.json()).data;
+  const res = await ctx.api.fetch('/api/notes')
+  return (await res.json()).data
 }
 async function apiCreate(attrs: Record<string, unknown>): Promise<Note> {
-  const res = await ctx.api.fetch("/api/notes", { method: "POST", body: JSON.stringify(attrs) });
-  return (await res.json()).data;
+  const res = await ctx.api.fetch('/api/notes', {
+    method: 'POST',
+    body: JSON.stringify(attrs)
+  })
+  return (await res.json()).data
 }
-async function apiUpdate(id: string, attrs: Record<string, unknown>): Promise<Note> {
+async function apiUpdate(
+  id: string,
+  attrs: Record<string, unknown>
+): Promise<Note> {
   const res = await ctx.api.fetch(`/api/notes/${id}`, {
-    method: "PUT",
-    body: JSON.stringify(attrs),
-  });
-  return (await res.json()).data;
+    method: 'PUT',
+    body: JSON.stringify(attrs)
+  })
+  return (await res.json()).data
 }
 async function apiDelete(id: string): Promise<void> {
-  await ctx.api.fetch(`/api/notes/${id}`, { method: "DELETE" });
+  await ctx.api.fetch(`/api/notes/${id}`, { method: 'DELETE' })
 }
 async function apiBacklinks(id: string): Promise<Note[]> {
-  const res = await ctx.api.fetch(`/api/notes/${id}/backlinks`);
-  return (await res.json()).data;
+  const res = await ctx.api.fetch(`/api/notes/${id}/backlinks`)
+  return (await res.json()).data
 }
 
 // ----- derived: tree, search, resolution -----
 
 const keySet = computed(() => {
-  const s = new Set<string>();
-  for (const n of notes.value) for (const k of noteKeys(n)) s.add(k);
-  return s;
-});
+  const s = new Set<string>()
+  for (const n of notes.value) for (const k of noteKeys(n)) s.add(k)
+  return s
+})
 
 function resolveTargetNote(target: string): Note | null {
-  const c = canon(target);
-  return notes.value.find((n) => noteKeys(n).includes(c)) || null;
+  const c = canon(target)
+  return notes.value.find(n => noteKeys(n).includes(c)) || null
 }
 function resolveMention(target: string): Mentionable | null {
-  const c = canon(target);
-  return mentionables.value.find((m) => canon(m.name) === c) || null;
+  const c = canon(target)
+  return mentionables.value.find(m => canon(m.name) === c) || null
 }
 
 const filteredNotes = computed(() => {
-  if (!searchQuery.value.trim()) return notes.value;
-  const q = searchQuery.value.toLowerCase();
-  return notes.value.filter((n) =>
-    [n.title || "", noteFolder(n), noteBody(n), noteTags(n).join(" ")]
-      .join(" ")
+  if (!searchQuery.value.trim()) return notes.value
+  const q = searchQuery.value.toLowerCase()
+  return notes.value.filter(n =>
+    [n.title || '', noteFolder(n), noteBody(n), noteTags(n).join(' ')]
+      .join(' ')
       .toLowerCase()
-      .includes(q),
-  );
-});
+      .includes(q)
+  )
+})
 
 function sortNotes(list: Note[]): Note[] {
   return [...list].sort((a, b) =>
-    (a.title || "").toLowerCase().localeCompare((b.title || "").toLowerCase()),
-  );
+    (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase())
+  )
 }
 
 interface TreeNode {
-  name: string;
-  path: string;
-  folders: Map<string, TreeNode>;
-  notes: Note[];
+  name: string
+  path: string
+  folders: Map<string, TreeNode>
+  notes: Note[]
 }
 const emptyNode = (name: string, path: string): TreeNode => ({
   name,
   path,
   folders: new Map(),
-  notes: [],
-});
+  notes: []
+})
 
 function buildTree(list: Note[]): TreeNode {
-  const root = emptyNode("", "");
+  const root = emptyNode('', '')
   for (const n of list) {
-    let cur = root;
-    const folder = noteFolder(n);
+    let cur = root
+    const folder = noteFolder(n)
     if (folder) {
-      let path = "";
-      for (const seg of folder.split("/").map((s) => s.trim()).filter(Boolean)) {
-        path = path ? `${path}/${seg}` : seg;
-        if (!cur.folders.has(seg)) cur.folders.set(seg, emptyNode(seg, path));
-        cur = cur.folders.get(seg)!;
+      let path = ''
+      for (const seg of folder
+        .split('/')
+        .map(s => s.trim())
+        .filter(Boolean)) {
+        path = path ? `${path}/${seg}` : seg
+        if (!cur.folders.has(seg)) cur.folders.set(seg, emptyNode(seg, path))
+        cur = cur.folders.get(seg)!
       }
     }
-    cur.notes.push(n);
+    cur.notes.push(n)
   }
-  return root;
+  return root
 }
 
 interface TreeRow {
-  kind: "folder" | "note";
-  depth: number;
-  name: string;
-  path?: string;
-  id?: string;
-  collapsed?: boolean;
-  folder?: string; // containing folder path, for note rows
+  kind: 'folder' | 'note'
+  depth: number
+  name: string
+  path?: string
+  id?: string
+  collapsed?: boolean
+  folder?: string // containing folder path, for note rows
 }
 
 // Flatten the folder tree into rows honouring the collapsed set (everything is
 // expanded while searching), so the template renders a flat v-for.
 const treeRows = computed<TreeRow[]>(() => {
-  const searching = !!searchQuery.value.trim();
-  const rows: TreeRow[] = [];
+  const searching = !!searchQuery.value.trim()
+  const rows: TreeRow[] = []
   const walk = (node: TreeNode, depth: number) => {
     const folders = [...node.folders.values()].sort((a, b) =>
-      folderOrder.compare(a.path, b.path),
-    );
+      folderOrder.compare(a.path, b.path)
+    )
     for (const f of folders) {
-      const isCollapsed = !searching && collapsed.has(f.path);
-      rows.push({ kind: "folder", depth, name: f.name, path: f.path, collapsed: isCollapsed });
-      if (!isCollapsed) walk(f, depth + 1);
+      const isCollapsed = !searching && collapsed.has(f.path)
+      rows.push({
+        kind: 'folder',
+        depth,
+        name: f.name,
+        path: f.path,
+        collapsed: isCollapsed
+      })
+      if (!isCollapsed) walk(f, depth + 1)
     }
     for (const n of sortNotes(node.notes)) {
-      rows.push({ kind: "note", depth, name: n.title || "Untitled", id: n.id, folder: node.path });
+      rows.push({
+        kind: 'note',
+        depth,
+        name: n.title || 'Untitled',
+        id: n.id,
+        folder: node.path
+      })
     }
-  };
-  walk(buildTree(filteredNotes.value), 0);
-  return rows;
-});
+  }
+  walk(buildTree(filteredNotes.value), 0)
+  return rows
+})
 
 const previewHtml = computed(() =>
   renderMarkdown(
     editBody.value,
-    (t) => keySet.value.has(canon(t)),
-    (t) => resolveMention(t)?.kind ?? null,
-  ),
-);
+    t => keySet.value.has(canon(t)),
+    t => resolveMention(t)?.kind ?? null
+  )
+)
 
 const saveStatusLabel = computed(() => {
-  if (saveState.value === "error") return saveError.value || "Save failed";
-  return { idle: "", saving: "Saving…", saved: "Saved" }[saveState.value] || "";
-});
+  if (saveState.value === 'error') return saveError.value || 'Save failed'
+  return { idle: '', saving: 'Saving…', saved: 'Saved' }[saveState.value] || ''
+})
 
 function toggleFolder(path: string) {
-  if (collapsed.has(path)) collapsed.delete(path);
-  else collapsed.add(path);
+  if (collapsed.has(path)) collapsed.delete(path)
+  else collapsed.add(path)
 }
 
 // ----- folder rename / drag & drop / ordering -----
 
-const renamingFolder = ref<string | null>(null); // full path being renamed
-const renameValue = ref(""); // last segment only
-const draggingNoteId = ref<string | null>(null);
-const draggingFolderPath = ref<string | null>(null);
-const dragOverFolder = ref<string | null>(null);
+const renamingFolder = ref<string | null>(null) // full path being renamed
+const renameValue = ref('') // last segment only
+const draggingNoteId = ref<string | null>(null)
+const draggingFolderPath = ref<string | null>(null)
+const dragOverFolder = ref<string | null>(null)
 
-const parentOf = (p: string) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "");
+const parentOf = (p: string) =>
+  p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : ''
 
 // Every folder path present in the tree (including intermediate segments).
 const allFolderPaths = computed(() => {
-  const s = new Set<string>();
+  const s = new Set<string>()
   for (const n of notes.value) {
-    let path = "";
-    for (const seg of noteFolder(n).split("/").map((x) => x.trim()).filter(Boolean)) {
-      path = path ? `${path}/${seg}` : seg;
-      s.add(path);
+    let path = ''
+    for (const seg of noteFolder(n)
+      .split('/')
+      .map(x => x.trim())
+      .filter(Boolean)) {
+      path = path ? `${path}/${seg}` : seg
+      s.add(path)
     }
   }
-  return [...s];
-});
+  return [...s]
+})
 
 // Moves/renames rewrite [[folder/title]] wikilinks server-side; reload so we
 // don't hold (and later save back) stale bodies.
 async function reloadNotes() {
   try {
-    notes.value = await apiList();
+    notes.value = await apiList()
   } catch {
     // keep what we have
   }
 }
 
 async function startRenameFolder(path: string) {
-  renamingFolder.value = path;
-  renameValue.value = path.split("/").pop() || "";
-  await nextTick();
-  const el = document.querySelector(".nt-folder-rename") as HTMLInputElement | null;
-  el?.focus();
-  el?.select();
+  renamingFolder.value = path
+  renameValue.value = path.split('/').pop() || ''
+  await nextTick()
+  const el = document.querySelector(
+    '.nt-folder-rename'
+  ) as HTMLInputElement | null
+  el?.focus()
+  el?.select()
 }
 
 async function commitRenameFolder() {
-  const path = renamingFolder.value;
-  const seg = renameValue.value.trim();
-  renamingFolder.value = null;
-  if (!path || !seg || seg.includes("/")) return;
-  const parent = parentOf(path);
-  const newPath = parent ? `${parent}/${seg}` : seg;
-  if (newPath === path) return;
-  await flushSave();
-  const affected = notes.value.filter((n) => {
-    const f = noteFolder(n);
-    return f === path || f.startsWith(path + "/");
-  });
+  const path = renamingFolder.value
+  const seg = renameValue.value.trim()
+  renamingFolder.value = null
+  if (!path || !seg || seg.includes('/')) return
+  const parent = parentOf(path)
+  const newPath = parent ? `${parent}/${seg}` : seg
+  if (newPath === path) return
+  await flushSave()
+  const affected = notes.value.filter(n => {
+    const f = noteFolder(n)
+    return f === path || f.startsWith(path + '/')
+  })
   try {
     for (const n of affected) {
       await apiUpdate(n.id, {
-        title: n.title || "",
+        title: n.title || '',
         folder: newPath + noteFolder(n).slice(path.length),
-        body: noteBody(n),
-      });
+        body: noteBody(n)
+      })
     }
   } catch {
     // partial rename: the reload below shows the actual state
   }
-  folderOrder.rename(path, newPath);
-  await reloadNotes();
+  folderOrder.rename(path, newPath)
+  await reloadNotes()
 }
 
 function onNoteDragStart(id: string, e: DragEvent) {
-  draggingNoteId.value = id;
-  e.dataTransfer?.setData("text/plain", id);
-  if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+  draggingNoteId.value = id
+  e.dataTransfer?.setData('text/plain', id)
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
 }
 
 function onFolderDragStart(path: string, e: DragEvent) {
-  draggingFolderPath.value = path;
-  e.dataTransfer?.setData("text/plain", path);
-  if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+  draggingFolderPath.value = path
+  e.dataTransfer?.setData('text/plain', path)
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
 }
 
 async function moveNoteToFolder(id: string, folder: string) {
-  const n = notes.value.find((x) => x.id === id);
-  if (!n || noteFolder(n) === folder) return;
-  await flushSave();
+  const n = notes.value.find(x => x.id === id)
+  if (!n || noteFolder(n) === folder) return
+  await flushSave()
   try {
-    await apiUpdate(n.id, { title: n.title || "", folder, body: noteBody(n) });
+    await apiUpdate(n.id, { title: n.title || '', folder, body: noteBody(n) })
   } catch {
-    return;
+    return
   }
-  await reloadNotes();
+  await reloadNotes()
 }
 
 // Reordering only makes sense between siblings; dropping a root-level folder
 // on the tree background sends it to the end.
 function reorderFolder(from: string, target: string) {
-  if (from === target) return;
-  const parent = parentOf(from);
-  if (target ? parentOf(target) !== parent : parent !== "") return;
+  if (from === target) return
+  const parent = parentOf(from)
+  if (target ? parentOf(target) !== parent : parent !== '') return
   const seq = allFolderPaths.value
-    .filter((p) => parentOf(p) === parent && p !== from)
-    .sort(folderOrder.compare);
-  const idx = target ? seq.indexOf(target) : seq.length;
-  seq.splice(idx === -1 ? seq.length : idx, 0, from);
-  folderOrder.setGroup(seq);
+    .filter(p => parentOf(p) === parent && p !== from)
+    .sort(folderOrder.compare)
+  const idx = target ? seq.indexOf(target) : seq.length
+  seq.splice(idx === -1 ? seq.length : idx, 0, from)
+  folderOrder.setGroup(seq)
 }
 
 function onTreeDrop(target: string) {
-  dragOverFolder.value = null;
+  dragOverFolder.value = null
   if (draggingFolderPath.value) {
-    const from = draggingFolderPath.value;
-    draggingFolderPath.value = null;
-    reorderFolder(from, target);
-    return;
+    const from = draggingFolderPath.value
+    draggingFolderPath.value = null
+    reorderFolder(from, target)
+    return
   }
   if (draggingNoteId.value) {
-    const id = draggingNoteId.value;
-    draggingNoteId.value = null;
-    void moveNoteToFolder(id, target);
+    const id = draggingNoteId.value
+    draggingNoteId.value = null
+    void moveNoteToFolder(id, target)
   }
 }
 
 // ----- save (debounced + serialized) -----
 
-let saveTimer: ReturnType<typeof setTimeout> | undefined;
-let saveChain: Promise<void> = Promise.resolve();
+let saveTimer: ReturnType<typeof setTimeout> | undefined
+let saveChain: Promise<void> = Promise.resolve()
 
 function scheduleSave() {
-  if (saveTimer) clearTimeout(saveTimer);
+  if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
-    saveTimer = undefined;
-    void enqueueSave();
-  }, 600);
+    saveTimer = undefined
+    void enqueueSave()
+  }, 600)
 }
 function enqueueSave(): Promise<void> {
-  saveChain = saveChain.then(() => save());
-  return saveChain;
+  saveChain = saveChain.then(() => save())
+  return saveChain
 }
 function flushSave(): Promise<void> {
-  if (!saveTimer) return saveChain;
-  clearTimeout(saveTimer);
-  saveTimer = undefined;
-  return enqueueSave();
+  if (!saveTimer) return saveChain
+  clearTimeout(saveTimer)
+  saveTimer = undefined
+  return enqueueSave()
 }
 
 async function save() {
-  const note = selected.value;
-  if (!note) return;
+  const note = selected.value
+  if (!note) return
   const attrs = {
     title: editTitle.value.trim(),
     folder: editFolder.value.trim(),
-    body: editBody.value,
-  };
-  if (!attrs.title) return;
+    body: editBody.value
+  }
+  if (!attrs.title) return
 
-  const renamed = attrs.title !== (note.title || "") || attrs.folder !== noteFolder(note);
-  saveState.value = "saving";
+  const renamed =
+    attrs.title !== (note.title || '') || attrs.folder !== noteFolder(note)
+  saveState.value = 'saving'
   try {
-    const updated = await apiUpdate(note.id, attrs);
+    const updated = await apiUpdate(note.id, attrs)
     if (renamed) {
       // A rename rewrites [[wikilinks]] in referencing notes server-side; reload
       // so we don't hold (and later save back) stale bodies.
-      notes.value = await apiList();
+      notes.value = await apiList()
     } else {
-      notes.value = notes.value.map((n) => (n.id === updated.id ? updated : n));
+      notes.value = notes.value.map(n => (n.id === updated.id ? updated : n))
     }
-    saveState.value = "saved";
-    saveError.value = "";
+    saveState.value = 'saved'
+    saveError.value = ''
   } catch (e) {
-    saveState.value = "error";
-    saveError.value = e instanceof Error ? e.message : "Save failed";
+    saveState.value = 'error'
+    saveError.value = e instanceof Error ? e.message : 'Save failed'
   }
 }
 
 function onEditInput() {
-  scheduleSave();
+  scheduleSave()
 }
 
 // ----- selection / CRUD -----
 
 function syncEditorFrom(note: Note | null) {
-  editTitle.value = note?.title || "";
-  editFolder.value = note ? noteFolder(note) : "";
-  editBody.value = note ? noteBody(note) : "";
+  editTitle.value = note?.title || ''
+  editFolder.value = note ? noteFolder(note) : ''
+  editBody.value = note ? noteBody(note) : ''
 }
 
 async function selectNote(id: string, opts: { push?: boolean } = {}) {
-  await flushSave();
-  saveState.value = "idle";
-  saveError.value = "";
-  selectedId.value = id;
-  backlinks.value = [];
-  hideAutocomplete();
-  syncEditorFrom(selected.value);
+  await flushSave()
+  saveState.value = 'idle'
+  saveError.value = ''
+  selectedId.value = id
+  backlinks.value = []
+  hideAutocomplete()
+  syncEditorFrom(selected.value)
   if (opts.push !== false) {
-    history.pushState(null, "", `/apps/notes?selected=${id}`);
+    history.pushState(null, '', `/apps/notes?selected=${id}`)
   }
   try {
-    const bl = await apiBacklinks(id);
-    if (selectedId.value === id) backlinks.value = bl;
+    const bl = await apiBacklinks(id)
+    if (selectedId.value === id) backlinks.value = bl
   } catch {
     // ignore
   }
 }
 
 function onPopState() {
-  const id = new URLSearchParams(window.location.search).get("selected");
-  if (id) void selectNote(id, { push: false });
+  const id = new URLSearchParams(window.location.search).get('selected')
+  if (id) void selectNote(id, { push: false })
   else {
-    void flushSave();
-    selectedId.value = null;
-    syncEditorFrom(null);
+    void flushSave()
+    selectedId.value = null
+    syncEditorFrom(null)
   }
 }
 
 function uniqueTitle(base: string): string {
-  const existing = new Set(notes.value.map((n) => (n.title || "").toLowerCase()));
-  if (!existing.has(base.toLowerCase())) return base;
-  let i = 2;
-  while (existing.has(`${base} ${i}`.toLowerCase())) i++;
-  return `${base} ${i}`;
+  const existing = new Set(notes.value.map(n => (n.title || '').toLowerCase()))
+  if (!existing.has(base.toLowerCase())) return base
+  let i = 2
+  while (existing.has(`${base} ${i}`.toLowerCase())) i++
+  return `${base} ${i}`
 }
 
-async function createNote(folder = "") {
+async function createNote(folder = '') {
   try {
-    const created = await apiCreate({ title: uniqueTitle("Untitled"), folder, body: "" });
-    notes.value.push(created);
-    selectedId.value = created.id;
-    backlinks.value = [];
-    saveState.value = "idle";
-    saveError.value = "";
-    viewMode.value = "split";
-    syncEditorFrom(created);
-    history.pushState(null, "", `/apps/notes?selected=${created.id}`);
-    await nextTick();
-    const titleEl = document.querySelector(".nt-title") as HTMLInputElement | null;
-    titleEl?.focus();
-    titleEl?.select();
+    const created = await apiCreate({
+      title: uniqueTitle('Untitled'),
+      folder,
+      body: ''
+    })
+    notes.value.push(created)
+    selectedId.value = created.id
+    backlinks.value = []
+    saveState.value = 'idle'
+    saveError.value = ''
+    viewMode.value = 'split'
+    syncEditorFrom(created)
+    history.pushState(null, '', `/apps/notes?selected=${created.id}`)
+    await nextTick()
+    const titleEl = document.querySelector(
+      '.nt-title'
+    ) as HTMLInputElement | null
+    titleEl?.focus()
+    titleEl?.select()
   } catch {
     // ignore
   }
@@ -457,30 +506,30 @@ async function createNote(folder = "") {
 
 async function createNamedNote(title: string) {
   try {
-    const created = await apiCreate({ title, folder: "", body: "" });
-    notes.value.push(created);
-    await selectNote(created.id);
+    const created = await apiCreate({ title, folder: '', body: '' })
+    notes.value.push(created)
+    await selectNote(created.id)
   } catch {
     // ignore
   }
 }
 
 async function deleteSelected() {
-  const note = selected.value;
-  if (!note) return;
+  const note = selected.value
+  if (!note) return
   const ok = await ctx.confirm.ask({
-    title: "Delete note",
-    message: `Delete "${note.title || "Untitled"}"? This cannot be undone.`,
-    confirmLabel: "Delete",
-    danger: true,
-  });
-  if (!ok) return;
+    title: 'Delete note',
+    message: `Delete "${note.title || 'Untitled'}"? This cannot be undone.`,
+    confirmLabel: 'Delete',
+    danger: true
+  })
+  if (!ok) return
   try {
-    await apiDelete(note.id);
-    notes.value = notes.value.filter((n) => n.id !== note.id);
+    await apiDelete(note.id)
+    notes.value = notes.value.filter(n => n.id !== note.id)
     if (selectedId.value === note.id) {
-      selectedId.value = null;
-      backlinks.value = [];
+      selectedId.value = null
+      backlinks.value = []
     }
   } catch {
     // ignore
@@ -490,267 +539,297 @@ async function deleteSelected() {
 // ----- preview clicks (wikilinks / mentions) -----
 
 function onPreviewClick(e: MouseEvent) {
-  const target = e.target as HTMLElement;
-  const mention = target.closest(".nt-mention") as HTMLElement | null;
+  const target = e.target as HTMLElement
+  const mention = target.closest('.nt-mention') as HTMLElement | null
   if (mention) {
-    e.preventDefault();
-    const item = resolveMention(mention.dataset.target || "");
-    if (item?.kind === "contact") ctx.navigate(`/contacts/${item.id}`);
-    else if (item?.kind === "event") ctx.navigate("/apps/calendar");
-    return;
+    e.preventDefault()
+    const item = resolveMention(mention.dataset.target || '')
+    if (item?.kind === 'contact') ctx.navigate(`/contacts/${item.id}`)
+    else if (item?.kind === 'event') ctx.navigate('/apps/calendar')
+    return
   }
-  const link = target.closest(".nt-wikilink") as HTMLElement | null;
-  if (!link) return;
-  e.preventDefault();
-  const t = link.dataset.target || "";
-  const existing = resolveTargetNote(t);
-  if (existing) void selectNote(existing.id);
-  else void createNamedNote(t);
+  const link = target.closest('.nt-wikilink') as HTMLElement | null
+  if (!link) return
+  e.preventDefault()
+  const t = link.dataset.target || ''
+  const existing = resolveTargetNote(t)
+  if (existing) void selectNote(existing.id)
+  else void createNamedNote(t)
 }
 
 // ----- wikilink / mention autocomplete -----
 
 interface AcItem {
-  label: string;
-  icon: string;
-  text: string; // full replacement for the acReplaceLen chars before the caret
+  label: string
+  icon: string
+  text: string // full replacement for the acReplaceLen chars before the caret
 }
 
-const acItems = ref<AcItem[]>([]);
-const acIndex = ref(0);
-const acVisible = ref(false);
-const acStyle = ref<Record<string, string>>({});
-let acReplaceLen = 0;
+const acItems = ref<AcItem[]>([])
+const acIndex = ref(0)
+const acVisible = ref(false)
+const acStyle = ref<Record<string, string>>({})
+let acReplaceLen = 0
 
 function hideAutocomplete() {
-  acVisible.value = false;
-  acItems.value = [];
+  acVisible.value = false
+  acItems.value = []
 }
 
 function mentionItems(query: string, close: boolean): AcItem[] {
-  const q = query.toLowerCase();
+  const q = query.toLowerCase()
   return mentionables.value
-    .filter((m) => m.name.toLowerCase().includes(q))
+    .filter(m => m.name.toLowerCase().includes(q))
     .slice(0, 8)
-    .map((m) => ({
+    .map(m => ({
       label: m.name,
-      icon: m.kind === "event" ? "📅" : "👤",
-      text: close ? `${m.name}]]` : `@[[${m.name}]]`,
-    }));
+      icon: m.kind === 'event' ? '📅' : '👤',
+      text: close ? `${m.name}]]` : `@[[${m.name}]]`
+    }))
 }
 
 // Viewport coordinates of the caret in a textarea, via a hidden mirror div.
 function caretViewportPosition(ta: HTMLTextAreaElement): {
-  left: number;
-  top: number;
-  lineHeight: number;
+  left: number
+  top: number
+  lineHeight: number
 } {
-  const cs = getComputedStyle(ta);
-  const mirror = document.createElement("div");
+  const cs = getComputedStyle(ta)
+  const mirror = document.createElement('div')
   for (const prop of [
-    "fontFamily",
-    "fontSize",
-    "fontWeight",
-    "letterSpacing",
-    "lineHeight",
-    "textTransform",
-    "wordSpacing",
-    "paddingTop",
-    "paddingRight",
-    "paddingBottom",
-    "paddingLeft",
-    "borderWidth",
-    "boxSizing",
-    "tabSize",
+    'fontFamily',
+    'fontSize',
+    'fontWeight',
+    'letterSpacing',
+    'lineHeight',
+    'textTransform',
+    'wordSpacing',
+    'paddingTop',
+    'paddingRight',
+    'paddingBottom',
+    'paddingLeft',
+    'borderWidth',
+    'boxSizing',
+    'tabSize'
   ] as const) {
-    mirror.style[prop as never] = cs[prop as never];
+    mirror.style[prop as never] = cs[prop as never]
   }
-  mirror.style.position = "absolute";
-  mirror.style.visibility = "hidden";
-  mirror.style.whiteSpace = "pre-wrap";
-  mirror.style.wordWrap = "break-word";
-  mirror.style.overflow = "hidden";
-  mirror.style.width = `${ta.clientWidth}px`;
+  mirror.style.position = 'absolute'
+  mirror.style.visibility = 'hidden'
+  mirror.style.whiteSpace = 'pre-wrap'
+  mirror.style.wordWrap = 'break-word'
+  mirror.style.overflow = 'hidden'
+  mirror.style.width = `${ta.clientWidth}px`
 
-  mirror.textContent = ta.value.slice(0, ta.selectionStart);
-  const marker = document.createElement("span");
-  marker.textContent = "​";
-  mirror.appendChild(marker);
-  document.body.appendChild(mirror);
+  mirror.textContent = ta.value.slice(0, ta.selectionStart)
+  const marker = document.createElement('span')
+  marker.textContent = '​'
+  mirror.appendChild(marker)
+  document.body.appendChild(mirror)
 
-  const lineHeight = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.2;
-  const rect = ta.getBoundingClientRect();
-  const left = rect.left + marker.offsetLeft - ta.scrollLeft;
-  const top = rect.top + marker.offsetTop - ta.scrollTop;
-  mirror.remove();
-  return { left, top, lineHeight };
+  const lineHeight = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.2
+  const rect = ta.getBoundingClientRect()
+  const left = rect.left + marker.offsetLeft - ta.scrollLeft
+  const top = rect.top + marker.offsetTop - ta.scrollTop
+  mirror.remove()
+  return { left, top, lineHeight }
 }
 
 async function updateAutocomplete() {
-  const ta = bodyRef.value;
-  if (!ta) return;
-  const before = ta.value.slice(0, ta.selectionStart);
+  const ta = bodyRef.value
+  if (!ta) return
+  const before = ta.value.slice(0, ta.selectionStart)
 
   // Three triggers: `[[` completes notes, `@[[` and bare `@` complete mentions.
-  const wiki = before.match(/(?<!@)\[\[([^\][]*)$/);
-  const openMention = wiki ? null : before.match(/@\[\[([^\][]*)$/);
+  const wiki = before.match(/(?<!@)\[\[([^\][]*)$/)
+  const openMention = wiki ? null : before.match(/@\[\[([^\][]*)$/)
   const bareMention =
-    wiki || openMention ? null : before.match(/(?<![\w@])@([\p{L}\p{N} '’_-]*)$/u);
+    wiki || openMention
+      ? null
+      : before.match(/(?<![\w@])@([\p{L}\p{N} '’_-]*)$/u)
 
-  let items: AcItem[];
+  let items: AcItem[]
   if (wiki) {
-    const q = wiki[1].toLowerCase();
-    acReplaceLen = wiki[1].length;
-    items = sortNotes(notes.value.filter((n) => (n.title || "").toLowerCase().includes(q)))
+    const q = wiki[1].toLowerCase()
+    acReplaceLen = wiki[1].length
+    items = sortNotes(
+      notes.value.filter(n => (n.title || '').toLowerCase().includes(q))
+    )
       .slice(0, 8)
-      .map((n) => ({ label: n.title || "", icon: "", text: `${n.title || ""}]]` }));
+      .map(n => ({
+        label: n.title || '',
+        icon: '',
+        text: `${n.title || ''}]]`
+      }))
   } else if (openMention) {
-    acReplaceLen = openMention[1].length;
-    items = mentionItems(openMention[1], true);
+    acReplaceLen = openMention[1].length
+    items = mentionItems(openMention[1], true)
   } else if (bareMention) {
-    acReplaceLen = bareMention[1].length + 1;
-    items = mentionItems(bareMention[1], false);
+    acReplaceLen = bareMention[1].length + 1
+    items = mentionItems(bareMention[1], false)
   } else {
-    hideAutocomplete();
-    return;
+    hideAutocomplete()
+    return
   }
 
   if (!items.length) {
-    hideAutocomplete();
-    return;
+    hideAutocomplete()
+    return
   }
 
-  acItems.value = items;
-  acIndex.value = 0;
-  acVisible.value = true;
+  acItems.value = items
+  acIndex.value = 0
+  acVisible.value = true
 
   // Anchor at the caret, clamped to the viewport; flip above the line if there
   // is no room below. Measure after the popup renders.
-  const caret = caretViewportPosition(ta);
-  await nextTick();
-  const pop = document.querySelector(".nt-ac") as HTMLElement | null;
-  const popW = pop?.offsetWidth ?? 180;
-  const popH = pop?.offsetHeight ?? 0;
-  const left = Math.min(caret.left, window.innerWidth - popW - 8);
-  let top = caret.top + caret.lineHeight;
-  if (top + popH > window.innerHeight - 8) top = caret.top - popH - 4;
-  acStyle.value = { left: `${Math.max(8, left)}px`, top: `${Math.max(8, top)}px` };
+  const caret = caretViewportPosition(ta)
+  await nextTick()
+  const pop = document.querySelector('.nt-ac') as HTMLElement | null
+  const popW = pop?.offsetWidth ?? 180
+  const popH = pop?.offsetHeight ?? 0
+  const left = Math.min(caret.left, window.innerWidth - popW - 8)
+  let top = caret.top + caret.lineHeight
+  if (top + popH > window.innerHeight - 8) top = caret.top - popH - 4
+  acStyle.value = {
+    left: `${Math.max(8, left)}px`,
+    top: `${Math.max(8, top)}px`
+  }
 }
 
 function applyCompletion(item: AcItem) {
-  const ta = bodyRef.value;
-  if (!ta) return;
-  const pos = ta.selectionStart;
-  const before = ta.value.slice(0, pos - acReplaceLen);
-  const after = ta.value.slice(pos);
-  const newValue = before + item.text + after;
-  editBody.value = newValue;
-  hideAutocomplete();
-  const newPos = before.length + item.text.length;
+  const ta = bodyRef.value
+  if (!ta) return
+  const pos = ta.selectionStart
+  const before = ta.value.slice(0, pos - acReplaceLen)
+  const after = ta.value.slice(pos)
+  const newValue = before + item.text + after
+  editBody.value = newValue
+  hideAutocomplete()
+  const newPos = before.length + item.text.length
   nextTick(() => {
-    ta.focus();
-    ta.setSelectionRange(newPos, newPos);
-  });
-  scheduleSave();
+    ta.focus()
+    ta.setSelectionRange(newPos, newPos)
+  })
+  scheduleSave()
 }
 
 // Enter inside a list line continues the list (Shift+Enter keeps the plain newline).
 function onEnterInList(e: KeyboardEvent) {
-  const ta = bodyRef.value;
-  if (!ta || ta.selectionStart !== ta.selectionEnd) return;
-  const edit = continueListEdit(ta.value, ta.selectionStart);
-  if (!edit) return;
-  e.preventDefault();
-  editBody.value = edit.value;
-  nextTick(() => ta.setSelectionRange(edit.pos, edit.pos));
-  scheduleSave();
+  const ta = bodyRef.value
+  if (!ta || ta.selectionStart !== ta.selectionEnd) return
+  const edit = continueListEdit(ta.value, ta.selectionStart)
+  if (!edit) return
+  e.preventDefault()
+  editBody.value = edit.value
+  nextTick(() => ta.setSelectionRange(edit.pos, edit.pos))
+  scheduleSave()
 }
 
 function onBodyKeydown(e: KeyboardEvent) {
   if (!acVisible.value || !acItems.value.length) {
-    if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      onEnterInList(e);
+    if (
+      e.key === 'Enter' &&
+      !e.shiftKey &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey
+    ) {
+      onEnterInList(e)
     }
-    return;
+    return
   }
-  if (e.key === "Escape") {
-    hideAutocomplete();
-  } else if (e.key === "ArrowDown") {
-    e.preventDefault();
-    acIndex.value = (acIndex.value + 1) % acItems.value.length;
-  } else if (e.key === "ArrowUp") {
-    e.preventDefault();
-    acIndex.value = (acIndex.value - 1 + acItems.value.length) % acItems.value.length;
-  } else if (e.key === "Enter" || e.key === "Tab") {
-    e.preventDefault();
-    applyCompletion(acItems.value[acIndex.value]);
+  if (e.key === 'Escape') {
+    hideAutocomplete()
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    acIndex.value = (acIndex.value + 1) % acItems.value.length
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    acIndex.value =
+      (acIndex.value - 1 + acItems.value.length) % acItems.value.length
+  } else if (e.key === 'Enter' || e.key === 'Tab') {
+    e.preventDefault()
+    applyCompletion(acItems.value[acIndex.value])
   }
 }
 
 function onBodyInput() {
-  onEditInput();
-  updateAutocomplete();
+  onEditInput()
+  updateAutocomplete()
 }
 
 function onBodyBlur() {
   // Delay so a mousedown on a popup item still registers before it closes.
-  setTimeout(hideAutocomplete, 150);
+  setTimeout(hideAutocomplete, 150)
 }
 
-const viewModes = ["edit", "split", "preview"] as const;
+const viewModes = ['edit', 'split', 'preview'] as const
 
 // Re-fill the editor whenever the underlying selected note changes identity
 // (e.g. after a rename reload replaces the object).
-watch(selected, (note) => {
-  if (note && note.id !== undefined) syncEditorFrom(note);
-});
+watch(selected, note => {
+  if (note && note.id !== undefined) syncEditorFrom(note)
+})
 
 // ----- bootstrap -----
 
 onMounted(async () => {
-  window.addEventListener("popstate", onPopState);
-  void folderOrder.load();
+  window.addEventListener('popstate', onPopState)
+  void folderOrder.load()
   try {
-    notes.value = await apiList();
-    loadState.value = "ready";
+    notes.value = await apiList()
+    loadState.value = 'ready'
   } catch {
-    loadState.value = "error";
+    loadState.value = 'error'
   }
 
-  const initial = new URLSearchParams(window.location.search).get("selected");
-  if (initial && notes.value.some((n) => n.id === initial)) {
-    void selectNote(initial, { push: false });
+  const initial = new URLSearchParams(window.location.search).get('selected')
+  if (initial && notes.value.some(n => n.id === initial)) {
+    void selectNote(initial, { push: false })
   }
 
   // Contacts and events feed @[[mention]] autocomplete/chips; degrade gracefully.
   try {
     const [contacts, events] = await Promise.all([
-      ctx.api.entries.list({ kind: "contact" }),
-      ctx.api.entries.list({ kind: "event" }),
-    ]);
+      ctx.api.entries.list({ kind: 'contact' }),
+      ctx.api.entries.list({ kind: 'event' })
+    ])
     const contactItems = dedupeByName(
       contacts
-        .map((c) => ({ id: c.id, kind: "contact" as const, name: mentionName(c) }))
-        .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase())),
-    );
+        .map(c => ({
+          id: c.id,
+          kind: 'contact' as const,
+          name: mentionName(c)
+        }))
+        .sort((a, b) =>
+          a.name.toLowerCase().localeCompare(b.name.toLowerCase())
+        )
+    )
     const eventItems = dedupeByName(
       events
         .slice()
         // Recent first, so recurring event titles resolve to the latest one.
-        .sort((a, b) => (b.occurred_at || "").localeCompare(a.occurred_at || ""))
-        .map((e) => ({ id: e.id, kind: "event" as const, name: (e.title || "").trim() })),
-    );
-    mentionables.value = [...contactItems, ...eventItems];
+        .sort((a, b) =>
+          (b.occurred_at || '').localeCompare(a.occurred_at || '')
+        )
+        .map(e => ({
+          id: e.id,
+          kind: 'event' as const,
+          name: (e.title || '').trim()
+        }))
+    )
+    mentionables.value = [...contactItems, ...eventItems]
   } catch {
     // mention chips render as unresolved without this data
   }
-});
+})
 
 onBeforeUnmount(() => {
-  window.removeEventListener("popstate", onPopState);
+  window.removeEventListener('popstate', onPopState)
   // Fire-and-forget: persist any pending debounced edit before teardown.
-  void flushSave();
-});
+  void flushSave()
+})
 </script>
 
 <template>
@@ -763,9 +842,22 @@ onBeforeUnmount(() => {
           placeholder="Search notes..."
           v-model="searchQuery"
         />
-        <button class="nt-new-btn" title="New note" aria-label="New note" @click="createNote()">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <button
+          class="nt-new-btn"
+          title="New note"
+          aria-label="New note"
+          @click="createNote()"
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M12 5v14M5 12h14" />
           </svg>
         </button>
@@ -774,7 +866,7 @@ onBeforeUnmount(() => {
         <template v-if="treeRows.length">
           <div
             v-for="row in treeRows"
-            :key="(row.kind === 'folder' ? 'f:' + row.path : 'n:' + row.id)"
+            :key="row.kind === 'folder' ? 'f:' + row.path : 'n:' + row.id"
           >
             <div
               v-if="row.kind === 'folder'"
@@ -789,7 +881,9 @@ onBeforeUnmount(() => {
               @dragleave="dragOverFolder = null"
               @drop.prevent.stop="onTreeDrop(row.path!)"
             >
-              <span class="nt-folder-caret">{{ row.collapsed ? "▸" : "▾" }}</span>
+              <span class="nt-folder-caret">{{
+                row.collapsed ? '▸' : '▾'
+              }}</span>
               <input
                 v-if="renamingFolder === row.path"
                 class="nt-folder-rename"
@@ -827,19 +921,28 @@ onBeforeUnmount(() => {
           </div>
         </template>
         <p v-else class="nt-empty">
-          {{ loadState === "error" ? "Failed to load notes." : "No notes yet." }}
+          {{
+            loadState === 'error' ? 'Failed to load notes.' : 'No notes yet.'
+          }}
         </p>
       </div>
     </div>
 
     <div class="nt-main">
-      <p v-if="loadState === 'loading'" class="nt-placeholder">Loading notes…</p>
+      <p v-if="loadState === 'loading'" class="nt-placeholder">
+        Loading notes…
+      </p>
       <p v-else-if="!selected" class="nt-placeholder">
         Select or create a note to start writing.
       </p>
       <template v-else>
         <div class="nt-toolbar">
-          <input class="nt-title" v-model="editTitle" placeholder="Untitled" @input="onEditInput" />
+          <input
+            class="nt-title"
+            v-model="editTitle"
+            placeholder="Untitled"
+            @input="onEditInput"
+          />
           <input
             class="nt-folder-input"
             v-model="editFolder"
@@ -863,7 +966,9 @@ onBeforeUnmount(() => {
               {{ m }}
             </button>
           </div>
-          <button class="nt-delete" title="Delete note" @click="deleteSelected">🗑</button>
+          <button class="nt-delete" title="Delete note" @click="deleteSelected">
+            🗑
+          </button>
         </div>
 
         <div class="nt-panes">
@@ -877,7 +982,12 @@ onBeforeUnmount(() => {
             @keydown="onBodyKeydown"
             @blur="onBodyBlur"
           ></textarea>
-          <div v-if="showPreview" class="nt-preview" @click="onPreviewClick" v-html="previewHtml"></div>
+          <div
+            v-if="showPreview"
+            class="nt-preview"
+            @click="onPreviewClick"
+            v-html="previewHtml"
+          ></div>
         </div>
 
         <div class="nt-backlinks" v-if="backlinks.length">
@@ -887,7 +997,7 @@ onBeforeUnmount(() => {
             :key="n.id"
             class="nt-bl-item"
             @click="selectNote(n.id)"
-            >{{ n.title || "Untitled" }}</a
+            >{{ n.title || 'Untitled' }}</a
           >
         </div>
       </template>
@@ -943,7 +1053,11 @@ onBeforeUnmount(() => {
   color: var(--text-muted);
   border-radius: 8px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s,
+    transform 0.15s;
 }
 .nt-new-btn:hover,
 .nt-new-btn:focus-visible {

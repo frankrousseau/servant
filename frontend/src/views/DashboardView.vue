@@ -1,200 +1,224 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
-import { useRouter } from "vue-router";
-import { useApi } from "../composables/useApi";
-import { useSocket, debounce } from "../composables/useSocket";
-import type { Entry, ConnectorConfig } from "../types";
-import { relativeTime, kindColor } from "../types";
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useApi } from '../composables/useApi'
+import { useSocket, debounce } from '../composables/useSocket'
+import type { Entry, ConnectorConfig } from '../types'
+import { relativeTime, kindColor } from '../types'
 import {
   formatDate,
   formatDateTime,
   formatTime,
   todayInUserTz,
   utcToZonedParts,
-  zonedToUtcISO,
-} from "../lib/datetime";
-import { getConnectorDef } from "../connectors";
-import KindIcon from "../components/KindIcon.vue";
+  zonedToUtcISO
+} from '../lib/datetime'
+import { getConnectorDef } from '../connectors'
+import KindIcon from '../components/KindIcon.vue'
 
-const api = useApi();
-const router = useRouter();
+const api = useApi()
+const router = useRouter()
 
-const recentEntries = ref<Entry[]>([]);
-const stats = ref<Record<string, number>>({});
-const totalEntries = ref(0);
-const connectors = ref<ConnectorConfig[]>([]);
-const dailyStats = ref<Record<string, Record<string, number>>>({});
-const events = ref<Entry[]>([]);
-const checklists = ref<Entry[]>([]);
-const loading = ref(true);
+const recentEntries = ref<Entry[]>([])
+const stats = ref<Record<string, number>>({})
+const totalEntries = ref(0)
+const connectors = ref<ConnectorConfig[]>([])
+const dailyStats = ref<Record<string, Record<string, number>>>({})
+const events = ref<Entry[]>([])
+const checklists = ref<Entry[]>([])
+const loading = ref(true)
 
-const { onEntryChange, onBulkChange } = useSocket();
+const { onEntryChange, onBulkChange } = useSocket()
 
 // Coalesce refetches: a connector sync can fire many entry events in a burst,
 // and each fetchData() is several requests. Debounce so we refresh once.
-const refresh = debounce(() => fetchData());
-onEntryChange(refresh);
-onBulkChange(refresh);
+const refresh = debounce(() => fetchData())
+onEntryChange(refresh)
+onBulkChange(refresh)
 
 async function fetchData() {
   try {
-    const [entriesRes, statsRes, connectorsRes, dailyRes, eventsRes, checklistsRes] =
-      await Promise.all([
-        api.get<{ data: Entry[]; meta: { total: number } }>("/api/entries", {
-          per_page: "10",
-          sort: "inserted_at",
-        }),
-        api.get<{ data: Record<string, number>; total: number }>(
-          "/api/entries/stats",
-        ),
-        api.get<{ data: ConnectorConfig[] }>("/api/connectors"),
-        api.get<{ data: Record<string, Record<string, number>> }>(
-          "/api/entries/stats/daily",
-          { days: "30" },
-        ),
-        // Events from the start of today (user tz) onward; today's list and
-        // the "next:" line both derive from this window.
-        // ponytail: 100 events ahead is plenty for a personal calendar.
-        api.get<{ data: Entry[] }>("/api/entries", {
-          kind: "event",
-          per_page: "100",
-          from: zonedToUtcISO(todayInUserTz(), "00:00"),
-        }),
-        api.get<{ data: Entry[] }>("/api/entries", { kind: "checklist", per_page: "100" }),
-      ]);
-    recentEntries.value = entriesRes.data;
-    stats.value = statsRes.data;
-    totalEntries.value = statsRes.total;
-    connectors.value = connectorsRes.data;
-    dailyStats.value = dailyRes.data;
-    events.value = eventsRes.data;
-    checklists.value = checklistsRes.data;
+    const [
+      entriesRes,
+      statsRes,
+      connectorsRes,
+      dailyRes,
+      eventsRes,
+      checklistsRes
+    ] = await Promise.all([
+      api.get<{ data: Entry[]; meta: { total: number } }>('/api/entries', {
+        per_page: '10',
+        sort: 'inserted_at'
+      }),
+      api.get<{ data: Record<string, number>; total: number }>(
+        '/api/entries/stats'
+      ),
+      api.get<{ data: ConnectorConfig[] }>('/api/connectors'),
+      api.get<{ data: Record<string, Record<string, number>> }>(
+        '/api/entries/stats/daily',
+        { days: '30' }
+      ),
+      // Events from the start of today (user tz) onward; today's list and
+      // the "next:" line both derive from this window.
+      // ponytail: 100 events ahead is plenty for a personal calendar.
+      api.get<{ data: Entry[] }>('/api/entries', {
+        kind: 'event',
+        per_page: '100',
+        from: zonedToUtcISO(todayInUserTz(), '00:00')
+      }),
+      api.get<{ data: Entry[] }>('/api/entries', {
+        kind: 'checklist',
+        per_page: '100'
+      })
+    ])
+    recentEntries.value = entriesRes.data
+    stats.value = statsRes.data
+    totalEntries.value = statsRes.total
+    connectors.value = connectorsRes.data
+    dailyStats.value = dailyRes.data
+    events.value = eventsRes.data
+    checklists.value = checklistsRes.data
   } catch {
     // API not available yet
   } finally {
-    loading.value = false;
+    loading.value = false
   }
 }
 
 // ----- MOTD + Today panel -----
 
 interface ChecklistItem {
-  text: string;
-  done: boolean;
+  text: string
+  done: boolean
 }
 
 const motdDate = computed(() =>
   formatDate(new Date().toISOString(), {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }),
-);
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  })
+)
 
 const todaysEvents = computed(() =>
   events.value
-    .filter((e) => e.occurred_at && utcToZonedParts(e.occurred_at).date === todayInUserTz())
-    .sort((a, b) => ((a.occurred_at as string) < (b.occurred_at as string) ? -1 : 1)),
-);
+    .filter(
+      e =>
+        e.occurred_at && utcToZonedParts(e.occurred_at).date === todayInUserTz()
+    )
+    .sort((a, b) =>
+      (a.occurred_at as string) < (b.occurred_at as string) ? -1 : 1
+    )
+)
 
 // Next upcoming event on any day: earliest one not yet finished.
 const nextEvent = computed(() => {
-  const now = new Date().toISOString();
+  const now = new Date().toISOString()
   const upcoming = events.value
     .filter(
-      (e) => e.occurred_at && ((e.data.end_at as string) || (e.occurred_at as string)) >= now,
+      e =>
+        e.occurred_at &&
+        ((e.data.end_at as string) || (e.occurred_at as string)) >= now
     )
-    .sort((a, b) => ((a.occurred_at as string) < (b.occurred_at as string) ? -1 : 1));
-  return upcoming[0] || null;
-});
+    .sort((a, b) =>
+      (a.occurred_at as string) < (b.occurred_at as string) ? -1 : 1
+    )
+  return upcoming[0] || null
+})
 
 // Time only if the next event is today, weekday + time otherwise.
 const nextEventStamp = computed(() => {
-  const e = nextEvent.value;
-  if (!e?.occurred_at) return "";
+  const e = nextEvent.value
+  if (!e?.occurred_at) return ''
   return utcToZonedParts(e.occurred_at).date === todayInUserTz()
     ? formatTime(e.occurred_at)
     : formatDateTime(e.occurred_at, {
-        weekday: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-});
+        weekday: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+})
 
 // Only checklists explicitly flagged for the dashboard (per-list toggle).
 const pendingItems = computed(() => {
-  const out: { list: string; text: string }[] = [];
+  const out: { list: string; text: string }[] = []
   for (const l of checklists.value) {
-    if (l.data.show_on_dashboard !== true) continue;
+    if (l.data.show_on_dashboard !== true) continue
     for (const it of (l.data.items as ChecklistItem[]) || []) {
-      if (!it.done) out.push({ list: l.title || "Untitled", text: it.text });
+      if (!it.done) out.push({ list: l.title || 'Untitled', text: it.text })
     }
   }
-  return out;
-});
+  return out
+})
 
 // Backend daily stats use UTC days; so does this key.
 const entriesToday = computed(() => {
-  const key = new Date().toISOString().slice(0, 10);
-  let n = 0;
-  for (const kind of Object.keys(dailyStats.value)) n += dailyStats.value[kind][key] || 0;
-  return n;
-});
+  const key = new Date().toISOString().slice(0, 10)
+  let n = 0
+  for (const kind of Object.keys(dailyStats.value))
+    n += dailyStats.value[kind][key] || 0
+  return n
+})
 
 const lastSyncAt = computed(() => {
   const ts = connectors.value
-    .map((c) => c.last_synced_at)
+    .map(c => c.last_synced_at)
     .filter((t): t is string => !!t)
-    .sort();
-  return ts.length ? ts[ts.length - 1] : null;
-});
+    .sort()
+  return ts.length ? ts[ts.length - 1] : null
+})
 
 // Timestamp for a log line: time-of-day if today, short date otherwise.
 function logStamp(iso: string): string {
   return utcToZonedParts(iso).date === todayInUserTz()
     ? formatTime(iso)
-    : formatDate(iso, { month: "short", day: "numeric" });
+    : formatDate(iso, { month: 'short', day: 'numeric' })
 }
 
 // ----- Sparklines (30 UTC days, bars normalized per kind) -----
 
-const SPARK_DAYS = 30;
+const SPARK_DAYS = 30
 
-function sparkBars(counts: Record<string, number> | undefined): { x: number; h: number }[] {
-  const vals: number[] = [];
+function sparkBars(
+  counts: Record<string, number> | undefined
+): { x: number; h: number }[] {
+  const vals: number[] = []
   for (let i = SPARK_DAYS - 1; i >= 0; i--) {
-    const day = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
-    vals.push(counts?.[day] || 0);
+    const day = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10)
+    vals.push(counts?.[day] || 0)
   }
-  const max = Math.max(...vals, 1);
-  return vals.map((v, i) => ({ x: i * 3, h: v === 0 ? 0.75 : Math.max(1.5, (v / max) * 14) }));
+  const max = Math.max(...vals, 1)
+  return vals.map((v, i) => ({
+    x: i * 3,
+    h: v === 0 ? 0.75 : Math.max(1.5, (v / max) * 14)
+  }))
 }
 
 const totalSpark = computed(() => {
-  const merged: Record<string, number> = {};
+  const merged: Record<string, number> = {}
   for (const perDay of Object.values(dailyStats.value)) {
     for (const [day, count] of Object.entries(perDay)) {
-      merged[day] = (merged[day] || 0) + count;
+      merged[day] = (merged[day] || 0) + count
     }
   }
-  return sparkBars(merged);
-});
+  return sparkBars(merged)
+})
 
 function goToData(kind?: string) {
   if (kind) {
-    router.push({ path: "/data", query: { kind } });
+    router.push({ path: '/data', query: { kind } })
   } else {
-    router.push("/data");
+    router.push('/data')
   }
 }
 
 function goToEntry(entry: Entry) {
-  router.push({ path: "/data", query: { entry: entry.id.toString() } });
+  router.push({ path: '/data', query: { entry: entry.id.toString() } })
 }
 
-onMounted(fetchData);
+onMounted(fetchData)
 </script>
 
 <template>
@@ -204,10 +228,12 @@ onMounted(fetchData);
     <template v-else>
       <!-- MOTD: the machine's status, terminal style -->
       <div class="motd">
-        <div class="motd-head">SERVANT <span class="motd-sep">//</span> {{ motdDate }}</div>
+        <div class="motd-head">
+          SERVANT <span class="motd-sep">//</span> {{ motdDate }}
+        </div>
         <div class="motd-line">
-          <span class="motd-num">{{ entriesToday }}</span> entries today &middot;
-          <span class="motd-num">{{ totalEntries }}</span> total
+          <span class="motd-num">{{ entriesToday }}</span> entries today
+          &middot; <span class="motd-num">{{ totalEntries }}</span> total
           <template v-if="lastSyncAt">
             &middot; last sync {{ relativeTime(lastSyncAt) }}
           </template>
@@ -219,7 +245,9 @@ onMounted(fetchData);
             {{ nextEvent.title || nextEvent.data.summary }}
           </template>
           <template v-else>nothing scheduled</template>
-          &middot; <span class="motd-num">{{ pendingItems.length }}</span> checklist items pending
+          &middot;
+          <span class="motd-num">{{ pendingItems.length }}</span> checklist
+          items pending
         </div>
       </div>
 
@@ -229,13 +257,17 @@ onMounted(fetchData);
           <section class="dashboard-section">
             <div class="section-header">
               <h2>Today</h2>
-              <router-link to="/apps/calendar" class="section-link">Calendar</router-link>
+              <router-link to="/apps/calendar" class="section-link"
+                >Calendar</router-link
+              >
             </div>
             <div v-if="todaysEvents.length" class="today-events">
               <div v-for="e in todaysEvents" :key="e.id" class="today-event">
                 <span class="today-time">{{ formatTime(e.occurred_at) }}</span>
                 <span class="today-title">{{ e.title || e.data.summary }}</span>
-                <span v-if="e.data.location" class="today-loc">{{ e.data.location }}</span>
+                <span v-if="e.data.location" class="today-loc">{{
+                  e.data.location
+                }}</span>
               </div>
             </div>
             <p v-else class="empty">Nothing scheduled today.</p>
@@ -244,7 +276,11 @@ onMounted(fetchData);
               <div class="today-divider">
                 <span class="today-divider-label">Checklists</span>
               </div>
-              <div v-for="(it, i) in pendingItems.slice(0, 5)" :key="i" class="today-item">
+              <div
+                v-for="(it, i) in pendingItems.slice(0, 5)"
+                :key="i"
+                class="today-item"
+              >
                 <span class="today-box">☐</span>
                 <span class="today-item-text">{{ it.text }}</span>
                 <span class="today-list-name">{{ it.list }}</span>
@@ -262,7 +298,9 @@ onMounted(fetchData);
           <section class="dashboard-section">
             <div class="section-header">
               <h2>Recent Activity</h2>
-              <router-link to="/data" class="section-link">View all</router-link>
+              <router-link to="/data" class="section-link"
+                >View all</router-link
+              >
             </div>
             <div v-if="recentEntries.length" class="activity-feed">
               <div
@@ -281,7 +319,9 @@ onMounted(fetchData);
                 <span class="log-source">&larr; {{ entry.source }}</span>
               </div>
             </div>
-            <p v-else class="empty">No entries yet. Set up a connector to start collecting data.</p>
+            <p v-else class="empty">
+              No entries yet. Set up a connector to start collecting data.
+            </p>
           </section>
         </div>
 
@@ -303,7 +343,12 @@ onMounted(fetchData);
                 <div class="stat-content">
                   <span class="stat-count">{{ totalEntries }}</span>
                   <span class="stat-label">Total entries</span>
-                  <svg class="stat-spark" viewBox="0 0 89 14" preserveAspectRatio="none" aria-hidden="true">
+                  <svg
+                    class="stat-spark"
+                    viewBox="0 0 89 14"
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                  >
                     <rect
                       v-for="(b, i) in totalSpark"
                       :key="i"
@@ -324,12 +369,17 @@ onMounted(fetchData);
                 tabindex="0"
               >
                 <div class="stat-icon-badge">
-                  <KindIcon :kind="(kind as string)" :size="18" />
+                  <KindIcon :kind="kind as string" :size="18" />
                 </div>
                 <div class="stat-content">
                   <span class="stat-count">{{ count }}</span>
                   <span class="stat-label">{{ kind }}</span>
-                  <svg class="stat-spark" viewBox="0 0 89 14" preserveAspectRatio="none" aria-hidden="true">
+                  <svg
+                    class="stat-spark"
+                    viewBox="0 0 89 14"
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                  >
                     <rect
                       v-for="(b, i) in sparkBars(dailyStats[kind as string])"
                       :key="i"
@@ -348,7 +398,9 @@ onMounted(fetchData);
           <section v-if="connectors.length" class="sidebar-section">
             <div class="section-header">
               <h2>Connectors</h2>
-              <router-link to="/connectors" class="section-link">Manage</router-link>
+              <router-link to="/connectors" class="section-link"
+                >Manage</router-link
+              >
             </div>
             <div class="connector-status-list">
               <div
@@ -366,7 +418,9 @@ onMounted(fetchData);
                   :class="{ active: c.enabled, error: c.error }"
                 ></span>
                 <span class="connector-status-name">
-                  {{ getConnectorDef(c.connector_type)?.name || c.connector_type }}
+                  {{
+                    getConnectorDef(c.connector_type)?.name || c.connector_type
+                  }}
                 </span>
                 <span class="connector-status-meta">
                   <template v-if="c.error">Error</template>
@@ -476,7 +530,7 @@ onMounted(fetchData);
 }
 
 .today-divider::after {
-  content: "";
+  content: '';
   flex: 1;
   border-top: 1px solid var(--border);
 }
@@ -587,7 +641,9 @@ onMounted(fetchData);
   align-items: flex-start;
   gap: 0.625rem;
   cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 }
 
 .stat-card:hover {
@@ -597,7 +653,11 @@ onMounted(fetchData);
 
 .stat-card--total {
   grid-column: 1 / -1;
-  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.12), rgba(var(--primary-rgb), 0.04));
+  background: linear-gradient(
+    135deg,
+    rgba(var(--primary-rgb), 0.12),
+    rgba(var(--primary-rgb), 0.04)
+  );
   border-color: rgba(var(--primary-rgb), 0.3);
 }
 

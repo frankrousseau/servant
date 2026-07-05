@@ -1,197 +1,211 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { useAuthStore } from "../stores/auth";
-import { useApi } from "../composables/useApi";
-import { formatDate } from "../lib/datetime";
-import { User as UserIcon, KeyRound, Info, Download, Camera } from "lucide-vue-next";
+import { ref, onMounted } from 'vue'
+import { useAuthStore } from '../stores/auth'
+import { useApi } from '../composables/useApi'
+import { formatDate } from '../lib/datetime'
+import {
+  User as UserIcon,
+  KeyRound,
+  Info,
+  Download,
+  Camera
+} from 'lucide-vue-next'
 
-const auth = useAuthStore();
-const api = useApi();
+const auth = useAuthStore()
+const api = useApi()
 
 // Profile
-const displayName = ref("");
-const email = ref("");
-const timezone = ref("UTC");
+const displayName = ref('')
+const email = ref('')
+const timezone = ref('UTC')
 
 // Available IANA timezones for the picker. `supportedValuesOf` is widely
 // supported; fall back to a small common set (plus the browser's) otherwise.
 const timezones: string[] = (() => {
   try {
-    const supported = (Intl as unknown as {
-      supportedValuesOf?: (k: string) => string[];
-    }).supportedValuesOf;
-    if (supported) return supported("timeZone");
+    const supported = (
+      Intl as unknown as {
+        supportedValuesOf?: (k: string) => string[]
+      }
+    ).supportedValuesOf
+    if (supported) return supported('timeZone')
   } catch {
     // fall through
   }
-  const browser = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const browser = Intl.DateTimeFormat().resolvedOptions().timeZone
   return Array.from(
     new Set([
-      "UTC",
+      'UTC',
       browser,
-      "Europe/Paris",
-      "Europe/London",
-      "America/New_York",
-      "America/Los_Angeles",
-      "Asia/Tokyo",
-    ]),
-  );
-})();
-const avatarUrl = ref<string | null>(null);
-const avatarUploading = ref(false);
-const profileSaving = ref(false);
-const profileSuccess = ref(false);
-const profileError = ref("");
+      'Europe/Paris',
+      'Europe/London',
+      'America/New_York',
+      'America/Los_Angeles',
+      'Asia/Tokyo'
+    ])
+  )
+})()
+const avatarUrl = ref<string | null>(null)
+const avatarUploading = ref(false)
+const profileSaving = ref(false)
+const profileSuccess = ref(false)
+const profileError = ref('')
 
 // Password
-const currentPassword = ref("");
-const newPassword = ref("");
-const confirmPassword = ref("");
-const passwordSaving = ref(false);
-const passwordSuccess = ref(false);
-const passwordError = ref("");
+const currentPassword = ref('')
+const newPassword = ref('')
+const confirmPassword = ref('')
+const passwordSaving = ref(false)
+const passwordSuccess = ref(false)
+const passwordError = ref('')
 
 // Export
-const exportingEntries = ref(false);
+const exportingEntries = ref(false)
 
-async function downloadFile(url: string, fallbackName: string, loadingRef: typeof exportingEntries) {
-  loadingRef.value = true;
+async function downloadFile(
+  url: string,
+  fallbackName: string,
+  loadingRef: typeof exportingEntries
+) {
+  loadingRef.value = true
   try {
     const res = await fetch(url, {
-      headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {},
-    });
-    if (!res.ok) throw new Error("Download failed");
-    const blob = await res.blob();
-    const blobUrl = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    const disposition = res.headers.get("content-disposition") || "";
-    const match = disposition.match(/filename="(.+)"/);
-    a.href = blobUrl;
-    a.download = match?.[1] || fallbackName;
-    a.click();
-    URL.revokeObjectURL(blobUrl);
+      headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {}
+    })
+    if (!res.ok) throw new Error('Download failed')
+    const blob = await res.blob()
+    const blobUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const disposition = res.headers.get('content-disposition') || ''
+    const match = disposition.match(/filename="(.+)"/)
+    a.href = blobUrl
+    a.download = match?.[1] || fallbackName
+    a.click()
+    URL.revokeObjectURL(blobUrl)
   } catch (e: any) {
-    alert(e.message || "Failed to download");
+    alert(e.message || 'Failed to download')
   } finally {
-    loadingRef.value = false;
+    loadingRef.value = false
   }
 }
 
-function downloadEntries() { downloadFile("/api/export/entries", "servant_entries.json", exportingEntries); }
+function downloadEntries() {
+  downloadFile('/api/export/entries', 'servant_entries.json', exportingEntries)
+}
 
 // Account info
-const memberSince = ref("");
+const memberSince = ref('')
 
 onMounted(async () => {
   try {
     const res = await api.get<{
       data: {
-        display_name: string;
-        email: string | null;
-        avatar_path: string | null;
-        timezone: string | null;
-        inserted_at: string;
-      };
-    }>("/api/auth/me");
-    displayName.value = res.data.display_name || "";
-    email.value = res.data.email || "";
-    timezone.value = res.data.timezone || "UTC";
-    avatarUrl.value = res.data.avatar_path;
-    memberSince.value = formatDate(res.data.inserted_at);
+        display_name: string
+        email: string | null
+        avatar_path: string | null
+        timezone: string | null
+        inserted_at: string
+      }
+    }>('/api/auth/me')
+    displayName.value = res.data.display_name || ''
+    email.value = res.data.email || ''
+    timezone.value = res.data.timezone || 'UTC'
+    avatarUrl.value = res.data.avatar_path
+    memberSince.value = formatDate(res.data.inserted_at)
   } catch {
-    displayName.value = auth.user?.display_name || "";
+    displayName.value = auth.user?.display_name || ''
   }
-});
+})
 
 async function saveProfile() {
-  profileSaving.value = true;
-  profileSuccess.value = false;
-  profileError.value = "";
+  profileSaving.value = true
+  profileSuccess.value = false
+  profileError.value = ''
   try {
     const res = await api.put<{
       data: {
-        id: string;
-        username: string;
-        display_name: string;
-        email: string | null;
-        avatar_path: string | null;
-        timezone: string | null;
-      };
-    }>("/api/auth/profile", {
+        id: string
+        username: string
+        display_name: string
+        email: string | null
+        avatar_path: string | null
+        timezone: string | null
+      }
+    }>('/api/auth/profile', {
       display_name: displayName.value,
       email: email.value || null,
-      timezone: timezone.value,
-    });
+      timezone: timezone.value
+    })
     if (auth.user) {
-      auth.user.display_name = res.data.display_name;
-      auth.user.email = res.data.email;
-      auth.user.timezone = res.data.timezone;
+      auth.user.display_name = res.data.display_name
+      auth.user.email = res.data.email
+      auth.user.timezone = res.data.timezone
     }
-    profileSuccess.value = true;
-    setTimeout(() => (profileSuccess.value = false), 3000);
+    profileSuccess.value = true
+    setTimeout(() => (profileSuccess.value = false), 3000)
   } catch (e: any) {
-    profileError.value = e.message || "Failed to update profile";
+    profileError.value = e.message || 'Failed to update profile'
   } finally {
-    profileSaving.value = false;
+    profileSaving.value = false
   }
 }
 
 async function uploadAvatar(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file) return;
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
 
-  avatarUploading.value = true;
-  const formData = new FormData();
-  formData.append("avatar", file);
+  avatarUploading.value = true
+  const formData = new FormData()
+  formData.append('avatar', file)
 
   try {
-    const res = await fetch("/api/auth/avatar", {
-      method: "POST",
+    const res = await fetch('/api/auth/avatar', {
+      method: 'POST',
       headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {},
-      body: formData,
-    });
-    const data = await res.json();
+      body: formData
+    })
+    const data = await res.json()
     if (res.ok) {
-      avatarUrl.value = data.data.avatar_path + "?t=" + Date.now();
-      if (auth.user) auth.user.avatar_path = data.data.avatar_path;
+      avatarUrl.value = data.data.avatar_path + '?t=' + Date.now()
+      if (auth.user) auth.user.avatar_path = data.data.avatar_path
     }
   } catch {
     // ignore
   } finally {
-    avatarUploading.value = false;
-    input.value = "";
+    avatarUploading.value = false
+    input.value = ''
   }
 }
 
 async function changePassword() {
-  passwordSuccess.value = false;
-  passwordError.value = "";
+  passwordSuccess.value = false
+  passwordError.value = ''
 
   if (newPassword.value !== confirmPassword.value) {
-    passwordError.value = "New passwords do not match";
-    return;
+    passwordError.value = 'New passwords do not match'
+    return
   }
   if (newPassword.value.length < 8) {
-    passwordError.value = "Password must be at least 8 characters";
-    return;
+    passwordError.value = 'Password must be at least 8 characters'
+    return
   }
 
-  passwordSaving.value = true;
+  passwordSaving.value = true
   try {
-    await api.put("/api/auth/password", {
+    await api.put('/api/auth/password', {
       current_password: currentPassword.value,
-      new_password: newPassword.value,
-    });
-    currentPassword.value = "";
-    newPassword.value = "";
-    confirmPassword.value = "";
-    passwordSuccess.value = true;
-    setTimeout(() => (passwordSuccess.value = false), 3000);
+      new_password: newPassword.value
+    })
+    currentPassword.value = ''
+    newPassword.value = ''
+    confirmPassword.value = ''
+    passwordSuccess.value = true
+    setTimeout(() => (passwordSuccess.value = false), 3000)
   } catch (e: any) {
-    passwordError.value = e.message || "Failed to change password";
+    passwordError.value = e.message || 'Failed to change password'
   } finally {
-    passwordSaving.value = false;
+    passwordSaving.value = false
   }
 }
 </script>
@@ -218,7 +232,7 @@ async function changePassword() {
               class="avatar-img"
             />
             <span v-else class="avatar-placeholder">
-              {{ (displayName || auth.user?.username || "?")[0].toUpperCase() }}
+              {{ (displayName || auth.user?.username || '?')[0].toUpperCase() }}
             </span>
             <span class="avatar-overlay">
               <Camera :size="18" />
@@ -256,17 +270,21 @@ async function changePassword() {
           <div class="field">
             <label for="timezone">Timezone</label>
             <select id="timezone" v-model="timezone">
-              <option v-for="tz in timezones" :key="tz" :value="tz">{{ tz }}</option>
+              <option v-for="tz in timezones" :key="tz" :value="tz">
+                {{ tz }}
+              </option>
             </select>
-            <p class="field-hint">Dates and times are shown in this timezone.</p>
+            <p class="field-hint">
+              Dates and times are shown in this timezone.
+            </p>
           </div>
 
-        <p v-if="profileError" class="msg msg-error">{{ profileError }}</p>
-        <p v-if="profileSuccess" class="msg msg-success">Profile updated.</p>
+          <p v-if="profileError" class="msg msg-error">{{ profileError }}</p>
+          <p v-if="profileSuccess" class="msg msg-success">Profile updated.</p>
 
           <div class="card-actions">
             <button type="submit" :disabled="profileSaving">
-              {{ profileSaving ? "Saving..." : "Save" }}
+              {{ profileSaving ? 'Saving...' : 'Save' }}
             </button>
           </div>
         </form>
@@ -320,7 +338,7 @@ async function changePassword() {
 
         <div class="card-actions">
           <button type="submit" :disabled="passwordSaving">
-            {{ passwordSaving ? "Changing..." : "Change Password" }}
+            {{ passwordSaving ? 'Changing...' : 'Change Password' }}
           </button>
         </div>
       </form>
@@ -337,7 +355,7 @@ async function changePassword() {
         <p class="export-desc">Download your data for backup or migration.</p>
         <div class="card-actions export-actions">
           <button @click="downloadEntries" :disabled="exportingEntries">
-            {{ exportingEntries ? "Downloading..." : "Entries (JSON)" }}
+            {{ exportingEntries ? 'Downloading...' : 'Entries (JSON)' }}
           </button>
         </div>
       </div>
@@ -353,11 +371,11 @@ async function changePassword() {
       <div class="card-body">
         <div class="info-row">
           <span class="info-label">Member since</span>
-          <span class="info-value">{{ memberSince || "—" }}</span>
+          <span class="info-value">{{ memberSince || '—' }}</span>
         </div>
         <div class="info-row">
           <span class="info-label">User ID</span>
-          <span class="info-value mono">{{ auth.user?.id || "—" }}</span>
+          <span class="info-value mono">{{ auth.user?.id || '—' }}</span>
         </div>
       </div>
     </section>

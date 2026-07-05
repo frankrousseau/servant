@@ -13,6 +13,8 @@ All Vue code follows the [official Vue.js style guide](https://fr.vuejs.org/styl
 - **Priority B (strongly recommended)**: one component per file, PascalCase filenames and template tags, self-closing tags for empty components, camelCase prop declarations, complex template expressions extracted into computeds, consistent directive shorthands (`:`, `@`, `#`)
 - **Priority C (recommended)**: SFC top-level order is `<script>` then `<template>` then `<style>` in every file
 
+Formatting is Prettier's job (`cd frontend && npm run format`; config in `frontend/.prettierrc.json`: no semicolons, single quotes, no trailing commas, `arrowParens: avoid`). Run it before committing frontend changes.
+
 ## Elixir style
 
 All Elixir code follows [The Elixir Style Guide](https://github.com/christopheradams/elixir_style_guide). `mix format` covers layout; the rules it does **not** enforce and that we apply here:

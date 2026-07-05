@@ -1,58 +1,71 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { useApi } from "../composables/useApi";
-import { useFetchData } from "../composables/useFetchData";
-import { ArrowLeft, Download, Trash2 } from "lucide-vue-next";
-import { useConfirm } from "../composables/useConfirm";
-import VideoPlayer from "../components/VideoPlayer.vue";
-import type { Entry } from "../types";
-import { formatFileSize } from "../types";
-import { formatDateTime } from "../lib/datetime";
+import { ref, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useApi } from '../composables/useApi'
+import { useFetchData } from '../composables/useFetchData'
+import { ArrowLeft, Download, Trash2 } from 'lucide-vue-next'
+import { useConfirm } from '../composables/useConfirm'
+import VideoPlayer from '../components/VideoPlayer.vue'
+import type { Entry } from '../types'
+import { formatFileSize } from '../types'
+import { formatDateTime } from '../lib/datetime'
 
-const route = useRoute();
-const router = useRouter();
-const api = useApi();
+const route = useRoute()
+const router = useRouter()
+const api = useApi()
 
 const {
   data: entry,
   loading,
   error,
-  refetch,
+  refetch
 } = useFetchData<Entry>(
-  () => api.get<{ data: Entry }>(`/api/entries/${route.params.id}`).then((r) => r.data),
-  { fallbackError: "Photo not found" },
-);
-const imgError = ref(false);
+  () =>
+    api
+      .get<{ data: Entry }>(`/api/entries/${route.params.id}`)
+      .then(r => r.data),
+  { fallbackError: 'Photo not found' }
+)
+const imgError = ref(false)
 // Refetch when the id changes: the instance is reused across /photos/:id links.
 watch(
   () => route.params.id,
   () => {
-    imgError.value = false;
-    refetch();
-  },
-);
+    imgError.value = false
+    refetch()
+  }
+)
 
-const photoPath = computed(() => (entry.value?.data?.path as string) || "");
-const filename = computed(() => (entry.value?.data?.filename as string) || "");
-const mimeType = computed(() => (entry.value?.data?.mime_type as string) || "");
-const isVideo = computed(() => mimeType.value.startsWith("video/"));
-const fileSize = computed(() => formatFileSize((entry.value?.data?.size as number) || 0));
-const album = computed(() => (entry.value?.data?.album as string) || "");
-const dateTaken = computed(() => (entry.value?.data?.date_taken as string) || "");
-const camera = computed(() => (entry.value?.data?.camera as string) || "");
-const latitude = computed(() => entry.value?.data?.latitude as number | undefined);
-const longitude = computed(() => entry.value?.data?.longitude as number | undefined);
-const createdAt = computed(() => formatDateTime(entry.value?.inserted_at));
+const photoPath = computed(() => (entry.value?.data?.path as string) || '')
+const filename = computed(() => (entry.value?.data?.filename as string) || '')
+const mimeType = computed(() => (entry.value?.data?.mime_type as string) || '')
+const isVideo = computed(() => mimeType.value.startsWith('video/'))
+const fileSize = computed(() =>
+  formatFileSize((entry.value?.data?.size as number) || 0)
+)
+const album = computed(() => (entry.value?.data?.album as string) || '')
+const dateTaken = computed(
+  () => (entry.value?.data?.date_taken as string) || ''
+)
+const camera = computed(() => (entry.value?.data?.camera as string) || '')
+const latitude = computed(
+  () => entry.value?.data?.latitude as number | undefined
+)
+const longitude = computed(
+  () => entry.value?.data?.longitude as number | undefined
+)
+const createdAt = computed(() => formatDateTime(entry.value?.inserted_at))
 
-const { ask } = useConfirm();
+const { ask } = useConfirm()
 
 async function deletePhoto() {
-  if (!entry.value) return;
-  const ok = await ask({ message: `Delete "${entry.value.title || "this photo"}"?` });
-  if (!ok) return;
-  await api.del(`/api/entries/${entry.value.id}`);
-  router.push("/apps/photos");
+  if (!entry.value) return
+  const ok = await ask({
+    message: `Delete "${entry.value.title || 'this photo'}"?`
+  })
+  if (!ok) return
+  await api.del(`/api/entries/${entry.value.id}`)
+  router.push('/apps/photos')
 }
 </script>
 
@@ -62,7 +75,7 @@ async function deletePhoto() {
       <router-link to="/apps/photos" class="back-link">
         <ArrowLeft :size="20" />
       </router-link>
-      <h1 v-if="entry">{{ entry.title || filename || "Photo" }}</h1>
+      <h1 v-if="entry">{{ entry.title || filename || 'Photo' }}</h1>
       <h1 v-else-if="loading">Loading...</h1>
     </div>
 
@@ -77,9 +90,27 @@ async function deletePhoto() {
             :src="photoPath"
             @error="imgError = true"
           />
-          <img v-else-if="!imgError" :src="photoPath" :alt="entry.title || ''" @error="imgError = true" />
+          <img
+            v-else-if="!imgError"
+            :src="photoPath"
+            :alt="entry.title || ''"
+            @error="imgError = true"
+          />
           <div v-else class="photo-broken">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+            <svg
+              width="48"
+              height="48"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <path d="m21 15-5-5L5 21" />
+            </svg>
             <span>Image unavailable</span>
           </div>
         </div>
@@ -113,7 +144,9 @@ async function deletePhoto() {
               </div>
               <div v-if="latitude != null" class="meta-row">
                 <span class="meta-key">Location</span>
-                <span>{{ latitude!.toFixed(5) }}, {{ longitude!.toFixed(5) }}</span>
+                <span
+                  >{{ latitude!.toFixed(5) }}, {{ longitude!.toFixed(5) }}</span
+                >
               </div>
             </div>
           </section>
@@ -294,7 +327,10 @@ async function deletePhoto() {
   font-weight: 500;
   border-radius: 8px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
   white-space: nowrap;
   text-decoration: none;
 }

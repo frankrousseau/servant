@@ -11,17 +11,17 @@ import {
   CalendarDays,
   Receipt,
   Heart,
-  CircleDot,
-} from "lucide-vue-next";
-import { computed } from "vue";
+  CircleDot
+} from 'lucide-vue-next'
+import { computed } from 'vue'
 
 const props = withDefaults(
   defineProps<{
-    kind: string;
-    size?: number;
+    kind: string
+    size?: number
   }>(),
-  { size: 16 },
-);
+  { size: 16 }
+)
 
 const iconMap: Record<string, typeof ArrowLeftRight> = {
   transaction: ArrowLeftRight,
@@ -34,31 +34,35 @@ const iconMap: Record<string, typeof ArrowLeftRight> = {
   note: StickyNote,
   event: CalendarDays,
   invoice: Receipt,
-  health: Heart,
-};
+  health: Heart
+}
 
 const colorMap: Record<string, string> = {
-  transaction: "#9d7bff",
-  bank_tx: "#4a9c6d",
-  blockchain_tx: "#9b6cff",
-  article: "#f0a06c",
-  email: "#5cc98a",
-  photo: "#c96cd0",
-  contact: "#6ccec9",
-  note: "#e0d56c",
-  event: "#e07c5a",
-  invoice: "#8b6cff",
-  health: "#e05577",
-};
+  transaction: '#9d7bff',
+  bank_tx: '#4a9c6d',
+  blockchain_tx: '#9b6cff',
+  article: '#f0a06c',
+  email: '#5cc98a',
+  photo: '#c96cd0',
+  contact: '#6ccec9',
+  note: '#e0d56c',
+  event: '#e07c5a',
+  invoice: '#8b6cff',
+  health: '#e05577'
+}
 
-const icon = computed(() => iconMap[props.kind] || CircleDot);
-const color = computed(() => colorMap[props.kind] || "#8b8fa3");
+const icon = computed(() => iconMap[props.kind] || CircleDot)
+const color = computed(() => colorMap[props.kind] || '#8b8fa3')
 </script>
 
 <template>
   <span
     class="kind-icon"
-    :style="{ background: color, width: size + 12 + 'px', height: size + 12 + 'px' }"
+    :style="{
+      background: color,
+      width: size + 12 + 'px',
+      height: size + 12 + 'px'
+    }"
   >
     <component :is="icon" :size="size" color="#fff" />
   </span>

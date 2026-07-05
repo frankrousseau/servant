@@ -1,252 +1,267 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { useApi } from "../composables/useApi";
-import { useAuthStore } from "../stores/auth";
-import type { ConnectorConfig, SyncLog, Schedule } from "../types";
-import { SCHEDULE_LABELS, relativeTime } from "../types";
-import { formatDate, formatDateTime } from "../lib/datetime";
-import { getConnectorDef } from "../connectors";
-import { Upload, ArrowLeft, Check, X, LoaderCircle, Copy, RefreshCw, ToggleLeft, ToggleRight, Trash2 } from "lucide-vue-next";
-import { useConfirm } from "../composables/useConfirm";
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useApi } from '../composables/useApi'
+import { useAuthStore } from '../stores/auth'
+import type { ConnectorConfig, SyncLog, Schedule } from '../types'
+import { SCHEDULE_LABELS, relativeTime } from '../types'
+import { formatDate, formatDateTime } from '../lib/datetime'
+import { getConnectorDef } from '../connectors'
+import {
+  Upload,
+  ArrowLeft,
+  Check,
+  X,
+  LoaderCircle,
+  Copy,
+  RefreshCw,
+  ToggleLeft,
+  ToggleRight,
+  Trash2
+} from 'lucide-vue-next'
+import { useConfirm } from '../composables/useConfirm'
 
-const copiedId = ref<string | null>(null);
+const copiedId = ref<string | null>(null)
 function copyError(text: string, id: string) {
-  navigator.clipboard.writeText(text);
-  copiedId.value = id;
-  setTimeout(() => (copiedId.value = null), 1500);
+  navigator.clipboard.writeText(text)
+  copiedId.value = id
+  setTimeout(() => (copiedId.value = null), 1500)
 }
 
 const connectorDef = computed(() =>
-  connector.value ? getConnectorDef(connector.value.connector_type) : null,
-);
+  connector.value ? getConnectorDef(connector.value.connector_type) : null
+)
 
-const route = useRoute();
-const router = useRouter();
-const api = useApi();
+const route = useRoute()
+const router = useRouter()
+const api = useApi()
 
-const connector = ref<ConnectorConfig | null>(null);
-const logs = ref<SyncLog[]>([]);
-const auth = useAuthStore();
-const loading = ref(true);
-const logsLoading = ref(true);
-const syncing = ref(false);
-const actionFeedback = ref("");
+const connector = ref<ConnectorConfig | null>(null)
+const logs = ref<SyncLog[]>([])
+const auth = useAuthStore()
+const loading = ref(true)
+const logsLoading = ref(true)
+const syncing = ref(false)
+const actionFeedback = ref('')
 
 // CSV upload
-const uploading = ref(false);
-const uploadResult = ref<{ imported: number; skipped: number } | null>(null);
-const uploadError = ref("");
+const uploading = ref(false)
+const uploadResult = ref<{ imported: number; skipped: number } | null>(null)
+const uploadError = ref('')
 
 const importableTypes: Record<string, { accept: string; label: string }> = {
-  bank_csv: { accept: ".csv", label: "CSV" },
-  ical: { accept: ".ics,.ical", label: "iCal (.ics)" },
-  vcard: { accept: ".vcf,.vcard", label: "vCard (.vcf)" },
-  apple_health: { accept: ".xml", label: "Apple Health export (XML)" },
-};
+  bank_csv: { accept: '.csv', label: 'CSV' },
+  ical: { accept: '.ics,.ical', label: 'iCal (.ics)' },
+  vcard: { accept: '.vcf,.vcard', label: 'vCard (.vcf)' },
+  apple_health: { accept: '.xml', label: 'Apple Health export (XML)' }
+}
 
 const isImportable = computed(() =>
-  connector.value ? connector.value.connector_type in importableTypes : false,
-);
-const isImportOnly = computed(() => connector.value?.connector_type === "bank_csv");
+  connector.value ? connector.value.connector_type in importableTypes : false
+)
+const isImportOnly = computed(
+  () => connector.value?.connector_type === 'bank_csv'
+)
 const importConfig = computed(() =>
-  connector.value ? importableTypes[connector.value.connector_type] : null,
-);
+  connector.value ? importableTypes[connector.value.connector_type] : null
+)
 
 async function uploadCSV(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file || !connector.value) return;
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file || !connector.value) return
 
-  uploading.value = true;
-  uploadResult.value = null;
-  uploadError.value = "";
+  uploading.value = true
+  uploadResult.value = null
+  uploadError.value = ''
 
-  const formData = new FormData();
-  formData.append("file", file);
+  const formData = new FormData()
+  formData.append('file', file)
 
   try {
     const res = await fetch(`/api/connectors/${connectorId.value}/import`, {
-      method: "POST",
+      method: 'POST',
       headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {},
-      body: formData,
-    });
+      body: formData
+    })
 
-    const data = await res.json();
+    const data = await res.json()
 
     if (res.ok) {
-      uploadResult.value = { imported: data.imported, skipped: data.skipped };
-      await fetchConnector();
-      await fetchLogs();
+      uploadResult.value = { imported: data.imported, skipped: data.skipped }
+      await fetchConnector()
+      await fetchLogs()
     } else {
-      uploadError.value = data.error || "Import failed";
+      uploadError.value = data.error || 'Import failed'
     }
   } catch (e: any) {
-    uploadError.value = e.message || "Upload failed";
+    uploadError.value = e.message || 'Upload failed'
   } finally {
-    uploading.value = false;
-    input.value = "";
+    uploading.value = false
+    input.value = ''
   }
 }
 
-const connectorId = computed(() => route.params.id as string);
+const connectorId = computed(() => route.params.id as string)
 
 // `silent` skips the loading toggle so background polling doesn't tear the whole
 // view down to a "Loading…" state every 2s (and drop focus on the title).
 async function fetchConnector(silent = false) {
-  if (!silent) loading.value = true;
+  if (!silent) loading.value = true
   try {
     const res = await api.get<{ data: ConnectorConfig }>(
-      `/api/connectors/${connectorId.value}`,
-    );
-    connector.value = res.data;
+      `/api/connectors/${connectorId.value}`
+    )
+    connector.value = res.data
   } catch {
-    if (!silent) connector.value = null;
+    if (!silent) connector.value = null
   } finally {
-    if (!silent) loading.value = false;
+    if (!silent) loading.value = false
   }
 }
 
 async function fetchLogs(silent = false) {
-  if (!silent) logsLoading.value = true;
+  if (!silent) logsLoading.value = true
   try {
     const res = await api.get<{ data: SyncLog[] }>(
-      `/api/connectors/${connectorId.value}/logs`,
-    );
-    logs.value = res.data;
+      `/api/connectors/${connectorId.value}/logs`
+    )
+    logs.value = res.data
   } catch {
-    if (!silent) logs.value = [];
+    if (!silent) logs.value = []
   } finally {
-    if (!silent) logsLoading.value = false;
+    if (!silent) logsLoading.value = false
   }
 }
 
 async function saveName(event: Event) {
-  const el = event.target as HTMLInputElement;
-  const newName = el.value.trim();
-  if (!connector.value || newName === (connector.value.name || "")) return;
+  const el = event.target as HTMLInputElement
+  const newName = el.value.trim()
+  if (!connector.value || newName === (connector.value.name || '')) return
 
   try {
-    await api.put(`/api/connectors/${connectorId.value}`, { name: newName });
-    connector.value.name = newName;
+    await api.put(`/api/connectors/${connectorId.value}`, { name: newName })
+    connector.value.name = newName
   } catch {
     // Revert the field to the last saved value on failure.
-    el.value = connector.value.name || "";
+    el.value = connector.value.name || ''
   }
 }
 
 async function syncNow() {
-  syncing.value = true;
+  syncing.value = true
   // Clear current error immediately for visual feedback
   if (connector.value) {
-    connector.value.error = null;
+    connector.value.error = null
   }
   try {
-    await api.post(`/api/connectors/${connectorId.value}/sync`);
+    await api.post(`/api/connectors/${connectorId.value}/sync`)
   } catch {
     // Connector may not be running, try start first
     try {
-      await api.post(`/api/connectors/${connectorId.value}/start`);
-      await api.post(`/api/connectors/${connectorId.value}/sync`);
+      await api.post(`/api/connectors/${connectorId.value}/start`)
+      await api.post(`/api/connectors/${connectorId.value}/sync`)
     } catch {
       // ignore
     }
   }
   // Poll for completion
-  pollSync();
+  pollSync()
 }
 
-const pollTimer = ref<ReturnType<typeof setInterval> | null>(null);
+const pollTimer = ref<ReturnType<typeof setInterval> | null>(null)
 
 function stopPolling() {
   if (pollTimer.value) {
-    clearInterval(pollTimer.value);
-    pollTimer.value = null;
+    clearInterval(pollTimer.value)
+    pollTimer.value = null
   }
 }
 
 function pollSync() {
-  stopPolling();
-  let attempts = 0;
+  stopPolling()
+  let attempts = 0
   pollTimer.value = setInterval(async () => {
-    attempts++;
-    await fetchLogs(true);
-    await fetchConnector(true);
+    attempts++
+    await fetchLogs(true)
+    await fetchConnector(true)
     // Stop polling when the latest log is no longer "running", or after 60s
-    const latest = logs.value[0];
-    if (!latest || latest.status !== "running" || attempts >= 30) {
-      stopPolling();
-      syncing.value = false;
+    const latest = logs.value[0]
+    if (!latest || latest.status !== 'running' || attempts >= 30) {
+      stopPolling()
+      syncing.value = false
     }
-  }, 2000);
+  }, 2000)
 }
 
-onUnmounted(stopPolling);
+onUnmounted(stopPolling)
 
 function showFeedback(msg: string) {
-  actionFeedback.value = msg;
-  setTimeout(() => (actionFeedback.value = ""), 2500);
+  actionFeedback.value = msg
+  setTimeout(() => (actionFeedback.value = ''), 2500)
 }
 
 async function updateSchedule(schedule: Schedule) {
-  if (!connector.value) return;
+  if (!connector.value) return
   try {
-    await api.put(`/api/connectors/${connectorId.value}`, { schedule });
-    connector.value.schedule = schedule;
+    await api.put(`/api/connectors/${connectorId.value}`, { schedule })
+    connector.value.schedule = schedule
   } catch {
     // ignore
   }
 }
 
 async function toggleEnabled() {
-  if (!connector.value) return;
-  const newState = !connector.value.enabled;
+  if (!connector.value) return
+  const newState = !connector.value.enabled
   try {
     // Update the flag in DB
     await api.put(`/api/connectors/${connectorId.value}`, {
-      enabled: newState,
-    });
+      enabled: newState
+    })
     // Start or stop the worker accordingly
     if (newState) {
-      await api.post(`/api/connectors/${connectorId.value}/start`);
+      await api.post(`/api/connectors/${connectorId.value}/start`)
     } else {
-      await api.post(`/api/connectors/${connectorId.value}/stop`);
+      await api.post(`/api/connectors/${connectorId.value}/stop`)
     }
-    connector.value.enabled = newState;
-    showFeedback(newState ? "Connector enabled" : "Connector disabled");
+    connector.value.enabled = newState
+    showFeedback(newState ? 'Connector enabled' : 'Connector disabled')
   } catch {
-    showFeedback("Failed to update");
+    showFeedback('Failed to update')
   }
 }
 
-const { ask } = useConfirm();
+const { ask } = useConfirm()
 
 async function deleteConnector() {
-  const ok = await ask({ title: "Delete connector", message: "This will delete the connector and all its sync history." });
-  if (!ok) return;
+  const ok = await ask({
+    title: 'Delete connector',
+    message: 'This will delete the connector and all its sync history.'
+  })
+  if (!ok) return
   try {
-    await api.del(`/api/connectors/${connectorId.value}`);
-    router.push("/connectors");
+    await api.del(`/api/connectors/${connectorId.value}`)
+    router.push('/connectors')
   } catch {
     // ignore
   }
 }
 
-
 function duration(log: SyncLog): string {
-  if (!log.finished_at) return "—";
-  const start = new Date(log.started_at).getTime();
-  const end = new Date(log.finished_at).getTime();
-  const ms = end - start;
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${(ms / 60000).toFixed(1)}m`;
+  if (!log.finished_at) return '—'
+  const start = new Date(log.started_at).getTime()
+  const end = new Date(log.finished_at).getTime()
+  const ms = end - start
+  if (ms < 1000) return `${ms}ms`
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
+  return `${(ms / 60000).toFixed(1)}m`
 }
 
 onMounted(() => {
-  fetchConnector();
-  fetchLogs();
-});
+  fetchConnector()
+  fetchLogs()
+})
 </script>
 
 <template>
@@ -287,7 +302,7 @@ onMounted(() => {
                 class="status-dot"
                 :class="{ active: connector.enabled, error: connector.error }"
               ></span>
-              {{ connector.enabled ? "Enabled" : "Disabled" }}
+              {{ connector.enabled ? 'Enabled' : 'Disabled' }}
             </span>
           </div>
           <div v-if="!isImportOnly" class="detail-item">
@@ -297,7 +312,7 @@ onMounted(() => {
               :value="connector.schedule"
               @change="
                 updateSchedule(
-                  ($event.target as HTMLSelectElement).value as Schedule,
+                  ($event.target as HTMLSelectElement).value as Schedule
                 )
               "
             >
@@ -311,7 +326,9 @@ onMounted(() => {
             </select>
           </div>
           <div class="detail-item">
-            <span class="detail-label">{{ isImportOnly ? "Last import" : "Last sync" }}</span>
+            <span class="detail-label">{{
+              isImportOnly ? 'Last import' : 'Last sync'
+            }}</span>
             <span class="detail-val">
               <template v-if="connector.last_synced_at">
                 {{ relativeTime(connector.last_synced_at) }}
@@ -330,9 +347,7 @@ onMounted(() => {
           </div>
         </div>
 
-        <div v-if="syncing" class="sync-banner">
-          Syncing...
-        </div>
+        <div v-if="syncing" class="sync-banner">Syncing...</div>
 
         <div v-if="connector.error && !syncing" class="connector-error">
           <span>{{ connector.error }}</span>
@@ -348,18 +363,25 @@ onMounted(() => {
 
         <div class="action-bar">
           <div v-if="!isImportOnly" class="action-group">
-            <button class="action-btn action-btn--primary" @click="syncNow" :disabled="syncing">
+            <button
+              class="action-btn action-btn--primary"
+              @click="syncNow"
+              :disabled="syncing"
+            >
               <RefreshCw :size="15" :class="{ spin: syncing }" />
-              {{ syncing ? "Syncing..." : "Sync Now" }}
+              {{ syncing ? 'Syncing...' : 'Sync Now' }}
             </button>
             <button class="action-btn action-btn--ghost" @click="toggleEnabled">
               <ToggleRight v-if="connector.enabled" :size="15" />
               <ToggleLeft v-else :size="15" />
-              {{ connector.enabled ? "Disable" : "Enable" }}
+              {{ connector.enabled ? 'Disable' : 'Enable' }}
             </button>
           </div>
           <div v-else class="action-group"></div>
-          <button class="action-btn action-btn--danger" @click="deleteConnector">
+          <button
+            class="action-btn action-btn--danger"
+            @click="deleteConnector"
+          >
             <Trash2 :size="15" /> Delete
           </button>
         </div>
@@ -372,14 +394,16 @@ onMounted(() => {
 
       <!-- Config -->
       <section class="detail-card">
-        <h2>{{ isImportable ? "Import" : "Configuration" }}</h2>
+        <h2>{{ isImportable ? 'Import' : 'Configuration' }}</h2>
 
         <!-- CSV Upload zone (bank_csv only) -->
         <div v-if="isImportable && importConfig" class="upload-zone">
           <label class="upload-area" :class="{ uploading }">
             <Upload :size="24" />
             <span v-if="uploading">Importing...</span>
-            <span v-else>Drop a {{ importConfig.label }} file or click to browse</span>
+            <span v-else
+              >Drop a {{ importConfig.label }} file or click to browse</span
+            >
             <input
               type="file"
               :accept="importConfig.accept"
@@ -390,7 +414,10 @@ onMounted(() => {
           </label>
 
           <div v-if="uploadResult" class="upload-result msg-success">
-            Imported {{ uploadResult.imported }} transactions<template v-if="uploadResult.skipped">, {{ uploadResult.skipped }} skipped (duplicates)</template>.
+            Imported {{ uploadResult.imported }} transactions<template
+              v-if="uploadResult.skipped"
+              >, {{ uploadResult.skipped }} skipped (duplicates)</template
+            >.
           </div>
           <div v-if="uploadError" class="upload-result msg-error">
             {{ uploadError }}
@@ -398,12 +425,14 @@ onMounted(() => {
         </div>
 
         <h3 v-if="isImportable">Settings</h3>
-        <pre class="config-pre">{{ JSON.stringify(connector.config, null, 2) }}</pre>
+        <pre class="config-pre">{{
+          JSON.stringify(connector.config, null, 2)
+        }}</pre>
       </section>
 
       <!-- Sync history -->
       <section class="detail-card">
-        <h2>{{ isImportOnly ? "Import History" : "Sync History" }}</h2>
+        <h2>{{ isImportOnly ? 'Import History' : 'Sync History' }}</h2>
         <p v-if="logsLoading">Loading...</p>
         <div v-else-if="logs.length" class="log-list">
           <div
@@ -421,14 +450,16 @@ onMounted(() => {
               <span class="log-status">{{ log.status }}</span>
               <span v-if="log.entries_count > 0" class="log-entries">
                 {{ log.entries_count }}
-                {{ log.entries_count === 1 ? "entry" : "entries" }}
+                {{ log.entries_count === 1 ? 'entry' : 'entries' }}
               </span>
               <span v-if="log.error" class="log-error-text">
                 {{ log.error }}
                 <button
                   class="copy-error-btn"
                   @click.stop="copyError(log.error!, `log-${log.id}`)"
-                  :title="copiedId === `log-${log.id}` ? 'Copied!' : 'Copy error'"
+                  :title="
+                    copiedId === `log-${log.id}` ? 'Copied!' : 'Copy error'
+                  "
                 >
                   <Check v-if="copiedId === `log-${log.id}`" :size="12" />
                   <Copy v-else :size="12" />
@@ -595,8 +626,13 @@ onMounted(() => {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
 .copy-error-btn {
@@ -654,7 +690,10 @@ onMounted(() => {
   font-weight: 500;
   border-radius: 8px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
   white-space: nowrap;
 }
 
@@ -776,8 +815,12 @@ onMounted(() => {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .log-body {
@@ -841,7 +884,9 @@ onMounted(() => {
   border-radius: var(--radius);
   cursor: pointer;
   color: var(--text-muted);
-  transition: border-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
   text-align: center;
 }
 

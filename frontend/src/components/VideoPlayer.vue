@@ -1,159 +1,198 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
-import { Play, Pause, Volume2, VolumeX, Maximize, Minimize } from "lucide-vue-next";
-import { formatDuration } from "../lib/datetime";
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import {
+  Play,
+  Pause,
+  Volume2,
+  VolumeX,
+  Maximize,
+  Minimize
+} from 'lucide-vue-next'
+import { formatDuration } from '../lib/datetime'
 
-const props = defineProps<{ src: string; autoplay?: boolean }>();
-const emit = defineEmits<{ error: [] }>();
+const props = defineProps<{ src: string; autoplay?: boolean }>()
+const emit = defineEmits<{ error: [] }>()
 
-const root = ref<HTMLElement | null>(null);
-const video = ref<HTMLVideoElement | null>(null);
-const bar = ref<HTMLElement | null>(null);
+const root = ref<HTMLElement | null>(null)
+const video = ref<HTMLVideoElement | null>(null)
+const bar = ref<HTMLElement | null>(null)
 
-const playing = ref(false);
-const currentTime = ref(0);
-const duration = ref(0);
-const bufferedEnd = ref(0);
-const volume = ref(1);
-const muted = ref(false);
-const fullscreen = ref(false);
-const controlsVisible = ref(true);
-const scrubbing = ref(false);
+const playing = ref(false)
+const currentTime = ref(0)
+const duration = ref(0)
+const bufferedEnd = ref(0)
+const volume = ref(1)
+const muted = ref(false)
+const fullscreen = ref(false)
+const controlsVisible = ref(true)
+const scrubbing = ref(false)
 
-const playedPct = computed(() => (duration.value ? (currentTime.value / duration.value) * 100 : 0));
+const playedPct = computed(() =>
+  duration.value ? (currentTime.value / duration.value) * 100 : 0
+)
 const bufferedPct = computed(() =>
-  duration.value ? (bufferedEnd.value / duration.value) * 100 : 0,
-);
+  duration.value ? (bufferedEnd.value / duration.value) * 100 : 0
+)
 const timeLabel = computed(
-  () => `${formatDuration(currentTime.value)} / ${formatDuration(duration.value)}`,
-);
-const idle = computed(() => playing.value && !controlsVisible.value);
+  () =>
+    `${formatDuration(currentTime.value)} / ${formatDuration(duration.value)}`
+)
+const idle = computed(() => playing.value && !controlsVisible.value)
 
 function togglePlay() {
-  const v = video.value;
-  if (!v) return;
-  if (v.paused) void v.play();
-  else v.pause();
-  wake();
+  const v = video.value
+  if (!v) return
+  if (v.paused) void v.play()
+  else v.pause()
+  wake()
 }
 
 // `timeupdate` only fires ~4x/s; drive the seekbar with rAF while playing so
 // it moves smoothly. The event stays as the paused-state fallback (seeks).
-let rafId: number | undefined;
+let rafId: number | undefined
 function tick() {
-  if (!scrubbing.value) currentTime.value = video.value?.currentTime || 0;
-  rafId = requestAnimationFrame(tick);
+  if (!scrubbing.value) currentTime.value = video.value?.currentTime || 0
+  rafId = requestAnimationFrame(tick)
 }
+function onPlay() {
+  playing.value = true
+  startTicking()
+  wake()
+}
+
+function onPause() {
+  playing.value = false
+  stopTicking()
+  wake()
+}
+
+function onEnded() {
+  playing.value = false
+  stopTicking()
+  controlsVisible.value = true
+}
+
 function startTicking() {
-  if (rafId === undefined) rafId = requestAnimationFrame(tick);
+  if (rafId === undefined) rafId = requestAnimationFrame(tick)
 }
 function stopTicking() {
   if (rafId !== undefined) {
-    cancelAnimationFrame(rafId);
-    rafId = undefined;
+    cancelAnimationFrame(rafId)
+    rafId = undefined
   }
 }
 
 function onTimeUpdate() {
-  if (!scrubbing.value) currentTime.value = video.value?.currentTime || 0;
+  if (!scrubbing.value) currentTime.value = video.value?.currentTime || 0
 }
 function onLoadedMetadata() {
-  const d = video.value?.duration || 0;
-  duration.value = Number.isFinite(d) ? d : 0;
+  const d = video.value?.duration || 0
+  duration.value = Number.isFinite(d) ? d : 0
 }
 function onProgress() {
-  const v = video.value;
-  if (v && v.buffered.length) bufferedEnd.value = v.buffered.end(v.buffered.length - 1);
+  const v = video.value
+  if (v && v.buffered.length)
+    bufferedEnd.value = v.buffered.end(v.buffered.length - 1)
 }
 function onVolumeChange() {
-  const v = video.value;
-  if (!v) return;
-  volume.value = v.volume;
-  muted.value = v.muted;
+  const v = video.value
+  if (!v) return
+  volume.value = v.volume
+  muted.value = v.muted
 }
 
 // YouTube-style auto-hide: controls fade out after inactivity while playing,
 // and immediately when the pointer leaves the player.
-let hideTimer: ReturnType<typeof setTimeout> | undefined;
+let hideTimer: ReturnType<typeof setTimeout> | undefined
 function wake() {
-  controlsVisible.value = true;
-  if (hideTimer) clearTimeout(hideTimer);
+  controlsVisible.value = true
+  if (hideTimer) clearTimeout(hideTimer)
   hideTimer = setTimeout(() => {
-    if (playing.value && !scrubbing.value) controlsVisible.value = false;
-  }, 2500);
+    if (playing.value && !scrubbing.value) controlsVisible.value = false
+  }, 2500)
 }
 function onMouseLeave() {
-  if (hideTimer) clearTimeout(hideTimer);
-  if (playing.value && !scrubbing.value) controlsVisible.value = false;
+  if (hideTimer) clearTimeout(hideTimer)
+  if (playing.value && !scrubbing.value) controlsVisible.value = false
 }
 
 // ----- seekbar scrubbing (click or drag anywhere on the bar) -----
 
 function barFraction(e: PointerEvent): number {
-  const rect = bar.value!.getBoundingClientRect();
-  return Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+  const rect = bar.value!.getBoundingClientRect()
+  return Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1)
 }
 function startScrub(e: PointerEvent) {
-  if (!video.value || !duration.value) return;
-  scrubbing.value = true;
-  (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  currentTime.value = barFraction(e) * duration.value;
+  if (!video.value || !duration.value) return
+  scrubbing.value = true
+  ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  currentTime.value = barFraction(e) * duration.value
 }
 function moveScrub(e: PointerEvent) {
-  if (scrubbing.value) currentTime.value = barFraction(e) * duration.value;
+  if (scrubbing.value) currentTime.value = barFraction(e) * duration.value
 }
 function endScrub(e: PointerEvent) {
-  if (!scrubbing.value) return;
-  scrubbing.value = false;
-  if (video.value) video.value.currentTime = barFraction(e) * duration.value;
-  wake();
+  if (!scrubbing.value) return
+  scrubbing.value = false
+  if (video.value) video.value.currentTime = barFraction(e) * duration.value
+  wake()
 }
 
 // ----- volume / fullscreen -----
 
 function toggleMute() {
-  const v = video.value;
-  if (v) v.muted = !v.muted;
+  const v = video.value
+  if (v) v.muted = !v.muted
 }
 function onVolumeInput(e: Event) {
-  const v = video.value;
-  if (!v) return;
-  v.volume = parseFloat((e.target as HTMLInputElement).value);
-  v.muted = v.volume === 0;
+  const v = video.value
+  if (!v) return
+  v.volume = parseFloat((e.target as HTMLInputElement).value)
+  v.muted = v.volume === 0
 }
 function toggleFullscreen() {
-  if (document.fullscreenElement) void document.exitFullscreen();
-  else void root.value?.requestFullscreen();
+  if (document.fullscreenElement) void document.exitFullscreen()
+  else void root.value?.requestFullscreen()
 }
 function onFsChange() {
-  fullscreen.value = !!document.fullscreenElement;
+  fullscreen.value = !!document.fullscreenElement
 }
 
 // Space / K toggle playback (unless typing somewhere).
 function onKeydown(e: KeyboardEvent) {
-  if (e.key !== " " && e.key !== "k") return;
-  const t = e.target as HTMLElement;
-  if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t.isContentEditable)
-    return;
-  e.preventDefault();
-  togglePlay();
+  if (e.key !== ' ' && e.key !== 'k') return
+  const t = e.target as HTMLElement
+  if (
+    t instanceof HTMLInputElement ||
+    t instanceof HTMLTextAreaElement ||
+    t.isContentEditable
+  )
+    return
+  e.preventDefault()
+  togglePlay()
 }
 
 onMounted(() => {
-  document.addEventListener("fullscreenchange", onFsChange);
-  document.addEventListener("keydown", onKeydown);
-  wake();
-});
+  document.addEventListener('fullscreenchange', onFsChange)
+  document.addEventListener('keydown', onKeydown)
+  wake()
+})
 onUnmounted(() => {
-  document.removeEventListener("fullscreenchange", onFsChange);
-  document.removeEventListener("keydown", onKeydown);
-  if (hideTimer) clearTimeout(hideTimer);
-  stopTicking();
-});
+  document.removeEventListener('fullscreenchange', onFsChange)
+  document.removeEventListener('keydown', onKeydown)
+  if (hideTimer) clearTimeout(hideTimer)
+  stopTicking()
+})
 </script>
 
 <template>
-  <div ref="root" class="vp" :class="{ 'vp--idle': idle }" @mousemove="wake" @mouseleave="onMouseLeave">
+  <div
+    ref="root"
+    class="vp"
+    :class="{ 'vp--idle': idle }"
+    @mousemove="wake"
+    @mouseleave="onMouseLeave"
+  >
     <video
       ref="video"
       class="vp-video"
@@ -162,9 +201,9 @@ onUnmounted(() => {
       playsinline
       @click="togglePlay"
       @dblclick="toggleFullscreen"
-      @play="playing = true; startTicking(); wake();"
-      @pause="playing = false; stopTicking(); wake();"
-      @ended="playing = false; stopTicking(); controlsVisible = true;"
+      @play="onPlay"
+      @pause="onPause"
+      @ended="onEnded"
       @timeupdate="onTimeUpdate"
       @loadedmetadata="onLoadedMetadata"
       @progress="onProgress"
@@ -172,7 +211,12 @@ onUnmounted(() => {
       @error="emit('error')"
     ></video>
 
-    <button v-if="!playing" class="vp-bigplay" aria-label="Play" @click="togglePlay">
+    <button
+      v-if="!playing"
+      class="vp-bigplay"
+      aria-label="Play"
+      @click="togglePlay"
+    >
       <Play :size="30" fill="currentColor" />
     </button>
 
@@ -187,17 +231,31 @@ onUnmounted(() => {
         @pointercancel="endScrub"
       >
         <div class="vp-seek-bg"></div>
-        <div class="vp-seek-buffered" :style="{ width: bufferedPct + '%' }"></div>
+        <div
+          class="vp-seek-buffered"
+          :style="{ width: bufferedPct + '%' }"
+        ></div>
         <div class="vp-seek-played" :style="{ width: playedPct + '%' }">
           <div class="vp-knob"></div>
         </div>
       </div>
       <div class="vp-row">
-        <button class="vp-btn" :title="playing ? 'Pause' : 'Play'" @click="togglePlay">
+        <button
+          class="vp-btn"
+          :title="playing ? 'Pause' : 'Play'"
+          @click="togglePlay"
+        >
           <Pause v-if="playing" :size="20" /><Play v-else :size="20" />
         </button>
-        <button class="vp-btn" :title="muted ? 'Unmute' : 'Mute'" @click="toggleMute">
-          <VolumeX v-if="muted || volume === 0" :size="20" /><Volume2 v-else :size="20" />
+        <button
+          class="vp-btn"
+          :title="muted ? 'Unmute' : 'Mute'"
+          @click="toggleMute"
+        >
+          <VolumeX v-if="muted || volume === 0" :size="20" /><Volume2
+            v-else
+            :size="20"
+          />
         </button>
         <input
           class="vp-volume"
@@ -215,7 +273,10 @@ onUnmounted(() => {
           :title="fullscreen ? 'Exit full screen' : 'Full screen'"
           @click="toggleFullscreen"
         >
-          <Minimize v-if="fullscreen" :size="20" /><Maximize v-else :size="20" />
+          <Minimize v-if="fullscreen" :size="20" /><Maximize
+            v-else
+            :size="20"
+          />
         </button>
       </div>
     </div>

@@ -1,51 +1,51 @@
-import type { AppDef } from "./types";
+import type { AppDef } from './types'
 
 // Alphabetical by name — this array is the sidebar display order.
 export const BUILTIN_APPS: AppDef[] = [
   {
-    id: "calendar",
-    name: "Calendar",
-    icon: "CalendarDays",
+    id: 'calendar',
+    name: 'Calendar',
+    icon: 'CalendarDays',
     builtin: true,
-    load: () => import("./calendar"),
+    load: () => import('./calendar')
   },
   {
-    id: "checklists",
-    name: "Checklists",
-    icon: "ListChecks",
+    id: 'checklists',
+    name: 'Checklists',
+    icon: 'ListChecks',
     builtin: true,
-    load: () => import("./checklists"),
+    load: () => import('./checklists')
   },
   {
-    id: "contacts",
-    name: "Contacts",
-    icon: "UserRound",
+    id: 'contacts',
+    name: 'Contacts',
+    icon: 'UserRound',
     builtin: true,
-    load: () => import("./contacts"),
+    load: () => import('./contacts')
   },
   {
-    id: "files",
-    name: "Files",
-    icon: "FolderOpen",
+    id: 'files',
+    name: 'Files',
+    icon: 'FolderOpen',
     builtin: true,
-    load: () => import("./files"),
+    load: () => import('./files')
   },
   {
-    id: "notes",
-    name: "Notes",
-    icon: "NotebookPen",
+    id: 'notes',
+    name: 'Notes',
+    icon: 'NotebookPen',
     builtin: true,
-    load: () => import("./notes"),
+    load: () => import('./notes')
   },
   {
-    id: "photos",
-    name: "Photos",
-    icon: "Image",
+    id: 'photos',
+    name: 'Photos',
+    icon: 'Image',
     builtin: true,
-    load: () => import("./photos"),
-  },
-];
+    load: () => import('./photos')
+  }
+]
 
 export function getAppDef(id: string): AppDef | undefined {
-  return BUILTIN_APPS.find((a) => a.id === id);
+  return BUILTIN_APPS.find(a => a.id === id)
 }

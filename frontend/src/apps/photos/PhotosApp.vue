@@ -1,409 +1,460 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
-import type { AppContext, Entry } from "../types";
-import { formatFileSize } from "../../types";
-import { formatDate, formatDateTime, utcToZonedParts } from "../../lib/datetime";
-import { contactName, contactInitials } from "../../lib/contact";
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import type { AppContext, Entry } from '../types'
+import { formatFileSize } from '../../types'
+import { formatDate, formatDateTime, utcToZonedParts } from '../../lib/datetime'
+import { contactName, contactInitials } from '../../lib/contact'
 
-const props = defineProps<{ ctx: AppContext }>();
+const props = defineProps<{ ctx: AppContext }>()
 
 interface Person {
-  id: string;
-  name: string;
+  id: string
+  name: string
 }
 
-const allPhotos = ref<Entry[]>([]);
-const allContacts = ref<Entry[]>([]);
-const albumFilter = ref("");
-const tagFilter = ref("");
-const peopleFilter = ref("");
-const uploading = ref(false);
-const loading = ref(true);
-const loadError = ref("");
-const selectionMode = ref(false);
-const peopleSearchActive = ref(false);
-const peopleSearchQuery = ref("");
-const tagModalActive = ref(false);
-const tagModalQuery = ref("");
-const selectedIds = ref<Set<string>>(new Set());
-const broken = ref<Set<string>>(new Set());
+const allPhotos = ref<Entry[]>([])
+const allContacts = ref<Entry[]>([])
+const albumFilter = ref('')
+const tagFilter = ref('')
+const peopleFilter = ref('')
+const uploading = ref(false)
+const loading = ref(true)
+const loadError = ref('')
+const selectionMode = ref(false)
+const peopleSearchActive = ref(false)
+const peopleSearchQuery = ref('')
+const tagModalActive = ref(false)
+const tagModalQuery = ref('')
+const selectedIds = ref<Set<string>>(new Set())
+const broken = ref<Set<string>>(new Set())
 
-const peopleInput = ref<HTMLInputElement | null>(null);
-const tagInput = ref<HTMLInputElement | null>(null);
+const peopleInput = ref<HTMLInputElement | null>(null)
+const tagInput = ref<HTMLInputElement | null>(null)
 
 function field(e: Entry, k: string): unknown {
-  return e.data[k];
+  return e.data[k]
 }
-const getThumbPath = (e: Entry) => (field(e, "thumb_path") || field(e, "path")) as string;
-const isVideo = (e: Entry) => (((field(e, "mime_type") as string) || "").startsWith("video/"));
+const getThumbPath = (e: Entry) =>
+  (field(e, 'thumb_path') || field(e, 'path')) as string
+const isVideo = (e: Entry) =>
+  ((field(e, 'mime_type') as string) || '').startsWith('video/')
 
 // Videos never mount a <video> in the grid — one media decoder per cell
 // wedges the browser on large libraries. They show the JPEG frame captured
 // at upload time (thumb_path), or a plain play tile when there is none.
-const hasGridImage = (e: Entry) => !isVideo(e) || !!field(e, "thumb_path");
-const getTags = (e: Entry): string[] => (e.data.tags as string[]) || [];
-const getPeople = (e: Entry): Person[] => (e.data.people as Person[]) || [];
+const hasGridImage = (e: Entry) => !isVideo(e) || !!field(e, 'thumb_path')
+const getTags = (e: Entry): string[] => (e.data.tags as string[]) || []
+const getPeople = (e: Entry): Person[] => (e.data.people as Person[]) || []
 
 const albums = computed(() => {
-  const set = new Set<string>();
+  const set = new Set<string>()
   for (const p of allPhotos.value) {
-    const a = field(p, "album") as string;
-    if (a) set.add(a);
+    const a = field(p, 'album') as string
+    if (a) set.add(a)
   }
-  return Array.from(set).sort();
-});
+  return Array.from(set).sort()
+})
 
 const allTags = computed(() => {
-  const set = new Set<string>();
-  for (const p of allPhotos.value) for (const t of getTags(p)) set.add(t);
-  return Array.from(set).sort();
-});
+  const set = new Set<string>()
+  for (const p of allPhotos.value) for (const t of getTags(p)) set.add(t)
+  return Array.from(set).sort()
+})
 
 const allPeople = computed<Person[]>(() => {
-  const map = new Map<string, string>();
-  for (const p of allPhotos.value) for (const person of getPeople(p)) map.set(person.id, person.name);
+  const map = new Map<string, string>()
+  for (const p of allPhotos.value)
+    for (const person of getPeople(p)) map.set(person.id, person.name)
   return Array.from(map.entries())
     .map(([id, name]) => ({ id, name }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-});
+    .sort((a, b) => a.name.localeCompare(b.name))
+})
 
 const filtered = computed(() => {
-  let list = allPhotos.value;
-  if (albumFilter.value) list = list.filter((p) => field(p, "album") === albumFilter.value);
-  if (tagFilter.value) list = list.filter((p) => getTags(p).includes(tagFilter.value));
-  if (peopleFilter.value) list = list.filter((p) => getPeople(p).some((pp) => pp.id === peopleFilter.value));
-  return list;
-});
+  let list = allPhotos.value
+  if (albumFilter.value)
+    list = list.filter(p => field(p, 'album') === albumFilter.value)
+  if (tagFilter.value)
+    list = list.filter(p => getTags(p).includes(tagFilter.value))
+  if (peopleFilter.value)
+    list = list.filter(p =>
+      getPeople(p).some(pp => pp.id === peopleFilter.value)
+    )
+  return list
+})
 
 // ----- grouping by shot date (occurred_at, i.e. EXIF date, else upload date) -----
 
-const groupBy = ref<"" | "year" | "month" | "week">("");
+const groupBy = ref<'' | 'year' | 'month' | 'week'>('')
 
-const photoDate = (p: Entry) => (p.occurred_at || p.inserted_at) as string;
+const photoDate = (p: Entry) => (p.occurred_at || p.inserted_at) as string
 
-function isoWeek(y: number, m: number, d: number): { year: number; week: number } {
-  const date = new Date(Date.UTC(y, m - 1, d));
-  const dayNum = date.getUTCDay() || 7;
-  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  const week = Math.ceil(((date.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
-  return { year: date.getUTCFullYear(), week };
+function isoWeek(
+  y: number,
+  m: number,
+  d: number
+): { year: number; week: number } {
+  const date = new Date(Date.UTC(y, m - 1, d))
+  const dayNum = date.getUTCDay() || 7
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1))
+  const week = Math.ceil(
+    ((date.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7
+  )
+  return { year: date.getUTCFullYear(), week }
 }
 
 interface PhotoGroup {
-  key: string;
-  label: string;
-  photos: Entry[];
+  key: string
+  label: string
+  photos: Entry[]
 }
 
 const groups = computed<PhotoGroup[]>(() => {
-  if (!groupBy.value) return [{ key: "", label: "", photos: filtered.value }];
+  if (!groupBy.value) return [{ key: '', label: '', photos: filtered.value }]
 
-  const list = [...filtered.value].sort((a, b) => (photoDate(a) < photoDate(b) ? 1 : -1));
-  const out: PhotoGroup[] = [];
-  const idx = new Map<string, number>();
+  const list = [...filtered.value].sort((a, b) =>
+    photoDate(a) < photoDate(b) ? 1 : -1
+  )
+  const out: PhotoGroup[] = []
+  const idx = new Map<string, number>()
 
   for (const p of list) {
-    const iso = photoDate(p);
-    const dateStr = utcToZonedParts(iso).date; // wall-clock day in the user's tz
-    let key: string;
-    let label: string;
+    const iso = photoDate(p)
+    const dateStr = utcToZonedParts(iso).date // wall-clock day in the user's tz
+    let key: string
+    let label: string
 
-    if (groupBy.value === "year") {
-      key = dateStr.slice(0, 4);
-      label = key;
-    } else if (groupBy.value === "month") {
-      key = dateStr.slice(0, 7);
-      label = formatDate(iso, { month: "long", year: "numeric" });
+    if (groupBy.value === 'year') {
+      key = dateStr.slice(0, 4)
+      label = key
+    } else if (groupBy.value === 'month') {
+      key = dateStr.slice(0, 7)
+      label = formatDate(iso, { month: 'long', year: 'numeric' })
     } else {
-      const [y, m, d] = dateStr.split("-").map(Number);
-      const w = isoWeek(y, m, d);
-      key = `${w.year}-W${String(w.week).padStart(2, "0")}`;
-      label = `W${String(w.week).padStart(2, "0")} · ${w.year}`;
+      const [y, m, d] = dateStr.split('-').map(Number)
+      const w = isoWeek(y, m, d)
+      key = `${w.year}-W${String(w.week).padStart(2, '0')}`
+      label = `W${String(w.week).padStart(2, '0')} · ${w.year}`
     }
 
-    let i = idx.get(key);
+    let i = idx.get(key)
     if (i === undefined) {
-      i = out.length;
-      idx.set(key, i);
-      out.push({ key, label, photos: [] });
+      i = out.length
+      idx.set(key, i)
+      out.push({ key, label, photos: [] })
     }
-    out[i].photos.push(p);
+    out[i].photos.push(p)
   }
-  return out;
-});
+  return out
+})
 
-const selCount = computed(() => selectedIds.value.size);
+const selCount = computed(() => selectedIds.value.size)
 
 // ----- preview backfill (thumbnails/display JPEGs missing on old entries) -----
 
-const rebuilding = ref(false);
+const rebuilding = ref(false)
 const missingPreviews = computed(
   () =>
     allPhotos.value.filter(
-      (p) => !isVideo(p) && (!p.data.thumb_path || !p.data.display_path),
-    ).length,
-);
+      p => !isVideo(p) && (!p.data.thumb_path || !p.data.display_path)
+    ).length
+)
 
 async function rebuildPreviews() {
-  rebuilding.value = true;
+  rebuilding.value = true
   try {
-    await props.ctx.api.fetch("/api/entries/backfill_media", { method: "POST" });
+    await props.ctx.api.fetch('/api/entries/backfill_media', { method: 'POST' })
     // The server regenerates in the background: poll until nothing is
     // missing anymore, up to ~1 minute.
     for (let i = 0; i < 15; i++) {
-      await new Promise((r) => setTimeout(r, 4000));
-      await reload();
-      if (missingPreviews.value === 0) break;
+      await new Promise(r => setTimeout(r, 4000))
+      await reload()
+      if (missingPreviews.value === 0) break
     }
   } finally {
-    rebuilding.value = false;
+    rebuilding.value = false
   }
 }
 // ----- video thumbnails backfill (client-side: the server has no video decoder) -----
 
 const missingVideoThumbs = computed(
-  () => allPhotos.value.filter((p) => isVideo(p) && !field(p, "thumb_path")).length,
-);
-const fixingVideos = ref<{ done: number; total: number } | null>(null);
+  () =>
+    allPhotos.value.filter(p => isVideo(p) && !field(p, 'thumb_path')).length
+)
+const fixingVideos = ref<{ done: number; total: number } | null>(null)
 
 // Downloads each video, captures a frame in the browser and stores it as the
 // entry's thumb_path — same pipeline as fresh uploads.
 async function rebuildVideoThumbs() {
-  const targets = allPhotos.value.filter((p) => isVideo(p) && !field(p, "thumb_path"));
-  if (!targets.length || fixingVideos.value) return;
-  fixingVideos.value = { done: 0, total: targets.length };
+  const targets = allPhotos.value.filter(
+    p => isVideo(p) && !field(p, 'thumb_path')
+  )
+  if (!targets.length || fixingVideos.value) return
+  fixingVideos.value = { done: 0, total: targets.length }
   for (const p of targets) {
     try {
-      const path = field(p, "path") as string;
-      if (!path) throw new Error("no file path");
-      const res = await fetch(path);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      const name = (field(p, "filename") as string) || "video";
+      const path = field(p, 'path') as string
+      if (!path) throw new Error('no file path')
+      const res = await fetch(path)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const blob = await res.blob()
+      const name = (field(p, 'filename') as string) || 'video'
       const frame = await captureVideoFrame(
-        new File([blob], name, { type: (field(p, "mime_type") as string) || blob.type }),
-      );
-      if (!frame) throw new Error("browser can't decode this video");
-      const t = (await props.ctx.api.upload(frame, "photos")) as unknown as Record<string, unknown>;
-      await props.ctx.api.entries.update(p.id, { data: { ...p.data, thumb_path: t.path } });
+        new File([blob], name, {
+          type: (field(p, 'mime_type') as string) || blob.type
+        })
+      )
+      if (!frame) throw new Error("browser can't decode this video")
+      const t = (await props.ctx.api.upload(
+        frame,
+        'photos'
+      )) as unknown as Record<string, unknown>
+      await props.ctx.api.entries.update(p.id, {
+        data: { ...p.data, thumb_path: t.path }
+      })
     } catch (e) {
       uploadErrors.value.push(
-        `${field(p, "filename") || "video"}: ${e instanceof Error ? e.message : "thumbnail failed"}`,
-      );
+        `${field(p, 'filename') || 'video'}: ${e instanceof Error ? e.message : 'thumbnail failed'}`
+      )
     } finally {
-      if (fixingVideos.value) fixingVideos.value.done++;
+      if (fixingVideos.value) fixingVideos.value.done++
     }
   }
-  fixingVideos.value = null;
-  await reload();
+  fixingVideos.value = null
+  await reload()
 }
 
-const hasFilters = computed(() => allTags.value.length > 0 || allPeople.value.length > 0);
+const hasFilters = computed(
+  () => allTags.value.length > 0 || allPeople.value.length > 0
+)
 
 const matchingContacts = computed(() => {
-  if (!peopleSearchActive.value || peopleSearchQuery.value.length < 1) return [];
-  const q = peopleSearchQuery.value.toLowerCase();
+  if (!peopleSearchActive.value || peopleSearchQuery.value.length < 1) return []
+  const q = peopleSearchQuery.value.toLowerCase()
   return allContacts.value
-    .filter((c) => ((c.data.display_name as string) || c.title || "").toLowerCase().includes(q))
-    .slice(0, 8);
-});
+    .filter(c =>
+      ((c.data.display_name as string) || c.title || '')
+        .toLowerCase()
+        .includes(q)
+    )
+    .slice(0, 8)
+})
 
 const currentTags = computed(() => {
-  const counts = new Set<string>();
+  const counts = new Set<string>()
   for (const id of selectedIds.value) {
-    const photo = allPhotos.value.find((p) => p.id === id);
-    if (photo) for (const t of getTags(photo)) counts.add(t);
+    const photo = allPhotos.value.find(p => p.id === id)
+    if (photo) for (const t of getTags(photo)) counts.add(t)
   }
-  return Array.from(counts).sort();
-});
+  return Array.from(counts).sort()
+})
 
 const tagSuggestions = computed(() => {
-  if (!tagModalQuery.value) return allTags.value;
-  const q = tagModalQuery.value.toLowerCase();
-  return allTags.value.filter((t) => t.toLowerCase().includes(q) && t.toLowerCase() !== q);
-});
+  if (!tagModalQuery.value) return allTags.value
+  const q = tagModalQuery.value.toLowerCase()
+  return allTags.value.filter(
+    t => t.toLowerCase().includes(q) && t.toLowerCase() !== q
+  )
+})
 
 function setFilter(opts: { tag?: string; person?: string }) {
   if (opts.tag !== undefined) {
-    tagFilter.value = opts.tag;
-    peopleFilter.value = "";
+    tagFilter.value = opts.tag
+    peopleFilter.value = ''
   }
   if (opts.person !== undefined) {
-    peopleFilter.value = opts.person;
-    tagFilter.value = "";
+    peopleFilter.value = opts.person
+    tagFilter.value = ''
   }
-  if (opts.tag === "" && opts.person === "") {
-    tagFilter.value = "";
-    peopleFilter.value = "";
+  if (opts.tag === '' && opts.person === '') {
+    tagFilter.value = ''
+    peopleFilter.value = ''
   }
 }
 
 async function reload() {
-  loadError.value = "";
+  loadError.value = ''
   try {
     const [photos, contacts] = await Promise.all([
-      props.ctx.api.entries.list({ kind: "photo" }),
+      props.ctx.api.entries.list({ kind: 'photo' }),
       allContacts.value.length
         ? Promise.resolve(allContacts.value)
-        : props.ctx.api.entries.list({ kind: "contact" }),
-    ]);
+        : props.ctx.api.entries.list({ kind: 'contact' })
+    ])
     allPhotos.value = photos.sort(
-      (a, b) => new Date(b.inserted_at).getTime() - new Date(a.inserted_at).getTime(),
-    );
-    allContacts.value = contacts;
+      (a, b) =>
+        new Date(b.inserted_at).getTime() - new Date(a.inserted_at).getTime()
+    )
+    allContacts.value = contacts
   } catch (e) {
-    loadError.value = e instanceof Error ? e.message : "Failed to load photos";
+    loadError.value = e instanceof Error ? e.message : 'Failed to load photos'
   } finally {
-    loading.value = false;
+    loading.value = false
   }
 }
 
 interface UploadProgress {
-  index: number;
-  total: number;
-  name: string;
-  pct: number; // whole-batch progress in bytes
-  converting: boolean; // decoding HEIC in the browser before sending
-  processing: boolean; // bytes sent, waiting on server work (thumbnails, EXIF…)
+  index: number
+  total: number
+  name: string
+  pct: number // whole-batch progress in bytes
+  converting: boolean // decoding HEIC in the browser before sending
+  processing: boolean // bytes sent, waiting on server work (thumbnails, EXIF…)
 }
 
 const isHeic = (f: File) =>
-  /\.(heic|heif)$/i.test(f.name) || f.type === "image/heic" || f.type === "image/heif";
+  /\.(heic|heif)$/i.test(f.name) ||
+  f.type === 'image/heic' ||
+  f.type === 'image/heif'
 
 // The bundled server-side libvips can't decode HEVC, and neither can most
 // browsers: decode HEIC to JPEG in the browser (wasm, lazy-loaded only when
 // a HEIC is actually picked). ponytail: the original HEIC is not kept — the
 // JPEG becomes the archived file; revisit if originals matter.
 async function toUploadable(file: File): Promise<File> {
-  if (!isHeic(file)) return file;
-  const { default: heic2any } = await import("heic2any");
-  const blob = (await heic2any({ blob: file, toType: "image/jpeg", quality: 0.9 })) as Blob;
-  return new File([blob], file.name.replace(/\.(heic|heif)$/i, ".jpg"), { type: "image/jpeg" });
+  if (!isHeic(file)) return file
+  const { default: heic2any } = await import('heic2any')
+  const blob = (await heic2any({
+    blob: file,
+    toType: 'image/jpeg',
+    quality: 0.9
+  })) as Blob
+  return new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
+    type: 'image/jpeg'
+  })
 }
 // Grid thumbnail for videos: decode in the browser (no server-side ffmpeg),
 // seek to the middle (first frames are often black) and grab a small JPEG.
 // null when the browser can't decode the codec — the grid shows a play tile.
 function captureVideoFrame(file: File): Promise<File | null> {
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
-    const video = document.createElement("video");
-    let settled = false;
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file)
+    const video = document.createElement('video')
+    let settled = false
     const done = (out: File | null) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      URL.revokeObjectURL(url);
-      video.removeAttribute("src");
-      resolve(out);
-    };
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      URL.revokeObjectURL(url)
+      video.removeAttribute('src')
+      resolve(out)
+    }
     // ponytail: 15s cap so an undecodable file can't hang the upload loop
-    const timer = setTimeout(() => done(null), 15_000);
-    video.muted = true;
-    video.playsInline = true;
-    video.preload = "metadata";
-    video.onerror = () => done(null);
+    const timer = setTimeout(() => done(null), 15_000)
+    video.muted = true
+    video.playsInline = true
+    video.preload = 'metadata'
+    video.onerror = () => done(null)
     video.onloadedmetadata = () => {
       video.currentTime =
-        Number.isFinite(video.duration) && video.duration > 0 ? video.duration / 2 : 0;
-    };
+        Number.isFinite(video.duration) && video.duration > 0
+          ? video.duration / 2
+          : 0
+    }
     video.onseeked = () => {
-      const w = video.videoWidth;
-      const h = video.videoHeight;
-      if (!w || !h) return done(null);
-      const scale = Math.min(1, 400 / w);
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(w * scale);
-      canvas.height = Math.round(h * scale);
-      canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const w = video.videoWidth
+      const h = video.videoHeight
+      if (!w || !h) return done(null)
+      const scale = Math.min(1, 400 / w)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(w * scale)
+      canvas.height = Math.round(h * scale)
+      canvas
+        .getContext('2d')
+        ?.drawImage(video, 0, 0, canvas.width, canvas.height)
       canvas.toBlob(
-        (blob) =>
+        blob =>
           done(
             blob
-              ? new File([blob], file.name.replace(/\.[^.]+$/, "") + "_thumb.jpg", {
-                  type: "image/jpeg",
-                })
-              : null,
+              ? new File(
+                  [blob],
+                  file.name.replace(/\.[^.]+$/, '') + '_thumb.jpg',
+                  {
+                    type: 'image/jpeg'
+                  }
+                )
+              : null
           ),
-        "image/jpeg",
-        0.8,
-      );
-    };
-    video.src = url;
-  });
+        'image/jpeg',
+        0.8
+      )
+    }
+    video.src = url
+  })
 }
 
-const uploadProgress = ref<UploadProgress | null>(null);
+const uploadProgress = ref<UploadProgress | null>(null)
 // One entry per failed file; a failure never aborts the rest of the batch
 // and never replaces the whole view (loadError is reserved for load failures).
-const uploadErrors = ref<string[]>([]);
+const uploadErrors = ref<string[]>([])
 
 async function uploadFiles(files: File[]) {
   // .heic often comes with an empty/octet-stream type outside Safari: match by name too.
   const media = files.filter(
-    (f) =>
-      f.type.startsWith("image/") ||
-      f.type.startsWith("video/") ||
-      /\.(heic|heif)$/i.test(f.name),
-  );
-  if (!media.length) return;
-  uploading.value = true;
-  uploadErrors.value = [];
+    f =>
+      f.type.startsWith('image/') ||
+      f.type.startsWith('video/') ||
+      /\.(heic|heif)$/i.test(f.name)
+  )
+  if (!media.length) return
+  uploading.value = true
+  uploadErrors.value = []
 
-  const totalBytes = media.reduce((sum, f) => sum + f.size, 0) || 1;
-  let doneBytes = 0;
+  const totalBytes = media.reduce((sum, f) => sum + f.size, 0) || 1
+  let doneBytes = 0
 
   for (let i = 0; i < media.length; i++) {
-    const original = media[i];
+    const original = media[i]
     uploadProgress.value = {
       index: i + 1,
       total: media.length,
       name: original.name,
       pct: Math.round((doneBytes / totalBytes) * 100),
       converting: isHeic(original),
-      processing: false,
-    };
+      processing: false
+    }
     try {
-      const file = await toUploadable(original);
-      if (uploadProgress.value) uploadProgress.value.converting = false;
-      const result = (await props.ctx.api.upload(file, "photos", (pct) => {
+      const file = await toUploadable(original)
+      if (uploadProgress.value) uploadProgress.value.converting = false
+      const result = (await props.ctx.api.upload(file, 'photos', pct => {
         if (uploadProgress.value) {
           // Weight by the original size: totalBytes was computed from the
           // picked files, before any HEIC→JPEG conversion.
           uploadProgress.value.pct = Math.round(
-            ((doneBytes + (pct / 100) * original.size) / totalBytes) * 100,
-          );
-          uploadProgress.value.processing = pct >= 100;
+            ((doneBytes + (pct / 100) * original.size) / totalBytes) * 100
+          )
+          uploadProgress.value.processing = pct >= 100
         }
-      })) as unknown as Record<string, unknown>;
-      doneBytes += original.size;
+      })) as unknown as Record<string, unknown>
+      doneBytes += original.size
       const data: Record<string, unknown> = {
         filename: file.name,
         size: result.size,
         mime_type: result.mime_type,
         path: result.path,
         album: albumFilter.value || null,
-        tags: [],
-      };
-      if (result.date_taken) data.date_taken = result.date_taken;
-      if (result.latitude != null) {
-        data.latitude = result.latitude;
-        data.longitude = result.longitude;
+        tags: []
       }
-      if (result.camera) data.camera = result.camera;
-      if (result.thumb_path) data.thumb_path = result.thumb_path;
-      if (result.display_path) data.display_path = result.display_path;
+      if (result.date_taken) data.date_taken = result.date_taken
+      if (result.latitude != null) {
+        data.latitude = result.latitude
+        data.longitude = result.longitude
+      }
+      if (result.camera) data.camera = result.camera
+      if (result.thumb_path) data.thumb_path = result.thumb_path
+      if (result.display_path) data.display_path = result.display_path
 
       // Videos: the grid never mounts a <video>, so give it a real image.
-      if (((result.mime_type as string) || file.type).startsWith("video/")) {
-        const frame = await captureVideoFrame(file);
+      if (((result.mime_type as string) || file.type).startsWith('video/')) {
+        const frame = await captureVideoFrame(file)
         if (frame) {
           try {
-            const t = (await props.ctx.api.upload(frame, "photos")) as unknown as Record<
-              string,
-              unknown
-            >;
-            data.thumb_path = t.path;
+            const t = (await props.ctx.api.upload(
+              frame,
+              'photos'
+            )) as unknown as Record<string, unknown>
+            data.thumb_path = t.path
           } catch {
             // No thumbnail — the grid falls back to the play tile.
           }
@@ -414,224 +465,242 @@ async function uploadFiles(files: File[]) {
       // phone media is usually the capture time.
       const fallbackDate = original.lastModified
         ? new Date(original.lastModified).toISOString()
-        : null;
+        : null
 
       const created = await props.ctx.api.entries.create({
-        kind: "photo",
-        source: "photos_app",
+        kind: 'photo',
+        source: 'photos_app',
         title: file.name,
         occurred_at: (result.date_taken as string) || fallbackDate,
-        data,
-      });
+        data
+      })
       // Show it right away by inserting locally: a full reload per file made
       // Vue re-patch the entire grid once per photo and froze the app on
       // 100-photo drops. One true-up reload happens after the batch.
-      allPhotos.value.unshift(created);
+      allPhotos.value.unshift(created)
     } catch (e) {
-      doneBytes += original.size;
+      doneBytes += original.size
       uploadErrors.value.push(
-        `${original.name}: ${e instanceof Error ? e.message : "upload failed"}`,
-      );
+        `${original.name}: ${e instanceof Error ? e.message : 'upload failed'}`
+      )
     }
   }
 
-  uploadProgress.value = null;
-  uploading.value = false;
-  await reload();
+  uploadProgress.value = null
+  uploading.value = false
+  await reload()
 }
 
 function onFileInput(e: Event) {
-  const input = e.target as HTMLInputElement;
-  if (input.files?.length) uploadFiles(Array.from(input.files));
+  const input = e.target as HTMLInputElement
+  if (input.files?.length) uploadFiles(Array.from(input.files))
   // Reset so picking the same file(s) again re-triggers the change event.
-  input.value = "";
+  input.value = ''
 }
-const dragover = ref(false);
+const dragover = ref(false)
 function onDrop(e: DragEvent) {
-  dragover.value = false;
-  if (e.dataTransfer?.files.length) uploadFiles(Array.from(e.dataTransfer.files));
+  dragover.value = false
+  if (e.dataTransfer?.files.length)
+    uploadFiles(Array.from(e.dataTransfer.files))
 }
 
 function onThumbClick(p: Entry) {
   if (selectionMode.value) {
-    if (selectedIds.value.has(p.id)) selectedIds.value.delete(p.id);
-    else selectedIds.value.add(p.id);
+    if (selectedIds.value.has(p.id)) selectedIds.value.delete(p.id)
+    else selectedIds.value.add(p.id)
   } else {
-    openViewer(p.id);
+    openViewer(p.id)
   }
 }
 
 function enterSelect() {
-  selectionMode.value = true;
-  selectedIds.value.clear();
+  selectionMode.value = true
+  selectedIds.value.clear()
 }
 function cancelSelect() {
-  selectionMode.value = false;
-  selectedIds.value.clear();
-  peopleSearchActive.value = false;
+  selectionMode.value = false
+  selectedIds.value.clear()
+  peopleSearchActive.value = false
 }
 function selectAll() {
-  for (const p of filtered.value) selectedIds.value.add(p.id);
+  for (const p of filtered.value) selectedIds.value.add(p.id)
 }
 function deselect() {
-  selectedIds.value.clear();
+  selectedIds.value.clear()
 }
 
 async function deletePhotos(ids: string[]) {
-  if (!ids.length) return;
-  const single = ids.length === 1 ? allPhotos.value.find((p) => p.id === ids[0]) : undefined;
+  if (!ids.length) return
+  const single =
+    ids.length === 1 ? allPhotos.value.find(p => p.id === ids[0]) : undefined
   const label = single
-    ? `"${single.title || (single.data.filename as string) || "this photo"}"`
-    : `${ids.length} photos`;
-  const ok = await props.ctx.confirm.ask({ message: `Delete ${label}?`, danger: true, confirmLabel: "Delete" });
-  if (!ok) return;
-  loadError.value = "";
+    ? `"${single.title || (single.data.filename as string) || 'this photo'}"`
+    : `${ids.length} photos`
+  const ok = await props.ctx.confirm.ask({
+    message: `Delete ${label}?`,
+    danger: true,
+    confirmLabel: 'Delete'
+  })
+  if (!ok) return
+  loadError.value = ''
   try {
-    for (const id of ids) await props.ctx.api.entries.delete(id);
+    for (const id of ids) await props.ctx.api.entries.delete(id)
   } catch (e) {
-    loadError.value = e instanceof Error ? e.message : "Delete failed";
+    loadError.value = e instanceof Error ? e.message : 'Delete failed'
   }
-  selectedIds.value.clear();
-  selectionMode.value = false;
-  await reload();
+  selectedIds.value.clear()
+  selectionMode.value = false
+  await reload()
 }
 
 function openTagPeople() {
-  peopleSearchActive.value = true;
-  peopleSearchQuery.value = "";
-  nextTick(() => peopleInput.value?.focus());
+  peopleSearchActive.value = true
+  peopleSearchQuery.value = ''
+  nextTick(() => peopleInput.value?.focus())
 }
 function onPeopleKeydown(e: KeyboardEvent) {
-  if (e.key === "Escape") {
-    peopleSearchActive.value = false;
-    peopleSearchQuery.value = "";
+  if (e.key === 'Escape') {
+    peopleSearchActive.value = false
+    peopleSearchQuery.value = ''
   }
 }
 async function tagWithContact(c: Entry) {
-  const name = contactName(c);
+  const name = contactName(c)
   for (const id of selectedIds.value) {
-    const photo = allPhotos.value.find((p) => p.id === id);
-    if (!photo) continue;
-    const existing = getPeople(photo);
-    if (existing.some((pp) => pp.id === c.id)) continue;
+    const photo = allPhotos.value.find(p => p.id === id)
+    if (!photo) continue
+    const existing = getPeople(photo)
+    if (existing.some(pp => pp.id === c.id)) continue
     await props.ctx.api.entries.update(id, {
-      data: { ...photo.data, people: [...existing, { id: c.id, name }] },
-    });
+      data: { ...photo.data, people: [...existing, { id: c.id, name }] }
+    })
   }
-  peopleSearchActive.value = false;
-  peopleSearchQuery.value = "";
-  selectedIds.value.clear();
-  selectionMode.value = false;
-  await reload();
+  peopleSearchActive.value = false
+  peopleSearchQuery.value = ''
+  selectedIds.value.clear()
+  selectionMode.value = false
+  await reload()
 }
 
 function openTagModal() {
-  tagModalActive.value = true;
-  tagModalQuery.value = "";
-  nextTick(() => tagInput.value?.focus());
+  tagModalActive.value = true
+  tagModalQuery.value = ''
+  nextTick(() => tagInput.value?.focus())
 }
 function closeTagModal() {
-  tagModalActive.value = false;
-  tagModalQuery.value = "";
+  tagModalActive.value = false
+  tagModalQuery.value = ''
 }
 async function applyTag(tag: string) {
-  const t = tag.trim();
-  if (!t) return;
+  const t = tag.trim()
+  if (!t) return
   for (const id of selectedIds.value) {
-    const photo = allPhotos.value.find((p) => p.id === id);
-    if (!photo) continue;
-    const existing = getTags(photo);
-    if (existing.includes(t)) continue;
-    await props.ctx.api.entries.update(id, { data: { ...photo.data, tags: [...existing, t] } });
+    const photo = allPhotos.value.find(p => p.id === id)
+    if (!photo) continue
+    const existing = getTags(photo)
+    if (existing.includes(t)) continue
+    await props.ctx.api.entries.update(id, {
+      data: { ...photo.data, tags: [...existing, t] }
+    })
   }
-  tagModalActive.value = false;
-  tagModalQuery.value = "";
-  selectedIds.value.clear();
-  selectionMode.value = false;
-  await reload();
+  tagModalActive.value = false
+  tagModalQuery.value = ''
+  selectedIds.value.clear()
+  selectionMode.value = false
+  await reload()
 }
 async function removeTagFromSelected(tag: string) {
   for (const id of selectedIds.value) {
-    const photo = allPhotos.value.find((p) => p.id === id);
-    if (!photo) continue;
-    const existing = getTags(photo);
-    if (!existing.includes(tag)) continue;
-    await props.ctx.api.entries.update(id, { data: { ...photo.data, tags: existing.filter((t) => t !== tag) } });
+    const photo = allPhotos.value.find(p => p.id === id)
+    if (!photo) continue
+    const existing = getTags(photo)
+    if (!existing.includes(tag)) continue
+    await props.ctx.api.entries.update(id, {
+      data: { ...photo.data, tags: existing.filter(t => t !== tag) }
+    })
   }
-  const photos = await props.ctx.api.entries.list({ kind: "photo" });
-  allPhotos.value = photos.sort((a, b) => new Date(b.inserted_at).getTime() - new Date(a.inserted_at).getTime());
-  nextTick(() => tagInput.value?.focus());
+  const photos = await props.ctx.api.entries.list({ kind: 'photo' })
+  allPhotos.value = photos.sort(
+    (a, b) =>
+      new Date(b.inserted_at).getTime() - new Date(a.inserted_at).getTime()
+  )
+  nextTick(() => tagInput.value?.focus())
 }
 async function removeTagAction() {
-  if (!tagFilter.value) return;
+  if (!tagFilter.value) return
   for (const id of selectedIds.value) {
-    const photo = allPhotos.value.find((p) => p.id === id);
-    if (!photo) continue;
-    const existing = getTags(photo);
+    const photo = allPhotos.value.find(p => p.id === id)
+    if (!photo) continue
+    const existing = getTags(photo)
     await props.ctx.api.entries.update(id, {
-      data: { ...photo.data, tags: existing.filter((t) => t !== tagFilter.value) },
-    });
+      data: { ...photo.data, tags: existing.filter(t => t !== tagFilter.value) }
+    })
   }
-  selectedIds.value.clear();
-  selectionMode.value = false;
-  await reload();
+  selectedIds.value.clear()
+  selectionMode.value = false
+  await reload()
 }
 
 function openViewer(photoId: string, opts: { push?: boolean } = {}) {
   // Opening a photo is a history entry so the browser back button closes it.
   if (opts.push !== false) {
-    history.pushState(null, "", `/apps/photos?photo=${photoId}`);
+    history.pushState(null, '', `/apps/photos?photo=${photoId}`)
   }
-  const photos = filtered.value;
-  const items = photos.map((p) => {
-    const meta: Record<string, string | number | null> = {};
-    if (p.data.date_taken) meta["Date taken"] = formatDateTime(p.data.date_taken as string);
-    if (p.data.camera) meta["Camera"] = p.data.camera as string;
+  const photos = filtered.value
+  const items = photos.map(p => {
+    const meta: Record<string, string | number | null> = {}
+    if (p.data.date_taken)
+      meta['Date taken'] = formatDateTime(p.data.date_taken as string)
+    if (p.data.camera) meta['Camera'] = p.data.camera as string
     if (p.data.latitude != null)
-      meta["Location"] = `${(p.data.latitude as number).toFixed(5)}, ${(p.data.longitude as number).toFixed(5)}`;
-    if (p.data.size) meta["Size"] = formatFileSize(p.data.size as number);
-    if (p.data.filename) meta["Filename"] = p.data.filename as string;
-    if (p.data.album) meta["Album"] = p.data.album as string;
-    const tags = getTags(p);
-    if (tags.length) meta["Tags"] = tags.join(", ");
-    const photoPeople = getPeople(p);
-    if (photoPeople.length) meta["People"] = photoPeople.map((pp) => pp.name).join(", ");
+      meta['Location'] =
+        `${(p.data.latitude as number).toFixed(5)}, ${(p.data.longitude as number).toFixed(5)}`
+    if (p.data.size) meta['Size'] = formatFileSize(p.data.size as number)
+    if (p.data.filename) meta['Filename'] = p.data.filename as string
+    if (p.data.album) meta['Album'] = p.data.album as string
+    const tags = getTags(p)
+    if (tags.length) meta['Tags'] = tags.join(', ')
+    const photoPeople = getPeople(p)
+    if (photoPeople.length)
+      meta['People'] = photoPeople.map(pp => pp.name).join(', ')
     return {
       id: p.id,
       // display_path is the fast 1920px JPEG; the original stays one click away
-      src: (field(p, "display_path") || field(p, "path")) as string,
-      fullSrc: field(p, "display_path") ? (field(p, "path") as string) : undefined,
+      src: (field(p, 'display_path') || field(p, 'path')) as string,
+      fullSrc: field(p, 'display_path')
+        ? (field(p, 'path') as string)
+        : undefined,
       video: isVideo(p),
       title: p.title || undefined,
-      subtitle: (field(p, "album") as string) || undefined,
-      meta: Object.keys(meta).length ? meta : undefined,
-    };
-  });
-  const idx = photos.findIndex((p) => p.id === photoId);
-  props.ctx.viewer.open(items, Math.max(0, idx));
+      subtitle: (field(p, 'album') as string) || undefined,
+      meta: Object.keys(meta).length ? meta : undefined
+    }
+  })
+  const idx = photos.findIndex(p => p.id === photoId)
+  props.ctx.viewer.open(items, Math.max(0, idx))
 }
 
-watch(peopleSearchActive, (active) => {
-  if (active) nextTick(() => peopleInput.value?.focus());
-});
+watch(peopleSearchActive, active => {
+  if (active) nextTick(() => peopleInput.value?.focus())
+})
 
 function onPopState() {
-  const id = new URLSearchParams(window.location.search).get("photo");
-  if (id) openViewer(id, { push: false });
-  else props.ctx.viewer.close();
+  const id = new URLSearchParams(window.location.search).get('photo')
+  if (id) openViewer(id, { push: false })
+  else props.ctx.viewer.close()
 }
 
 onMounted(async () => {
-  window.addEventListener("popstate", onPopState);
-  props.ctx.viewer.onDelete(async (id) => {
-    await props.ctx.api.entries.delete(id);
-    await reload();
-  });
-  await reload();
-  const initial = new URLSearchParams(window.location.search).get("photo");
-  if (initial) openViewer(initial, { push: false });
-});
-onUnmounted(() => window.removeEventListener("popstate", onPopState));
+  window.addEventListener('popstate', onPopState)
+  props.ctx.viewer.onDelete(async id => {
+    await props.ctx.api.entries.delete(id)
+    await reload()
+  })
+  await reload()
+  const initial = new URLSearchParams(window.location.search).get('photo')
+  if (initial) openViewer(initial, { push: false })
+})
+onUnmounted(() => window.removeEventListener('popstate', onPopState))
 </script>
 
 <template>
@@ -651,9 +720,25 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
       <div class="ph-actions">
         <button class="ph-btn" @click="selectAll">Select all</button>
         <button class="ph-btn" @click="deselect">Deselect</button>
-        <button class="ph-btn ph-btn--primary" :disabled="selCount === 0" @click="openTagModal">Tag</button>
-        <button class="ph-btn" :disabled="selCount === 0" @click="openTagPeople">Tag people</button>
-        <button class="ph-btn ph-btn--danger" :disabled="selCount === 0" @click="deletePhotos([...selectedIds])">
+        <button
+          class="ph-btn ph-btn--primary"
+          :disabled="selCount === 0"
+          @click="openTagModal"
+        >
+          Tag
+        </button>
+        <button
+          class="ph-btn"
+          :disabled="selCount === 0"
+          @click="openTagPeople"
+        >
+          Tag people
+        </button>
+        <button
+          class="ph-btn ph-btn--danger"
+          :disabled="selCount === 0"
+          @click="deletePhotos([...selectedIds])"
+        >
           Delete
         </button>
         <button
@@ -683,12 +768,21 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
           class="ph-people-result"
           @click="tagWithContact(c)"
         >
-          <img v-if="c.data.photo" class="ph-people-avatar" :src="(c.data.photo as string)" alt="" />
-          <span v-else class="ph-people-avatar ph-people-avatar--init">{{ contactInitials(contactName(c)) }}</span>
+          <img
+            v-if="c.data.photo"
+            class="ph-people-avatar"
+            :src="c.data.photo as string"
+            alt=""
+          />
+          <span v-else class="ph-people-avatar ph-people-avatar--init">{{
+            contactInitials(contactName(c))
+          }}</span>
           <span>{{ contactName(c) }}</span>
         </div>
       </div>
-      <div v-else-if="peopleSearchQuery" class="ph-people-no-results">No contacts found</div>
+      <div v-else-if="peopleSearchQuery" class="ph-people-no-results">
+        No contacts found
+      </div>
     </div>
 
     <!-- Normal toolbar -->
@@ -715,7 +809,7 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
           :disabled="rebuilding"
           @click="rebuildPreviews"
         >
-          {{ rebuilding ? "Rebuilding…" : `Fix previews (${missingPreviews})` }}
+          {{ rebuilding ? 'Rebuilding…' : `Fix previews (${missingPreviews})` }}
         </button>
         <button
           v-if="missingVideoThumbs > 0 || fixingVideos"
@@ -731,7 +825,13 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
         </button>
         <button class="ph-btn" @click="enterSelect">Select</button>
         <label class="ph-btn">
-          + Upload<input type="file" accept="image/*,video/*,.heic,.heif" multiple hidden @change="onFileInput" />
+          + Upload<input
+            type="file"
+            accept="image/*,video/*,.heic,.heif"
+            multiple
+            hidden
+            @change="onFileInput"
+          />
         </label>
       </div>
     </div>
@@ -770,18 +870,25 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
       <span class="ph-upload-name">{{ uploadProgress.name }}</span>
       <span class="ph-upload-pct">{{
         uploadProgress.converting
-          ? "converting…"
+          ? 'converting…'
           : uploadProgress.processing
-            ? "processing…"
-            : uploadProgress.pct + "%"
+            ? 'processing…'
+            : uploadProgress.pct + '%'
       }}</span>
       <div class="ph-upload-bar">
-        <div class="ph-upload-bar-fill" :style="{ width: uploadProgress.pct + '%' }"></div>
+        <div
+          class="ph-upload-bar-fill"
+          :style="{ width: uploadProgress.pct + '%' }"
+        ></div>
       </div>
     </div>
     <div v-if="uploadErrors.length" class="ph-upload-errors" role="alert">
-      <div v-for="(err, i) in uploadErrors" :key="i" class="ph-upload-error">{{ err }}</div>
-      <button class="ph-upload-dismiss" @click="uploadErrors = []">Dismiss</button>
+      <div v-for="(err, i) in uploadErrors" :key="i" class="ph-upload-error">
+        {{ err }}
+      </div>
+      <button class="ph-upload-dismiss" @click="uploadErrors = []">
+        Dismiss
+      </button>
     </div>
 
     <div class="ph-scroll">
@@ -791,67 +898,108 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
           <span class="ph-group-count">{{ g.photos.length }}</span>
         </div>
         <div class="ph-grid">
-      <div
-        v-for="p in g.photos"
-        :key="p.id"
-        class="ph-thumb"
-        :class="{ 'ph-thumb--selected': selectionMode && selectedIds.has(p.id) }"
-        @click="onThumbClick(p)"
-      >
-        <span
-          v-if="selectionMode"
-          class="ph-check"
-          :class="{ 'ph-check--on': selectedIds.has(p.id) }"
-        ></span>
-        <button v-else class="ph-thumb-delete" title="Delete" aria-label="Delete" @click.stop="deletePhotos([p.id])">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 6h18" />
-            <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
-            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-            <path d="M10 11v6M14 11v6" />
-          </svg>
-        </button>
-        <img
-          v-if="!broken.has(p.id) && hasGridImage(p)"
-          class="ph-thumb-img"
-          :src="getThumbPath(p)"
-          :alt="p.title || ''"
-          loading="lazy"
-          @error="broken.add(p.id)"
-        />
-        <span v-if="isVideo(p) && !broken.has(p.id)" class="ph-thumb-play" aria-hidden="true">
-          <svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor">
-            <circle cx="12" cy="12" r="11" fill="rgba(0, 0, 0, 0.5)" />
-            <path d="M10 8l6 4-6 4z" fill="#fff" />
-          </svg>
-        </span>
-        <div v-if="broken.has(p.id)" class="ph-broken">
-          <svg
-            width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+          <div
+            v-for="p in g.photos"
+            :key="p.id"
+            class="ph-thumb"
+            :class="{
+              'ph-thumb--selected': selectionMode && selectedIds.has(p.id)
+            }"
+            @click="onThumbClick(p)"
           >
-            <rect x="3" y="3" width="18" height="18" rx="2" />
-            <circle cx="8.5" cy="8.5" r="1.5" />
-            <path d="m21 15-5-5L5 21" />
-          </svg>
-        </div>
-        <div v-if="getTags(p).length || getPeople(p).length" class="ph-thumb-tags">
-          <span v-for="t in getTags(p)" :key="'t' + t" class="ph-thumb-tag">{{ t }}</span>
-          <span
-            v-for="pp in getPeople(p)"
-            :key="'pp' + pp.id"
-            class="ph-thumb-tag ph-thumb-tag--person"
-            >{{ pp.name }}</span
-          >
-        </div>
-      </div>
+            <span
+              v-if="selectionMode"
+              class="ph-check"
+              :class="{ 'ph-check--on': selectedIds.has(p.id) }"
+            ></span>
+            <button
+              v-else
+              class="ph-thumb-delete"
+              title="Delete"
+              aria-label="Delete"
+              @click.stop="deletePhotos([p.id])"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M3 6h18" />
+                <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6M14 11v6" />
+              </svg>
+            </button>
+            <img
+              v-if="!broken.has(p.id) && hasGridImage(p)"
+              class="ph-thumb-img"
+              :src="getThumbPath(p)"
+              :alt="p.title || ''"
+              loading="lazy"
+              @error="broken.add(p.id)"
+            />
+            <span
+              v-if="isVideo(p) && !broken.has(p.id)"
+              class="ph-thumb-play"
+              aria-hidden="true"
+            >
+              <svg
+                width="34"
+                height="34"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <circle cx="12" cy="12" r="11" fill="rgba(0, 0, 0, 0.5)" />
+                <path d="M10 8l6 4-6 4z" fill="#fff" />
+              </svg>
+            </span>
+            <div v-if="broken.has(p.id)" class="ph-broken">
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="m21 15-5-5L5 21" />
+              </svg>
+            </div>
+            <div
+              v-if="getTags(p).length || getPeople(p).length"
+              class="ph-thumb-tags"
+            >
+              <span
+                v-for="t in getTags(p)"
+                :key="'t' + t"
+                class="ph-thumb-tag"
+                >{{ t }}</span
+              >
+              <span
+                v-for="pp in getPeople(p)"
+                :key="'pp' + pp.id"
+                class="ph-thumb-tag ph-thumb-tag--person"
+                >{{ pp.name }}</span
+              >
+            </div>
+          </div>
         </div>
       </template>
       <div v-if="filtered.length === 0" class="ph-empty">
         <template v-if="allPhotos.length === 0">
           <div class="ph-nosignal" aria-hidden="true">NO SIGNAL</div>
-          <p class="ph-empty-hint">Drop images or videos anywhere, or use Upload.</p>
+          <p class="ph-empty-hint">
+            Drop images or videos anywhere, or use Upload.
+          </p>
         </template>
         <p v-else class="ph-empty-hint">No photos match this filter.</p>
       </div>
@@ -859,15 +1007,27 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
   </div>
 
   <Teleport to="body">
-    <div v-if="tagModalActive" class="ph-modal-overlay" @click.self="closeTagModal">
+    <div
+      v-if="tagModalActive"
+      class="ph-modal-overlay"
+      @click.self="closeTagModal"
+    >
       <div class="ph-modal">
         <h3 class="ph-modal-title">Tags</h3>
         <template v-if="currentTags.length">
           <div class="ph-modal-section-label">Current tags</div>
           <div class="ph-modal-current-tags">
-            <span v-for="t in currentTags" :key="t" class="ph-modal-current-tag">
+            <span
+              v-for="t in currentTags"
+              :key="t"
+              class="ph-modal-current-tag"
+            >
               {{ t }}
-              <span class="ph-modal-tag-remove" @click.stop="removeTagFromSelected(t)">×</span>
+              <span
+                class="ph-modal-tag-remove"
+                @click.stop="removeTagFromSelected(t)"
+                >×</span
+              >
             </span>
           </div>
         </template>
@@ -892,7 +1052,11 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
         </div>
         <div class="ph-modal-actions">
           <button class="ph-btn" @click="closeTagModal">Cancel</button>
-          <button class="ph-btn ph-btn--primary" :disabled="!tagModalQuery.trim()" @click="applyTag(tagModalQuery)">
+          <button
+            class="ph-btn ph-btn--primary"
+            :disabled="!tagModalQuery.trim()"
+            @click="applyTag(tagModalQuery)"
+          >
             Add
           </button>
         </div>
@@ -1006,7 +1170,9 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
   color: var(--text-muted);
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.1s, color 0.1s;
+  transition:
+    background 0.1s,
+    color 0.1s;
 }
 .ph-tag-pill:hover {
   color: var(--text);
@@ -1183,7 +1349,7 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
   letter-spacing: 0.1em;
 }
 .ph-group-header::after {
-  content: "";
+  content: '';
   flex: 1;
   border-top: 1px solid var(--border);
 }
@@ -1251,7 +1417,10 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
   cursor: pointer;
   opacity: 0;
   transform: scale(0.85);
-  transition: opacity 0.15s, transform 0.15s, background 0.15s;
+  transition:
+    opacity 0.15s,
+    transform 0.15s,
+    background 0.15s;
 }
 .ph-thumb:hover .ph-thumb-delete,
 .ph-thumb-delete:focus-visible {
@@ -1287,7 +1456,7 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
   border-color: var(--primary);
 }
 .ph-check--on::after {
-  content: "";
+  content: '';
   position: absolute;
   top: 4px;
   left: 6px;
@@ -1386,7 +1555,9 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
   background: var(--bg-hover);
   color: var(--text-muted);
   cursor: pointer;
-  transition: background 0.1s, color 0.1s;
+  transition:
+    background 0.1s,
+    color 0.1s;
 }
 .ph-modal-suggestion:hover {
   background: var(--primary);

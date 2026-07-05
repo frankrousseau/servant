@@ -1,18 +1,18 @@
-import { watch, onUnmounted } from "vue";
-import { Socket, Channel } from "phoenix";
-import { useAuthStore } from "../stores/auth";
-import type { Entry } from "../types";
+import { watch, onUnmounted } from 'vue'
+import { Socket, Channel } from 'phoenix'
+import { useAuthStore } from '../stores/auth'
+import type { Entry } from '../types'
 
 export function useSocket() {
-  const auth = useAuthStore();
-  let socket: Socket | null = null;
-  let channel: Channel | null = null;
+  const auth = useAuthStore()
+  let socket: Socket | null = null
+  let channel: Channel | null = null
 
-  const entryChangeCallbacks: Array<(entry: Entry) => void> = [];
-  const bulkChangeCallbacks: Array<() => void> = [];
+  const entryChangeCallbacks: Array<(entry: Entry) => void> = []
+  const bulkChangeCallbacks: Array<() => void> = []
 
   function onEntryChange(cb: (entry: Entry) => void) {
-    entryChangeCallbacks.push(cb);
+    entryChangeCallbacks.push(cb)
   }
 
   // Fires on the aggregated "entries_changed" signal (connector syncs / bulk
@@ -20,45 +20,45 @@ export function useSocket() {
   // entry_change per row. Consumers should refetch here rather than relying on
   // per-entry events (which never arrive for bulk writes).
   function onBulkChange(cb: () => void) {
-    bulkChangeCallbacks.push(cb);
+    bulkChangeCallbacks.push(cb)
   }
 
   function connect() {
-    if (!auth.token || !auth.user) return;
+    if (!auth.token || !auth.user) return
 
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const socketUrl = `${protocol}//${window.location.host}/socket`;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const socketUrl = `${protocol}//${window.location.host}/socket`
 
     socket = new Socket(socketUrl, {
-      params: { token: auth.token },
-    });
+      params: { token: auth.token }
+    })
 
-    socket.connect();
+    socket.connect()
 
-    channel = socket.channel(`data:${auth.user.id}`, {});
-    channel.join();
+    channel = socket.channel(`data:${auth.user.id}`, {})
+    channel.join()
 
-    channel.on("entry_change", (payload: { entry: Entry }) => {
+    channel.on('entry_change', (payload: { entry: Entry }) => {
       for (const cb of entryChangeCallbacks) {
-        cb(payload.entry);
+        cb(payload.entry)
       }
-    });
+    })
 
-    channel.on("entries_changed", () => {
+    channel.on('entries_changed', () => {
       for (const cb of bulkChangeCallbacks) {
-        cb();
+        cb()
       }
-    });
+    })
   }
 
   function disconnect() {
     if (channel) {
-      channel.leave();
-      channel = null;
+      channel.leave()
+      channel = null
     }
     if (socket) {
-      socket.disconnect();
-      socket = null;
+      socket.disconnect()
+      socket = null
     }
   }
 
@@ -67,21 +67,21 @@ export function useSocket() {
   // and not just to the token.
   watch(
     () => auth.isAuthenticated && !!auth.user,
-    (ready) => {
+    ready => {
       if (ready) {
-        connect();
+        connect()
       } else {
-        disconnect();
+        disconnect()
       }
     },
-    { immediate: true },
-  );
+    { immediate: true }
+  )
 
   onUnmounted(() => {
-    disconnect();
-  });
+    disconnect()
+  })
 
-  return { onEntryChange, onBulkChange };
+  return { onEntryChange, onBulkChange }
 }
 
 /**
@@ -90,12 +90,12 @@ export function useSocket() {
  * many socket events (a connector sync fires one event per entry).
  */
 export function debounce(fn: () => void, delay = 400): () => void {
-  let timer: ReturnType<typeof setTimeout> | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null
   return () => {
-    if (timer) clearTimeout(timer);
+    if (timer) clearTimeout(timer)
     timer = setTimeout(() => {
-      timer = null;
-      fn();
-    }, delay);
-  };
+      timer = null
+      fn()
+    }, delay)
+  }
 }

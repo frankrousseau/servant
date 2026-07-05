@@ -1,111 +1,116 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
-import { useRouter } from "vue-router";
-import { useApi } from "../composables/useApi";
-import type { ConnectorConfig, Schedule } from "../types";
-import { SCHEDULE_LABELS, relativeTime } from "../types";
-import { CONNECTOR_DEFS, getConnectorDef } from "../connectors";
-import type { ConnectorDef } from "../connectors";
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useApi } from '../composables/useApi'
+import type { ConnectorConfig, Schedule } from '../types'
+import { SCHEDULE_LABELS, relativeTime } from '../types'
+import { CONNECTOR_DEFS, getConnectorDef } from '../connectors'
+import type { ConnectorDef } from '../connectors'
 
-const api = useApi();
-const router = useRouter();
+const api = useApi()
+const router = useRouter()
 
-const connectors = ref<ConnectorConfig[]>([]);
-const loading = ref(true);
+const connectors = ref<ConnectorConfig[]>([])
+const loading = ref(true)
 
 // Setup modal
-const setupDef = ref<ConnectorDef | null>(null);
-const setupName = ref("");
-const setupSchedule = ref<Schedule>("every_hour");
-const supportedSchedules = ref<Schedule[]>([]);
-const setupConfig = ref<Record<string, string>>({});
-const saving = ref(false);
+const setupDef = ref<ConnectorDef | null>(null)
+const setupName = ref('')
+const setupSchedule = ref<Schedule>('every_hour')
+const supportedSchedules = ref<Schedule[]>([])
+const setupConfig = ref<Record<string, string>>({})
+const saving = ref(false)
 
 // Catalog search & sort
-const catalogSearch = ref("");
+const catalogSearch = ref('')
 const availableDefs = computed(() => {
-  const q = catalogSearch.value.toLowerCase().trim();
+  const q = catalogSearch.value.toLowerCase().trim()
   return [...CONNECTOR_DEFS]
     .sort((a, b) => a.name.localeCompare(b.name))
-    .filter((d) => !q || d.name.toLowerCase().includes(q) || d.category.toLowerCase().includes(q));
-});
+    .filter(
+      d =>
+        !q ||
+        d.name.toLowerCase().includes(q) ||
+        d.category.toLowerCase().includes(q)
+    )
+})
 
 async function fetchConnectors() {
-  loading.value = true;
+  loading.value = true
   try {
-    const res = await api.get<{ data: ConnectorConfig[] }>("/api/connectors");
-    connectors.value = res.data;
+    const res = await api.get<{ data: ConnectorConfig[] }>('/api/connectors')
+    connectors.value = res.data
   } catch {
-    connectors.value = [];
+    connectors.value = []
   } finally {
-    loading.value = false;
+    loading.value = false
   }
 }
 
 function openSetup(def: ConnectorDef) {
-  setupDef.value = def;
-  setupName.value = "";
-  setupConfig.value = {};
-  def.configFields.forEach((f) => {
-    if (f.type === "select" && f.options?.length) {
-      setupConfig.value[f.key] = f.options[0].value;
+  setupDef.value = def
+  setupName.value = ''
+  setupConfig.value = {}
+  def.configFields.forEach(f => {
+    if (f.type === 'select' && f.options?.length) {
+      setupConfig.value[f.key] = f.options[0].value
     } else {
-      setupConfig.value[f.key] = "";
+      setupConfig.value[f.key] = ''
     }
-  });
+  })
   // Load supported schedules
-  loadSchedules(def.id);
+  loadSchedules(def.id)
 }
 
 function closeSetup() {
-  setupDef.value = null;
+  setupDef.value = null
 }
 
 async function loadSchedules(type: string) {
   try {
     const data = await api.get<{ schedules: Schedule[]; default: Schedule }>(
-      `/api/connectors/schedules/${encodeURIComponent(type)}`,
-    );
-    supportedSchedules.value = data.schedules;
-    setupSchedule.value = data.default;
+      `/api/connectors/schedules/${encodeURIComponent(type)}`
+    )
+    supportedSchedules.value = data.schedules
+    setupSchedule.value = data.default
   } catch {
-    supportedSchedules.value = Object.keys(SCHEDULE_LABELS) as Schedule[];
-    setupSchedule.value = "every_hour";
+    supportedSchedules.value = Object.keys(SCHEDULE_LABELS) as Schedule[]
+    setupSchedule.value = 'every_hour'
   }
 }
 
 async function submitSetup() {
-  if (!setupDef.value) return;
-  saving.value = true;
+  if (!setupDef.value) return
+  saving.value = true
   try {
     // Build config from hint + form fields
     const config: Record<string, unknown> = {
-      ...setupDef.value.configHint,
-    };
-    setupDef.value.configFields.forEach((f) => {
-      const val = setupConfig.value[f.key]?.trim();
+      ...setupDef.value.configHint
+    }
+    setupDef.value.configFields.forEach(f => {
+      const val = setupConfig.value[f.key]?.trim()
       if (val) {
-        config[f.key] = f.type === "number" ? Number(val) : val;
+        config[f.key] = f.type === 'number' ? Number(val) : val
       }
-    });
+    })
 
-    await api.post("/api/connectors", {
+    await api.post('/api/connectors', {
       connector_type: setupDef.value.id,
       name: setupName.value || null,
       config,
       schedule: setupSchedule.value,
-      enabled: true,
-    });
-    closeSetup();
-    await fetchConnectors();
+      enabled: true
+    })
+    closeSetup()
+    await fetchConnectors()
   } catch {
     // handle error
   } finally {
-    saving.value = false;
+    saving.value = false
   }
 }
 
-onMounted(fetchConnectors);
+onMounted(fetchConnectors)
 </script>
 
 <template>
@@ -133,13 +138,17 @@ onMounted(fetchConnectors);
             <div class="active-body">
               <div class="active-name-row">
                 <span class="active-name">
-                  {{ c.name || getConnectorDef(c.connector_type)?.name || c.connector_type }}
+                  {{
+                    c.name ||
+                    getConnectorDef(c.connector_type)?.name ||
+                    c.connector_type
+                  }}
                 </span>
                 <span
                   class="status-dot"
                   :class="{
                     active: c.enabled && !c.error,
-                    error: !!c.error,
+                    error: !!c.error
                   }"
                 ></span>
               </div>
@@ -187,11 +196,7 @@ onMounted(fetchConnectors);
     </template>
 
     <!-- Setup modal -->
-    <div
-      v-if="setupDef"
-      class="modal-overlay"
-      @click.self="closeSetup"
-    >
+    <div v-if="setupDef" class="modal-overlay" @click.self="closeSetup">
       <div class="setup-modal">
         <div class="setup-header">
           <div class="setup-logo" v-html="setupDef.logo"></div>
@@ -220,14 +225,20 @@ onMounted(fetchConnectors);
           >
             <label>
               {{ field.label }}
-              <span v-if="!field.required" class="field-optional">optional</span>
+              <span v-if="!field.required" class="field-optional"
+                >optional</span
+              >
             </label>
             <select
               v-if="field.type === 'select' && field.options"
               v-model="setupConfig[field.key]"
               :required="field.required"
             >
-              <option v-for="opt in field.options" :key="opt.value" :value="opt.value">
+              <option
+                v-for="opt in field.options"
+                :key="opt.value"
+                :value="opt.value"
+              >
                 {{ opt.label }}
               </option>
             </select>
@@ -254,7 +265,7 @@ onMounted(fetchConnectors);
               Cancel
             </button>
             <button type="submit" :disabled="saving">
-              {{ saving ? "Adding..." : "Add Source" }}
+              {{ saving ? 'Adding...' : 'Add Source' }}
             </button>
           </div>
         </form>
@@ -306,7 +317,9 @@ onMounted(fetchConnectors);
   border-radius: var(--radius);
   padding: 0.85rem 1rem;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .active-card:hover {
@@ -408,7 +421,9 @@ onMounted(fetchConnectors);
   border-radius: var(--radius);
   padding: 1rem;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
   position: relative;
 }
 

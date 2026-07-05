@@ -1,132 +1,159 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { useApi } from "../composables/useApi";
-import { useFetchData } from "../composables/useFetchData";
-import { useAuthStore } from "../stores/auth";
-import { useConfirm } from "../composables/useConfirm";
-import { ArrowLeft, Trash2, Mail, Phone, Pencil, Camera, X as XIcon, Plus } from "lucide-vue-next";
-import type { Entry } from "../types";
-import { safeUrl } from "../lib/url";
-import { formatDate } from "../lib/datetime";
-import { contactField, contactName, contactInitials } from "../lib/contact";
+import { ref, reactive, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useApi } from '../composables/useApi'
+import { useFetchData } from '../composables/useFetchData'
+import { useAuthStore } from '../stores/auth'
+import { useConfirm } from '../composables/useConfirm'
+import {
+  ArrowLeft,
+  Trash2,
+  Mail,
+  Phone,
+  Pencil,
+  Camera,
+  X as XIcon,
+  Plus
+} from 'lucide-vue-next'
+import type { Entry } from '../types'
+import { safeUrl } from '../lib/url'
+import { formatDate } from '../lib/datetime'
+import { contactField, contactName, contactInitials } from '../lib/contact'
 
-const route = useRoute();
-const router = useRouter();
-const api = useApi();
-const auth = useAuthStore();
-const { ask } = useConfirm();
+const route = useRoute()
+const router = useRouter()
+const api = useApi()
+const auth = useAuthStore()
+const { ask } = useConfirm()
 
 const {
   data: entry,
   loading,
   error,
-  refetch,
+  refetch
 } = useFetchData<Entry>(
-  () => api.get<{ data: Entry }>(`/api/entries/${route.params.id}`).then((r) => r.data),
+  () =>
+    api
+      .get<{ data: Entry }>(`/api/entries/${route.params.id}`)
+      .then(r => r.data),
   {
-    fallbackError: "Contact not found",
+    fallbackError: 'Contact not found',
     onSuccess: () => {
-      if (route.query.edit) startEdit();
-    },
-  },
-);
+      if (route.query.edit) startEdit()
+    }
+  }
+)
 
 // The component instance is reused across /contacts/:id navigations (no router
 // key), and useFetchData only fetches on mount — so refetch when the id changes.
 watch(
   () => route.params.id,
-  () => refetch(),
-);
-const editing = ref(false);
-const saving = ref(false);
-const avatarUploading = ref(false);
+  () => refetch()
+)
+const editing = ref(false)
+const saving = ref(false)
+const avatarUploading = ref(false)
 
 // Edit form
 const form = reactive({
-  display_name: "",
-  org: "",
-  title: "",
+  display_name: '',
+  org: '',
+  title: '',
   emails: [] as { value: string; type: string }[],
   phones: [] as { value: string; type: string }[],
-  address: "",
-  birthday: "",
-  url: "",
-  note: "",
-  photo: "",
-});
+  address: '',
+  birthday: '',
+  url: '',
+  note: '',
+  photo: ''
+})
 
 function f(key: string): string {
-  return entry.value ? contactField(entry.value, key) : "";
+  return entry.value ? contactField(entry.value, key) : ''
 }
 
-const name = computed(() => (entry.value ? contactName(entry.value) : "(unnamed)"));
-const initials = computed(() => contactInitials(name.value));
-const emails = computed(() => (entry.value?.data?.emails as { value: string; type: string }[]) || []);
-const phones = computed(() => (entry.value?.data?.phones as { value: string; type: string }[]) || []);
-const photo = computed(() => f("photo"));
+const name = computed(() =>
+  entry.value ? contactName(entry.value) : '(unnamed)'
+)
+const initials = computed(() => contactInitials(name.value))
+const emails = computed(
+  () => (entry.value?.data?.emails as { value: string; type: string }[]) || []
+)
+const phones = computed(
+  () => (entry.value?.data?.phones as { value: string; type: string }[]) || []
+)
+const photo = computed(() => f('photo'))
 
 function startEdit() {
-  if (!entry.value) return;
-  form.display_name = f("display_name");
-  form.org = f("org");
-  form.title = f("title");
-  form.emails = emails.value.length ? emails.value.map((e) => ({ ...e })) : [{ value: "", type: "" }];
-  form.phones = phones.value.length ? phones.value.map((p) => ({ ...p })) : [{ value: "", type: "" }];
-  form.address = f("address");
-  form.birthday = f("birthday");
-  form.url = f("url");
-  form.note = f("note");
-  form.photo = f("photo");
-  editing.value = true;
+  if (!entry.value) return
+  form.display_name = f('display_name')
+  form.org = f('org')
+  form.title = f('title')
+  form.emails = emails.value.length
+    ? emails.value.map(e => ({ ...e }))
+    : [{ value: '', type: '' }]
+  form.phones = phones.value.length
+    ? phones.value.map(p => ({ ...p }))
+    : [{ value: '', type: '' }]
+  form.address = f('address')
+  form.birthday = f('birthday')
+  form.url = f('url')
+  form.note = f('note')
+  form.photo = f('photo')
+  editing.value = true
 }
 
 function cancelEdit() {
-  editing.value = false;
+  editing.value = false
 }
 
 function addEmail() {
-  form.emails.push({ value: "", type: "" });
+  form.emails.push({ value: '', type: '' })
 }
 function removeEmail(i: number) {
-  form.emails.splice(i, 1);
+  form.emails.splice(i, 1)
 }
 function addPhone() {
-  form.phones.push({ value: "", type: "" });
+  form.phones.push({ value: '', type: '' })
 }
 function removePhone(i: number) {
-  form.phones.splice(i, 1);
+  form.phones.splice(i, 1)
 }
 
 async function uploadPhoto(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file) return;
-  avatarUploading.value = true;
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  avatarUploading.value = true
   try {
     const fd = new FormData()
-    fd.append("file", file)
-    fd.append("app", "contacts")
-    const res = await fetch("/api/uploads", {
-      method: "POST",
+    fd.append('file', file)
+    fd.append('app', 'contacts')
+    const res = await fetch('/api/uploads', {
+      method: 'POST',
       headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {},
-      body: fd,
-    });
-    const data = await res.json();
-    if (res.ok) form.photo = data.path;
+      body: fd
+    })
+    const data = await res.json()
+    if (res.ok) form.photo = data.path
   } finally {
-    avatarUploading.value = false;
-    input.value = "";
+    avatarUploading.value = false
+    input.value = ''
   }
 }
 
 async function saveEdit() {
-  if (!entry.value) return;
-  saving.value = true;
+  if (!entry.value) return
+  saving.value = true
   try {
-    const cleanEmails = form.emails.filter((e) => e.value.trim());
-    const cleanPhones = form.phones.filter((p) => p.value.trim());
-    const titleParts = [form.display_name, form.org, form.title, cleanEmails[0]?.value].filter(Boolean);
+    const cleanEmails = form.emails.filter(e => e.value.trim())
+    const cleanPhones = form.phones.filter(p => p.value.trim())
+    const titleParts = [
+      form.display_name,
+      form.org,
+      form.title,
+      cleanEmails[0]?.value
+    ].filter(Boolean)
 
     const data = {
       ...entry.value.data,
@@ -139,28 +166,31 @@ async function saveEdit() {
       birthday: form.birthday || null,
       url: form.url || null,
       note: form.note || null,
-      photo: form.photo || null,
-    };
+      photo: form.photo || null
+    }
 
-    const res = await api.put<{ data: Entry }>(`/api/entries/${entry.value.id}`, {
-      title: titleParts.join(" — "),
-      data,
-    });
-    entry.value = res.data;
-    editing.value = false;
+    const res = await api.put<{ data: Entry }>(
+      `/api/entries/${entry.value.id}`,
+      {
+        title: titleParts.join(' — '),
+        data
+      }
+    )
+    entry.value = res.data
+    editing.value = false
   } catch (e: any) {
-    error.value = e.message || "Failed to save";
+    error.value = e.message || 'Failed to save'
   } finally {
-    saving.value = false;
+    saving.value = false
   }
 }
 
 async function deleteContact() {
-  if (!entry.value) return;
-  const ok = await ask({ message: `Delete "${name.value}"?` });
-  if (!ok) return;
-  await api.del(`/api/entries/${entry.value.id}`);
-  router.push("/apps/contacts");
+  if (!entry.value) return
+  const ok = await ask({ message: `Delete "${name.value}"?` })
+  if (!ok) return
+  await api.del(`/api/entries/${entry.value.id}`)
+  router.push('/apps/contacts')
 }
 </script>
 
@@ -185,9 +215,18 @@ async function deleteContact() {
         <!-- Photo -->
         <div class="ct-edit-photo-section">
           <label class="ct-edit-avatar-wrap">
-            <img v-if="form.photo" :src="form.photo" class="ct-edit-avatar-img" />
-            <span v-else class="ct-edit-avatar-placeholder">{{ initials }}</span>
-            <span class="ct-edit-avatar-overlay" :class="{ uploading: avatarUploading }">
+            <img
+              v-if="form.photo"
+              :src="form.photo"
+              class="ct-edit-avatar-img"
+            />
+            <span v-else class="ct-edit-avatar-placeholder">{{
+              initials
+            }}</span>
+            <span
+              class="ct-edit-avatar-overlay"
+              :class="{ uploading: avatarUploading }"
+            >
               <Camera :size="20" />
             </span>
             <input type="file" accept="image/*" hidden @change="uploadPhoto" />
@@ -209,7 +248,10 @@ async function deleteContact() {
               </div>
               <div class="field">
                 <label>Title</label>
-                <input v-model="form.title" placeholder="e.g. Software Engineer" />
+                <input
+                  v-model="form.title"
+                  placeholder="e.g. Software Engineer"
+                />
               </div>
             </div>
           </section>
@@ -217,19 +259,61 @@ async function deleteContact() {
           <!-- Contact -->
           <section class="ct-card">
             <h3>Contact</h3>
-            <div v-for="(e, i) in form.emails" :key="'e' + i" class="ct-multi-row">
-              <input v-model="e.value" type="email" placeholder="Email" class="ct-multi-input" />
-              <input v-model="e.type" placeholder="Type" class="ct-multi-type" />
-              <button type="button" class="ct-multi-remove" @click="removeEmail(i)"><XIcon :size="14" /></button>
+            <div
+              v-for="(e, i) in form.emails"
+              :key="'e' + i"
+              class="ct-multi-row"
+            >
+              <input
+                v-model="e.value"
+                type="email"
+                placeholder="Email"
+                class="ct-multi-input"
+              />
+              <input
+                v-model="e.type"
+                placeholder="Type"
+                class="ct-multi-type"
+              />
+              <button
+                type="button"
+                class="ct-multi-remove"
+                @click="removeEmail(i)"
+              >
+                <XIcon :size="14" />
+              </button>
             </div>
-            <button type="button" class="ct-add-btn" @click="addEmail"><Plus :size="14" /> Email</button>
+            <button type="button" class="ct-add-btn" @click="addEmail">
+              <Plus :size="14" /> Email
+            </button>
 
-            <div v-for="(p, i) in form.phones" :key="'p' + i" class="ct-multi-row">
-              <input v-model="p.value" type="tel" placeholder="Phone" class="ct-multi-input" />
-              <input v-model="p.type" placeholder="Type" class="ct-multi-type" />
-              <button type="button" class="ct-multi-remove" @click="removePhone(i)"><XIcon :size="14" /></button>
+            <div
+              v-for="(p, i) in form.phones"
+              :key="'p' + i"
+              class="ct-multi-row"
+            >
+              <input
+                v-model="p.value"
+                type="tel"
+                placeholder="Phone"
+                class="ct-multi-input"
+              />
+              <input
+                v-model="p.type"
+                placeholder="Type"
+                class="ct-multi-type"
+              />
+              <button
+                type="button"
+                class="ct-multi-remove"
+                @click="removePhone(i)"
+              >
+                <XIcon :size="14" />
+              </button>
             </div>
-            <button type="button" class="ct-add-btn" @click="addPhone"><Plus :size="14" /> Phone</button>
+            <button type="button" class="ct-add-btn" @click="addPhone">
+              <Plus :size="14" /> Phone
+            </button>
           </section>
 
           <!-- Details -->
@@ -246,7 +330,11 @@ async function deleteContact() {
               </div>
               <div class="field">
                 <label>Website</label>
-                <input v-model="form.url" type="url" placeholder="https://..." />
+                <input
+                  v-model="form.url"
+                  type="url"
+                  placeholder="https://..."
+                />
               </div>
             </div>
             <div class="field">
@@ -257,8 +345,12 @@ async function deleteContact() {
         </div>
 
         <div class="ct-edit-actions">
-          <button type="button" class="ct-btn-cancel" @click="cancelEdit">Cancel</button>
-          <button type="submit" :disabled="saving">{{ saving ? "Saving..." : "Save" }}</button>
+          <button type="button" class="ct-btn-cancel" @click="cancelEdit">
+            Cancel
+          </button>
+          <button type="submit" :disabled="saving">
+            {{ saving ? 'Saving...' : 'Save' }}
+          </button>
         </div>
       </form>
     </template>
@@ -296,10 +388,15 @@ async function deleteContact() {
                 <span v-if="p.type" class="ct-info-type">{{ p.type }}</span>
               </div>
             </div>
-            <p v-if="!emails.length && !phones.length" class="ct-muted">No contact info</p>
+            <p v-if="!emails.length && !phones.length" class="ct-muted">
+              No contact info
+            </p>
           </section>
 
-          <section v-if="f('address') || f('birthday') || f('url') || f('note')" class="ct-card">
+          <section
+            v-if="f('address') || f('birthday') || f('url') || f('note')"
+            class="ct-card"
+          >
             <h3>Details</h3>
             <div class="ct-meta-list">
               <div v-if="f('address')" class="ct-meta-row">
@@ -312,7 +409,14 @@ async function deleteContact() {
               </div>
               <div v-if="f('url')" class="ct-meta-row">
                 <span class="ct-meta-key">Website</span>
-                <a v-if="safeUrl(f('url'))" :href="safeUrl(f('url'))!" target="_blank" rel="noopener" class="ct-link">{{ f('url') }}</a>
+                <a
+                  v-if="safeUrl(f('url'))"
+                  :href="safeUrl(f('url'))!"
+                  target="_blank"
+                  rel="noopener"
+                  class="ct-link"
+                  >{{ f('url') }}</a
+                >
                 <span v-else class="ct-link">{{ f('url') }}</span>
               </div>
               <div v-if="f('note')" class="ct-meta-row">
@@ -342,7 +446,9 @@ async function deleteContact() {
         </div>
 
         <div class="ct-page-actions">
-          <span class="ct-permalink">Permalink: <code>/contacts/{{ entry.id }}</code></span>
+          <span class="ct-permalink"
+            >Permalink: <code>/contacts/{{ entry.id }}</code></span
+          >
           <button class="ct-delete-btn" @click="deleteContact">
             <Trash2 :size="15" /> Delete contact
           </button>
@@ -353,7 +459,9 @@ async function deleteContact() {
 </template>
 
 <style scoped>
-.contact-detail { max-width: 900px; }
+.contact-detail {
+  max-width: 900px;
+}
 
 .ct-topbar {
   display: flex;
@@ -361,10 +469,19 @@ async function deleteContact() {
   gap: 0.75rem;
   margin-bottom: 1.25rem;
 }
-.ct-topbar h1 { margin: 0; font-size: 1.25rem; flex: 1; }
+.ct-topbar h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  flex: 1;
+}
 
-.back-link { color: var(--text-muted); display: flex; }
-.back-link:hover { color: var(--text); }
+.back-link {
+  color: var(--text-muted);
+  display: flex;
+}
+.back-link:hover {
+  color: var(--text);
+}
 
 .ct-edit-btn {
   display: inline-flex;
@@ -378,9 +495,14 @@ async function deleteContact() {
   font-size: 0.85rem;
   cursor: pointer;
 }
-.ct-edit-btn:hover { border-color: var(--primary); color: var(--text); }
+.ct-edit-btn:hover {
+  border-color: var(--primary);
+  color: var(--text);
+}
 
-.ct-error { color: var(--danger); }
+.ct-error {
+  color: var(--danger);
+}
 
 /* Header card */
 .ct-header-card {
@@ -408,7 +530,10 @@ async function deleteContact() {
   flex-shrink: 0;
   overflow: hidden;
 }
-.ct-avatar--photo { padding: 0; background: none; }
+.ct-avatar--photo {
+  padding: 0;
+  background: none;
+}
 .ct-avatar--photo img {
   width: 100%;
   height: 100%;
@@ -416,8 +541,14 @@ async function deleteContact() {
   display: block;
 }
 
-.ct-header-info h2 { margin: 0; font-size: 1.25rem; }
-.ct-header-sub { font-size: 0.9rem; color: var(--text-muted); }
+.ct-header-info h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+.ct-header-sub {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
 
 /* Grid */
 .ct-page-grid {
@@ -452,16 +583,41 @@ async function deleteContact() {
   padding: 0.5rem 0;
   border-bottom: 1px solid var(--border);
 }
-.ct-info-row:last-of-type { border-bottom: none; }
-.ct-info-icon { color: var(--text-muted); margin-top: 0.15rem; flex-shrink: 0; }
-.ct-info-body { display: flex; flex-direction: column; }
-.ct-info-type { font-size: 0.75rem; color: var(--text-muted); text-transform: capitalize; }
+.ct-info-row:last-of-type {
+  border-bottom: none;
+}
+.ct-info-icon {
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+}
+.ct-info-body {
+  display: flex;
+  flex-direction: column;
+}
+.ct-info-type {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
 
-.ct-link { color: var(--primary); text-decoration: none; word-break: break-all; }
-.ct-link:hover { text-decoration: underline; }
-.ct-muted { color: var(--text-muted); font-size: 0.9rem; }
+.ct-link {
+  color: var(--primary);
+  text-decoration: none;
+  word-break: break-all;
+}
+.ct-link:hover {
+  text-decoration: underline;
+}
+.ct-muted {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
 
-.ct-meta-list { display: flex; flex-direction: column; }
+.ct-meta-list {
+  display: flex;
+  flex-direction: column;
+}
 .ct-meta-row {
   display: flex;
   justify-content: space-between;
@@ -471,18 +627,36 @@ async function deleteContact() {
   border-bottom: 1px solid var(--border);
   font-size: 0.9rem;
 }
-.ct-meta-row:last-child { border-bottom: none; }
-.ct-meta-key { color: var(--text-muted); flex-shrink: 0; }
-.ct-note-text { white-space: pre-wrap; color: var(--text-muted); text-align: right; }
-.ct-mono { font-family: monospace; font-size: 0.85rem; word-break: break-all; }
+.ct-meta-row:last-child {
+  border-bottom: none;
+}
+.ct-meta-key {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.ct-note-text {
+  white-space: pre-wrap;
+  color: var(--text-muted);
+  text-align: right;
+}
+.ct-mono {
+  font-family: monospace;
+  font-size: 0.85rem;
+  word-break: break-all;
+}
 
 .ct-page-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
-.ct-permalink { font-size: 0.85rem; color: var(--text-muted); }
-.ct-permalink code { color: var(--primary); }
+.ct-permalink {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.ct-permalink code {
+  color: var(--primary);
+}
 
 .ct-delete-btn {
   display: inline-flex;
@@ -551,8 +725,12 @@ async function deleteContact() {
   opacity: 0;
   transition: opacity 0.15s;
 }
-.ct-edit-avatar-overlay.uploading { opacity: 0.6; }
-.ct-edit-avatar-wrap:hover .ct-edit-avatar-overlay { opacity: 1; }
+.ct-edit-avatar-overlay.uploading {
+  opacity: 0.6;
+}
+.ct-edit-avatar-wrap:hover .ct-edit-avatar-overlay {
+  opacity: 1;
+}
 
 .ct-edit-grid {
   display: flex;
@@ -566,7 +744,7 @@ async function deleteContact() {
   gap: 0.75rem;
 }
 
-.ct-edit-grid input[type="date"] {
+.ct-edit-grid input[type='date'] {
   color-scheme: dark;
 }
 
@@ -576,8 +754,12 @@ async function deleteContact() {
   gap: 0.375rem;
   margin-bottom: 0.375rem;
 }
-.ct-multi-input { flex: 1; }
-.ct-multi-type { width: 90px; }
+.ct-multi-input {
+  flex: 1;
+}
+.ct-multi-type {
+  width: 90px;
+}
 .ct-multi-remove {
   display: flex;
   align-items: center;
@@ -591,7 +773,10 @@ async function deleteContact() {
   padding: 0;
   flex-shrink: 0;
 }
-.ct-multi-remove:hover { color: var(--danger); border-color: var(--danger); }
+.ct-multi-remove:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
 
 .ct-add-btn {
   display: inline-flex;
@@ -605,7 +790,9 @@ async function deleteContact() {
   padding: 0.3rem 0;
   margin-bottom: 0.75rem;
 }
-.ct-add-btn:hover { text-decoration: underline; }
+.ct-add-btn:hover {
+  text-decoration: underline;
+}
 
 .ct-edit-actions {
   display: flex;
@@ -617,5 +804,7 @@ async function deleteContact() {
   border: 1px solid var(--border);
   color: var(--text);
 }
-.ct-btn-cancel:hover { border-color: var(--text-muted); }
+.ct-btn-cancel:hover {
+  border-color: var(--text-muted);
+}
 </style>

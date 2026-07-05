@@ -1,18 +1,18 @@
-import MarkdownIt from "markdown-it";
+import MarkdownIt from 'markdown-it'
 
-import { escapeHtml } from "../escapeHtml";
+import { escapeHtml } from '../escapeHtml'
 
-const md = new MarkdownIt({ breaks: true, linkify: true });
+const md = new MarkdownIt({ breaks: true, linkify: true })
 
 /**
  * Canonical form for note slugs and wikilink matching — must mirror the
  * backend `Servant.Notes.canon/1` (trim, lower-case, collapse whitespace).
  */
 export function canon(str: string): string {
-  return str.trim().toLowerCase().replace(/\s+/g, " ");
+  return str.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
-export type MentionKind = "contact" | "event" | null;
+export type MentionKind = 'contact' | 'event' | null
 
 /**
  * Enter pressed at `pos` in `value`: if the caret line is a list item
@@ -23,29 +23,35 @@ export type MentionKind = "contact" | "event" | null;
  */
 export function continueListEdit(
   value: string,
-  pos: number,
+  pos: number
 ): { value: string; pos: number } | null {
-  const lineStart = value.lastIndexOf("\n", pos - 1) + 1;
-  const beforeCaret = value.slice(lineStart, pos);
-  const m = beforeCaret.match(/^(\s*)(?:([-*+])( \[[ xX]\] |\s)|(\d+)([.)])\s)/);
-  if (!m) return null;
+  const lineStart = value.lastIndexOf('\n', pos - 1) + 1
+  const beforeCaret = value.slice(lineStart, pos)
+  const m = beforeCaret.match(/^(\s*)(?:([-*+])( \[[ xX]\] |\s)|(\d+)([.)])\s)/)
+  if (!m) return null
 
-  const lineEnd = value.indexOf("\n", pos);
-  const fullLine = value.slice(lineStart, lineEnd === -1 ? value.length : lineEnd);
+  const lineEnd = value.indexOf('\n', pos)
+  const fullLine = value.slice(
+    lineStart,
+    lineEnd === -1 ? value.length : lineEnd
+  )
   if (fullLine.trimEnd() === m[0].trimEnd()) {
     // Empty item: drop the marker, exit the list.
-    return { value: value.slice(0, lineStart) + value.slice(pos), pos: lineStart };
+    return {
+      value: value.slice(0, lineStart) + value.slice(pos),
+      pos: lineStart
+    }
   }
 
   const marker =
     m[2] !== undefined
-      ? `${m[1]}${m[2]} ${m[3].trim() ? "[ ] " : ""}`
-      : `${m[1]}${Number(m[4]) + 1}${m[5]} `;
+      ? `${m[1]}${m[2]} ${m[3].trim() ? '[ ] ' : ''}`
+      : `${m[1]}${Number(m[4]) + 1}${m[5]} `
 
   return {
-    value: value.slice(0, pos) + "\n" + marker + value.slice(pos),
-    pos: pos + 1 + marker.length,
-  };
+    value: value.slice(0, pos) + '\n' + marker + value.slice(pos),
+    pos: pos + 1 + marker.length
+  }
 }
 
 /**
@@ -59,29 +65,31 @@ export function continueListEdit(
 export function renderMarkdown(
   body: string,
   resolved: (target: string) => boolean,
-  mentionKind: (target: string) => MentionKind = () => null,
+  mentionKind: (target: string) => MentionKind = () => null
 ): string {
-  let html = md.render(body || "");
+  let html = md.render(body || '')
 
   html = html.replace(/@\[\[([^\][]+)\]\]/g, (_m, raw: string) => {
-    const target = raw.trim();
-    const kind = mentionKind(target);
-    const icon = kind === "event" ? "📅" : "👤";
-    const cls = kind ? "nt-mention" : "nt-mention nt-mention--unknown";
-    return `<a class="${cls}" data-target="${escapeHtml(target)}">${icon} ${escapeHtml(target)}</a>`;
-  });
+    const target = raw.trim()
+    const kind = mentionKind(target)
+    const icon = kind === 'event' ? '📅' : '👤'
+    const cls = kind ? 'nt-mention' : 'nt-mention nt-mention--unknown'
+    return `<a class="${cls}" data-target="${escapeHtml(target)}">${icon} ${escapeHtml(target)}</a>`
+  })
 
   html = html.replace(/\[\[([^\][]+)\]\]/g, (_m, raw: string) => {
-    const target = raw.trim();
-    const cls = resolved(target) ? "nt-wikilink" : "nt-wikilink nt-wikilink--new";
-    return `<a class="${cls}" data-target="${escapeHtml(target)}">${escapeHtml(target)}</a>`;
-  });
+    const target = raw.trim()
+    const cls = resolved(target)
+      ? 'nt-wikilink'
+      : 'nt-wikilink nt-wikilink--new'
+    return `<a class="${cls}" data-target="${escapeHtml(target)}">${escapeHtml(target)}</a>`
+  })
 
   html = html.replace(
     /(^|[\s(>])#([\p{L}0-9_][\p{L}0-9_/-]*)/gu,
     (_m, pre: string, tag: string) =>
-      `${pre}<span class="nt-tag">#${escapeHtml(tag)}</span>`,
-  );
+      `${pre}<span class="nt-tag">#${escapeHtml(tag)}</span>`
+  )
 
-  return html;
+  return html
 }
