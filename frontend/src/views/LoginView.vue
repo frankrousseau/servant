@@ -33,28 +33,28 @@ async function handleLogin() {
 
 <template>
   <div class="auth-page">
+    <svg
+      class="auth-logo"
+      viewBox="50 2 120 130"
+      width="44"
+      role="img"
+      aria-label="Servant logo"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="3.5"
+      stroke-linejoin="miter"
+      stroke-linecap="square"
+    >
+      <path
+        d="M 58 76 L 60 10 L 92 26 L 128 26 L 160 10 L 162 76 L 130 98 L 90 98 Z"
+      />
+      <circle cx="88" cy="56" r="15" />
+      <circle cx="132" cy="56" r="15" />
+      <path d="M 104 74 L 116 74 L 110 87 Z" />
+      <path d="M 107 114 L 88 104 L 88 124 Z" />
+      <path d="M 113 114 L 132 104 L 132 124 Z" />
+    </svg>
     <div class="auth-card">
-      <svg
-        class="auth-logo"
-        viewBox="50 2 120 130"
-        width="72"
-        role="img"
-        aria-label="Servant logo"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="3.5"
-        stroke-linejoin="miter"
-        stroke-linecap="square"
-      >
-        <path
-          d="M 58 76 L 60 10 L 92 26 L 128 26 L 160 10 L 162 76 L 130 98 L 90 98 Z"
-        />
-        <circle cx="88" cy="56" r="15" />
-        <circle cx="132" cy="56" r="15" />
-        <path d="M 104 74 L 116 74 L 110 87 Z" />
-        <path d="M 107 114 L 88 104 L 88 124 Z" />
-        <path d="M 113 114 L 132 104 L 132 124 Z" />
-      </svg>
       <h1>Servant</h1>
       <form @submit.prevent="handleLogin">
         <div class="field">

@@ -247,6 +247,7 @@ a:hover {
 
 /* Auth pages */
 .auth-page {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -285,10 +286,12 @@ a:hover {
   letter-spacing: 0.08em;
 }
 
+/* Corner mark, top-left of the page */
 .auth-logo {
-  display: block;
-  margin: 0 auto 1rem;
-  color: var(--text);
+  position: absolute;
+  top: 1.25rem;
+  left: 1.5rem;
+  color: #fff;
   filter: drop-shadow(0 0 4px rgba(var(--primary-rgb), 0.3));
 }
 
