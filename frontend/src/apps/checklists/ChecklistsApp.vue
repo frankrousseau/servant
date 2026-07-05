@@ -322,6 +322,42 @@ function removeItem(index: number) {
   saveNow();
 }
 
+// ----- item reordering (drag the grip onto another row) -----
+
+const dragIndex = ref<number | null>(null);
+const dropIndex = ref<number | null>(null);
+
+function onItemDragStart(i: number, e: DragEvent) {
+  dragIndex.value = i;
+  if (e.dataTransfer) {
+    e.dataTransfer.setData("text/plain", String(i));
+    e.dataTransfer.effectAllowed = "move";
+  }
+}
+
+function onItemDragOver(i: number, e: DragEvent) {
+  if (dragIndex.value === null) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+  dropIndex.value = i;
+}
+
+function onItemDrop(i: number) {
+  const from = dragIndex.value;
+  dropIndex.value = null;
+  const l = selected.value;
+  if (from === null || from === i || !l) return;
+  const arr = ensureItems(l);
+  const [moved] = arr.splice(from, 1);
+  arr.splice(i, 0, moved);
+  saveNow();
+}
+
+function onItemDragEnd() {
+  dragIndex.value = null;
+  dropIndex.value = null;
+}
+
 function resetList() {
   const l = selected.value;
   if (!l) return;
@@ -493,8 +529,24 @@ onBeforeUnmount(() => window.removeEventListener("popstate", onPopState));
             v-for="(item, i) in items"
             :key="i"
             class="cl-item"
-            :class="{ 'cl-item--done': item.done }"
+            :class="{
+              'cl-item--done': item.done,
+              'cl-item--dragging': dragIndex === i,
+              'cl-item--droptarget': dropIndex === i && dragIndex !== i,
+            }"
+            @dragover="onItemDragOver(i, $event)"
+            @dragleave="dropIndex === i && (dropIndex = null)"
+            @drop.prevent="onItemDrop(i)"
           >
+            <span
+              class="cl-item-grip"
+              draggable="true"
+              title="Drag to reorder"
+              aria-label="Drag to reorder"
+              @dragstart="onItemDragStart(i, $event)"
+              @dragend="onItemDragEnd"
+              >⋮⋮</span
+            >
             <input type="checkbox" v-model="item.done" @change="saveNow()" />
             <input class="cl-item-text" v-model="item.text" @input="scheduleSave()" />
             <button class="cl-item-del" title="Remove item" @click="removeItem(i)">×</button>
@@ -620,6 +672,7 @@ onBeforeUnmount(() => window.removeEventListener("popstate", onPopState));
 .cl-row--active {
   background: rgba(var(--primary-rgb), 0.1);
   box-shadow: inset 2px 0 0 var(--primary);
+  border-radius: 0 6px 6px 0;
 }
 .cl-row-title {
   flex: 1;
@@ -728,6 +781,27 @@ onBeforeUnmount(() => window.removeEventListener("popstate", onPopState));
   align-items: center;
   gap: 0.6rem;
   padding: 0.15rem 0;
+}
+/* Reorder grip: invisible until the row is hovered */
+.cl-item-grip {
+  cursor: grab;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  letter-spacing: -2px;
+  user-select: none;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.cl-item:hover .cl-item-grip {
+  opacity: 1;
+}
+.cl-item--dragging {
+  opacity: 0.4;
+}
+/* Insertion mark: the dragged item will land in this slot */
+.cl-item--droptarget {
+  box-shadow: inset 0 2px 0 var(--primary);
 }
 /* The global stylesheet gives every input width:100% + heavy padding; undo it
    for checkboxes, and draw them in the terminal language: square cell,
