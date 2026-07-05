@@ -601,6 +601,7 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
   letter-spacing: 0.12em;
   color: var(--text-muted);
   border-bottom: 1px solid var(--border);
+  margin-bottom: 1em;
 }
 .fs-row {
   border-radius: var(--radius);
@@ -614,6 +615,7 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
 .fs-row--active {
   background: rgba(var(--primary-rgb), 0.1);
   box-shadow: inset 2px 0 0 var(--primary);
+  border-radius: 0 var(--radius) var(--radius) 0;
 }
 .fs-row-icon {
   display: flex;
