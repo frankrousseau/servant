@@ -104,7 +104,6 @@ a:hover {
 
 .sidebar-brand svg {
   flex-shrink: 0;
-  color: #fff;
   filter: drop-shadow(0 0 6px rgba(var(--primary-rgb), 0.45));
 }
 
