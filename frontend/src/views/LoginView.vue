@@ -36,7 +36,7 @@ async function handleLogin() {
         <path d="M 107 114 L 88 104 L 88 124 Z"/>
         <path d="M 113 114 L 132 104 L 132 124 Z"/>
       </svg>
-      <h1>Sign In</h1>
+      <h1>Servant</h1>
       <form @submit.prevent="handleLogin">
         <div class="field">
           <label for="username">Username</label>
