@@ -5,6 +5,14 @@ This is an **API-only** Phoenix backend (`--no-html --no-live --no-assets`) pair
 - Use `mix precommit` alias when you are done with all changes and fix any pending issues
 - Use the already included and available `:req` (`Req`) library for HTTP requests, **avoid** `:httpoison`, `:tesla`, and `:httpc`. Req is included by default and is the preferred HTTP client for Phoenix apps
 
+## Vue style
+
+All Vue code follows the [official Vue.js style guide](https://fr.vuejs.org/style-guide/), applied by priority:
+
+- **Priority A (essential, always)**: multi-word component names; typed prop definitions (`defineProps<{...}>()`); every `v-for` carries a `:key`; never `v-if` and `v-for` on the same element (filter in a computed instead); component styles are `scoped` (a global block needs a comment justifying it)
+- **Priority B (strongly recommended)**: one component per file, PascalCase filenames and template tags, self-closing tags for empty components, camelCase prop declarations, complex template expressions extracted into computeds, consistent directive shorthands (`:`, `@`, `#`)
+- **Priority C (recommended)**: SFC top-level order is `<script>` then `<template>` then `<style>` in every file
+
 ## Elixir style
 
 All Elixir code follows [The Elixir Style Guide](https://github.com/christopheradams/elixir_style_guide). `mix format` covers layout; the rules it does **not** enforce and that we apply here:
