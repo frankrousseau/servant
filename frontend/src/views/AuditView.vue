@@ -65,6 +65,12 @@ const api = useApi();
 type Tab = "resources" | "access" | "errors";
 const tab = ref<Tab>("resources");
 
+const TABS: Array<{ id: Tab; label: string }> = [
+  { id: "resources", label: "Resources" },
+  { id: "access", label: "Access log" },
+  { id: "errors", label: "Error log" },
+];
+
 const stats = ref<SystemStats | null>(null);
 const accessLogs = ref<AccessLog[]>([]);
 const errorLogs = ref<ErrorLog[]>([]);
@@ -153,15 +159,11 @@ const ms = (us: number) => (us >= 1000 ? `${Math.round(us / 1000)}ms` : `${us}µ
 
     <div class="au-tabs">
       <button
-        v-for="t in [
-          { id: 'resources', label: 'Resources' },
-          { id: 'access', label: 'Access log' },
-          { id: 'errors', label: 'Error log' },
-        ]"
+        v-for="t in TABS"
         :key="t.id"
         class="au-tab"
         :class="{ 'au-tab--active': tab === t.id }"
-        @click="selectTab(t.id as Tab)"
+        @click="selectTab(t.id)"
       >
         {{ t.label }}
       </button>
