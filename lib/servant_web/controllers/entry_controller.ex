@@ -1,4 +1,6 @@
 defmodule ServantWeb.EntryController do
+  @moduledoc "User-scoped CRUD over entries, plus stats and media backfill."
+
   use ServantWeb, :controller
 
   alias Servant.Data

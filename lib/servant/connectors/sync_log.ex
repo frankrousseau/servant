@@ -1,4 +1,6 @@
 defmodule Servant.Connectors.SyncLog do
+  @moduledoc "One row per connector sync run: status, counts, error."
+
   use Ecto.Schema
   import Ecto.Changeset
 

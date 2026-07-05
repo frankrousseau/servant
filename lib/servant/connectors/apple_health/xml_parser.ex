@@ -48,7 +48,7 @@ defmodule Servant.Connectors.AppleHealth.XMLParser do
   end
 
   def handle_event(:start_element, {"Workout", attrs}, state) do
-    record = Map.new(attrs) |> Map.put("_tag", "Workout")
+    record = attrs |> Map.new() |> Map.put("_tag", "Workout")
     {:ok, %{state | records: [record | state.records]}}
   end
 

@@ -1,4 +1,6 @@
 defmodule ServantWeb.Router do
+  @moduledoc false
+
   use ServantWeb, :router
 
   pipeline :api do

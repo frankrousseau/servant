@@ -1,4 +1,6 @@
 defmodule ServantWeb.UserSocket do
+  @moduledoc "Token-authenticated socket carrying the per-user data channel."
+
   use Phoenix.Socket
 
   channel "data:*", ServantWeb.DataChannel

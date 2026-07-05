@@ -1,4 +1,6 @@
 defmodule Servant.Data.Entry do
+  @moduledoc "Universal data container: a kind, a source and a JSON data payload."
+
   use Ecto.Schema
   import Ecto.Changeset
 

@@ -4,8 +4,8 @@ defmodule Servant.Connectors do
   """
 
   import Ecto.Query
-  alias Servant.Repo
   alias Servant.Connectors.{ConnectorConfig, ConnectorEnvironment, SyncLog, Worker}
+  alias Servant.Repo
 
   @connector_modules %{
     "rss" => Servant.Connectors.RSSConnector,
@@ -195,7 +195,7 @@ defmodule Servant.Connectors do
     |> SyncLog.changeset(%{
       connector_config_id: config_id,
       status: "running",
-      started_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      started_at: DateTime.truncate(DateTime.utc_now(), :second)
     })
     |> Repo.insert()
   end
@@ -205,7 +205,7 @@ defmodule Servant.Connectors do
     |> SyncLog.changeset(%{
       status: "completed",
       entries_count: entries_count,
-      finished_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      finished_at: DateTime.truncate(DateTime.utc_now(), :second)
     })
     |> Repo.update()
   end
@@ -215,7 +215,7 @@ defmodule Servant.Connectors do
     |> SyncLog.changeset(%{
       status: "failed",
       error: to_string(error),
-      finished_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      finished_at: DateTime.truncate(DateTime.utc_now(), :second)
     })
     |> Repo.update()
   end
@@ -295,7 +295,7 @@ defmodule Servant.Connectors do
         complete_sync_log(sync_log, inserted)
 
         update_connector_config(user_id, config_id, %{
-          "last_synced_at" => DateTime.utc_now() |> DateTime.truncate(:second),
+          "last_synced_at" => DateTime.truncate(DateTime.utc_now(), :second),
           "error" => nil
         })
 
@@ -335,7 +335,7 @@ defmodule Servant.Connectors do
   # --- ConnectorEnvironment (shared reference data cache) ---
 
   def get_env(connector_type, namespace, key) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    now = DateTime.truncate(DateTime.utc_now(), :second)
 
     ConnectorEnvironment
     |> where(connector_type: ^connector_type, namespace: ^namespace, key: ^key)
@@ -349,7 +349,7 @@ defmodule Servant.Connectors do
 
   def put_env(connector_type, namespace, key, value, expires_at \\ nil) do
     expires_at = if expires_at, do: DateTime.truncate(expires_at, :second)
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    now = DateTime.truncate(DateTime.utc_now(), :second)
 
     # Atomic upsert on the unique (connector_type, namespace, key) index: a plain
     # get-then-insert races when two workers resolve the same new key at once
@@ -377,7 +377,7 @@ defmodule Servant.Connectors do
   end
 
   def cleanup_expired_env do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    now = DateTime.truncate(DateTime.utc_now(), :second)
 
     ConnectorEnvironment
     |> where([e], not is_nil(e.expires_at) and e.expires_at <= ^now)

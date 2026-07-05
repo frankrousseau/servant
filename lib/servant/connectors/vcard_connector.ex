@@ -175,7 +175,7 @@ defmodule Servant.Connectors.VCardConnector do
           |> String.upcase()
 
         type_param = extract_type_param(key_part)
-        {key, {String.trim(value) |> unescape(), type_param}}
+        {key, {value |> String.trim() |> unescape(), type_param}}
 
       _ ->
         nil
@@ -251,7 +251,7 @@ defmodule Servant.Connectors.VCardConnector do
       "external_id" => contact.uid,
       "title" => title,
       "occurred_at" =>
-        parse_birthday(contact.birthday) || DateTime.utc_now() |> DateTime.truncate(:second),
+        parse_birthday(contact.birthday) || DateTime.truncate(DateTime.utc_now(), :second),
       "data" => %{
         "display_name" => contact.display_name,
         "emails" => contact.emails,

@@ -10,10 +10,10 @@ defmodule Servant.Connectors.Worker do
   use GenServer, restart: :transient
   require Logger
 
-  alias Servant.Repo
-  alias Servant.Data
   alias Servant.Connectors
   alias Servant.Connectors.ConnectorConfig
+  alias Servant.Data
+  alias Servant.Repo
 
   # Never busy-loop the "continuous" schedule (which maps to a 0ms interval):
   # floor it so back-to-back syncs can't peg a core and flood sync_logs.
@@ -154,7 +154,7 @@ defmodule Servant.Connectors.Worker do
       config ->
         config
         |> Ecto.Changeset.change(%{
-          last_synced_at: DateTime.utc_now() |> DateTime.truncate(:second),
+          last_synced_at: DateTime.truncate(DateTime.utc_now(), :second),
           error: error
         })
         |> Repo.update()

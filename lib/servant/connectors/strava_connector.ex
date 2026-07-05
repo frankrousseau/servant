@@ -94,7 +94,7 @@ defmodule Servant.Connectors.StravaConnector do
   defp ensure_access_token(state) do
     case Servant.Connectors.get_env("strava", "tokens", state.client_id) do
       %{"access_token" => token, "expires_at" => expires_at} ->
-        if DateTime.utc_now() |> DateTime.to_unix() < expires_at - 300 do
+        if DateTime.to_unix(DateTime.utc_now()) < expires_at - 300 do
           {:ok, token, state}
         else
           refresh_access_token(state)
@@ -202,7 +202,7 @@ defmodule Servant.Connectors.StravaConnector do
       |> Enum.map(&activity_epoch/1)
       |> Enum.reject(&is_nil/1)
 
-    case [fallback | epochs] |> Enum.reject(&is_nil/1) do
+    case Enum.reject([fallback | epochs], &is_nil/1) do
       [] -> nil
       values -> Enum.max(values)
     end
@@ -221,7 +221,7 @@ defmodule Servant.Connectors.StravaConnector do
     occurred_at =
       case DateTime.from_iso8601(activity["start_date"] || "") do
         {:ok, dt, _} -> DateTime.truncate(dt, :second)
-        _ -> DateTime.utc_now() |> DateTime.truncate(:second)
+        _ -> DateTime.truncate(DateTime.utc_now(), :second)
       end
 
     sport = activity["sport_type"] || activity["type"] || "Unknown"

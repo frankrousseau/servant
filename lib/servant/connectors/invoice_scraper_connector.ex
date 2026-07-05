@@ -185,7 +185,7 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
       "source" => provider,
       "external_id" => invoice["id"] || "#{provider}-#{date_str}-#{amount}",
       "title" => title,
-      "occurred_at" => occurred_at || DateTime.utc_now() |> DateTime.truncate(:second),
+      "occurred_at" => occurred_at || DateTime.truncate(DateTime.utc_now(), :second),
       "data" => %{
         "provider" => provider,
         "amount" => amount,

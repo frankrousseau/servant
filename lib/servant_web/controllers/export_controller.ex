@@ -1,10 +1,12 @@
 defmodule ServantWeb.ExportController do
+  @moduledoc "Entry exports: full JSON dump and iCal calendar."
+
   use ServantWeb, :controller
 
   def entries(conn, _params) do
     user_id = conn.assigns.current_user.id
     entries = Servant.Data.all_entries(user_id)
-    timestamp = DateTime.utc_now() |> Calendar.strftime("%Y%m%d_%H%M%S")
+    timestamp = Calendar.strftime(DateTime.utc_now(), "%Y%m%d_%H%M%S")
 
     data = Enum.map(entries, &Servant.Data.Entry.to_json/1)
 
@@ -20,7 +22,7 @@ defmodule ServantWeb.ExportController do
   def ical(conn, _params) do
     user_id = conn.assigns.current_user.id
     events = Servant.Data.all_entries(user_id, %{"kind" => "event"})
-    timestamp = DateTime.utc_now() |> Calendar.strftime("%Y%m%d_%H%M%S")
+    timestamp = Calendar.strftime(DateTime.utc_now(), "%Y%m%d_%H%M%S")
 
     ics = build_ical(events)
 
@@ -44,8 +46,7 @@ defmodule ServantWeb.ExportController do
 
     event_lines = Enum.flat_map(events, &build_vevent/1)
 
-    (lines ++ event_lines ++ ["END:VCALENDAR"])
-    |> Enum.join("\r\n")
+    Enum.join(lines ++ event_lines ++ ["END:VCALENDAR"], "\r\n")
   end
 
   defp build_vevent(entry) do

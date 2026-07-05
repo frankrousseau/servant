@@ -18,7 +18,7 @@ defmodule ServantWeb.ExportControllerTest do
       conn = get(conn, "/api/export/entries")
 
       assert response_content_type(conn, :json)
-      assert get_resp_header(conn, "content-disposition") |> hd() =~ "attachment"
+      assert hd(get_resp_header(conn, "content-disposition")) =~ "attachment"
       data = json_response(conn, 200)
       titles = Enum.map(data, & &1["title"])
       assert "Exported" in titles
@@ -37,7 +37,7 @@ defmodule ServantWeb.ExportControllerTest do
 
       conn = get(conn, "/api/export/entries.ics")
 
-      assert get_resp_header(conn, "content-type") |> hd() =~ "text/calendar"
+      assert hd(get_resp_header(conn, "content-type")) =~ "text/calendar"
       body = response(conn, 200)
       assert body =~ "BEGIN:VCALENDAR"
       assert body =~ "BEGIN:VEVENT"

@@ -111,14 +111,14 @@ defmodule Servant.Connectors.AppleHealthConnector do
 
     avg =
       if values != [] do
-        (Enum.sum(values) / length(values)) |> Float.round(1)
+        Float.round(Enum.sum(values) / length(values), 1)
       else
         nil
       end
 
     sample = List.first(records)
     count = length(values)
-    %{sample | value: avg} |> Map.put(:sample_count, count)
+    Map.put(%{sample | value: avg}, :sample_count, count)
   end
 
   # --- Entry builder ---
@@ -127,7 +127,7 @@ defmodule Servant.Connectors.AppleHealthConnector do
     workout_name =
       (record.workout_type || "workout") |> String.replace("_", " ") |> String.capitalize()
 
-    duration_min = if record.duration, do: Float.round(record.duration, 0) |> trunc(), else: nil
+    duration_min = if record.duration, do: trunc(Float.round(record.duration, 0)), else: nil
 
     title =
       [

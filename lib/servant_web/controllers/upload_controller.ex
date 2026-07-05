@@ -1,4 +1,6 @@
 defmodule ServantWeb.UploadController do
+  @moduledoc "Multipart uploads: type allow-list, storage, EXIF and thumbnails."
+
   use ServantWeb, :controller
 
   @default_max_size 1_000_000_000

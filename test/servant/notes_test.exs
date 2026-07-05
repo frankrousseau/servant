@@ -256,7 +256,7 @@ defmodule Servant.NotesTest do
 
       {:ok, _} = Notes.delete_note(user.id, source.id)
 
-      assert Notes.list_notes(user.id) |> Enum.map(& &1.id) == [target.id]
+      assert Enum.map(Notes.list_notes(user.id), & &1.id) == [target.id]
       assert Notes.backlinks(user.id, target) == []
     end
   end

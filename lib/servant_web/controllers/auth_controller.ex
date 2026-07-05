@@ -1,4 +1,6 @@
 defmodule ServantWeb.AuthController do
+  @moduledoc "Registration, login/logout, profile and password management."
+
   use ServantWeb, :controller
 
   alias Servant.Accounts

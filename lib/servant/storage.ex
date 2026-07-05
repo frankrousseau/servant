@@ -71,7 +71,7 @@ defmodule Servant.Storage do
   Archives a connector import file after successful processing.
   """
   def store_connector_file(user_id, connector_type, config_id, src_path, original_name) do
-    stamp = DateTime.utc_now() |> DateTime.to_unix()
+    stamp = DateTime.to_unix(DateTime.utc_now())
     safe_name = sanitize_filename(original_name)
 
     relative =
@@ -153,7 +153,7 @@ defmodule Servant.Storage do
   defp claimed_owner(relative), do: relative |> String.split("/", parts: 2) |> hd()
 
   def resolve_public_path(relative) when is_binary(relative) do
-    relative = URI.decode(relative) |> String.trim_leading("/")
+    relative = relative |> URI.decode() |> String.trim_leading("/")
 
     if path_safe?(relative) do
       absolute = join_files([relative])
@@ -242,5 +242,5 @@ defmodule Servant.Storage do
     end
   end
 
-  defp default_priv(name), do: Path.join(:code.priv_dir(:servant) |> to_string(), name)
+  defp default_priv(name), do: Path.join(to_string(:code.priv_dir(:servant)), name)
 end

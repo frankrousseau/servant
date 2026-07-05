@@ -1,4 +1,6 @@
 defmodule Servant.Connectors.ConnectorEnvironment do
+  @moduledoc "Per-connector persisted key/value state."
+
   use Ecto.Schema
   import Ecto.Changeset
 

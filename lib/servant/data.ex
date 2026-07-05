@@ -4,8 +4,8 @@ defmodule Servant.Data do
   """
 
   import Ecto.Query
-  alias Servant.Repo
   alias Servant.Data.Entry
+  alias Servant.Repo
 
   @default_per_page 50
   @max_per_page 1000
@@ -118,7 +118,7 @@ defmodule Servant.Data do
   def create_entries(_user_id, []), do: {:ok, 0}
 
   def create_entries(user_id, attrs_list) when is_list(attrs_list) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    now = DateTime.truncate(DateTime.utc_now(), :second)
 
     count =
       attrs_list

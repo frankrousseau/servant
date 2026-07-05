@@ -1,4 +1,6 @@
 defmodule ServantWeb.AuditController do
+  @moduledoc "System stats and log buffers backing the Audit page."
+
   use ServantWeb, :controller
 
   alias Servant.Audit

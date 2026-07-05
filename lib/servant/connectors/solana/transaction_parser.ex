@@ -24,7 +24,7 @@ defmodule Servant.Connectors.Solana.TransactionParser do
            extract_transfers(tx, wallet_address, account_index, min_lamports) do
       {:ok,
        %{
-         signature: get_in(tx, ["transaction", "signatures"]) |> List.first(),
+         signature: List.first(get_in(tx, ["transaction", "signatures"])),
          slot: tx["slot"],
          block_time: tx["blockTime"],
          transfers: transfers

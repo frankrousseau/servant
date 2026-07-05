@@ -1,4 +1,6 @@
 defmodule Servant.Accounts.User do
+  @moduledoc "User schema: credentials, profile and timezone preference."
+
   use Ecto.Schema
   import Ecto.Changeset
 

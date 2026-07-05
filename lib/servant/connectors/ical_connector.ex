@@ -68,7 +68,7 @@ defmodule Servant.Connectors.ICalConnector do
       occurred_at =
         case parse_ical_datetime(dtstart) do
           {:ok, dt} -> dt
-          _ -> DateTime.utc_now() |> DateTime.truncate(:second)
+          _ -> DateTime.truncate(DateTime.utc_now(), :second)
         end
 
       end_at =

@@ -1,4 +1,6 @@
 defmodule Servant.Connectors.ConnectorConfig do
+  @moduledoc "A user connector configuration; secrets encrypted at rest."
+
   use Ecto.Schema
   import Ecto.Changeset
 

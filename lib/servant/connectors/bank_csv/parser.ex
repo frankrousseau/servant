@@ -189,7 +189,7 @@ defmodule Servant.Connectors.BankCSV.Parser do
   end
 
   defp build_description(row, %{description_column: column}) do
-    case Map.get(row, column, "") |> String.trim() do
+    case String.trim(Map.get(row, column, "")) do
       "" -> nil
       description -> description
     end
@@ -262,7 +262,7 @@ defmodule Servant.Connectors.BankCSV.Parser do
           str |> String.replace(".", "") |> String.replace(",", ".")
 
         _ ->
-          str |> String.replace(",", "")
+          String.replace(str, ",", "")
       end
 
     case Float.parse(str) do

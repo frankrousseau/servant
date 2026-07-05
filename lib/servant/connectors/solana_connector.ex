@@ -255,8 +255,8 @@ defmodule Servant.Connectors.SolanaConnector do
 
     occurred_at =
       case parsed.block_time do
-        ts when is_integer(ts) -> DateTime.from_unix!(ts) |> DateTime.truncate(:second)
-        _ -> DateTime.utc_now() |> DateTime.truncate(:second)
+        ts when is_integer(ts) -> DateTime.truncate(DateTime.from_unix!(ts), :second)
+        _ -> DateTime.truncate(DateTime.utc_now(), :second)
       end
 
     %{

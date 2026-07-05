@@ -118,7 +118,7 @@ defmodule Servant.Connectors.RSSConnector do
 
   defp content_hash(item) do
     raw = "#{item.title}|#{item.link}|#{item.description}"
-    "sha256:" <> (:crypto.hash(:sha256, raw) |> Base.encode16(case: :lower))
+    "sha256:" <> Base.encode16(:crypto.hash(:sha256, raw), case: :lower)
   end
 
   # Parse the feed's own timestamp so entries sort chronologically. Falls back
@@ -141,7 +141,7 @@ defmodule Servant.Connectors.RSSConnector do
     end
   end
 
-  defp now, do: DateTime.utc_now() |> DateTime.truncate(:second)
+  defp now, do: DateTime.truncate(DateTime.utc_now(), :second)
 
   # dc:date / Atom feeds use ISO 8601.
   defp parse_iso8601(str) do

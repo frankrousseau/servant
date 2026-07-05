@@ -33,10 +33,10 @@ defmodule Servant.Connectors.AppleHealthConnectorTest do
       # Should get: steps (sum), heart_rate (avg), weight (latest), workout
       assert length(entries) == 4
 
-      kinds = Enum.map(entries, & &1["kind"]) |> Enum.uniq()
+      kinds = entries |> Enum.map(& &1["kind"]) |> Enum.uniq()
       assert kinds == ["health"]
 
-      sources = Enum.map(entries, & &1["source"]) |> Enum.uniq()
+      sources = entries |> Enum.map(& &1["source"]) |> Enum.uniq()
       assert sources == ["apple_health"]
     end
 
@@ -82,7 +82,7 @@ defmodule Servant.Connectors.AppleHealthConnectorTest do
       {:ok, entries1} = AppleHealthConnector.import_health(@sample_xml, state)
       {:ok, entries2} = AppleHealthConnector.import_health(@sample_xml, state)
 
-      ids1 = Enum.map(entries1, & &1["external_id"]) |> Enum.sort()
+      ids1 = entries1 |> Enum.map(& &1["external_id"]) |> Enum.sort()
       ids2 = Enum.map(entries2, & &1["external_id"]) |> Enum.sort()
       assert ids1 == ids2
     end

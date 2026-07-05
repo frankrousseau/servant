@@ -3,8 +3,8 @@ defmodule Servant.Accounts do
   The Accounts context.
   """
 
-  alias Servant.Repo
   alias Servant.Accounts.User
+  alias Servant.Repo
 
   def register_user(attrs) do
     %User{}

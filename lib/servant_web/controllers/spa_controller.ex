@@ -1,22 +1,26 @@
 defmodule ServantWeb.SpaController do
+  @moduledoc "Serves the built SPA with security headers (catch-all route)."
+
   use ServantWeb, :controller
 
   # `script-src 'self'` blocks injected/inline scripts (the payoff of removing
   # inline handlers in FE-SEC-5). `style-src` keeps 'unsafe-inline' because the
   # apps and Vue set inline style attributes; that's a far smaller risk than
   # inline scripts. Only applies in production (Vite serves index.html in dev).
-  @csp [
-         "default-src 'self'",
-         "script-src 'self'",
-         "style-src 'self' 'unsafe-inline'",
-         "img-src 'self' data:",
-         "font-src 'self'",
-         "connect-src 'self'",
-         "object-src 'none'",
-         "base-uri 'self'",
-         "frame-ancestors 'self'"
-       ]
-       |> Enum.join("; ")
+  @csp Enum.join(
+         [
+           "default-src 'self'",
+           "script-src 'self'",
+           "style-src 'self' 'unsafe-inline'",
+           "img-src 'self' data:",
+           "font-src 'self'",
+           "connect-src 'self'",
+           "object-src 'none'",
+           "base-uri 'self'",
+           "frame-ancestors 'self'"
+         ],
+         "; "
+       )
 
   def index(conn, _params) do
     index_path = Path.join(:code.priv_dir(:servant), "static/index.html")

@@ -1,4 +1,6 @@
 defmodule ServantWeb.ConnectorController do
+  @moduledoc "Connector config CRUD and worker start/stop/sync/import."
+
   use ServantWeb, :controller
 
   alias Servant.Connectors

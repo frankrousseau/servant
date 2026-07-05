@@ -1,4 +1,6 @@
 defmodule ServantWeb.DataChannel do
+  @moduledoc "Per-user channel pushing entry-change events to the SPA."
+
   use ServantWeb, :channel
 
   alias Servant.Data.Entry

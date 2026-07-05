@@ -1,4 +1,6 @@
 defmodule ServantWeb.AppController do
+  @moduledoc "Lists the built-in apps shown in the sidebar."
+
   use ServantWeb, :controller
 
   def index(conn, _params) do

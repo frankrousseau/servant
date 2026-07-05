@@ -5,7 +5,7 @@ defmodule Servant.Connectors.EVM.TransactionParser do
   """
 
   @hype_decimals 18
-  @wei_per_hype :math.pow(10, @hype_decimals) |> trunc()
+  @wei_per_hype trunc(:math.pow(10, @hype_decimals))
 
   @doc """
   Parses a normal (HYPE) transaction from Blockscout's txlist response.
@@ -152,12 +152,12 @@ defmodule Servant.Connectors.EVM.TransactionParser do
 
   defp parse_timestamp(ts) when is_binary(ts) do
     case Integer.parse(ts) do
-      {unix, _} -> DateTime.from_unix!(unix) |> DateTime.truncate(:second)
-      :error -> DateTime.utc_now() |> DateTime.truncate(:second)
+      {unix, _} -> DateTime.truncate(DateTime.from_unix!(unix), :second)
+      :error -> DateTime.truncate(DateTime.utc_now(), :second)
     end
   end
 
-  defp parse_timestamp(_), do: DateTime.utc_now() |> DateTime.truncate(:second)
+  defp parse_timestamp(_), do: DateTime.truncate(DateTime.utc_now(), :second)
 
   defp format_hype(wei) do
     Servant.Connectors.TxFormat.format_units(wei, @wei_per_hype, 8)

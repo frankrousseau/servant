@@ -35,7 +35,7 @@ defmodule Servant.Connectors.AppleHealth.XMLParserTest do
       {:ok, records} = XMLParser.parse(@sample_xml)
       steps = Enum.filter(records, &(&1["type"] == "HKQuantityTypeIdentifierStepCount"))
       assert length(steps) == 2
-      values = Enum.map(steps, & &1["value"]) |> Enum.sort()
+      values = steps |> Enum.map(& &1["value"]) |> Enum.sort()
       assert values == ["1234", "567"]
       assert Enum.all?(steps, &(&1["sourceName"] == "iPhone"))
     end

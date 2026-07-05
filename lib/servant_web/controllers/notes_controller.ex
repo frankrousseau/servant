@@ -1,8 +1,10 @@
 defmodule ServantWeb.NotesController do
+  @moduledoc "Notes CRUD through the Notes context (wikilinks, backlinks)."
+
   use ServantWeb, :controller
 
-  alias Servant.Notes
   alias Servant.Data.Entry
+  alias Servant.Notes
 
   def index(conn, _params) do
     user_id = conn.assigns.current_user.id

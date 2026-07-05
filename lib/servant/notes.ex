@@ -18,9 +18,9 @@ defmodule Servant.Notes do
 
   import Ecto.Query
 
-  alias Servant.Repo
   alias Servant.Data.Entry
   alias Servant.Notes.NoteLink
+  alias Servant.Repo
 
   @kind "note"
   @source "notes"
@@ -49,7 +49,7 @@ defmodule Servant.Notes do
 
   def create_note(user_id, attrs) do
     {title, folder, body} = extract(attrs)
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    now = DateTime.truncate(DateTime.utc_now(), :second)
 
     entry_attrs = %{
       title: title,
@@ -190,7 +190,7 @@ defmodule Servant.Notes do
   end
 
   defp link_rows(user_id, note, targets, resolved, kind) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    now = DateTime.truncate(DateTime.utc_now(), :second)
 
     Enum.map(targets, fn target ->
       %{
@@ -311,7 +311,7 @@ defmodule Servant.Notes do
           # Snapshot the vault once and reuse it for every source's link re-sync:
           # rewriting only changes bodies (not titles/paths), so target keys are
           # stable — avoids reloading all notes per source (was O(N × vault)).
-          all_notes = notes_query(user_id) |> Repo.all()
+          all_notes = Repo.all(notes_query(user_id))
 
           all_notes
           |> Enum.filter(&(&1.id in source_ids))
@@ -357,7 +357,7 @@ defmodule Servant.Notes do
   defp resolve_targets(_user_id, [], _notes), do: %{}
 
   defp resolve_targets(user_id, targets, notes) do
-    notes = notes || notes_query(user_id) |> Repo.all()
+    notes = notes || Repo.all(notes_query(user_id))
 
     by_path =
       Map.new(notes, fn note ->
