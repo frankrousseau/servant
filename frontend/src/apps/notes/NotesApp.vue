@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, watch } from "vue";
 import type { AppContext, Entry } from "../types";
-import { renderMarkdown, canon } from "./render";
+import { renderMarkdown, canon, continueListEdit } from "./render";
 import { createFolderOrder } from "../folderOrder";
 
 const props = defineProps<{ ctx: AppContext }>();
@@ -654,8 +654,25 @@ function applyCompletion(item: AcItem) {
   scheduleSave();
 }
 
+// Enter inside a list line continues the list (Shift+Enter keeps the plain newline).
+function onEnterInList(e: KeyboardEvent) {
+  const ta = bodyRef.value;
+  if (!ta || ta.selectionStart !== ta.selectionEnd) return;
+  const edit = continueListEdit(ta.value, ta.selectionStart);
+  if (!edit) return;
+  e.preventDefault();
+  editBody.value = edit.value;
+  nextTick(() => ta.setSelectionRange(edit.pos, edit.pos));
+  scheduleSave();
+}
+
 function onBodyKeydown(e: KeyboardEvent) {
-  if (!acVisible.value || !acItems.value.length) return;
+  if (!acVisible.value || !acItems.value.length) {
+    if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      onEnterInList(e);
+    }
+    return;
+  }
   if (e.key === "Escape") {
     hideAutocomplete();
   } else if (e.key === "ArrowDown") {
@@ -994,7 +1011,7 @@ onBeforeUnmount(() => {
 .nt-folder-rename {
   flex: 1;
   min-width: 0;
-  padding: 0.15rem 0.4rem;
+  padding: 0.3rem 0.5rem;
   font-size: 0.85rem;
   border-radius: 6px;
 }
@@ -1014,6 +1031,7 @@ onBeforeUnmount(() => {
 .nt-note--active {
   background: rgba(var(--primary-rgb), 0.1);
   box-shadow: inset 2px 0 0 var(--primary);
+  border-radius: 0 6px 6px 0;
 }
 .nt-empty,
 .nt-placeholder {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderMarkdown, canon } from "./render";
+import { renderMarkdown, canon, continueListEdit } from "./render";
 
 const noneResolved = () => false;
 
@@ -46,5 +46,42 @@ describe("renderMarkdown", () => {
 describe("canon", () => {
   it("trims, lowercases and collapses whitespace", () => {
     expect(canon("  Foo   Bar ")).toBe("foo bar");
+  });
+});
+
+describe("continueListEdit", () => {
+  const atEnd = (text: string) => continueListEdit(text, text.length);
+
+  it("continues a dash item", () => {
+    expect(atEnd("- one")).toEqual({ value: "- one\n- ", pos: 8 });
+  });
+
+  it("continues a star item and keeps indentation", () => {
+    expect(atEnd("  * one")).toEqual({ value: "  * one\n  * ", pos: 12 });
+  });
+
+  it("increments numbered items", () => {
+    expect(atEnd("1. one")).toEqual({ value: "1. one\n2. ", pos: 10 });
+    expect(atEnd("9) one")).toEqual({ value: "9) one\n10) ", pos: 11 });
+  });
+
+  it("continues a checkbox item unchecked", () => {
+    expect(atEnd("- [x] done")).toEqual({ value: "- [x] done\n- [ ] ", pos: 17 });
+  });
+
+  it("removes the marker on an empty item (exit the list)", () => {
+    expect(atEnd("- one\n- ")).toEqual({ value: "- one\n", pos: 6 });
+    expect(atEnd("- [ ] ")).toEqual({ value: "", pos: 0 });
+  });
+
+  it("splits mid-line, carrying the marker to the new line", () => {
+    // caret between "one" and " two" in "- one two"
+    expect(continueListEdit("- one two", 5)).toEqual({ value: "- one\n-  two", pos: 8 });
+  });
+
+  it("returns null on non-list lines", () => {
+    expect(atEnd("plain text")).toBeNull();
+    expect(atEnd("-nospace")).toBeNull();
+    expect(atEnd("")).toBeNull();
   });
 });
