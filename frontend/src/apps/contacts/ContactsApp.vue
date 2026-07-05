@@ -460,6 +460,7 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
 .ct-card--active {
   background: rgba(var(--primary-rgb), 0.1);
   box-shadow: inset 2px 0 0 var(--primary);
+  border-radius: 0 8px 8px 0;
 }
 .ct-avatar {
   width: 36px;
