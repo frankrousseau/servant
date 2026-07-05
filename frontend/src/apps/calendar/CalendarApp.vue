@@ -34,7 +34,142 @@ const modalTime = ref("");
 const modalEndTime = ref("");
 const modalAllDay = ref(false);
 const modalLocation = ref("");
+const modalCalendar = ref("Manual");
 const modalSaving = ref(false);
+
+// ----- calendars ("agendas") -----
+// An agenda is an entry of kind "calendar", created through the manage
+// dialog; events reference it by name in data.calendar. Names coming from
+// synced events (iCal connectors) appear in the list too, without an entity
+// behind them. "Manual" is the ever-present default.
+
+const calendarOf = (e: Entry) => ((e.data.calendar as string) || "Manual").trim() || "Manual";
+
+const calendarEntities = ref<Entry[]>([]);
+const manageOpen = ref(false);
+const newCalName = ref("");
+const manageError = ref("");
+
+const calendarEntityByName = computed(() => {
+  const m = new Map<string, Entry>();
+  for (const c of calendarEntities.value) {
+    const name = (c.title || "").trim();
+    if (name && !m.has(name)) m.set(name, c);
+  }
+  return m;
+});
+
+async function createCalendar() {
+  const name = newCalName.value.trim();
+  manageError.value = "";
+  if (!name) return;
+  if (calendars.value.some((c) => c.name === name)) {
+    manageError.value = "This calendar already exists.";
+    return;
+  }
+  await props.ctx.api.entries.create({
+    kind: "calendar",
+    source: "calendar_app",
+    title: name,
+    data: {},
+  });
+  calendarEntities.value = await props.ctx.api.entries.list({ kind: "calendar" });
+  newCalName.value = "";
+}
+
+async function setCalendarColor(name: string, e: Event) {
+  const color = (e.target as HTMLInputElement).value;
+  const entity = calendarEntityByName.value.get(name);
+  if (entity) {
+    await props.ctx.api.entries.update(entity.id, { data: { ...entity.data, color } });
+  } else {
+    // Synced agenda (no entity yet): materialize one to carry the color.
+    await props.ctx.api.entries.create({
+      kind: "calendar",
+      source: "calendar_app",
+      title: name,
+      data: { color },
+    });
+  }
+  calendarEntities.value = await props.ctx.api.entries.list({ kind: "calendar" });
+}
+
+// ponytail: deleting a non-empty calendar is refused rather than reassigning
+// its events; add a bulk "move to Manual" if that ever gets tedious.
+async function deleteCalendar(name: string) {
+  manageError.value = "";
+  const entity = calendarEntityByName.value.get(name);
+  if (!entity) return;
+  const count = events.value.filter((e) => calendarOf(e) === name).length;
+  if (count > 0) {
+    manageError.value = `"${name}" still has ${count} event(s) — move or delete them first.`;
+    return;
+  }
+  const ok = await props.ctx.confirm.ask({ message: `Delete calendar "${name}"?`, danger: true });
+  if (!ok) return;
+  await props.ctx.api.entries.delete(entity.id);
+  calendarEntities.value = await props.ctx.api.entries.list({ kind: "calendar" });
+}
+
+const CAL_PALETTE = ["#9d7bff", "#6ccec9", "#4fd674", "#ffb454", "#ff5c7a", "#5ca0ff"];
+
+// The color stored on the calendar entity wins; otherwise a stable default
+// per name (djb2 hash), so it survives agendas coming and going.
+function calColor(name: string): string {
+  const stored = calendarEntityByName.value.get(name)?.data.color as string | undefined;
+  if (stored) return stored;
+  let h = 5381;
+  for (let i = 0; i < name.length; i++) h = ((h << 5) + h + name.charCodeAt(i)) | 0;
+  return CAL_PALETTE[Math.abs(h) % CAL_PALETTE.length];
+}
+
+// Per-chip CSS vars consumed by the stylesheet (rail, tint, time color).
+function calVars(e: Entry): Record<string, string> {
+  const hex = calColor(calendarOf(e));
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return { "--cal-color": hex, "--cal-rgb": `${r}, ${g}, ${b}` };
+}
+
+const calendars = computed(() => {
+  const counts = new Map<string, number>();
+  counts.set("Manual", 0);
+  for (const name of calendarEntityByName.value.keys()) counts.set(name, 0);
+  for (const e of events.value) {
+    const name = calendarOf(e);
+    counts.set(name, (counts.get(name) || 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([name, count]) => ({
+      name,
+      count,
+      color: calColor(name),
+      // Entity-backed (created here) or "derived" from synced events only.
+      owned: calendarEntityByName.value.has(name),
+    }));
+});
+
+function readHiddenCals(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem("cal-hidden") || "[]");
+  } catch {
+    return [];
+  }
+}
+
+const hiddenCals = ref<Set<string>>(new Set(readHiddenCals()));
+
+function toggleCalendar(name: string) {
+  if (hiddenCals.value.has(name)) hiddenCals.value.delete(name);
+  else hiddenCals.value.add(name);
+  localStorage.setItem("cal-hidden", JSON.stringify([...hiddenCals.value]));
+}
+
+const visibleEvents = computed(() =>
+  events.value.filter((e) => !hiddenCals.value.has(calendarOf(e))),
+);
 
 const titleInput = ref<HTMLInputElement | null>(null);
 const startInput = ref<HTMLInputElement | null>(null);
@@ -70,7 +205,7 @@ function eventDateStr(iso: string): string {
 }
 
 function eventsForDateStr(dateStr: string): Entry[] {
-  return events.value.filter((e) => {
+  return visibleEvents.value.filter((e) => {
     if (!e.occurred_at) return false;
     const startDate = eventDateStr(e.occurred_at);
     const endStr = e.data.end_at as string | undefined;
@@ -117,7 +252,7 @@ const upcomingDays = computed(() => {
   // Group by the event's date in the user's timezone, from today (user tz) on.
   const today = todayInUserTz();
   const grouped: Record<string, Entry[]> = {};
-  for (const e of events.value) {
+  for (const e of visibleEvents.value) {
     const key = e.occurred_at ? eventDateStr(e.occurred_at) : "unknown";
     (grouped[key] ||= []).push(e);
   }
@@ -155,6 +290,7 @@ function openModal(dateStr: string) {
   modalEndTime.value = "10:00";
   modalAllDay.value = false;
   modalLocation.value = "";
+  modalCalendar.value = "Manual";
   modalSaving.value = false;
   modalOpen.value = true;
 }
@@ -181,6 +317,7 @@ function openEditModal(entry: Entry) {
   modalTitle.value = entry.title || (entry.data.summary as string) || "";
   modalAllDay.value = entry.data.all_day === true;
   modalLocation.value = (entry.data.location as string) || "";
+  modalCalendar.value = calendarOf(entry);
   modalSaving.value = false;
   modalOpen.value = true;
 }
@@ -227,9 +364,7 @@ async function saveEvent() {
       end_at: endAt,
       all_day: allDay,
       location: modalLocation.value.trim() || null,
-      calendar: modalEditId.value
-        ? events.value.find((e) => e.id === modalEditId.value)?.data.calendar || "Manual"
-        : "Manual",
+      calendar: modalCalendar.value.trim() || "Manual",
     },
   };
 
@@ -311,7 +446,12 @@ watch(modalOpen, async (open) => {
 async function reload() {
   loadError.value = "";
   try {
-    events.value = await props.ctx.api.entries.list({ kind: "event" });
+    const [evs, cals] = await Promise.all([
+      props.ctx.api.entries.list({ kind: "event" }),
+      props.ctx.api.entries.list({ kind: "calendar" }),
+    ]);
+    events.value = evs;
+    calendarEntities.value = cals;
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : "Failed to load events";
   } finally {
@@ -338,6 +478,9 @@ onUnmounted(destroyPickers);
       </template>
       <span v-else class="cal-month-label">Upcoming</span>
       <div class="cal-header-actions">
+        <button class="cal-nav-btn" title="Manage calendars" @click="manageOpen = true">
+          Calendars
+        </button>
         <button class="cal-nav-btn" title="Export as .ics" @click="exportIcs">Export</button>
         <div class="cal-view-toggle">
           <button
@@ -358,6 +501,21 @@ onUnmounted(destroyPickers);
       </div>
     </div>
 
+    <div v-if="calendars.length > 1" class="cal-legend">
+      <button
+        v-for="c in calendars"
+        :key="c.name"
+        class="cal-legend-item"
+        :class="{ 'cal-legend-item--off': hiddenCals.has(c.name) }"
+        :title="hiddenCals.has(c.name) ? 'Show this agenda' : 'Hide this agenda'"
+        @click="toggleCalendar(c.name)"
+      >
+        <span class="cal-legend-swatch" :style="{ background: c.color }"></span>
+        {{ c.name }}
+        <span class="cal-legend-count">{{ c.count }}</span>
+      </button>
+    </div>
+
     <div v-if="viewMode === 'calendar'" class="cal-grid">
       <div v-for="dh in DAY_HEADERS" :key="dh" class="cal-grid-header">{{ dh }}</div>
       <div
@@ -370,21 +528,21 @@ onUnmounted(destroyPickers);
       >
         <template v-if="!cell.empty">
           <span class="cal-day-num">{{ cell.day }}</span>
-          <div v-if="cell.events && cell.events.length" class="cal-dots">
-            <span v-for="n in Math.min(cell.events.length, 3)" :key="n" class="cal-dot"></span>
-            <span v-if="cell.events.length > 3" class="cal-dot-more">+{{ cell.events.length - 3 }}</span>
-          </div>
           <div
-            v-for="ev in (cell.events || []).slice(0, 2)"
+            v-for="ev in (cell.events || []).slice(0, 3)"
             :key="ev.id"
             class="cal-cell-event"
             :class="{ 'cal-cell-event--allday': ev.data?.all_day }"
+            :style="calVars(ev)"
             @click.stop="onEventClick(ev.id)"
           >
             <span v-if="!ev.data?.all_day && ev.occurred_at" class="cal-chip-time">{{
               formatTime(ev.occurred_at)
             }}</span>
             <span class="cal-chip-title">{{ ev.title || "Untitled" }}</span>
+          </div>
+          <div v-if="(cell.events?.length ?? 0) > 3" class="cal-cell-more">
+            +{{ cell.events!.length - 3 }} more
           </div>
         </template>
       </div>
@@ -400,13 +558,15 @@ onUnmounted(destroyPickers);
           class="cal-event"
           @click.stop="onEventClick(e.id)"
         >
-          <div class="cal-event-time">
+          <div class="cal-event-time" :style="{ color: calColor(calendarOf(e)) }">
             {{ e.data.all_day || !e.data.dtstart ? "All day" : formatTime(e.occurred_at || "") }}
           </div>
           <div class="cal-event-body">
             <span class="cal-event-title">{{ e.title || "Untitled" }}</span>
             <span v-if="e.data.location" class="cal-event-loc">{{ e.data.location }}</span>
-            <span v-if="e.data.calendar" class="cal-event-cal">{{ e.data.calendar }}</span>
+            <span class="cal-event-cal" :style="{ color: calColor(calendarOf(e)) }">{{
+              calendarOf(e)
+            }}</span>
           </div>
         </div>
       </div>
@@ -414,6 +574,48 @@ onUnmounted(destroyPickers);
   </div>
 
   <Teleport to="body">
+    <div v-if="manageOpen" class="cal-modal-overlay" @click.self="manageOpen = false">
+      <div class="cal-modal">
+        <div class="cal-modal-header">Calendars</div>
+        <div class="cal-manage-list">
+          <div v-for="c in calendars" :key="c.name" class="cal-manage-row">
+            <input
+              type="color"
+              class="cal-color-input"
+              :value="c.color"
+              title="Pick a color for this calendar"
+              @change="setCalendarColor(c.name, $event)"
+            />
+            <span class="cal-manage-name">{{ c.name }}</span>
+            <span class="cal-manage-count">{{ c.count }} evt</span>
+            <span v-if="!c.owned && c.name !== 'Manual'" class="cal-manage-synced">synced</span>
+            <button
+              v-if="c.owned"
+              class="cal-manage-delete"
+              title="Delete this calendar"
+              @click="deleteCalendar(c.name)"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+        <p v-if="manageError" class="cal-manage-error">{{ manageError }}</p>
+        <div class="cal-manage-add">
+          <input
+            v-model="newCalName"
+            type="text"
+            placeholder="New calendar name"
+            @keydown.enter="createCalendar"
+          />
+          <button class="cal-modal-btn cal-modal-btn--primary" @click="createCalendar">Add</button>
+        </div>
+        <div class="cal-modal-actions">
+          <span class="cal-modal-spacer"></span>
+          <button class="cal-modal-btn" @click="manageOpen = false">Close</button>
+        </div>
+      </div>
+    </div>
+
     <div v-if="modalOpen" class="cal-modal-overlay" @click.self="closeModal">
       <div class="cal-modal">
         <div class="cal-modal-header">{{ modalEditId ? "Edit event" : "New event" }}</div>
@@ -449,6 +651,12 @@ onUnmounted(destroyPickers);
         </div>
         <div class="cal-modal-field">
           <label>Location</label><input v-model="modalLocation" type="text" placeholder="Optional" />
+        </div>
+        <div class="cal-modal-field">
+          <label>Calendar</label>
+          <select v-model="modalCalendar">
+            <option v-for="c in calendars" :key="c.name" :value="c.name">{{ c.name }}</option>
+          </select>
         </div>
         <div class="cal-modal-actions">
           <button
@@ -592,23 +800,9 @@ onUnmounted(destroyPickers);
   font-size: 0.8rem;
   color: var(--text-muted);
 }
-.cal-dots {
-  display: flex;
-  gap: 3px;
-  margin-top: 2px;
-}
-.cal-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--primary);
-}
-.cal-dot-more {
-  font-size: 0.65rem;
-  color: var(--text-muted);
-}
-/* Event chips: violet rail + tint, mono time — same selection language as
-   the rest of the system */
+/* Event chips: colored rail + tint per agenda (--cal-color/--cal-rgb are set
+   inline per chip), mono time — same selection language as the rest of the
+   system */
 .cal-cell-event {
   display: flex;
   align-items: baseline;
@@ -618,26 +812,152 @@ onUnmounted(destroyPickers);
   margin-top: 2px;
   white-space: nowrap;
   overflow: hidden;
-  background: rgba(var(--primary-rgb), 0.1);
-  border-left: 2px solid var(--primary);
+  background: rgba(var(--cal-rgb, var(--primary-rgb)), 0.1);
+  border-left: 2px solid var(--cal-color, var(--primary));
   padding: 1px 4px 1px 5px;
-  border-radius: 3px;
+  border-radius: 0 3px 3px 0;
   cursor: pointer;
   transition: background 0.1s;
 }
 .cal-cell-event:hover {
-  background: rgba(var(--primary-rgb), 0.25);
+  background: rgba(var(--cal-rgb, var(--primary-rgb)), 0.25);
 }
 /* All-day: a solid band, no rail, no time */
 .cal-cell-event--allday {
-  background: rgba(var(--primary-rgb), 0.22);
+  background: rgba(var(--cal-rgb, var(--primary-rgb)), 0.22);
   border-left-color: transparent;
+  border-radius: 3px;
+}
+.cal-cell-more {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+  padding-left: 5px;
 }
 .cal-chip-time {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.68rem;
-  color: var(--primary);
+  color: var(--cal-color, var(--primary));
   flex-shrink: 0;
+}
+/* Agenda legend: click to hide/show an agenda */
+.cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+.cal-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.cal-legend-item:hover {
+  border-color: var(--text-muted);
+}
+.cal-legend-item--off {
+  opacity: 0.45;
+}
+.cal-legend-item--off .cal-legend-swatch {
+  background: var(--text-muted) !important;
+}
+.cal-legend-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.cal-legend-count {
+  color: var(--text-muted);
+}
+/* Manage-calendars dialog */
+.cal-color-input {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.cal-color-input::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+.cal-color-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+.cal-color-input::-moz-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+.cal-manage-list {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0.75rem;
+}
+.cal-manage-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.4rem 0.15rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+.cal-manage-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-manage-count,
+.cal-manage-synced {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.cal-manage-synced {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.cal-manage-delete {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 0.25rem;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+.cal-manage-delete:hover {
+  color: var(--danger);
+}
+.cal-manage-error {
+  color: var(--danger);
+  font-size: 0.82rem;
+  margin: 0 0 0.5rem;
+}
+.cal-manage-add {
+  display: flex;
+  gap: 0.5rem;
+}
+.cal-manage-add input {
+  flex: 1;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.9rem;
+  border-radius: 6px;
 }
 .cal-chip-title {
   min-width: 0;
