@@ -48,6 +48,9 @@ defmodule ServantWeb.Router do
 
     get "/apps", AppController, :index
 
+    get "/audit/system", AuditController, :system
+    get "/audit/logs", AuditController, :logs
+
     post "/uploads", UploadController, :create
 
     get "/export/entries", ExportController, :entries

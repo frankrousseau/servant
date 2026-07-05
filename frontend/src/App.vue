@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useAuthStore } from "./stores/auth";
 import { useRouter } from "vue-router";
-import { LayoutDashboard, Database, Cable, Settings, LogOut, UserRound, CalendarDays, FolderOpen, Image, NotebookPen, ListChecks } from "lucide-vue-next";
+import { LayoutDashboard, Database, Cable, Settings, LogOut, UserRound, CalendarDays, FolderOpen, Image, NotebookPen, ListChecks, Activity } from "lucide-vue-next";
 import { BUILTIN_APPS } from "./apps/registry";
 import ConfirmModal from "./components/ConfirmModal.vue";
 
@@ -52,6 +52,9 @@ function handleLogout() {
           </router-link>
         </li>
       </ul>
+      <router-link to="/audit" class="sidebar-settings-link">
+        <Activity :size="18" />Audit
+      </router-link>
       <router-link to="/settings" class="sidebar-settings-link">
         <Settings :size="18" />Settings
       </router-link>

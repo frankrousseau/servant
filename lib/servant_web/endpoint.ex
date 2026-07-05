@@ -53,6 +53,7 @@ defmodule ServantWeb.Endpoint do
 
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
+  plug ServantWeb.Plugs.AccessLog
 
   plug Plug.Parsers,
     # Cap JSON/urlencoded bodies at 10MB; multipart gets its own budget slightly

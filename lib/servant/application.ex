@@ -16,6 +16,7 @@ defmodule Servant.Application do
       {Registry, keys: :unique, name: Servant.Connectors.Registry},
       {DynamicSupervisor, name: Servant.Connectors.Supervisor, strategy: :one_for_one},
       Servant.Connectors.Scheduler,
+      Servant.Audit.LogBuffer,
       # Start to serve requests, typically the last entry
       ServantWeb.Endpoint
     ]
@@ -23,7 +24,15 @@ defmodule Servant.Application do
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Servant.Supervisor]
-    Supervisor.start_link(children, opts)
+
+    with {:ok, _} = ok <- Supervisor.start_link(children, opts) do
+      # Mirror error-level logs into the audit buffer (idempotent: re-adding
+      # after a code reload returns {:error, :already_exist}, which is fine).
+      _ =
+        :logger.add_handler(:servant_audit_errors, Servant.Audit.ErrorLogHandler, %{level: :error})
+
+      ok
+    end
   end
 
   # Tell Phoenix to update the endpoint configuration
