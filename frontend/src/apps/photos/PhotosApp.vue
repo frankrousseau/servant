@@ -37,11 +37,10 @@ function field(e: Entry, k: string): unknown {
 const getThumbPath = (e: Entry) => (field(e, "thumb_path") || field(e, "path")) as string;
 const isVideo = (e: Entry) => (((field(e, "mime_type") as string) || "").startsWith("video/"));
 
-// Thumbnail frame: the first frame is often black; show the middle one instead.
-function seekThumbFrame(e: Event) {
-  const v = e.target as HTMLVideoElement;
-  if (Number.isFinite(v.duration) && v.duration > 0) v.currentTime = v.duration / 2;
-}
+// Videos never mount a <video> in the grid — one media decoder per cell
+// wedges the browser on large libraries. They show the JPEG frame captured
+// at upload time (thumb_path), or a plain play tile when there is none.
+const hasGridImage = (e: Entry) => !isVideo(e) || !!field(e, "thumb_path");
 const getTags = (e: Entry): string[] => (e.data.tags as string[]) || [];
 const getPeople = (e: Entry): Person[] => (e.data.people as Person[]) || [];
 
@@ -161,6 +160,45 @@ async function rebuildPreviews() {
     rebuilding.value = false;
   }
 }
+// ----- video thumbnails backfill (client-side: the server has no video decoder) -----
+
+const missingVideoThumbs = computed(
+  () => allPhotos.value.filter((p) => isVideo(p) && !field(p, "thumb_path")).length,
+);
+const fixingVideos = ref<{ done: number; total: number } | null>(null);
+
+// Downloads each video, captures a frame in the browser and stores it as the
+// entry's thumb_path — same pipeline as fresh uploads.
+async function rebuildVideoThumbs() {
+  const targets = allPhotos.value.filter((p) => isVideo(p) && !field(p, "thumb_path"));
+  if (!targets.length || fixingVideos.value) return;
+  fixingVideos.value = { done: 0, total: targets.length };
+  for (const p of targets) {
+    try {
+      const path = field(p, "path") as string;
+      if (!path) throw new Error("no file path");
+      const res = await fetch(path);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const name = (field(p, "filename") as string) || "video";
+      const frame = await captureVideoFrame(
+        new File([blob], name, { type: (field(p, "mime_type") as string) || blob.type }),
+      );
+      if (!frame) throw new Error("browser can't decode this video");
+      const t = (await props.ctx.api.upload(frame, "photos")) as unknown as Record<string, unknown>;
+      await props.ctx.api.entries.update(p.id, { data: { ...p.data, thumb_path: t.path } });
+    } catch (e) {
+      uploadErrors.value.push(
+        `${field(p, "filename") || "video"}: ${e instanceof Error ? e.message : "thumbnail failed"}`,
+      );
+    } finally {
+      if (fixingVideos.value) fixingVideos.value.done++;
+    }
+  }
+  fixingVideos.value = null;
+  await reload();
+}
+
 const hasFilters = computed(() => allTags.value.length > 0 || allPeople.value.length > 0);
 
 const matchingContacts = computed(() => {
@@ -243,6 +281,58 @@ async function toUploadable(file: File): Promise<File> {
   const blob = (await heic2any({ blob: file, toType: "image/jpeg", quality: 0.9 })) as Blob;
   return new File([blob], file.name.replace(/\.(heic|heif)$/i, ".jpg"), { type: "image/jpeg" });
 }
+// Grid thumbnail for videos: decode in the browser (no server-side ffmpeg),
+// seek to the middle (first frames are often black) and grab a small JPEG.
+// null when the browser can't decode the codec — the grid shows a play tile.
+function captureVideoFrame(file: File): Promise<File | null> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    let settled = false;
+    const done = (out: File | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      URL.revokeObjectURL(url);
+      video.removeAttribute("src");
+      resolve(out);
+    };
+    // ponytail: 15s cap so an undecodable file can't hang the upload loop
+    const timer = setTimeout(() => done(null), 15_000);
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "metadata";
+    video.onerror = () => done(null);
+    video.onloadedmetadata = () => {
+      video.currentTime =
+        Number.isFinite(video.duration) && video.duration > 0 ? video.duration / 2 : 0;
+    };
+    video.onseeked = () => {
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      if (!w || !h) return done(null);
+      const scale = Math.min(1, 400 / w);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(w * scale);
+      canvas.height = Math.round(h * scale);
+      canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) =>
+          done(
+            blob
+              ? new File([blob], file.name.replace(/\.[^.]+$/, "") + "_thumb.jpg", {
+                  type: "image/jpeg",
+                })
+              : null,
+          ),
+        "image/jpeg",
+        0.8,
+      );
+    };
+    video.src = url;
+  });
+}
+
 const uploadProgress = ref<UploadProgress | null>(null);
 // One entry per failed file; a failure never aborts the rest of the batch
 // and never replaces the whole view (loadError is reserved for load failures).
@@ -303,6 +393,22 @@ async function uploadFiles(files: File[]) {
       if (result.camera) data.camera = result.camera;
       if (result.thumb_path) data.thumb_path = result.thumb_path;
       if (result.display_path) data.display_path = result.display_path;
+
+      // Videos: the grid never mounts a <video>, so give it a real image.
+      if (((result.mime_type as string) || file.type).startsWith("video/")) {
+        const frame = await captureVideoFrame(file);
+        if (frame) {
+          try {
+            const t = (await props.ctx.api.upload(frame, "photos")) as unknown as Record<
+              string,
+              unknown
+            >;
+            data.thumb_path = t.path;
+          } catch {
+            // No thumbnail — the grid falls back to the play tile.
+          }
+        }
+      }
 
       // No EXIF/container date: fall back to the file's mtime, which for
       // phone media is usually the capture time.
@@ -608,6 +714,18 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
         >
           {{ rebuilding ? "Rebuilding…" : `Fix previews (${missingPreviews})` }}
         </button>
+        <button
+          v-if="missingVideoThumbs > 0 || fixingVideos"
+          class="ph-btn"
+          :disabled="!!fixingVideos"
+          @click="rebuildVideoThumbs"
+        >
+          {{
+            fixingVideos
+              ? `Fixing videos ${fixingVideos.done}/${fixingVideos.total}…`
+              : `Fix video thumbs (${missingVideoThumbs})`
+          }}
+        </button>
         <button class="ph-btn" @click="enterSelect">Select</button>
         <label class="ph-btn">
           + Upload<input type="file" accept="image/*,video/*,.heic,.heif" multiple hidden @change="onFileInput" />
@@ -691,20 +809,8 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
             <path d="M10 11v6M14 11v6" />
           </svg>
         </button>
-        <!-- preload="metadata" + a seek to the middle makes the browser render
-             a representative frame — no server-side thumbnailing (ffmpeg). -->
-        <video
-          v-if="isVideo(p) && !broken.has(p.id)"
-          class="ph-thumb-img"
-          :src="getThumbPath(p)"
-          preload="metadata"
-          muted
-          playsinline
-          @loadedmetadata="seekThumbFrame"
-          @error="broken.add(p.id)"
-        ></video>
         <img
-          v-else-if="!broken.has(p.id)"
+          v-if="!broken.has(p.id) && hasGridImage(p)"
           class="ph-thumb-img"
           :src="getThumbPath(p)"
           :alt="p.title || ''"
@@ -717,7 +823,7 @@ onUnmounted(() => window.removeEventListener("popstate", onPopState));
             <path d="M10 8l6 4-6 4z" fill="#fff" />
           </svg>
         </span>
-        <div v-else class="ph-broken">
+        <div v-if="broken.has(p.id)" class="ph-broken">
           <svg
             width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
