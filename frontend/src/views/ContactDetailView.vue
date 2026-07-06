@@ -40,16 +40,90 @@ const {
     fallbackError: 'Contact not found',
     onSuccess: () => {
       if (route.query.edit) startEdit()
+      void loadLinked()
     }
   }
 )
 
 // The component instance is reused across /contacts/:id navigations (no router
-// key), and useFetchData only fetches on mount — so refetch when the id changes.
+// key), and useFetchData only fetches on mount, so refetch when the id changes.
 watch(
   () => route.params.id,
-  () => refetch()
+  () => {
+    refetch()
+    void loadLinked()
+  }
 )
+
+// ----- linked data (events, note mentions) + dashboard-birthday opt-in -----
+
+const linkedEvents = ref<Entry[]>([])
+const mentioningNotes = ref<Entry[]>([])
+// The opt-in list (whose birthdays show in the calendar and on the dashboard)
+// lives in its own entry (kind prefs, title birthdays) rather than on the
+// contact: vCard connector re-syncs replace contact data wholesale.
+const dashPrefs = ref<Entry | null>(null)
+
+async function loadLinked() {
+  const id = route.params.id as string
+  try {
+    const [events, notes, prefs] = await Promise.all([
+      // q narrows server-side (the id appears in data.contact_id); the
+      // filter below makes the match exact.
+      api.get<{ data: Entry[] }>('/api/entries', {
+        kind: 'event',
+        q: id,
+        per_page: '200'
+      }),
+      api.get<{ data: Entry[] }>(`/api/notes/mentioning/${id}`),
+      api.get<{ data: Entry[] }>('/api/entries', {
+        kind: 'prefs',
+        per_page: '10'
+      })
+    ])
+    linkedEvents.value = events.data
+      .filter(e => e.data.contact_id === id)
+      .sort((a, b) => (b.occurred_at || '').localeCompare(a.occurred_at || ''))
+    mentioningNotes.value = notes.data
+    dashPrefs.value = prefs.data.find(p => p.title === 'birthdays') || null
+  } catch {
+    // linked sections simply stay empty
+  }
+}
+
+const birthdayOnDashboard = computed(() => {
+  const ids = (dashPrefs.value?.data.contact_ids as string[]) || []
+  return ids.includes(route.params.id as string)
+})
+
+async function toggleBirthdayOnDashboard() {
+  const id = route.params.id as string
+  const cur = (dashPrefs.value?.data.contact_ids as string[]) || []
+  const next = cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id]
+  try {
+    if (dashPrefs.value) {
+      const res = await api.put<{ data: Entry }>(
+        `/api/entries/${dashPrefs.value.id}`,
+        { data: { ...dashPrefs.value.data, contact_ids: next } }
+      )
+      dashPrefs.value = res.data
+    } else {
+      const res = await api.post<{ data: Entry }>('/api/entries', {
+        kind: 'prefs',
+        source: 'manual',
+        title: 'birthdays',
+        data: { contact_ids: next }
+      })
+      dashPrefs.value = res.data
+    }
+  } catch {
+    // leave the checkbox as-is
+  }
+}
+
+function openNote(n: Entry) {
+  router.push({ path: '/apps/notes', query: { selected: n.id } })
+}
 const editing = ref(false)
 const saving = ref(false)
 const avatarUploading = ref(false)
@@ -172,7 +246,7 @@ async function saveEdit() {
     const res = await api.put<{ data: Entry }>(
       `/api/entries/${entry.value.id}`,
       {
-        title: titleParts.join(' — '),
+        title: titleParts.join(' - '),
         data
       }
     )
@@ -407,6 +481,20 @@ async function deleteContact() {
                 <span class="ct-meta-key">Birthday</span>
                 <span>{{ f('birthday') }}</span>
               </div>
+              <div v-if="f('birthday')" class="ct-meta-row">
+                <span class="ct-meta-key">Reminder</span>
+                <label
+                  class="ct-dash-toggle"
+                  title="Show this birthday in the calendar and on the dashboard"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="birthdayOnDashboard"
+                    @change="toggleBirthdayOnDashboard"
+                  />
+                  🎂 calendar + dashboard
+                </label>
+              </div>
               <div v-if="f('url')" class="ct-meta-row">
                 <span class="ct-meta-key">Website</span>
                 <a
@@ -423,6 +511,43 @@ async function deleteContact() {
                 <span class="ct-meta-key">Note</span>
                 <span class="ct-note-text">{{ f('note') }}</span>
               </div>
+            </div>
+          </section>
+
+          <section v-if="linkedEvents.length" class="ct-card">
+            <h3>Events</h3>
+            <div
+              v-for="e in linkedEvents.slice(0, 8)"
+              :key="e.id"
+              class="ct-linked-row"
+              role="button"
+              tabindex="0"
+              @click="router.push('/apps/calendar')"
+            >
+              <span class="ct-linked-meta">{{
+                formatDate(e.occurred_at || e.inserted_at)
+              }}</span>
+              <span class="ct-linked-title">
+                <span v-if="e.data.recurrence" title="Recurring">↻</span>
+                {{ e.title || 'Untitled' }}
+              </span>
+            </div>
+          </section>
+
+          <section v-if="mentioningNotes.length" class="ct-card">
+            <h3>Mentioned in</h3>
+            <div
+              v-for="n in mentioningNotes"
+              :key="n.id"
+              class="ct-linked-row"
+              role="button"
+              tabindex="0"
+              @click="openNote(n)"
+            >
+              <span class="ct-linked-title">{{ n.title || 'Untitled' }}</span>
+              <span v-if="n.data.folder" class="ct-linked-meta">{{
+                n.data.folder
+              }}</span>
             </div>
           </section>
 
@@ -643,6 +768,53 @@ async function deleteContact() {
   font-family: monospace;
   font-size: 0.85rem;
   word-break: break-all;
+}
+
+/* Linked events / mentioning notes */
+.ct-linked-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.45rem 0.25rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.ct-linked-row:last-child {
+  border-bottom: none;
+}
+.ct-linked-row:hover {
+  background: var(--bg-hover);
+}
+.ct-linked-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ct-linked-meta {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+.ct-linked-row .ct-linked-meta:last-child {
+  margin-left: auto;
+}
+
+.ct-dash-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  color: var(--text);
+}
+.ct-dash-toggle input {
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  margin: 0;
+  accent-color: var(--primary);
 }
 
 .ct-page-actions {
