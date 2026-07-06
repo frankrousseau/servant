@@ -1,42 +1,19 @@
-import { ref } from 'vue'
 import type { AppContext, Entry } from '../types'
+import { createUploadQueue } from '../../lib/uploadQueue'
 
-// Module-level upload queue: uploads must survive navigating to another app
-// (drop 200 photos, go do something else). The PhotosApp component reads
-// these refs while mounted; the worker loop below runs regardless.
+export type { UploadProgress } from '../../lib/uploadQueue'
+
+// Photos upload pipeline on the shared module-level queue: uploads survive
+// navigating to another app. HEIC decodes to JPEG in the browser, videos get
+// a frame captured client-side for the grid.
 
 type PhotosApi = AppContext['api']
 
-export interface UploadProgress {
-  index: number
-  total: number
-  name: string
-  pct: number // whole-batch progress in bytes
-  converting: boolean // decoding HEIC in the browser before sending
-  processing: boolean // bytes sent, waiting on server work (thumbnails, EXIF…)
-}
-
-export const uploading = ref(false)
-export const uploadProgress = ref<UploadProgress | null>(null)
-// One entry per failed file; a failure never aborts the rest of the batch.
-export const uploadErrors = ref<string[]>([])
-// Last entry created by the worker: a mounted PhotosApp watches it to insert
-// the photo into its grid without a full reload.
-export const lastCreated = ref<Entry | null>(null)
-// Bumped when the queue drains: a mounted PhotosApp watches it to true-up.
-export const batchesDone = ref(0)
-
-interface QueueItem {
+interface PhotoUpload {
   file: File
   album: string | null
   api: PhotosApi
 }
-
-const queue: QueueItem[] = []
-let batchTotal = 0
-let batchIndex = 0
-let totalBytes = 0
-let doneBytes = 0
 
 export const isHeic = (f: File) =>
   /\.(heic|heif)$/i.test(f.name) ||
@@ -120,68 +97,18 @@ export function captureVideoFrame(file: File): Promise<File | null> {
   })
 }
 
-// Files dropped while a batch is running join the same batch: totals grow,
-// the single worker keeps going.
-export function enqueueUploads(
-  files: File[],
-  api: PhotosApi,
-  album: string | null
-) {
-  // .heic often comes with an empty/octet-stream type outside Safari: match by name too.
-  const media = files.filter(
-    f =>
-      f.type.startsWith('image/') ||
-      f.type.startsWith('video/') ||
-      /\.(heic|heif)$/i.test(f.name)
-  )
-  if (!media.length) return
-  for (const f of media) queue.push({ file: f, album, api })
-  batchTotal += media.length
-  totalBytes += media.reduce((sum, f) => sum + f.size, 0)
-  if (!uploading.value) void runQueue()
-}
-
-async function runQueue() {
-  uploading.value = true
-  uploadErrors.value = []
-  while (queue.length) {
-    const item = queue.shift()!
-    batchIndex++
-    await processItem(item)
-  }
-  uploadProgress.value = null
-  uploading.value = false
-  batchTotal = 0
-  batchIndex = 0
-  totalBytes = 0
-  doneBytes = 0
-  batchesDone.value++
-}
-
-async function processItem({ file: original, album, api }: QueueItem) {
-  uploadProgress.value = {
-    index: batchIndex,
-    total: batchTotal,
-    name: original.name,
-    pct: Math.round((doneBytes / (totalBytes || 1)) * 100),
-    converting: isHeic(original),
-    processing: false
-  }
-  try {
+const queue = createUploadQueue<PhotoUpload>({
+  itemName: item => item.file.name,
+  itemSize: item => item.file.size,
+  async process({ file: original, album, api }, tools): Promise<Entry> {
+    if (isHeic(original)) tools.setConverting(true)
     const file = await toUploadable(original)
-    if (uploadProgress.value) uploadProgress.value.converting = false
-    const result = (await api.upload(file, 'photos', pct => {
-      if (uploadProgress.value) {
-        // Weight by the original size: totalBytes was computed from the
-        // picked files, before any HEIC to JPEG conversion.
-        uploadProgress.value.total = batchTotal
-        uploadProgress.value.pct = Math.round(
-          ((doneBytes + (pct / 100) * original.size) / (totalBytes || 1)) * 100
-        )
-        uploadProgress.value.processing = pct >= 100
-      }
-    })) as unknown as Record<string, unknown>
-    doneBytes += original.size
+    tools.setConverting(false)
+    const result = (await api.upload(
+      file,
+      'photos',
+      tools.onBytesPct
+    )) as unknown as Record<string, unknown>
     const data: Record<string, unknown> = {
       filename: file.name,
       size: result.size,
@@ -221,17 +148,35 @@ async function processItem({ file: original, album, api }: QueueItem) {
       ? new Date(original.lastModified).toISOString()
       : null
 
-    lastCreated.value = await api.entries.create({
+    return api.entries.create({
       kind: 'photo',
       source: 'photos_app',
       title: file.name,
       occurred_at: (result.date_taken as string) || fallbackDate,
       data
     })
-  } catch (e) {
-    doneBytes += original.size
-    uploadErrors.value.push(
-      `${original.name}: ${e instanceof Error ? e.message : 'upload failed'}`
-    )
   }
+})
+
+export const {
+  uploading,
+  uploadProgress,
+  uploadErrors,
+  lastCreated,
+  batchesDone
+} = queue
+
+export function enqueueUploads(
+  files: File[],
+  api: PhotosApi,
+  album: string | null
+) {
+  // .heic often comes with an empty/octet-stream type outside Safari: match by name too.
+  const media = files.filter(
+    f =>
+      f.type.startsWith('image/') ||
+      f.type.startsWith('video/') ||
+      /\.(heic|heif)$/i.test(f.name)
+  )
+  queue.enqueue(media.map(file => ({ file, album, api })))
 }

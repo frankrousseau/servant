@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import {
   Folder,
   File,
@@ -11,6 +11,14 @@ import {
 import type { AppContext, Entry } from '../types'
 import { formatFileSize } from '../../types'
 import { formatDate } from '../../lib/datetime'
+import {
+  batchesDone,
+  enqueueUploads,
+  lastCreated,
+  uploadErrors,
+  uploadProgress,
+  uploading
+} from './uploadQueue'
 
 const props = defineProps<{ ctx: AppContext }>()
 
@@ -191,71 +199,18 @@ async function newFolder() {
   await reload()
 }
 
-interface UploadProgress {
-  index: number
-  total: number
-  name: string
-  pct: number // whole-batch progress in bytes
-  processing: boolean // bytes sent, waiting on server work
-}
-const uploading = ref(false)
-const uploadProgress = ref<UploadProgress | null>(null)
-// One entry per failed file; a failure never aborts the rest of the batch.
-const uploadErrors = ref<string[]>([])
-
-async function uploadFiles(files: File[]) {
-  if (!files.length) return
-  uploading.value = true
-  uploadErrors.value = []
-
-  const totalBytes = files.reduce((sum, f) => sum + f.size, 0) || 1
-  let doneBytes = 0
-
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i]
-    uploadProgress.value = {
-      index: i + 1,
-      total: files.length,
-      name: file.name,
-      pct: Math.round((doneBytes / totalBytes) * 100),
-      processing: false
-    }
-    try {
-      const result = await props.ctx.api.upload(file, 'files', pct => {
-        if (uploadProgress.value) {
-          uploadProgress.value.pct = Math.round(
-            ((doneBytes + (pct / 100) * file.size) / totalBytes) * 100
-          )
-          uploadProgress.value.processing = pct >= 100
-        }
-      })
-      doneBytes += file.size
-      const created = await props.ctx.api.entries.create({
-        kind: 'file',
-        source: 'files_app',
-        title: file.name,
-        data: {
-          filename: file.name,
-          size: result.size,
-          mime_type: result.mime_type,
-          path: result.path,
-          parent_id: currentFolder.value,
-          is_folder: false
-        }
-      })
-      // Insert locally so it appears as it lands; a reload per file froze
-      // the app on big drops. One true-up reload after the batch.
-      allFiles.value.push(created)
-    } catch (e) {
-      uploadErrors.value.push(
-        `${file.name}: ${e instanceof Error ? e.message : 'upload failed'}`
-      )
-    }
+// Upload state and pipeline live in ./uploadQueue (module scope) so a batch
+// survives navigating to another app mid-upload. While mounted, insert each
+// created file as it lands and true-up with one reload when the queue drains.
+watch(lastCreated, created => {
+  if (created && !allFiles.value.some(f => f.id === created.id)) {
+    allFiles.value.push(created)
   }
+})
+watch(batchesDone, () => void reload())
 
-  uploadProgress.value = null
-  uploading.value = false
-  await reload()
+function uploadFiles(files: File[]) {
+  enqueueUploads(files, props.ctx.api, currentFolder.value)
 }
 
 function onFileInput(e: Event) {

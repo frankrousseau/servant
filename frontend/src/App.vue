@@ -16,7 +16,14 @@ import {
   Activity
 } from 'lucide-vue-next'
 import { BUILTIN_APPS } from './apps/registry'
-import { uploading, uploadProgress } from './apps/photos/uploadQueue'
+import {
+  uploading as photosUploading,
+  uploadProgress as photosProgress
+} from './apps/photos/uploadQueue'
+import {
+  uploading as filesUploading,
+  uploadProgress as filesProgress
+} from './apps/files/uploadQueue'
 import CommandPalette from './components/CommandPalette.vue'
 import ConfirmModal from './components/ConfirmModal.vue'
 
@@ -84,16 +91,27 @@ function handleLogout() {
         </li>
       </ul>
       <router-link
-        v-if="uploading"
+        v-if="photosUploading"
         to="/apps/photos"
         class="sidebar-upload"
         title="Photo upload in progress"
       >
-        ⬆ uploading
+        ⬆ photos
         {{
-          uploadProgress
-            ? `${uploadProgress.index}/${uploadProgress.total}`
+          photosProgress
+            ? `${photosProgress.index}/${photosProgress.total}`
             : ''
+        }}
+      </router-link>
+      <router-link
+        v-if="filesUploading"
+        to="/apps/files"
+        class="sidebar-upload"
+        title="File upload in progress"
+      >
+        ⬆ files
+        {{
+          filesProgress ? `${filesProgress.index}/${filesProgress.total}` : ''
         }}
       </router-link>
       <router-link to="/audit" class="sidebar-settings-link">
