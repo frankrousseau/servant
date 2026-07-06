@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, nextTick, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { fetchRegistrationEnabled } from '../composables/authConfig'
@@ -13,6 +13,10 @@ const error = ref('')
 const loading = ref(false)
 const registrationEnabled = ref(true)
 
+// Second factor step (accounts with TOTP enabled).
+const totpTicket = ref<string | null>(null)
+const totpCode = ref('')
+
 onMounted(async () => {
   registrationEnabled.value = await fetchRegistrationEnabled()
 })
@@ -21,13 +25,42 @@ async function handleLogin() {
   error.value = ''
   loading.value = true
   try {
-    await auth.login(username.value, password.value)
-    router.push('/')
+    const result = await auth.login(username.value, password.value)
+    if (result.requiresTotp) {
+      totpTicket.value = result.ticket || null
+      totpCode.value = ''
+      await nextTick()
+      totpInput.value?.focus()
+    } else {
+      router.push('/')
+    }
   } catch (e: any) {
     error.value = e.message || 'Login failed'
   } finally {
     loading.value = false
   }
+}
+
+const totpInput = ref<HTMLInputElement | null>(null)
+
+async function handleTotp() {
+  if (!totpTicket.value) return
+  error.value = ''
+  loading.value = true
+  try {
+    await auth.verifyTotp(totpTicket.value, totpCode.value.trim())
+    router.push('/')
+  } catch (e: any) {
+    error.value = e.message || 'Invalid code'
+  } finally {
+    loading.value = false
+  }
+}
+
+function backToPassword() {
+  totpTicket.value = null
+  totpCode.value = ''
+  error.value = ''
 }
 </script>
 
@@ -56,7 +89,7 @@ async function handleLogin() {
         <path d="M 113 114 L 132 104 L 132 124 Z" />
       </svg>
       <h1>Servant</h1>
-      <form @submit.prevent="handleLogin">
+      <form v-if="!totpTicket" @submit.prevent="handleLogin">
         <div class="field">
           <label for="username">Username</label>
           <input
@@ -82,7 +115,30 @@ async function handleLogin() {
           {{ loading ? 'Signing in...' : 'Sign In' }}
         </button>
       </form>
-      <p v-if="registrationEnabled" class="alt-link">
+      <form v-else @submit.prevent="handleTotp">
+        <div class="field">
+          <label for="totp-code">Authenticator code</label>
+          <input
+            id="totp-code"
+            ref="totpInput"
+            v-model="totpCode"
+            type="text"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            placeholder="123456"
+            maxlength="6"
+            required
+          />
+        </div>
+        <p v-if="error" class="error">{{ error }}</p>
+        <button type="submit" :disabled="loading || totpCode.length < 6">
+          {{ loading ? 'Verifying...' : 'Verify' }}
+        </button>
+        <p class="alt-link">
+          <a href="#" @click.prevent="backToPassword">Back</a>
+        </p>
+      </form>
+      <p v-if="registrationEnabled && !totpTicket" class="alt-link">
         Don't have an account?
         <router-link to="/register">Register</router-link>
       </p>

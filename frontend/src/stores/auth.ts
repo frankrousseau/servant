@@ -32,7 +32,12 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem(LOGGED_IN_KEY)
   }
 
-  async function login(username: string, password: string) {
+  // Resolves to a pending-TOTP marker when the account has 2FA: the caller
+  // must then call verifyTotp with the short-lived ticket and a code.
+  async function login(
+    username: string,
+    password: string
+  ): Promise<{ requiresTotp: boolean; ticket?: string }> {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -42,6 +47,24 @@ export const useAuthStore = defineStore('auth', () => {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
       throw new Error(apiErrorMessage(err) || 'Login failed')
+    }
+
+    const data = await res.json()
+    if (data.requires_totp) return { requiresTotp: true, ticket: data.ticket }
+    setAuth(data.token, data.user)
+    return { requiresTotp: false }
+  }
+
+  async function verifyTotp(ticket: string, code: string) {
+    const res = await fetch('/api/auth/totp/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticket, code })
+    })
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(apiErrorMessage(err) || 'Invalid code')
     }
 
     const data = await res.json()
@@ -96,5 +119,14 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { token, user, isAuthenticated, login, register, logout, hydrate }
+  return {
+    token,
+    user,
+    isAuthenticated,
+    login,
+    verifyTotp,
+    register,
+    logout,
+    hydrate
+  }
 })

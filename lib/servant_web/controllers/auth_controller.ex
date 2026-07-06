@@ -55,18 +55,14 @@ defmodule ServantWeb.AuthController do
   def login(conn, %{"username" => username, "password" => password}) do
     case Accounts.authenticate_user(username, password) do
       {:ok, user} ->
-        token = Auth.sign_token(conn, user.id)
-
-        conn
-        |> Auth.put_auth_cookie(token)
-        |> json(%{
-          token: token,
-          user: %{
-            id: user.id,
-            username: user.username,
-            display_name: user.display_name
-          }
-        })
+        if Accounts.totp_enabled?(user) do
+          # Password checked out but the session only opens after the TOTP
+          # step: hand back a short-lived ticket instead of a token.
+          ticket = Phoenix.Token.sign(conn, "totp pending", user.id)
+          json(conn, %{requires_totp: true, ticket: ticket})
+        else
+          issue_session(conn, user)
+        end
 
       {:error, :invalid_credentials} ->
         conn
@@ -79,6 +75,93 @@ defmodule ServantWeb.AuthController do
     conn
     |> put_status(:unprocessable_entity)
     |> json(%{errors: %{detail: "username and password are required"}})
+  end
+
+  defp issue_session(conn, user) do
+    token = Auth.sign_token(conn, user.id)
+
+    conn
+    |> Auth.put_auth_cookie(token)
+    |> json(%{
+      token: token,
+      user: %{
+        id: user.id,
+        username: user.username,
+        display_name: user.display_name
+      }
+    })
+  end
+
+  # ----- TOTP (two-factor authentication) -----
+
+  # Second login step: the ticket proves the password was just verified.
+  @totp_ticket_max_age 300
+
+  def totp_verify(conn, %{"ticket" => ticket, "code" => code}) do
+    with {:ok, user_id} <-
+           Phoenix.Token.verify(conn, "totp pending", ticket, max_age: @totp_ticket_max_age),
+         user when not is_nil(user) <- Accounts.get_user(user_id),
+         {:ok, user} <- Accounts.verify_totp(user, code) do
+      issue_session(conn, user)
+    else
+      _ ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{error: "Invalid or expired code"})
+    end
+  end
+
+  def totp_verify(conn, _params) do
+    conn
+    |> put_status(:unprocessable_entity)
+    |> json(%{errors: %{detail: "ticket and code are required"}})
+  end
+
+  # Enrollment step 1: a fresh secret, never persisted at this point. It
+  # travels back inside a signed payload so confirm can stay stateless.
+  @totp_setup_max_age 600
+
+  def totp_setup(conn, _params) do
+    user = conn.assigns.current_user
+    secret = NimbleTOTP.secret()
+    payload = Phoenix.Token.sign(conn, "totp setup", Base.encode64(secret))
+
+    json(conn, %{
+      secret: Base.encode32(secret, padding: false),
+      otpauth_url: NimbleTOTP.otpauth_uri("Servant:#{user.username}", secret, issuer: "Servant"),
+      payload: payload
+    })
+  end
+
+  # Enrollment step 2: prove the authenticator holds the secret.
+  def totp_confirm(conn, %{"payload" => payload, "code" => code}) do
+    user = conn.assigns.current_user
+
+    with {:ok, encoded} <-
+           Phoenix.Token.verify(conn, "totp setup", payload, max_age: @totp_setup_max_age),
+         {:ok, secret} <- Base.decode64(encoded),
+         {:ok, _user} <- Accounts.enable_totp(user, secret, code) do
+      json(conn, %{totp_enabled: true})
+    else
+      _ ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "invalid code, scan the QR again and retry"})
+    end
+  end
+
+  def totp_disable(conn, %{"code" => code}) do
+    user = conn.assigns.current_user
+
+    case Accounts.disable_totp(user, code) do
+      {:ok, _user} ->
+        json(conn, %{totp_enabled: false})
+
+      {:error, :invalid_code} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "invalid code"})
+    end
   end
 
   def logout(conn, _params) do
@@ -102,6 +185,7 @@ defmodule ServantWeb.AuthController do
         email: user.email,
         avatar_path: user.avatar_path,
         timezone: user.timezone,
+        totp_enabled: Accounts.totp_enabled?(user),
         inserted_at: user.inserted_at
       }
     })

@@ -67,4 +67,65 @@ defmodule Servant.Accounts do
       {:error, :wrong_password}
     end
   end
+
+  # ----- TOTP (two-factor authentication) -----
+  # The secret is stored AES-256-GCM encrypted (Servant.Encrypted); the last
+  # accepted timestamp refuses code replays within the 30s window. Recovery
+  # is operator-side on a self-hosted instance: clear users.totp_secret in
+  # the database.
+
+  @doc "Whether the user has two-factor authentication enabled."
+  def totp_enabled?(%User{totp_secret: secret}), do: is_binary(secret)
+
+  @doc """
+  Enables TOTP once the user proved they scanned the secret (a fresh valid
+  code is required).
+  """
+  def enable_totp(%User{} = user, secret, code)
+      when is_binary(secret) and is_binary(code) do
+    if NimbleTOTP.valid?(secret, code) do
+      user
+      |> Ecto.Changeset.change(%{
+        totp_secret: Servant.Encrypted.encrypt(secret),
+        totp_last_used_at: DateTime.truncate(DateTime.utc_now(), :second)
+      })
+      |> Repo.update()
+    else
+      {:error, :invalid_code}
+    end
+  end
+
+  @doc "Disables TOTP; requires a currently valid code."
+  def disable_totp(%User{} = user, code) do
+    case verify_totp(user, code) do
+      {:ok, user} ->
+        user
+        |> Ecto.Changeset.change(%{totp_secret: nil, totp_last_used_at: nil})
+        |> Repo.update()
+
+      :error ->
+        {:error, :invalid_code}
+    end
+  end
+
+  @doc """
+  Verifies a login code against the stored secret. Accepts each code once
+  (`since:` refuses anything at or before the last accepted timestamp) and
+  bumps that timestamp on success.
+  """
+  def verify_totp(%User{totp_secret: encrypted} = user, code)
+      when is_binary(encrypted) and is_binary(code) do
+    with {:ok, secret} <- Servant.Encrypted.decrypt(encrypted),
+         true <- NimbleTOTP.valid?(secret, code, since: user.totp_last_used_at) do
+      user
+      |> Ecto.Changeset.change(%{
+        totp_last_used_at: DateTime.truncate(DateTime.utc_now(), :second)
+      })
+      |> Repo.update()
+    else
+      _ -> :error
+    end
+  end
+
+  def verify_totp(_user, _code), do: :error
 end

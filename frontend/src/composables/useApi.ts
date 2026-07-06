@@ -11,8 +11,8 @@ export function useApi() {
     put<T>(path: string, body?: unknown) {
       return apiJson<T>('PUT', path, { body })
     },
-    del<T>(path: string) {
-      return apiJson<T>('DELETE', path)
+    del<T>(path: string, body?: unknown) {
+      return apiJson<T>('DELETE', path, { body })
     }
   }
 }

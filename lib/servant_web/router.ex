@@ -21,12 +21,16 @@ defmodule ServantWeb.Router do
     get "/auth/config", AuthController, :config
     post "/auth/register", AuthController, :register
     post "/auth/login", AuthController, :login
+    post "/auth/totp/verify", AuthController, :totp_verify
     post "/auth/logout", AuthController, :logout
 
     # Authenticated routes
     pipe_through :auth
 
     get "/auth/me", AuthController, :me
+    post "/auth/totp/setup", AuthController, :totp_setup
+    post "/auth/totp/confirm", AuthController, :totp_confirm
+    delete "/auth/totp", AuthController, :totp_disable
     put "/auth/profile", AuthController, :update_profile
     put "/auth/password", AuthController, :change_password
     post "/auth/avatar", AuthController, :upload_avatar

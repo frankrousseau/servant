@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import ComboBox from '../components/ComboBox.vue'
 import { useAuthStore } from '../stores/auth'
 import { useApi } from '../composables/useApi'
 import { formatDate } from '../lib/datetime'
+import QRCode from 'qrcode'
 import {
   User as UserIcon,
   KeyRound,
   Info,
   Download,
-  Camera
+  Camera,
+  ShieldCheck
 } from 'lucide-vue-next'
 
 const auth = useAuthStore()
@@ -59,6 +62,71 @@ const passwordSaving = ref(false)
 const passwordSuccess = ref(false)
 const passwordError = ref('')
 
+// Two-factor authentication (TOTP)
+const totpEnabled = ref(false)
+const totpSetup = ref<{ payload: string; secret: string } | null>(null)
+const totpQr = ref('')
+const totpCode = ref('')
+const totpDisableCode = ref('')
+const totpError = ref('')
+const totpBusy = ref(false)
+
+async function startTotpSetup() {
+  totpError.value = ''
+  totpBusy.value = true
+  try {
+    const res = await api.post<{
+      secret: string
+      otpauth_url: string
+      payload: string
+    }>('/api/auth/totp/setup')
+    totpSetup.value = { payload: res.payload, secret: res.secret }
+    totpQr.value = await QRCode.toDataURL(res.otpauth_url, {
+      margin: 1,
+      width: 220
+    })
+    totpCode.value = ''
+  } catch (e: any) {
+    totpError.value = e.message || 'Setup failed'
+  } finally {
+    totpBusy.value = false
+  }
+}
+
+async function confirmTotp() {
+  if (!totpSetup.value) return
+  totpError.value = ''
+  totpBusy.value = true
+  try {
+    await api.post('/api/auth/totp/confirm', {
+      payload: totpSetup.value.payload,
+      code: totpCode.value.trim()
+    })
+    totpEnabled.value = true
+    totpSetup.value = null
+    totpQr.value = ''
+    totpCode.value = ''
+  } catch (e: any) {
+    totpError.value = e.message || 'Invalid code'
+  } finally {
+    totpBusy.value = false
+  }
+}
+
+async function disableTotp() {
+  totpError.value = ''
+  totpBusy.value = true
+  try {
+    await api.del('/api/auth/totp', { code: totpDisableCode.value.trim() })
+    totpEnabled.value = false
+    totpDisableCode.value = ''
+  } catch (e: any) {
+    totpError.value = e.message || 'Invalid code'
+  } finally {
+    totpBusy.value = false
+  }
+}
+
 // Export
 const exportingEntries = ref(false)
 
@@ -104,11 +172,13 @@ onMounted(async () => {
         email: string | null
         avatar_path: string | null
         timezone: string | null
+        totp_enabled: boolean
         inserted_at: string
       }
     }>('/api/auth/me')
     displayName.value = res.data.display_name || ''
     email.value = res.data.email || ''
+    totpEnabled.value = res.data.totp_enabled === true
     timezone.value = res.data.timezone || 'UTC'
     avatarUrl.value = res.data.avatar_path
     memberSince.value = formatDate(res.data.inserted_at)
@@ -269,11 +339,7 @@ async function changePassword() {
 
           <div class="field">
             <label for="timezone">Timezone</label>
-            <select id="timezone" v-model="timezone">
-              <option v-for="tz in timezones" :key="tz" :value="tz">
-                {{ tz }}
-              </option>
-            </select>
+            <ComboBox v-model="timezone" :options="timezones" />
             <p class="field-hint">
               Dates and times are shown in this timezone.
             </p>
@@ -342,6 +408,81 @@ async function changePassword() {
           </button>
         </div>
       </form>
+    </section>
+
+    <!-- Two-factor authentication -->
+    <section class="card">
+      <div class="card-header">
+        <ShieldCheck :size="20" class="card-icon" />
+        <h2>Two-Factor Authentication</h2>
+      </div>
+
+      <div class="card-body">
+        <template v-if="totpEnabled">
+          <p class="export-desc">
+            2FA is on: signing in asks for a code from your authenticator app.
+            Enter a current code to turn it off.
+          </p>
+          <div class="totp-row">
+            <input
+              v-model="totpDisableCode"
+              class="totp-code"
+              inputmode="numeric"
+              maxlength="6"
+              placeholder="123456"
+            />
+            <button
+              :disabled="totpBusy || totpDisableCode.trim().length < 6"
+              @click="disableTotp"
+            >
+              Disable 2FA
+            </button>
+          </div>
+        </template>
+
+        <template v-else-if="totpSetup">
+          <p class="export-desc">
+            Scan the QR code with your authenticator app (Aegis, Google
+            Authenticator…), then confirm with the 6-digit code it shows.
+          </p>
+          <img v-if="totpQr" :src="totpQr" class="totp-qr" alt="TOTP QR code" />
+          <p class="totp-secret">{{ totpSetup.secret }}</p>
+          <div class="totp-row">
+            <input
+              v-model="totpCode"
+              class="totp-code"
+              inputmode="numeric"
+              maxlength="6"
+              placeholder="123456"
+            />
+            <button
+              :disabled="totpBusy || totpCode.trim().length < 6"
+              @click="confirmTotp"
+            >
+              Confirm
+            </button>
+            <button class="btn-secondary" @click="totpSetup = null">
+              Cancel
+            </button>
+          </div>
+        </template>
+
+        <template v-else>
+          <p class="export-desc">
+            Protect sign-in with one-time codes from an authenticator app
+            (TOTP). Recovery on this self-hosted instance is operator-side:
+            clear <code>users.totp_secret</code> in the database if the device
+            is lost.
+          </p>
+          <div class="card-actions">
+            <button :disabled="totpBusy" @click="startTotpSetup">
+              Enable 2FA
+            </button>
+          </div>
+        </template>
+
+        <p v-if="totpError" class="msg msg-error">{{ totpError }}</p>
+      </div>
     </section>
 
     <!-- Export -->
@@ -538,5 +679,31 @@ async function changePassword() {
 
 .avatar-input {
   display: none;
+}
+
+.totp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.totp-code {
+  width: 120px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.15em;
+}
+.totp-qr {
+  display: block;
+  width: 220px;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  /* white quiet zone so scanners cope with the dark theme */
+  background: #fff;
+}
+.totp-secret {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  word-break: break-all;
+  margin: 0 0 0.75rem;
 }
 </style>

@@ -136,4 +136,116 @@ defmodule ServantWeb.AuthControllerTest do
       assert is_binary(new_token)
     end
   end
+
+  describe "TOTP (two-factor authentication)" do
+    alias Servant.Accounts
+    alias Servant.Accounts.User
+    alias Servant.Repo
+
+    @password "password123"
+
+    # Stores a known secret directly (encrypted, no last-used timestamp) so
+    # tests can mint codes without tripping the replay guard.
+    defp put_totp_secret(user, secret) do
+      user
+      |> Ecto.Changeset.change(%{
+        totp_secret: Servant.Encrypted.encrypt(secret),
+        totp_last_used_at: nil
+      })
+      |> Repo.update!()
+    end
+
+    defp register(conn, username) do
+      conn =
+        post(conn, "/api/auth/register", %{"username" => username, "password" => @password})
+
+      %{"user" => %{"id" => id}} = json_response(conn, 201)
+      Repo.get!(User, id)
+    end
+
+    test "login becomes a two-step flow once TOTP is enabled", %{conn: conn} do
+      user = register(conn, "totpuser")
+      secret = NimbleTOTP.secret()
+      put_totp_secret(user, secret)
+
+      conn =
+        post(build_conn(), "/api/auth/login", %{
+          "username" => "totpuser",
+          "password" => @password
+        })
+
+      assert %{"requires_totp" => true, "ticket" => ticket} = json_response(conn, 200)
+      refute Map.has_key?(json_response(conn, 200), "token")
+
+      code = NimbleTOTP.verification_code(secret)
+      conn = post(build_conn(), "/api/auth/totp/verify", %{"ticket" => ticket, "code" => code})
+      assert %{"token" => token} = json_response(conn, 200)
+      assert is_binary(token)
+    end
+
+    test "a code cannot be replayed and garbage is refused", %{conn: conn} do
+      user = register(conn, "replayuser")
+      secret = NimbleTOTP.secret()
+      put_totp_secret(user, secret)
+
+      login = fn ->
+        conn =
+          post(build_conn(), "/api/auth/login", %{
+            "username" => "replayuser",
+            "password" => @password
+          })
+
+        json_response(conn, 200)["ticket"]
+      end
+
+      code = NimbleTOTP.verification_code(secret)
+
+      first = post(build_conn(), "/api/auth/totp/verify", %{"ticket" => login.(), "code" => code})
+      assert json_response(first, 200)
+
+      replay =
+        post(build_conn(), "/api/auth/totp/verify", %{"ticket" => login.(), "code" => code})
+
+      assert json_response(replay, 401)
+
+      wrong =
+        post(build_conn(), "/api/auth/totp/verify", %{"ticket" => login.(), "code" => "000000"})
+
+      assert json_response(wrong, 401)
+
+      bad_ticket =
+        post(build_conn(), "/api/auth/totp/verify", %{"ticket" => "garbage", "code" => code})
+
+      assert json_response(bad_ticket, 401)
+    end
+
+    test "setup then confirm enables TOTP; disable requires a valid code", %{conn: conn} do
+      {conn, user} = register_and_log_in_user(conn)
+
+      setup_conn = post(conn, "/api/auth/totp/setup")
+
+      assert %{"secret" => secret_b32, "otpauth_url" => url, "payload" => payload} =
+               json_response(setup_conn, 200)
+
+      assert url =~ "otpauth://totp/"
+      secret = Base.decode32!(secret_b32, padding: false)
+
+      bad = post(conn, "/api/auth/totp/confirm", %{"payload" => payload, "code" => "000000"})
+      assert json_response(bad, 422)
+      refute Accounts.totp_enabled?(Repo.get!(User, user.id))
+
+      code = NimbleTOTP.verification_code(secret)
+      ok = post(conn, "/api/auth/totp/confirm", %{"payload" => payload, "code" => code})
+      assert %{"totp_enabled" => true} = json_response(ok, 200)
+      assert Accounts.totp_enabled?(Repo.get!(User, user.id))
+
+      # A consumed code is refused; reset the replay guard to mint a new one.
+      user = Repo.get!(User, user.id)
+      put_totp_secret(user, secret)
+
+      off = delete(conn, "/api/auth/totp", %{"code" => NimbleTOTP.verification_code(secret)})
+      assert %{"totp_enabled" => false} = json_response(off, 200)
+      refute Accounts.totp_enabled?(Repo.get!(User, user.id))
+    end
+  end
 end

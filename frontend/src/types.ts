@@ -5,6 +5,7 @@ export interface User {
   email: string | null
   avatar_path: string | null
   timezone?: string | null
+  totp_enabled?: boolean
 }
 
 export interface Entry {
