@@ -8,6 +8,7 @@ import {
   Image as ImageIcon,
   Video
 } from 'lucide-vue-next'
+import ComboBox from '../../components/ComboBox.vue'
 import type { AppContext, Entry } from '../types'
 import { formatFileSize } from '../../types'
 import { formatDate } from '../../lib/datetime'
@@ -66,6 +67,16 @@ const currentItems = computed(() =>
 
 const searchQuery = ref('')
 const typeFilter = ref('')
+
+const TYPE_FILTER_OPTIONS = [
+  { value: '', label: 'All types' },
+  { value: 'folder', label: 'Folders' },
+  { value: 'image', label: 'Images' },
+  { value: 'video', label: 'Videos' },
+  { value: 'doc', label: 'Documents' },
+  { value: 'archive', label: 'Archives' },
+  { value: 'other', label: 'Other' }
+]
 
 function matchesType(e: Entry): boolean {
   const mime = field<string>(e, 'mime_type') || ''
@@ -382,15 +393,11 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
             type="text"
             placeholder="Search files..."
           />
-          <select v-model="typeFilter" class="fs-type-filter">
-            <option value="">All types</option>
-            <option value="folder">Folders</option>
-            <option value="image">Images</option>
-            <option value="video">Videos</option>
-            <option value="doc">Documents</option>
-            <option value="archive">Archives</option>
-            <option value="other">Other</option>
-          </select>
+          <ComboBox
+            v-model="typeFilter"
+            class="fs-type-filter"
+            :options="TYPE_FILTER_OPTIONS"
+          />
           <button class="fs-btn" @click="newFolder">+ Folder</button>
           <label class="fs-btn fs-upload-label">
             + Upload
@@ -634,10 +641,8 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   border-radius: 8px;
 }
 .fs-type-filter {
-  width: auto;
-  padding: 0.4rem 2rem 0.4rem 0.65rem;
-  font-size: 0.85rem;
-  border-radius: 8px;
+  width: 150px;
+  flex-shrink: 0;
 }
 .fs-btn {
   background: transparent;

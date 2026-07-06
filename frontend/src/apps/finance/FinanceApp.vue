@@ -3,6 +3,7 @@ import { ref, computed, reactive, onMounted } from 'vue'
 import type { AppContext, Entry } from '../types'
 import { todayInUserTz, zonedToUtcISO } from '../../lib/datetime'
 import { addDays } from '../calendar/recurrence'
+import ComboBox from '../../components/ComboBox.vue'
 import BalanceChart from './BalanceChart.vue'
 import {
   ACCOUNT_TYPES,
@@ -15,7 +16,6 @@ import {
   universeCurve,
   valueAt,
   type Account,
-  type AccountType,
   type Rates,
   type SnapshotPoint,
   type Universe
@@ -34,29 +34,14 @@ const bankTxs = ref<Entry[]>([])
 const prefs = ref<Entry | null>(null)
 const loadState = ref<'loading' | 'ready' | 'error'>('loading')
 
-// ponytail: bank_tx pagination capped at 10k rows; revisit if an account
-// history ever outgrows it.
-async function loadBankTxs(): Promise<Entry[]> {
-  const out: Entry[] = []
-  for (let page = 1; page <= 10; page++) {
-    const batch = await ctx.api.entries.list({
-      kind: 'bank_tx',
-      per_page: '1000',
-      page: String(page)
-    })
-    out.push(...batch)
-    if (batch.length < 1000) break
-  }
-  return out
-}
-
 async function reload() {
   try {
+    // entries.list pages through everything internally.
     const [accounts, balances, txs, prefsList] = await Promise.all([
-      ctx.api.entries.list({ kind: 'account', per_page: '200' }),
-      ctx.api.entries.list({ kind: 'balance', per_page: '1000' }),
-      loadBankTxs(),
-      ctx.api.entries.list({ kind: 'prefs', per_page: '10' })
+      ctx.api.entries.list({ kind: 'account' }),
+      ctx.api.entries.list({ kind: 'balance' }),
+      ctx.api.entries.list({ kind: 'bank_tx' }),
+      ctx.api.entries.list({ kind: 'prefs' })
     ])
     accountEntries.value = accounts
     balanceEntries.value = balances
@@ -93,10 +78,8 @@ async function savePrefs(patch: Record<string, unknown>) {
   }
 }
 
-function onRefCurrencyChange(e: Event) {
-  void savePrefs({
-    reference_currency: (e.target as HTMLSelectElement).value
-  })
+function onRefCurrencyChange(v: string) {
+  void savePrefs({ reference_currency: v })
 }
 
 const refCurrencyOptions = computed(() => {
@@ -239,7 +222,7 @@ function txObservationCount(a: Account): number {
 
 const accountModalOpen = ref(false)
 const accountName = ref('')
-const accountType = ref<AccountType>('bank')
+const accountType = ref<string>('bank')
 const accountCurrency = ref('EUR')
 const accountSaving = ref(false)
 
@@ -379,11 +362,12 @@ function deltaLabel(delta: number): string {
       <div class="fin-toolbar">
         <label class="fin-ref">
           <span class="fin-ref-label">Reference</span>
-          <select :value="refCurrency" @change="onRefCurrencyChange">
-            <option v-for="c in refCurrencyOptions" :key="c" :value="c">
-              {{ c }}
-            </option>
-          </select>
+          <ComboBox
+            class="fin-ref-select"
+            :model-value="refCurrency"
+            :options="refCurrencyOptions"
+            @update:model-value="onRefCurrencyChange"
+          />
         </label>
         <button
           v-if="foreignCurrencies.length"
@@ -558,11 +542,7 @@ function deltaLabel(delta: number): string {
         <div class="fin-modal-row">
           <div class="fin-modal-field">
             <label>Type</label>
-            <select v-model="accountType">
-              <option v-for="t in ACCOUNT_TYPES" :key="t" :value="t">
-                {{ t }}
-              </option>
-            </select>
+            <ComboBox v-model="accountType" :options="ACCOUNT_TYPES" />
           </div>
           <div class="fin-modal-field">
             <label>Currency / asset</label>
@@ -653,9 +633,8 @@ function deltaLabel(delta: number): string {
   align-items: center;
   gap: 0.45rem;
 }
-.fin-ref select {
-  width: auto;
-  padding: 0.35rem 0.6rem;
+.fin-ref-select {
+  width: 110px;
 }
 .fin-ref-label {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

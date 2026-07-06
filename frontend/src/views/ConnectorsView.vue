@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useApi } from '../composables/useApi'
 import type { ConnectorConfig, Schedule } from '../types'
 import { SCHEDULE_LABELS, relativeTime } from '../types'
+import ComboBox from '../components/ComboBox.vue'
 import { CONNECTOR_DEFS, getConnectorDef } from '../connectors'
 import type { ConnectorDef } from '../connectors'
 
@@ -19,6 +20,14 @@ const setupName = ref('')
 const setupSchedule = ref<Schedule>('every_hour')
 const supportedSchedules = ref<Schedule[]>([])
 const setupConfig = ref<Record<string, string>>({})
+
+const scheduleOptions = computed(() =>
+  supportedSchedules.value.map(s => ({ value: s, label: SCHEDULE_LABELS[s] }))
+)
+
+function onSetupScheduleChange(v: string) {
+  setupSchedule.value = v as Schedule
+}
 const saving = ref(false)
 
 // Catalog search & sort
@@ -229,19 +238,11 @@ onMounted(fetchConnectors)
                 >optional</span
               >
             </label>
-            <select
+            <ComboBox
               v-if="field.type === 'select' && field.options"
               v-model="setupConfig[field.key]"
-              :required="field.required"
-            >
-              <option
-                v-for="opt in field.options"
-                :key="opt.value"
-                :value="opt.value"
-              >
-                {{ opt.label }}
-              </option>
-            </select>
+              :options="field.options"
+            />
             <input
               v-else
               v-model="setupConfig[field.key]"
@@ -253,11 +254,11 @@ onMounted(fetchConnectors)
 
           <div class="field">
             <label>Sync frequency</label>
-            <select v-model="setupSchedule">
-              <option v-for="s in supportedSchedules" :key="s" :value="s">
-                {{ SCHEDULE_LABELS[s] }}
-              </option>
-            </select>
+            <ComboBox
+              :model-value="setupSchedule"
+              :options="scheduleOptions"
+              @update:model-value="onSetupScheduleChange"
+            />
           </div>
 
           <div class="setup-actions">

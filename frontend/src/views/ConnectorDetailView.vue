@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useApi } from '../composables/useApi'
 import { useAuthStore } from '../stores/auth'
+import ComboBox from '../components/ComboBox.vue'
 import type { ConnectorConfig, SyncLog, Schedule } from '../types'
 import { SCHEDULE_LABELS, relativeTime } from '../types'
 import { formatDate, formatDateTime } from '../lib/datetime'
@@ -201,6 +202,17 @@ function showFeedback(msg: string) {
   setTimeout(() => (actionFeedback.value = ''), 2500)
 }
 
+const scheduleOptions = computed(() =>
+  (Object.keys(SCHEDULE_LABELS) as Schedule[]).map(s => ({
+    value: s,
+    label: SCHEDULE_LABELS[s]
+  }))
+)
+
+function onScheduleChange(v: string) {
+  void updateSchedule(v as Schedule)
+}
+
 async function updateSchedule(schedule: Schedule) {
   if (!connector.value) return
   try {
@@ -307,23 +319,12 @@ onMounted(() => {
           </div>
           <div v-if="!isImportOnly" class="detail-item">
             <span class="detail-label">Schedule</span>
-            <select
+            <ComboBox
               class="inline-select"
-              :value="connector.schedule"
-              @change="
-                updateSchedule(
-                  ($event.target as HTMLSelectElement).value as Schedule
-                )
-              "
-            >
-              <option
-                v-for="s in Object.keys(SCHEDULE_LABELS)"
-                :key="s"
-                :value="s"
-              >
-                {{ SCHEDULE_LABELS[s as Schedule] }}
-              </option>
-            </select>
+              :model-value="connector.schedule"
+              :options="scheduleOptions"
+              @update:model-value="onScheduleChange"
+            />
           </div>
           <div class="detail-item">
             <span class="detail-label">{{

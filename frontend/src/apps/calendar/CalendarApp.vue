@@ -3,6 +3,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import flatpickr from 'flatpickr'
 import 'flatpickr/dist/flatpickr.min.css'
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
+import ComboBox from '../../components/ComboBox.vue'
 import type { AppContext, Entry } from '../types'
 import { birthdaySeed, contactField, contactName } from '../../lib/contact'
 import {
@@ -49,6 +50,13 @@ const modalAllDay = ref(false)
 const modalLocation = ref('')
 const modalCalendar = ref('Manual')
 const modalRecurrence = ref('')
+
+const RECURRENCE_OPTIONS = [
+  { value: '', label: 'Never' },
+  { value: 'weekly', label: 'Every week' },
+  { value: 'monthly', label: 'Every month' },
+  { value: 'yearly', label: 'Every year' }
+]
 const modalContact = ref('')
 const modalSaving = ref(false)
 
@@ -864,20 +872,14 @@ onUnmounted(destroyPickers)
         <div class="cal-modal-row">
           <div class="cal-modal-field">
             <label>Calendar</label>
-            <select v-model="modalCalendar">
-              <option v-for="c in calendars" :key="c.name" :value="c.name">
-                {{ c.name }}
-              </option>
-            </select>
+            <ComboBox
+              v-model="modalCalendar"
+              :options="calendars.map(c => c.name)"
+            />
           </div>
           <div class="cal-modal-field">
             <label>Repeats</label>
-            <select v-model="modalRecurrence">
-              <option value="">Never</option>
-              <option value="weekly">Every week</option>
-              <option value="monthly">Every month</option>
-              <option value="yearly">Every year</option>
-            </select>
+            <ComboBox v-model="modalRecurrence" :options="RECURRENCE_OPTIONS" />
           </div>
         </div>
         <div class="cal-modal-field">

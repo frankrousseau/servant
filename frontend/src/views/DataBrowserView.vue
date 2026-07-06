@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import ComboBox from '../components/ComboBox.vue'
 import { useApi } from '../composables/useApi'
 import { useSocket, debounce } from '../composables/useSocket'
 import type { Entry, PaginationMeta } from '../types'
@@ -25,6 +26,15 @@ const loading = ref(true)
 // Filters
 const kinds = ref<string[]>([])
 const sources = ref<string[]>([])
+
+const kindOptions = computed(() => [
+  { value: '', label: 'All kinds' },
+  ...kinds.value
+])
+const sourceOptions = computed(() => [
+  { value: '', label: 'All sources' },
+  ...sources.value
+])
 const filterKind = ref((route.query.kind as string) || '')
 const filterSource = ref((route.query.source as string) || '')
 const filterDateFrom = ref('')
@@ -78,9 +88,12 @@ async function fetchFilters() {
 async function fetchEntries() {
   loading.value = true
   try {
+    // Newest-created first: the default occurred_at sort floats future
+    // events (calendar) to the top, unrelated to when data actually landed.
     const params: Record<string, string> = {
       page: page.value.toString(),
-      per_page: '50'
+      per_page: '50',
+      sort: 'inserted_at'
     }
     if (filterKind.value) params.kind = filterKind.value
     if (filterSource.value) params.source = filterSource.value
@@ -267,14 +280,16 @@ onMounted(() => {
 
       <!-- Filters -->
       <div class="filters">
-        <select v-model="filterKind" class="capitalize">
-          <option value="">All kinds</option>
-          <option v-for="k in kinds" :key="k" :value="k">{{ k }}</option>
-        </select>
-        <select v-model="filterSource" class="capitalize">
-          <option value="">All sources</option>
-          <option v-for="s in sources" :key="s" :value="s">{{ s }}</option>
-        </select>
+        <ComboBox
+          v-model="filterKind"
+          class="db-filter capitalize"
+          :options="kindOptions"
+        />
+        <ComboBox
+          v-model="filterSource"
+          class="db-filter capitalize"
+          :options="sourceOptions"
+        />
         <input v-model="filterDateFrom" type="date" title="From date" />
         <input v-model="filterDateTo" type="date" title="To date" />
         <span class="filter-count" v-if="!loading"
@@ -501,12 +516,12 @@ onMounted(() => {
   align-items: center;
 }
 
-.filters select {
-  width: auto;
+.db-filter {
   min-width: 140px;
+  width: auto;
 }
 
-.filters select.capitalize {
+.capitalize {
   text-transform: capitalize;
 }
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import ComboBox from '../../components/ComboBox.vue'
 import type { AppContext, Entry } from '../types'
 import { formatFileSize } from '../../types'
 import { formatDate, formatDateTime, utcToZonedParts } from '../../lib/datetime'
@@ -94,6 +95,22 @@ const filtered = computed(() => {
 // ----- grouping by shot date (occurred_at, i.e. EXIF date, else upload date) -----
 
 const groupBy = ref<'' | 'year' | 'month' | 'week'>('')
+
+const albumOptions = computed(() => [
+  { value: '', label: 'All photos' },
+  ...albums.value
+])
+
+const GROUP_OPTIONS = [
+  { value: '', label: 'No grouping' },
+  { value: 'year', label: 'By year' },
+  { value: 'month', label: 'By month' },
+  { value: 'week', label: 'By week' }
+]
+
+function onGroupByChange(v: string) {
+  groupBy.value = v as '' | 'year' | 'month' | 'week'
+}
 
 const photoDate = (p: Entry) => (p.occurred_at || p.inserted_at) as string
 
@@ -636,16 +653,17 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
     <!-- Normal toolbar -->
     <div v-if="!selectionMode" class="ph-toolbar">
       <div class="ph-filters">
-        <select class="ph-album-filter" v-model="albumFilter">
-          <option value="">All photos</option>
-          <option v-for="a in albums" :key="a" :value="a">{{ a }}</option>
-        </select>
-        <select class="ph-album-filter ph-group-select" v-model="groupBy">
-          <option value="">No grouping</option>
-          <option value="year">By year</option>
-          <option value="month">By month</option>
-          <option value="week">By week</option>
-        </select>
+        <ComboBox
+          class="ph-album-filter"
+          v-model="albumFilter"
+          :options="albumOptions"
+        />
+        <ComboBox
+          class="ph-album-filter ph-group-select"
+          :model-value="groupBy"
+          :options="GROUP_OPTIONS"
+          @update:model-value="onGroupByChange"
+        />
         <span class="ph-status"
           >{{ filtered.length }} <span class="ph-status-unit">IMG</span></span
         >
