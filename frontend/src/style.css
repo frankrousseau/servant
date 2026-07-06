@@ -1,5 +1,5 @@
 /*
- * "Night terminal" — Servant as a retro machine: black-blue CRT glass,
+ * "Night terminal", Servant as a retro machine: black-blue CRT glass,
  * electric-violet phosphor, pale glow text. Display face is VT323, a true
  * terminal bitmap face, used sparingly (brand, headings, counters).
  */
@@ -154,6 +154,30 @@ a:hover {
   font-size: 1rem;
   padding: 0.6rem 1.25rem;
   transition: color 0.15s;
+}
+
+/* Global photo-upload pulse: the queue keeps running across app switches */
+.sidebar-upload {
+  display: block;
+  padding: 0.45rem 1.25rem;
+  color: var(--primary);
+  text-decoration: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  animation: sidebar-upload-pulse 1.6s ease-in-out infinite;
+}
+
+.sidebar-upload:hover {
+  text-decoration: none;
+  color: var(--primary);
+}
+
+@keyframes sidebar-upload-pulse {
+  50% {
+    opacity: 0.45;
+  }
 }
 
 .sidebar-settings-link:hover,

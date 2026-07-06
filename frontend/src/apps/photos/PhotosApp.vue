@@ -4,6 +4,15 @@ import type { AppContext, Entry } from '../types'
 import { formatFileSize } from '../../types'
 import { formatDate, formatDateTime, utcToZonedParts } from '../../lib/datetime'
 import { contactName, contactInitials } from '../../lib/contact'
+import {
+  batchesDone,
+  captureVideoFrame,
+  enqueueUploads,
+  lastCreated,
+  uploadErrors,
+  uploadProgress,
+  uploading
+} from './uploadQueue'
 
 const props = defineProps<{ ctx: AppContext }>()
 
@@ -17,7 +26,6 @@ const allContacts = ref<Entry[]>([])
 const albumFilter = ref('')
 const tagFilter = ref('')
 const peopleFilter = ref('')
-const uploading = ref(false)
 const loading = ref(true)
 const loadError = ref('')
 const selectionMode = ref(false)
@@ -39,7 +47,7 @@ const getThumbPath = (e: Entry) =>
 const isVideo = (e: Entry) =>
   ((field(e, 'mime_type') as string) || '').startsWith('video/')
 
-// Videos never mount a <video> in the grid — one media decoder per cell
+// Videos never mount a <video> in the grid: one media decoder per cell
 // wedges the browser on large libraries. They show the JPEG frame captured
 // at upload time (thumb_path), or a plain play tile when there is none.
 const hasGridImage = (e: Entry) => !isVideo(e) || !!field(e, 'thumb_path')
@@ -185,7 +193,7 @@ const missingVideoThumbs = computed(
 const fixingVideos = ref<{ done: number; total: number } | null>(null)
 
 // Downloads each video, captures a frame in the browser and stores it as the
-// entry's thumb_path — same pipeline as fresh uploads.
+// entry's thumb_path (same pipeline as fresh uploads).
 async function rebuildVideoThumbs() {
   const targets = allPhotos.value.filter(
     p => isVideo(p) && !field(p, 'thumb_path')
@@ -294,201 +302,18 @@ async function reload() {
   }
 }
 
-interface UploadProgress {
-  index: number
-  total: number
-  name: string
-  pct: number // whole-batch progress in bytes
-  converting: boolean // decoding HEIC in the browser before sending
-  processing: boolean // bytes sent, waiting on server work (thumbnails, EXIF…)
-}
-
-const isHeic = (f: File) =>
-  /\.(heic|heif)$/i.test(f.name) ||
-  f.type === 'image/heic' ||
-  f.type === 'image/heif'
-
-// The bundled server-side libvips can't decode HEVC, and neither can most
-// browsers: decode HEIC to JPEG in the browser (wasm, lazy-loaded only when
-// a HEIC is actually picked). ponytail: the original HEIC is not kept — the
-// JPEG becomes the archived file; revisit if originals matter.
-async function toUploadable(file: File): Promise<File> {
-  if (!isHeic(file)) return file
-  const { default: heic2any } = await import('heic2any')
-  const blob = (await heic2any({
-    blob: file,
-    toType: 'image/jpeg',
-    quality: 0.9
-  })) as Blob
-  return new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
-    type: 'image/jpeg'
-  })
-}
-// Grid thumbnail for videos: decode in the browser (no server-side ffmpeg),
-// seek to the middle (first frames are often black) and grab a small JPEG.
-// null when the browser can't decode the codec — the grid shows a play tile.
-function captureVideoFrame(file: File): Promise<File | null> {
-  return new Promise(resolve => {
-    const url = URL.createObjectURL(file)
-    const video = document.createElement('video')
-    let settled = false
-    const done = (out: File | null) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      URL.revokeObjectURL(url)
-      video.removeAttribute('src')
-      resolve(out)
-    }
-    // ponytail: 15s cap so an undecodable file can't hang the upload loop
-    const timer = setTimeout(() => done(null), 15_000)
-    video.muted = true
-    video.playsInline = true
-    video.preload = 'metadata'
-    video.onerror = () => done(null)
-    video.onloadedmetadata = () => {
-      video.currentTime =
-        Number.isFinite(video.duration) && video.duration > 0
-          ? video.duration / 2
-          : 0
-    }
-    video.onseeked = () => {
-      const w = video.videoWidth
-      const h = video.videoHeight
-      if (!w || !h) return done(null)
-      const scale = Math.min(1, 400 / w)
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.round(w * scale)
-      canvas.height = Math.round(h * scale)
-      canvas
-        .getContext('2d')
-        ?.drawImage(video, 0, 0, canvas.width, canvas.height)
-      canvas.toBlob(
-        blob =>
-          done(
-            blob
-              ? new File(
-                  [blob],
-                  file.name.replace(/\.[^.]+$/, '') + '_thumb.jpg',
-                  {
-                    type: 'image/jpeg'
-                  }
-                )
-              : null
-          ),
-        'image/jpeg',
-        0.8
-      )
-    }
-    video.src = url
-  })
-}
-
-const uploadProgress = ref<UploadProgress | null>(null)
-// One entry per failed file; a failure never aborts the rest of the batch
-// and never replaces the whole view (loadError is reserved for load failures).
-const uploadErrors = ref<string[]>([])
-
-async function uploadFiles(files: File[]) {
-  // .heic often comes with an empty/octet-stream type outside Safari: match by name too.
-  const media = files.filter(
-    f =>
-      f.type.startsWith('image/') ||
-      f.type.startsWith('video/') ||
-      /\.(heic|heif)$/i.test(f.name)
-  )
-  if (!media.length) return
-  uploading.value = true
-  uploadErrors.value = []
-
-  const totalBytes = media.reduce((sum, f) => sum + f.size, 0) || 1
-  let doneBytes = 0
-
-  for (let i = 0; i < media.length; i++) {
-    const original = media[i]
-    uploadProgress.value = {
-      index: i + 1,
-      total: media.length,
-      name: original.name,
-      pct: Math.round((doneBytes / totalBytes) * 100),
-      converting: isHeic(original),
-      processing: false
-    }
-    try {
-      const file = await toUploadable(original)
-      if (uploadProgress.value) uploadProgress.value.converting = false
-      const result = (await props.ctx.api.upload(file, 'photos', pct => {
-        if (uploadProgress.value) {
-          // Weight by the original size: totalBytes was computed from the
-          // picked files, before any HEIC→JPEG conversion.
-          uploadProgress.value.pct = Math.round(
-            ((doneBytes + (pct / 100) * original.size) / totalBytes) * 100
-          )
-          uploadProgress.value.processing = pct >= 100
-        }
-      })) as unknown as Record<string, unknown>
-      doneBytes += original.size
-      const data: Record<string, unknown> = {
-        filename: file.name,
-        size: result.size,
-        mime_type: result.mime_type,
-        path: result.path,
-        album: albumFilter.value || null,
-        tags: []
-      }
-      if (result.date_taken) data.date_taken = result.date_taken
-      if (result.latitude != null) {
-        data.latitude = result.latitude
-        data.longitude = result.longitude
-      }
-      if (result.camera) data.camera = result.camera
-      if (result.thumb_path) data.thumb_path = result.thumb_path
-      if (result.display_path) data.display_path = result.display_path
-
-      // Videos: the grid never mounts a <video>, so give it a real image.
-      if (((result.mime_type as string) || file.type).startsWith('video/')) {
-        const frame = await captureVideoFrame(file)
-        if (frame) {
-          try {
-            const t = (await props.ctx.api.upload(
-              frame,
-              'photos'
-            )) as unknown as Record<string, unknown>
-            data.thumb_path = t.path
-          } catch {
-            // No thumbnail — the grid falls back to the play tile.
-          }
-        }
-      }
-
-      // No EXIF/container date: fall back to the file's mtime, which for
-      // phone media is usually the capture time.
-      const fallbackDate = original.lastModified
-        ? new Date(original.lastModified).toISOString()
-        : null
-
-      const created = await props.ctx.api.entries.create({
-        kind: 'photo',
-        source: 'photos_app',
-        title: file.name,
-        occurred_at: (result.date_taken as string) || fallbackDate,
-        data
-      })
-      // Show it right away by inserting locally: a full reload per file made
-      // Vue re-patch the entire grid once per photo and froze the app on
-      // 100-photo drops. One true-up reload happens after the batch.
-      allPhotos.value.unshift(created)
-    } catch (e) {
-      doneBytes += original.size
-      uploadErrors.value.push(
-        `${original.name}: ${e instanceof Error ? e.message : 'upload failed'}`
-      )
-    }
+// Upload state and pipeline live in ./uploadQueue (module scope) so a batch
+// survives navigating to another app mid-upload. While mounted, insert each
+// created photo as it lands and true-up with one reload when the queue drains.
+watch(lastCreated, created => {
+  if (created && !allPhotos.value.some(p => p.id === created.id)) {
+    allPhotos.value.unshift(created)
   }
+})
+watch(batchesDone, () => void reload())
 
-  uploadProgress.value = null
-  uploading.value = false
-  await reload()
+function uploadFiles(files: File[]) {
+  enqueueUploads(files, props.ctx.api, albumFilter.value || null)
 }
 
 function onFileInput(e: Event) {
