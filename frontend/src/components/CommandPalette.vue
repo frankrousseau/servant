@@ -21,6 +21,7 @@ const PAGES = [
   { label: 'Checklists', path: '/apps/checklists' },
   { label: 'Calendar', path: '/apps/calendar' },
   { label: 'Photos', path: '/apps/photos' },
+  { label: 'Trackers', path: '/apps/trackers' },
   { label: 'Files', path: '/apps/files' },
   { label: 'Finance', path: '/apps/finance' },
   { label: 'Contacts', path: '/apps/contacts' },

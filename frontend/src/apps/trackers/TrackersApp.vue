@@ -1,0 +1,327 @@
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import type { AppContext, Entry } from '../types'
+import {
+  todayInUserTz,
+  utcToZonedParts,
+  zonedToUtcISO
+} from '../../lib/datetime'
+import ComboBox from '../../components/ComboBox.vue'
+import TrackerCard from './TrackerCard.vue'
+import {
+  TRACKER_TYPES,
+  logsByDate,
+  trackerFromEntry,
+  type Tracker
+} from './trackers'
+
+const props = defineProps<{ ctx: AppContext }>()
+const ctx = props.ctx
+
+const trackerEntries = ref<Entry[]>([])
+const logEntries = ref<Entry[]>([])
+const loadState = ref<'loading' | 'ready' | 'error'>('loading')
+
+async function reload() {
+  try {
+    // entries.list pages through everything internally.
+    const [trackers, logs] = await Promise.all([
+      ctx.api.entries.list({ kind: 'tracker' }),
+      ctx.api.entries.list({ kind: 'tracker_log' })
+    ])
+    trackerEntries.value = trackers
+    logEntries.value = logs
+    loadState.value = 'ready'
+  } catch {
+    loadState.value = 'error'
+  }
+}
+
+onMounted(reload)
+
+const today = computed(() => todayInUserTz())
+
+const trackers = computed<Tracker[]>(() =>
+  trackerEntries.value
+    .map(trackerFromEntry)
+    .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
+)
+
+const mapsById = computed(() => {
+  const m = new Map<string, Map<string, number>>()
+  for (const t of trackers.value)
+    m.set(t.id, logsByDate(logEntries.value, t.id))
+  return m
+})
+
+// One log per tracker per day: update the day's entry when it exists,
+// create it otherwise.
+async function setValue(tracker: Tracker, date: string, value: number) {
+  const existing = logEntries.value.find(
+    l =>
+      l.data.tracker_id === tracker.id &&
+      l.occurred_at &&
+      utcToZonedParts(l.occurred_at).date === date
+  )
+  try {
+    if (existing) {
+      const updated = await ctx.api.entries.update(existing.id, {
+        title: `${tracker.name}: ${value}`,
+        data: { ...existing.data, value }
+      })
+      logEntries.value = logEntries.value.map(l =>
+        l.id === updated.id ? updated : l
+      )
+    } else {
+      const created = await ctx.api.entries.create({
+        kind: 'tracker_log',
+        source: 'trackers_app',
+        title: `${tracker.name}: ${value}`,
+        occurred_at: zonedToUtcISO(date, '12:00'),
+        data: { tracker_id: tracker.id, value }
+      })
+      logEntries.value = [...logEntries.value, created]
+    }
+  } catch {
+    // the card keeps showing the stored value
+  }
+}
+
+// ----- create / delete -----
+
+const modalOpen = ref(false)
+const draftName = ref('')
+const draftType = ref('check')
+const draftUnit = ref('')
+const saving = ref(false)
+
+function openModal() {
+  draftName.value = ''
+  draftType.value = 'check'
+  draftUnit.value = ''
+  modalOpen.value = true
+}
+
+async function createTracker() {
+  const name = draftName.value.trim()
+  if (!name) return
+  saving.value = true
+  try {
+    await ctx.api.entries.create({
+      kind: 'tracker',
+      source: 'trackers_app',
+      title: name,
+      data: { type: draftType.value, unit: draftUnit.value.trim() || null }
+    })
+    trackerEntries.value = await ctx.api.entries.list({
+      kind: 'tracker',
+      per_page: '200'
+    })
+    modalOpen.value = false
+  } catch {
+    // leave the modal open
+  } finally {
+    saving.value = false
+  }
+}
+
+async function removeTracker(tracker: Tracker) {
+  const logs = logEntries.value.filter(l => l.data.tracker_id === tracker.id)
+  const ok = await ctx.confirm.ask({
+    message: `Delete "${tracker.name}" and its ${logs.length} log(s)? This cannot be undone.`,
+    confirmLabel: 'Delete',
+    danger: true
+  })
+  if (!ok) return
+  try {
+    for (const l of logs) await ctx.api.entries.delete(l.id)
+    await ctx.api.entries.delete(tracker.id)
+    trackerEntries.value = trackerEntries.value.filter(e => e.id !== tracker.id)
+    logEntries.value = logEntries.value.filter(
+      l => l.data.tracker_id !== tracker.id
+    )
+  } catch {
+    void reload()
+  }
+}
+</script>
+
+<template>
+  <div class="tk-layout">
+    <p v-if="loadState === 'loading'" class="tk-placeholder">
+      Loading trackers…
+    </p>
+    <p v-else-if="loadState === 'error'" class="tk-placeholder">
+      Failed to load trackers.
+    </p>
+    <template v-else>
+      <div class="tk-toolbar">
+        <span class="tk-date">{{ today }}</span>
+        <span class="tk-spacer"></span>
+        <button class="tk-new" @click="openModal">+ Tracker</button>
+      </div>
+
+      <p v-if="!trackers.length" class="tk-placeholder">
+        Nothing tracked yet. A tracker can be anything: did I play guitar today,
+        how many drinks, this morning's weight…
+      </p>
+
+      <div class="tk-grid">
+        <TrackerCard
+          v-for="t in trackers"
+          :key="t.id"
+          :tracker="t"
+          :by-date="mapsById.get(t.id) || new Map()"
+          :today="today"
+          @set="(date, value) => setValue(t, date, value)"
+          @remove="removeTracker(t)"
+        />
+      </div>
+    </template>
+  </div>
+
+  <Teleport to="body">
+    <div
+      v-if="modalOpen"
+      class="tk-modal-overlay"
+      @click.self="modalOpen = false"
+    >
+      <div class="tk-modal">
+        <div class="tk-modal-header">New tracker</div>
+        <div class="tk-modal-field">
+          <label>Name</label>
+          <input
+            v-model="draftName"
+            placeholder="e.g. Guitar, Alcohol, Weight"
+            @keydown.enter="createTracker"
+          />
+        </div>
+        <div class="tk-modal-field">
+          <label>Nature</label>
+          <ComboBox v-model="draftType" :options="TRACKER_TYPES" />
+        </div>
+        <div v-if="draftType !== 'check'" class="tk-modal-field">
+          <label>Unit (optional)</label>
+          <input v-model="draftUnit" placeholder="dose, kg, min…" />
+        </div>
+        <div class="tk-modal-actions">
+          <span class="tk-modal-spacer"></span>
+          <button class="tk-btn" @click="modalOpen = false">Cancel</button>
+          <button
+            class="tk-btn tk-btn--primary"
+            :disabled="saving || !draftName.trim()"
+            @click="createTracker"
+          >
+            Create
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+</template>
+
+<style scoped>
+.tk-layout {
+  padding: 1rem 1.25rem;
+  max-width: 820px;
+  height: calc(100vh - 4rem);
+  overflow-y: auto;
+}
+.tk-placeholder {
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88rem;
+  padding: 1.5rem 0;
+}
+.tk-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.tk-date {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+.tk-spacer {
+  flex: 1;
+}
+.tk-new,
+.tk-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  padding: 0.35rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tk-new:hover,
+.tk-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.tk-btn--primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.tk-btn--primary:hover:not(:disabled) {
+  color: #fff;
+  background: var(--primary-hover);
+}
+.tk-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.tk-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.tk-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tk-modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  width: 100%;
+  max-width: 380px;
+}
+.tk-modal-header {
+  font-weight: 600;
+  font-size: 1.05rem;
+  margin-bottom: 1rem;
+}
+.tk-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 0.75rem;
+}
+.tk-modal-field label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.tk-modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.tk-modal-spacer {
+  flex: 1;
+}
+</style>

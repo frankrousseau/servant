@@ -14,7 +14,8 @@ import {
   NotebookPen,
   ListChecks,
   Activity,
-  Wallet
+  Wallet,
+  Target
 } from 'lucide-vue-next'
 import { BUILTIN_APPS } from './apps/registry'
 import {
@@ -35,7 +36,8 @@ const appIcons: Record<string, unknown> = {
   Image,
   NotebookPen,
   ListChecks,
-  Wallet
+  Wallet,
+  Target
 }
 
 const auth = useAuthStore()

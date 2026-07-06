@@ -20,6 +20,9 @@ export function entryRoute(e: Entry): string {
     case 'balance':
     case 'bank_tx':
       return '/apps/finance'
+    case 'tracker':
+    case 'tracker_log':
+      return '/apps/trackers'
     default:
       return `/data?entry=${e.id}`
   }

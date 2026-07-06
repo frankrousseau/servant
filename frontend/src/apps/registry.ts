@@ -50,6 +50,13 @@ export const BUILTIN_APPS: AppDef[] = [
     icon: 'Image',
     builtin: true,
     load: () => import('./photos')
+  },
+  {
+    id: 'trackers',
+    name: 'Trackers',
+    icon: 'Target',
+    builtin: true,
+    load: () => import('./trackers')
   }
 ]
 
