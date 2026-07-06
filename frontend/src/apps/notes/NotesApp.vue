@@ -10,6 +10,7 @@ import {
 } from 'vue'
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import type { AppContext, Entry } from '../types'
+import { todayInUserTz } from '../../lib/datetime'
 import { renderMarkdown, canon, continueListEdit } from './render'
 import { createFolderOrder } from '../folderOrder'
 
@@ -40,11 +41,12 @@ function noteKeys(n: Note): string[] {
   return [canon(title), canon(fullPath(noteFolder(n), title))]
 }
 
-// vcard contact titles look like "Name — org — email"; prefer the display name.
+// vcard contact titles look like "Name - org - email" (pre-July 2026 entries
+// used " — "); prefer the display name.
 function mentionName(e: Entry): string {
   return (
     (e.data.display_name as string) ||
-    (e.title || '').split(' — ')[0] ||
+    (e.title || '').split(/ - | — /)[0] ||
     ''
   ).trim()
 }
@@ -530,6 +532,25 @@ async function createNamedNote(title: string) {
   }
 }
 
+// Open (or create) today's journal note: Journal/YYYY-MM-DD in the user's tz.
+async function openTodayNote() {
+  const title = todayInUserTz()
+  const existing = notes.value.find(
+    n => (n.title || '') === title && noteFolder(n) === 'Journal'
+  )
+  if (existing) {
+    void selectNote(existing.id)
+    return
+  }
+  try {
+    const created = await apiCreate({ title, folder: 'Journal', body: '' })
+    notes.value.push(created)
+    await selectNote(created.id)
+  } catch {
+    // ignore
+  }
+}
+
 async function deleteSelected() {
   const note = selected.value
   if (!note) return
@@ -859,6 +880,13 @@ onBeforeUnmount(() => {
           v-model="searchQuery"
         />
         <button
+          class="nt-today-btn"
+          title="Open today's journal note (Journal/date)"
+          @click="openTodayNote"
+        >
+          Today
+        </button>
+        <button
           class="nt-new-btn"
           title="New note"
           aria-label="New note"
@@ -1094,6 +1122,24 @@ onBeforeUnmount(() => {
 }
 .nt-new-btn:active {
   transform: scale(0.92);
+}
+.nt-today-btn {
+  flex-shrink: 0;
+  padding: 0 0.6rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.nt-today-btn:hover,
+.nt-today-btn:focus-visible {
+  border-color: var(--primary);
+  color: var(--primary);
 }
 .nt-tree {
   flex: 1;
