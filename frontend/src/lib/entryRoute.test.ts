@@ -27,6 +27,12 @@ describe('entryRoute', () => {
     expect(entryRoute(entry('file'))).toBe('/apps/files')
   })
 
+  it('routes finance kinds to the finance app', () => {
+    expect(entryRoute(entry('account'))).toBe('/apps/finance')
+    expect(entryRoute(entry('balance'))).toBe('/apps/finance')
+    expect(entryRoute(entry('bank_tx'))).toBe('/apps/finance')
+  })
+
   it('falls back to the data browser', () => {
     expect(entryRoute(entry('transaction'))).toBe('/data?entry=42')
   })

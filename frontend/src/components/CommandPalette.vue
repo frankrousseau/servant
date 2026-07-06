@@ -22,6 +22,7 @@ const PAGES = [
   { label: 'Calendar', path: '/apps/calendar' },
   { label: 'Photos', path: '/apps/photos' },
   { label: 'Files', path: '/apps/files' },
+  { label: 'Finance', path: '/apps/finance' },
   { label: 'Contacts', path: '/apps/contacts' },
   { label: 'Data browser', path: '/data' },
   { label: 'Connectors', path: '/connectors' },

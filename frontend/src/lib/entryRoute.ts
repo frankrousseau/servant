@@ -16,6 +16,10 @@ export function entryRoute(e: Entry): string {
       return `/photos/${e.id}`
     case 'file':
       return '/apps/files'
+    case 'account':
+    case 'balance':
+    case 'bank_tx':
+      return '/apps/finance'
     default:
       return `/data?entry=${e.id}`
   }

@@ -31,6 +31,13 @@ export const BUILTIN_APPS: AppDef[] = [
     load: () => import('./files')
   },
   {
+    id: 'finance',
+    name: 'Finance',
+    icon: 'Wallet',
+    builtin: true,
+    load: () => import('./finance')
+  },
+  {
     id: 'notes',
     name: 'Notes',
     icon: 'NotebookPen',
