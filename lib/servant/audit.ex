@@ -3,7 +3,7 @@ defmodule Servant.Audit do
   System introspection for the Audit page: machine resources (CPU, RAM),
   what the server and its connector workers consume, and disk usage.
 
-  Linux-first — it reads `/proc` and cgroup files, which covers bare-metal
+  Linux-first: it reads `/proc` and cgroup files, which covers bare-metal
   and Docker deployments alike. Every probe degrades to `nil` when its
   source is missing (e.g. macOS in development), so the endpoint never
   crashes on an exotic host.
@@ -162,7 +162,7 @@ defmodule Servant.Audit do
     }
   end
 
-  # Space on the filesystem holding the data dir — in Docker that is the
+  # Space on the filesystem holding the data dir; in Docker that is the
   # mounted volume, which is what actually fills up (not the host root).
   defp df(path) do
     case System.cmd("df", ["-kP", path], stderr_to_stdout: true) do

@@ -43,7 +43,7 @@ defmodule ServantWeb.ConnCase do
   """
   def register_and_log_in_user(conn, attrs \\ %{}) do
     user = Servant.Fixtures.user_fixture(attrs)
-    # Sign against the Endpoint directly — a bare build_conn/0 has no
+    # Sign against the Endpoint directly, since a bare build_conn/0 has no
     # :phoenix_endpoint until a request is dispatched.
     token = ServantWeb.Auth.sign_token(ServantWeb.Endpoint, user.id)
     {Plug.Conn.put_req_header(conn, "authorization", "Bearer #{token}"), user}

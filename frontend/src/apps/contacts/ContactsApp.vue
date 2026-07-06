@@ -148,7 +148,7 @@ async function submitCreate() {
     const created = await props.ctx.api.entries.create({
       kind: 'contact',
       source: 'manual',
-      title: titleParts.join(' — '),
+      title: titleParts.join(' - '),
       data: {
         display_name: displayName,
         org: form.org.trim() || null,

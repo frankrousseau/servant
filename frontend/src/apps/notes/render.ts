@@ -5,7 +5,7 @@ import { escapeHtml } from '../escapeHtml'
 const md = new MarkdownIt({ breaks: true, linkify: true })
 
 /**
- * Canonical form for note slugs and wikilink matching — must mirror the
+ * Canonical form for note slugs and wikilink matching. Must mirror the
  * backend `Servant.Notes.canon/1` (trim, lower-case, collapse whitespace).
  */
 export function canon(str: string): string {

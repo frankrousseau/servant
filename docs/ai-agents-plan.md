@@ -1,4 +1,4 @@
-# Agents IA — Réflexion
+# Agents IA : Réflexion
 
 ## Concept
 
@@ -14,12 +14,12 @@ Lancer un agent IA à intervalle régulier (cron) pour analyser, enrichir ou ré
 
 ### 1. Nouveau type d'entité : "Agent"
 
-Pas un connecteur — un agent IA a un **prompt**, pas juste une config de sync.
+Pas un connecteur : un agent IA a un **prompt**, pas juste une config de sync.
 
 - Table `agents` : nom, prompt système, schedule, provider, modèle, enabled
 - Historique d'exécutions avec input/output
 
-### 2. Module `Servant.AI` — abstraction multi-provider
+### 2. Module `Servant.AI` : abstraction multi-provider
 
 Un module unique qui route vers le bon backend :
 
@@ -94,7 +94,7 @@ Supporte deux providers :
 ## Recommandation
 
 1. Implémenter le module `Servant.AI` avec Ollama comme provider par défaut et Anthropic en option
-2. Commencer par le niveau "simple" — un cron qui résume les données de la semaine
+2. Commencer par le niveau "simple" : un cron qui résume les données de la semaine
 3. Le `Worker` existant peut être réutilisé presque tel quel
 4. Config dans Settings : URL Ollama, modèle par défaut, clé API Anthropic (optionnelle)
 5. La vraie valeur arrive au niveau "moyen" quand l'agent a accès au contexte filtré des entries

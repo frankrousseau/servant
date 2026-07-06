@@ -33,7 +33,7 @@ const viewerAPI: ViewerAPI = {
 
 // Build the app context once, here in setup(): createAppContext calls
 // useRouter()/useAuthStore()/useConfirm(), which must run in a component's setup
-// context — not later inside the async loadApp() watch callback (where
+// context, not later inside the async loadApp() watch callback (where
 // useRouter's injection may resolve to undefined after an await).
 const ctx = createAppContext(viewerAPI)
 

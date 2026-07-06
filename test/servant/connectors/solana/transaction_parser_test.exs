@@ -129,7 +129,7 @@ defmodule Servant.Connectors.Solana.TransactionParserTest do
           }
         })
 
-      # Default min_lamports is 1_000_000 — change of 500 is below
+      # Default min_lamports is 1_000_000, so a change of 500 is below
       assert :skip = TransactionParser.parse(tx, @wallet)
     end
 

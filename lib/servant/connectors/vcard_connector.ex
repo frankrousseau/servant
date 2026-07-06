@@ -63,7 +63,7 @@ defmodule Servant.Connectors.VCardConnector do
   end
 
   defp fetch_vcf(url) do
-    # SSRF guard on the user-supplied feed URL, like RSS/iCal — without it a vCard
+    # SSRF guard on the user-supplied feed URL, like RSS/iCal; without it a vCard
     # connector could be pointed at internal/metadata addresses.
     with :ok <- Servant.HTTP.ensure_public_url(url) do
       case Req.get(url, Servant.HTTP.req_options(verify: false)) do
@@ -236,11 +236,11 @@ defmodule Servant.Connectors.VCardConnector do
         contact.emails |> Enum.map(& &1["value"]) |> List.first()
       ]
       |> Enum.reject(&is_nil/1)
-      |> Enum.join(" — ")
+      |> Enum.join(" - ")
 
     title =
       if subtitle_parts != "" do
-        "#{contact.display_name} — #{subtitle_parts}"
+        "#{contact.display_name} - #{subtitle_parts}"
       else
         contact.display_name
       end

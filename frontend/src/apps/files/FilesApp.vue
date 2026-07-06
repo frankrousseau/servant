@@ -293,7 +293,7 @@ function cancelRename() {
   renameInput.value?.blur()
 }
 
-// Commit on blur only — Enter just blurs, so the save can't double-fire.
+// Commit on blur only: Enter just blurs, so the save can't double-fire.
 async function onRenameBlur() {
   const cancelled = renameCancelled
   renameCancelled = false
@@ -359,7 +359,7 @@ function onRowDragLeave(f: Entry) {
 function onRowDrop(f: Entry, e: DragEvent) {
   if (draggingId.value) {
     if (canDropOn(f)) void moveTo(f.id)
-    // Only clear the highlight here; draggingId lives until dragend —
+    // Only clear the highlight here; draggingId lives until dragend:
     // clearing it now lets a stray dragover between drop and dragend
     // re-light the upload glow (visible blink).
     dropTargetId.value = null
@@ -491,7 +491,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
             ><Folder :size="16"
           /></span>
           <span class="fs-name-cell"><span class="fs-name">..</span></span>
-          <span class="fs-size fs-col-size">—</span>
+          <span class="fs-size fs-col-size">-</span>
           <span></span>
         </div>
         <div
@@ -548,7 +548,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
             </button>
           </span>
           <span class="fs-size fs-col-size">{{
-            isFolder(f) ? '—' : formatFileSize(fileSize(f))
+            isFolder(f) ? '-' : formatFileSize(fileSize(f))
           }}</span>
           <span class="fs-date">{{ formatDate(f.inserted_at) }}</span>
         </div>

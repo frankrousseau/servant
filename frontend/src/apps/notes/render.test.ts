@@ -13,7 +13,7 @@ describe('renderMarkdown', () => {
   it('does not turn a javascript: link into an anchor href', () => {
     const html = renderMarkdown('[click](javascript:alert(1))', noneResolved)
     // markdown-it's default validateLink rejects the scheme, so it stays inert
-    // text — never an executable href.
+    // text, never an executable href.
     expect(html).not.toMatch(/href=["']?javascript:/i)
     expect(html).not.toContain('<a')
   })

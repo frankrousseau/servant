@@ -1,7 +1,7 @@
 // Timezone-aware date/time formatting. Timestamps are stored in UTC on the
 // server; everything user-facing is rendered in the user's preferred IANA
 // timezone (falling back to the browser's when unknown). The tz database lives
-// in the browser via Intl — no dependency needed.
+// in the browser via Intl; no dependency needed.
 import { useAuthStore } from '../stores/auth'
 
 // The user's preferred timezone, or undefined to let Intl use the browser

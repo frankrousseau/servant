@@ -1,6 +1,6 @@
 import type { AppDef } from './types'
 
-// Alphabetical by name — this array is the sidebar display order.
+// Alphabetical by name; this array is the sidebar display order.
 export const BUILTIN_APPS: AppDef[] = [
   {
     id: 'calendar',

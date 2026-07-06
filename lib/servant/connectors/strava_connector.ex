@@ -180,10 +180,10 @@ defmodule Servant.Connectors.StravaConnector do
         end
 
       {:ok, %Req.Response{status: 401}} ->
-        {:error, "Unauthorized — check your Strava credentials"}
+        {:error, "Unauthorized: check your Strava credentials"}
 
       {:ok, %Req.Response{status: 429}} ->
-        {:error, "Strava rate limit exceeded — try again later"}
+        {:error, "Strava rate limit exceeded, try again later"}
 
       {:ok, %Req.Response{status: status, body: body}} ->
         msg = if is_map(body), do: body["message"], else: nil
@@ -230,7 +230,7 @@ defmodule Servant.Connectors.StravaConnector do
 
     title =
       activity["name"] ||
-        "#{sport} — #{distance_km} km in #{moving_min} min"
+        "#{sport} - #{distance_km} km in #{moving_min} min"
 
     %{
       "kind" => "activity",

@@ -72,8 +72,8 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
   end
 
   # The provider name is interpolated into a filesystem path by the Node script
-  # (`providers/<name>.js`), so restrict it to a bare identifier — no path
-  # separators or `..` — to prevent traversal into (and execution of) arbitrary
+  # (`providers/<name>.js`), so restrict it to a bare identifier (no path
+  # separators or `..`) to prevent traversal into (and execution of) arbitrary
   # JS. Mirrors the guard in priv/scrapers/invoice_scraper.js.
   defp valid_provider?(provider) when is_binary(provider),
     do: Regex.match?(~r/^[a-z0-9_]+$/, provider)
@@ -152,7 +152,7 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
   end
 
   # Prefix common currencies with their symbol, otherwise suffix the code
-  # (e.g. "12.00 CHF") — never hard-code "$".
+  # (e.g. "12.00 CHF"); never hard-code "$".
   defp format_amount(amount, currency) do
     case String.upcase(to_string(currency)) do
       "USD" -> "$#{amount}"
@@ -178,7 +178,7 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
       end
 
     provider_label = provider |> to_string() |> String.capitalize()
-    title = "#{provider_label} — #{format_amount(amount, currency)} (#{month_label})"
+    title = "#{provider_label} - #{format_amount(amount, currency)} (#{month_label})"
 
     %{
       "kind" => "invoice",

@@ -14,7 +14,7 @@ defmodule Servant.Connectors.EVM.TransactionParser do
   has zero value, or is below the threshold.
 
   Options:
-    - `:min_wei` — minimum HYPE transfer in wei to include (default 1_000_000_000_000_000 = 0.001 HYPE)
+    - `:min_wei`: minimum HYPE transfer in wei to include (default 1_000_000_000_000_000 = 0.001 HYPE)
   """
   def parse_transaction(tx, wallet_address, opts \\ []) do
     min_wei = Keyword.get(opts, :min_wei, 1_000_000_000_000_000)
@@ -126,7 +126,7 @@ defmodule Servant.Connectors.EVM.TransactionParser do
 
   defp check_success(%{"isError" => "0"}), do: :ok
   defp check_success(%{"isError" => "1"}), do: :failed
-  # Token transfers don't have isError — assume success
+  # Token transfers don't have isError; assume success
   defp check_success(%{"tokenSymbol" => _}), do: :ok
   defp check_success(_), do: :ok
 

@@ -71,7 +71,7 @@ defmodule Servant.Connectors.BankCSV.ParserTest do
 
       assert transfer.date == ~D[2019-09-04]
       assert transfer.amount == 1000.0
-      assert transfer.description == "MR FRANK ROUSSEAU — Credit Transfer"
+      assert transfer.description == "MR FRANK ROUSSEAU - Credit Transfer"
     end
   end
 

@@ -23,7 +23,7 @@ defmodule Servant.Media.ThumbnailTest do
         assert File.stat!(dest).size > 0
 
       :error ->
-        IO.puts("Skipping thumbnail generation — libvips not available in this environment")
+        IO.puts("Skipping thumbnail generation: libvips not available in this environment")
     end
   end
 

@@ -371,11 +371,11 @@ async function changePassword() {
       <div class="card-body">
         <div class="info-row">
           <span class="info-label">Member since</span>
-          <span class="info-value">{{ memberSince || '—' }}</span>
+          <span class="info-value">{{ memberSince || '-' }}</span>
         </div>
         <div class="info-row">
           <span class="info-label">User ID</span>
-          <span class="info-value mono">{{ auth.user?.id || '—' }}</span>
+          <span class="info-value mono">{{ auth.user?.id || '-' }}</span>
         </div>
       </div>
     </section>

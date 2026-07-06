@@ -9,7 +9,7 @@ contract. The full types live in [`types.ts`](./types.ts).
 1. Create `apps/<id>/index.ts` exporting a default `AppModule`:
 
    ```ts
-   import type { AppModule } from "../types";
+   import type { AppModule } from '../types'
 
    const app: AppModule = {
      mount(el, ctx) {
@@ -17,10 +17,10 @@ contract. The full types live in [`types.ts`](./types.ts).
      },
      unmount(el) {
        // optional: remove listeners/timers you added
-     },
-   };
+     }
+   }
 
-   export default app;
+   export default app
    ```
 
 2. Register it in [`registry.ts`](../apps/registry.ts) with an `AppDef`
@@ -29,18 +29,18 @@ contract. The full types live in [`types.ts`](./types.ts).
 ## The `AppContext`
 
 Passed to `mount`. It is the **only** supported way for an app to reach the rest
-of the system — don't import stores/router directly.
+of the system; don't import stores/router directly.
 
-- `navigate(path)` — router navigation.
-- `confirm.ask({ message, ... })` — themed confirm dialog, resolves to a boolean.
-- `viewer.open(items, startIndex)` / `.close()` / `.onDelete(cb)` — full-screen media viewer.
-- `api.entries` — user-scoped CRUD: `list` / `get` / `create` / `update` / `delete` / `stats`.
-- `api.upload(file, app?)` — upload a file, returns `{ path, filename, size, mime_type }`.
-- `api.fetch(path, opts?)` — authenticated `fetch` for anything not covered above.
+- `navigate(path)`: router navigation.
+- `confirm.ask({ message, ... })`: themed confirm dialog, resolves to a boolean.
+- `viewer.open(items, startIndex)` / `.close()` / `.onDelete(cb)`: full-screen media viewer.
+- `api.entries`: user-scoped CRUD (`list` / `get` / `create` / `update` / `delete` / `stats`).
+- `api.upload(file, app?)`: upload a file, returns `{ path, filename, size, mime_type }`.
+- `api.fetch(path, opts?)`: authenticated `fetch` for anything not covered above.
 
 ## Conventions
 
-- Escape any user data before inserting it into HTML — use the shared
+- Escape any user data before inserting it into HTML; use the shared
   [`escapeHtml`](./escapeHtml.ts), never a per-app copy.
 - Clean up every listener/timer in `unmount` (and on modal close) to avoid leaks.
 - Files load via `<img src="/files/…">`; the backend authenticates them with an

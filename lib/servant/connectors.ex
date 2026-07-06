@@ -168,7 +168,7 @@ defmodule Servant.Connectors do
   def persist_connector_cursor(_config_id, cursor) when map_size(cursor) == 0, do: :ok
 
   def persist_connector_cursor(config_id, cursor) when is_map(cursor) do
-    # Transaction so the read-merge-write is atomic — otherwise a concurrent API
+    # Transaction so the read-merge-write is atomic; otherwise a concurrent API
     # edit to the same config between the read and the write would be lost.
     {:ok, result} =
       Repo.transaction(fn ->
@@ -287,7 +287,7 @@ defmodule Servant.Connectors do
     case apply(module, import_fn, [content, state]) do
       {:ok, []} ->
         fail_sync_log(sync_log, "No entries found in file")
-        {:error, {:import_failed, "No entries found — check file format and connector preset"}}
+        {:error, {:import_failed, "No entries found, check file format and connector preset"}}
 
       {:ok, entries} ->
         {:ok, inserted} = Servant.Data.create_entries(user_id, entries)

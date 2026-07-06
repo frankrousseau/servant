@@ -15,7 +15,7 @@ defmodule Servant.Connectors.Scheduler do
   @impl true
   def init(_opts) do
     # Repo and the Ecto.Migrator run before the Scheduler in the supervision
-    # tree, so `handle_continue` is safe here — no need for a hardcoded delay.
+    # tree, so `handle_continue` is safe here; no need for a hardcoded delay.
     {:ok, %{}, {:continue, :start_connectors}}
   end
 

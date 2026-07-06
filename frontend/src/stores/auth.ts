@@ -5,7 +5,7 @@ import { apiErrorMessage } from '../composables/apiClient'
 
 // Only a non-sensitive "are we logged in?" flag is persisted. The actual auth
 // token lives in an HttpOnly cookie (unreadable by JS) plus an in-memory copy
-// used to open the realtime socket — never in localStorage (FE-SEC-3).
+// used to open the realtime socket, never in localStorage (FE-SEC-3).
 const LOGGED_IN_KEY = 'servant_logged_in'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -76,7 +76,7 @@ export const useAuthStore = defineStore('auth', () => {
     clearAuth()
   }
 
-  // On boot, if the flag says we were logged in, confirm via /auth/me — the
+  // On boot, if the flag says we were logged in, confirm via /auth/me; the
   // HttpOnly cookie authenticates the request. Populates the user and an
   // in-memory token (for the socket); clears state if the cookie is gone/expired.
   async function hydrate() {
@@ -92,7 +92,7 @@ export const useAuthStore = defineStore('auth', () => {
         clearAuth()
       }
     } catch {
-      // Network error — keep the flag and retry on the next boot.
+      // Network error: keep the flag and retry on the next boot.
     }
   }
 

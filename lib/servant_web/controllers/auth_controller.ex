@@ -91,8 +91,8 @@ defmodule ServantWeb.AuthController do
     user = conn.assigns.current_user
 
     # Also hand back a fresh token: after a reload the SPA has no token in memory
-    # (it isn't stored in localStorage anymore) and uses this — authenticated via
-    # the HttpOnly cookie — to open the realtime socket.
+    # (it isn't stored in localStorage anymore) and uses this (authenticated via
+    # the HttpOnly cookie) to open the realtime socket.
     json(conn, %{
       token: Auth.sign_token(conn, user.id),
       data: %{

@@ -15,7 +15,7 @@ export function useConfirm() {
     danger?: boolean
   }): Promise<boolean> {
     // Single shared modal: if a previous ask() is still pending (its promise
-    // never settled), resolve it as cancelled before reusing the slot — else
+    // never settled), resolve it as cancelled before reusing the slot; else
     // that awaiter would hang forever, freezing whatever UI awaited it.
     if (resolveFn) {
       resolveFn(false)

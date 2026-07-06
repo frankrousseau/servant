@@ -249,7 +249,7 @@ async function deleteConnector() {
 }
 
 function duration(log: SyncLog): string {
-  if (!log.finished_at) return '—'
+  if (!log.finished_at) return '-'
   const start = new Date(log.started_at).getTime()
   const end = new Date(log.finished_at).getTime()
   const ms = end - start

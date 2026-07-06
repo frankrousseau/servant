@@ -1,7 +1,7 @@
 defmodule Servant.Connectors.BankCSVConnector do
   @moduledoc """
   Import connector for bank transaction CSV files.
-  On-demand only — the user uploads a CSV file which gets parsed
+  On-demand only: the user uploads a CSV file which gets parsed
   into transaction entries using a bank-specific preset.
   """
 
@@ -39,7 +39,7 @@ defmodule Servant.Connectors.BankCSVConnector do
 
   @impl true
   def sync(state) do
-    # This connector doesn't auto-sync — entries are created via import_csv/3
+    # This connector doesn't auto-sync; entries are created via import_csv/3
     {:ok, [], state}
   end
 
@@ -55,10 +55,10 @@ defmodule Servant.Connectors.BankCSVConnector do
             title =
               case tx.direction do
                 "sent" ->
-                  "Paid #{format_amount(tx.abs_amount)} #{tx.currency} — #{tx.description}"
+                  "Paid #{format_amount(tx.abs_amount)} #{tx.currency} - #{tx.description}"
 
                 "received" ->
-                  "Received #{format_amount(tx.abs_amount)} #{tx.currency} — #{tx.description}"
+                  "Received #{format_amount(tx.abs_amount)} #{tx.currency} - #{tx.description}"
               end
 
             occurred_at =

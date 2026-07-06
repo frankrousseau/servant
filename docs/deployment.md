@@ -6,15 +6,15 @@ backed by a SQLite database on a mounted volume.
 
 > Servant is API-only Phoenix + a Vue SPA. The SPA is built into `priv/static/`
 > at image-build time and served by Phoenix, so the running container needs
-> **no Node.js** — only the compiled release.
+> **no Node.js**, only the compiled release.
 
 ## Overview
 
 The image is built in three stages:
 
-1. **`frontend`** (`node:22`) — builds the Vue SPA into `priv/static/`.
-2. **`build`** (`hexpm/elixir`) — compiles deps, digests assets, builds a `mix release`.
-3. **runtime** (`debian:bookworm-slim`) — runs the release only.
+1. **`frontend`** (`node:22`): builds the Vue SPA into `priv/static/`.
+2. **`build`** (`hexpm/elixir`): compiles deps, digests assets, builds a `mix release`.
+3. **runtime** (`debian:bookworm-slim`): runs the release only.
 
 At container start, an entrypoint runs pending Ecto migrations, then boots the
 Phoenix server.
@@ -26,7 +26,7 @@ Create the four files below at the repository root (plus one Elixir module).
 ### 1. `lib/servant/release.ex`
 
 The release has no Mix available, so migrations run through a small module.
-**This file is required** — the entrypoint calls `Servant.Release.migrate/0`.
+**This file is required**: the entrypoint calls `Servant.Release.migrate/0`.
 
 ```elixir
 defmodule Servant.Release do
@@ -62,7 +62,7 @@ end
 # syntax=docker/dockerfile:1
 
 ###############################################################################
-# Stage 1 — build the Vue SPA into priv/static
+# Stage 1: build the Vue SPA into priv/static
 ###############################################################################
 FROM node:22-bookworm-slim AS frontend
 
@@ -76,7 +76,7 @@ COPY priv/static/ /app/priv/static/
 RUN npm run build
 
 ###############################################################################
-# Stage 2 — build the Elixir release
+# Stage 2: build the Elixir release
 ###############################################################################
 FROM hexpm/elixir:1.18.3-erlang-27.3.4-debian-bookworm-20260112-slim AS build
 
@@ -109,7 +109,7 @@ RUN mix phx.digest
 RUN mix release
 
 ###############################################################################
-# Stage 3 — minimal runtime
+# Stage 3: minimal runtime
 ###############################################################################
 FROM debian:bookworm-slim AS app
 
@@ -204,14 +204,14 @@ volumes:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SECRET_KEY_BASE` | ✅ | — | Signs tokens/cookies. Generate with `mix phx.gen.secret`. |
+| `SECRET_KEY_BASE` | ✅ | _(none)_ | Signs tokens/cookies. Generate with `mix phx.gen.secret`. |
 | `PHX_HOST` | ✅ | `example.com` | Public hostname (used to build URLs). |
-| `DATABASE_PATH` | ✅ | `/data/servant.db` (set in image) | Absolute path to the SQLite file — must be on the volume. |
+| `DATABASE_PATH` | ✅ | `/data/servant.db` (set in image) | Absolute path to the SQLite file; must be on the volume. |
 | `FILES_DIR` | ✅ | `/data/files` (set in image) | Persistent user files (`apps/`, `connectors/`, `account/`). |
 | `TMP_DIR` | ✅ | `/data/tmp` (set in image) | Scratch space for imports and processing (safe to purge). |
 | `PHX_SERVER` | ✅ | `true` (set in image) | Must be truthy or the HTTP server won't start. |
-| `PORT` | — | `4000` | HTTP listen port inside the container. |
-| `POOL_SIZE` | — | `5` | SQLite connection pool size. |
+| `PORT` | | `4000` | HTTP listen port inside the container. |
+| `POOL_SIZE` | | `5` | SQLite connection pool size. |
 
 ## Deploy with docker-compose
 
@@ -278,7 +278,7 @@ For a consistent online backup, prefer SQLite's own command:
 ```bash
 docker compose exec servant sh -c \
   'sqlite3 /data/servant.db ".backup /data/servant-backup.db"' 2>/dev/null \
-  || echo "sqlite3 CLI not in image — use the file copy above when idle"
+  || echo "sqlite3 CLI not in image; use the file copy above when idle"
 ```
 
 **Update to a new version:**
@@ -313,5 +313,5 @@ Traefik in front of the `servant` service.
 - **`check_origin`:** if browsers fail to connect over the socket behind a
   proxy, set `PHX_HOST` to the exact public hostname so origin checks pass.
 - **The SPA is baked into the image.** Frontend changes require an image
-  rebuild — there is no live Vite server in production.
+  rebuild; there is no live Vite server in production.
 ```

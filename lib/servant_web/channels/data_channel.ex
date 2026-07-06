@@ -7,7 +7,7 @@ defmodule ServantWeb.DataChannel do
 
   @impl true
   def join("data:" <> user_id, _payload, socket) do
-    # User IDs are binary_id (UUID) strings, so compare directly — never coerce to integer.
+    # User IDs are binary_id (UUID) strings, so compare directly; never coerce to integer.
     if socket.assigns.user_id == user_id do
       Phoenix.PubSub.subscribe(Servant.PubSub, Servant.Events.topic(user_id))
       {:ok, socket}

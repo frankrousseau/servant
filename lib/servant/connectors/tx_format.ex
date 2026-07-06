@@ -43,7 +43,7 @@ defmodule Servant.Connectors.TxFormat do
   """
   def format_units(amount, divisor, decimals)
       when is_integer(amount) and is_integer(divisor) and divisor > 0 do
-    # Integer arithmetic only — float division loses precision past ~15 digits,
+    # Integer arithmetic only: float division loses precision past ~15 digits,
     # which matters for 18-decimal wei amounts.
     scale = byte_size(Integer.to_string(divisor)) - 1
     sign = if amount < 0, do: "-", else: ""

@@ -1,10 +1,10 @@
-# Servant — Initial Scaffolding Plan
+# Servant: Initial Scaffolding Plan
 
 ## Context
 
 Servant is a greenfield, self-hosted personal data hub built with Elixir/Phoenix (API) + Vue.js 3 (SPA). It aggregates personal data from external services (Gmail, banks, photos, health data, etc.) via a connector plugin system, and exposes it through built-in and client-only apps that all share the same API.
 
-**Multi-user model:** Equal accounts with no hierarchy. Each user manages their own connectors and data. Data is private by default — sharing is explicit (future feature). Each user connects their own services (Gmail, bank, etc.).
+**Multi-user model:** Equal accounts with no hierarchy. Each user manages their own connectors and data. Data is private by default; sharing is explicit (future feature). Each user connects their own services (Gmail, bank, etc.).
 
 The goal of this plan is to scaffold the project foundation: Phoenix backend, Vue frontend, core data model, connector behaviour, app interface, and auth.
 
@@ -57,7 +57,7 @@ cd frontend && npm install vue-router@4 pinia @vueuse/core
 | `display_name` | string | shown in UI |
 | timestamps | | |
 
-**`entries` table** — universal data container:
+**`entries` table** (universal data container):
 | Column | Type | Purpose |
 |--------|------|---------|
 | `user_id` | references(users) | owner of this entry |
@@ -71,7 +71,7 @@ cd frontend && npm install vue-router@4 pinia @vueuse/core
 
 Indexes on `[user_id, kind]`, `[user_id, source]`, `[user_id, occurred_at]`. Unique index on `(user_id, source, external_id)`.
 
-**`credentials` table** — encrypted OAuth/API keys:
+**`credentials` table** (encrypted OAuth/API keys):
 | Column | Type | Purpose |
 |--------|------|---------|
 | `user_id` | references(users) | owner |
@@ -79,7 +79,7 @@ Indexes on `[user_id, kind]`, `[user_id, source]`, `[user_id, occurred_at]`. Uni
 | `data` | binary | encrypted credential blob (cloak_ecto) |
 | timestamps | | |
 
-**`connector_configs` table** — per-user connector state:
+**`connector_configs` table** (per-user connector state):
 | Column | Type | Purpose |
 |--------|------|---------|
 | `user_id` | references(users) | owner |
@@ -90,10 +90,10 @@ Indexes on `[user_id, kind]`, `[user_id, source]`, `[user_id, occurred_at]`. Uni
 | `error` | string | last error, if any |
 | timestamps | | |
 
-**`settings` table** — key/value for system and per-user config.
+**`settings` table**: key/value for system and per-user config.
 
 ### Step 7: Auth System
-- Registration: `POST /api/auth/register` (username + password) — open to any user on the instance
+- Registration: `POST /api/auth/register` (username + password), open to any user on the instance
 - First user created becomes the instance (can be refined later if needed)
 - Login: `POST /api/auth/login` → returns signed Phoenix.Token
 - Auth plug: validates bearer token on all `/api/*` routes, scopes all queries to current user
@@ -129,7 +129,7 @@ Indexes on `[user_id, kind]`, `[user_id, source]`, `[user_id, occurred_at]`. Uni
 @callback schedule() :: non_neg_integer()
 ```
 
-Each connector GenServer is started per-user — if 3 users enable Gmail, there are 3 Gmail GenServer processes, each with their own credentials.
+Each connector GenServer is started per-user: if 3 users enable Gmail, there are 3 Gmail GenServer processes, each with their own credentials.
 
 ### Step 11: Connector Supervision
 - `DynamicSupervisor` for connector GenServers
@@ -142,7 +142,7 @@ A trivial connector (e.g., RSS feed reader) to prove the pattern.
 
 ### Step 13: Phoenix Channels
 - `DataChannel` broadcasting entry create/update/delete events via PubSub
-- User-scoped topics: `"data:#{user_id}"` — users only receive their own events
+- User-scoped topics: `"data:#{user_id}"` (users only receive their own events)
 
 ### Step 14: Vue Shell
 - Router, auth store (Pinia), API composable, socket composable

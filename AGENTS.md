@@ -1,9 +1,10 @@
-This is an **API-only** Phoenix backend (`--no-html --no-live --no-assets`) paired with a separate Vue.js 3 SPA in `frontend/`. There is no LiveView, no server-rendered HTML, and no `core_components.ex` — the standard Phoenix HTML/LiveView guidelines do **not** apply here. The web layer is JSON controllers + Phoenix Channels.
+This is an **API-only** Phoenix backend (`--no-html --no-live --no-assets`) paired with a separate Vue.js 3 SPA in `frontend/`. There is no LiveView, no server-rendered HTML, and no `core_components.ex`, so the standard Phoenix HTML/LiveView guidelines do **not** apply here. The web layer is JSON controllers + Phoenix Channels.
 
 ## Project guidelines
 
 - Use `mix precommit` alias when you are done with all changes and fix any pending issues
 - Use the already included and available `:req` (`Req`) library for HTTP requests, **avoid** `:httpoison`, `:tesla`, and `:httpc`. Req is included by default and is the preferred HTTP client for Phoenix apps
+- **Never write em dashes (—)** anywhere: comments, doc strings, UI copy, docs, commit messages. Use a comma, colon, semicolon, parentheses, or a plain hyphen instead. Entry-title separators and empty-cell placeholders use a plain "-" ("Name - org - email"). The only em dashes left in the code are the legacy-separator (" — ") parsing fallbacks that keep pre-July-2026 entries readable; never remove those
 
 ## Vue style
 

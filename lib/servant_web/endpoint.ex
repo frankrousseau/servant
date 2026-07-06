@@ -38,7 +38,7 @@ defmodule ServantWeb.Endpoint do
     raise_on_missing_only: code_reloading?
 
   # User files (/files, /uploads) are served by an authenticated controller in
-  # the router (ServantWeb.FilesController) — never as unauthenticated statics.
+  # the router (ServantWeb.FilesController), never as unauthenticated statics.
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.

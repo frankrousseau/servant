@@ -49,7 +49,7 @@ defmodule Servant.Connectors.Worker do
 
     # Re-read the config from the DB rather than trusting the opts captured at
     # start_child time: on a supervisor restart those opts are stale (the
-    # persisted cursor — last_block/last_signature/refresh_token — has since
+    # persisted cursor (last_block/last_signature/refresh_token) has since
     # advanced), which would re-scan from the start. Fall back to the opts if
     # the row is gone.
     stored = Repo.get(ConnectorConfig, config_id)

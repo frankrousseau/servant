@@ -117,7 +117,7 @@ defmodule Servant.Storage do
 
   @doc """
   Like `resolve_public_path/1`, but only succeeds when the resolved file belongs
-  to `user_id` — i.e. it lives under `FILES_DIR/<user_id>/`. Used to enforce
+  to `user_id`, i.e. it lives under `FILES_DIR/<user_id>/`. Used to enforce
   per-user ownership when serving `/files/…` behind authentication.
   """
   def resolve_owned_path(user_id, relative) when is_binary(user_id) and is_binary(relative) do
@@ -133,7 +133,7 @@ defmodule Servant.Storage do
 
         # New-tree files live under FILES_DIR/<user_id>/ (physical check). Legacy
         # files may resolve under UPLOADS_DIR (a different root) yet still belong
-        # to the user — their owner is encoded in the request path. `resolve_
+        # to the user: their owner is encoded in the request path. `resolve_
         # public_path` already rejected `..` traversal, so trusting that owner is
         # safe.
         if under_owner_root? or claimed_owner(normalized) == user_id do

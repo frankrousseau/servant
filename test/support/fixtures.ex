@@ -33,7 +33,7 @@ defmodule Servant.Fixtures do
       Data.create_entry(
         user_id,
         Enum.into(attrs, %{
-          # A neutral kind — "note" entries are managed by the Notes context and
+          # A neutral kind: "note" entries are managed by the Notes context and
           # are intentionally not mutable through the generic entries API.
           "kind" => "bookmark",
           "source" => "test",

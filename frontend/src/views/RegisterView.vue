@@ -8,7 +8,7 @@ const auth = useAuthStore()
 const router = useRouter()
 
 // Closed instance (REGISTRATION_ENABLED=false): this page has no reason to
-// exist — bounce to sign-in. The server refuses the POST regardless.
+// exist, so bounce to sign-in. The server refuses the POST regardless.
 onMounted(async () => {
   if (!(await fetchRegistrationEnabled())) router.replace('/login')
 })

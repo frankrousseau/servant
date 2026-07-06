@@ -3,7 +3,7 @@ defmodule Servant.Audit.LogBuffer do
   In-memory ring buffers for the Audit page: one for HTTP access lines
   (fed by `ServantWeb.Plugs.AccessLog`) and one for error-level log events
   (fed by `Servant.Audit.ErrorLogHandler`). Newest first, capped, gone on
-  restart — a viewport on the running server, not an archive.
+  restart: a viewport on the running server, not an archive.
   """
 
   use GenServer

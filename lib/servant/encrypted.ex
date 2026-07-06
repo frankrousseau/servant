@@ -8,7 +8,7 @@ defmodule Servant.Encrypted do
 
   The key is derived (SHA-256) from `:connector_encryption_key` if configured,
   otherwise from the endpoint `secret_key_base`. **Changing that secret makes
-  existing connector secrets undecryptable** — you'd have to re-enter them.
+  existing connector secrets undecryptable**: you'd have to re-enter them.
   """
 
   @magic "ENC1"

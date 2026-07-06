@@ -3,7 +3,7 @@ defmodule Servant.Connectors.Connector do
   Behaviour for connectors that sync external data sources.
 
   Note: secrets and settings both live in the connector's `config` map
-  (encrypted at rest for sensitive keys — see `Servant.Encrypted.Map`). The
+  (encrypted at rest for sensitive keys, see `Servant.Encrypted.Map`). The
   `credentials` argument to `init/2` is currently always `%{}`; `init/2` reads
   what it needs from `config` via `config_value/2,3`. `required_credentials/0`
   is advisory metadata only and does not gate anything today.
@@ -32,7 +32,7 @@ defmodule Servant.Connectors.Connector do
 
   @doc """
   Returns the subset of connector state that must be persisted back into the
-  stored config after a successful sync — typically an incremental cursor like
+  stored config after a successful sync, typically an incremental cursor like
   `last_block`/`last_signature` (or a rotated OAuth `refresh_token`). Persisting
   it lets the connector resume instead of re-scanning from scratch on restart.
 

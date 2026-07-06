@@ -131,7 +131,7 @@ defmodule Servant.Connectors.WorkerTest do
            user_id: user.id,
            connector_module: Servant.FakeConnector,
            config_id: config.id,
-           # Deliberately stale — a supervisor restart would replay these opts.
+           # Deliberately stale: a supervisor restart would replay these opts.
            config: %{"cursor" => "stale_cursor"},
            schedule: "on_demand"
          ]},

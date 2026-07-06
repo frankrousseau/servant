@@ -1,7 +1,7 @@
 defmodule Servant.Connectors.AppleHealthConnector do
   @moduledoc """
   Import connector for Apple Health export.xml files.
-  On-demand only — the user exports their health data from iOS
+  On-demand only: the user exports their health data from iOS
   (Settings → Health → Export All Health Data) and uploads the XML.
 
   Records are aggregated by category and day to avoid creating
@@ -82,7 +82,7 @@ defmodule Servant.Connectors.AppleHealthConnector do
     |> Enum.map(fn {{category, day}, day_records} ->
       cond do
         category == "workout" ->
-          # Don't aggregate workouts — keep each one
+          # Don't aggregate workouts, keep each one
           Enum.map(day_records, &{category, day, &1})
 
         category in @aggregate_categories ->
@@ -92,7 +92,7 @@ defmodule Servant.Connectors.AppleHealthConnector do
           [{category, day, avg_records(day_records, day)}]
 
         true ->
-          # Single-value categories (weight, height, etc.) — take latest
+          # Single-value categories (weight, height, etc.): take latest
           latest = Enum.max_by(day_records, & &1.start_date, fn -> List.first(day_records) end)
           [{category, day, latest}]
       end
@@ -136,7 +136,7 @@ defmodule Servant.Connectors.AppleHealthConnector do
         if(record.distance, do: "#{Float.round(record.distance, 1)} km")
       ]
       |> Enum.reject(&is_nil/1)
-      |> Enum.join(" — ")
+      |> Enum.join(" - ")
 
     %{
       "kind" => "health",

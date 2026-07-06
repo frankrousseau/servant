@@ -1,6 +1,6 @@
 defmodule Servant.Media.Exif do
   @moduledoc """
-  Extracts EXIF metadata from JPEG images — date taken, GPS coordinates,
+  Extracts EXIF metadata from JPEG images: date taken, GPS coordinates,
   camera info. Returns nil values gracefully when data is missing.
   """
 

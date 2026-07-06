@@ -4,7 +4,7 @@ A self-hosted personal data hub. Aggregates data from external services (banking
 
 ## Local development
 
-First-time setup (Erlang 27+, Elixir 1.18+, Node.js 22+ — see [DEVELOPMENT.md](DEVELOPMENT.md) for details):
+First-time setup (Erlang 27+, Elixir 1.18+, Node.js 22+; see [DEVELOPMENT.md](DEVELOPMENT.md) for details):
 
 ```bash
 mix setup
@@ -17,17 +17,17 @@ Start the dev environment:
 ./bin/dev
 ```
 
-This starts Phoenix (port 4000) and the Vite frontend (port 5173) in one terminal. Open `http://localhost:5173` — Vite proxies `/api` and `/socket` requests to Phoenix.
+This starts Phoenix (port 4000) and the Vite frontend (port 5173) in one terminal. Open `http://localhost:5173`. Vite proxies `/api` and `/socket` requests to Phoenix.
 
 To run them separately, see [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## Features
 
-- **Universal data model** — all data stored as typed entries with JSON payloads
-- **Connector plugin system** — pull data from external services on a schedule
-- **Multi-user** — equal accounts; all API/database queries are scoped per user
-- **Real-time** — Phoenix Channels push entry changes to connected clients
-- **Self-hosted** — single binary deployment, SQLite database, runs on a Raspberry Pi
+- **Universal data model**: all data stored as typed entries with JSON payloads
+- **Connector plugin system**: pull data from external services on a schedule
+- **Multi-user**: equal accounts; all API/database queries are scoped per user
+- **Real-time**: Phoenix Channels push entry changes to connected clients
+- **Self-hosted**: single binary deployment, SQLite database, runs on a Raspberry Pi
 
 > **File access:** uploaded files are served under `/files/…` (and legacy
 > `/uploads/…`) **only to their owner**. Access is authenticated by an HttpOnly
@@ -40,10 +40,10 @@ To run them separately, see [DEVELOPMENT.md](DEVELOPMENT.md).
 ### Prerequisites
 
 - Erlang 27+ and Elixir 1.18+
-- Node.js 22+ — required to build the frontend. Also required **at runtime** if you
+- Node.js 22+: required to build the frontend. Also required **at runtime** if you
   use the **Invoice Collector** connector, which runs Playwright scripts via `node`
   (run `npm install` in `priv/scrapers/`). Not needed at runtime otherwise.
-- `libvips` — required at runtime for photo thumbnail generation (`vix`).
+- `libvips`: required at runtime for photo thumbnail generation (`vix`).
 
 ### Build a release
 
@@ -80,8 +80,8 @@ Optional variables:
 | `PHX_SERVER` | _(unset)_ | Set to `true` to start the HTTP server (required for releases) |
 | `POOL_SIZE` | `5` | Database connection pool size |
 | `REGISTRATION_ENABLED` | `true` | Set to `false` to close self-registration (e.g. after creating your accounts). Existing users can still log in. |
-| `CONNECTOR_ENCRYPTION_KEY` | _(derived from `SECRET_KEY_BASE`)_ | Key used to encrypt connector secrets at rest (AES-256-GCM). Set a dedicated value if you want to rotate it independently of `SECRET_KEY_BASE`. **Changing this key (or `SECRET_KEY_BASE` when it's unset) makes stored connector secrets undecryptable — you must re-enter them.** |
-| `FILES_DIR` | `priv/files` (inside the release) | Where uploaded files, photos and connector archives are stored. **Set this to a persistent path outside the release** (e.g. `/var/lib/servant/files`) — the default lives inside the release directory and is **wiped on every redeploy**. |
+| `CONNECTOR_ENCRYPTION_KEY` | _(derived from `SECRET_KEY_BASE`)_ | Key used to encrypt connector secrets at rest (AES-256-GCM). Set a dedicated value if you want to rotate it independently of `SECRET_KEY_BASE`. **Changing this key (or `SECRET_KEY_BASE` when it's unset) makes stored connector secrets undecryptable; you must re-enter them.** |
+| `FILES_DIR` | `priv/files` (inside the release) | Where uploaded files, photos and connector archives are stored. **Set this to a persistent path outside the release** (e.g. `/var/lib/servant/files`); the default lives inside the release directory and is **wiped on every redeploy**. |
 | `TMP_DIR` | `priv/tmp` | Scratch space used while importing connector files. |
 | `UPLOADS_DIR` | `priv/uploads` | Legacy uploads directory (only read, for files created before `FILES_DIR`). |
 
@@ -150,4 +150,4 @@ servant.local {
 2. Register the first user account
 3. Add connectors from the Connectors page
 
-All user accounts are equal — there is no admin/member hierarchy.
+All user accounts are equal; there is no admin/member hierarchy.

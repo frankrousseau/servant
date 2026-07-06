@@ -10,8 +10,8 @@ function onOverlayClick(e: MouseEvent) {
 }
 
 // The overlay never gets focus, so a keydown bound to it never fires. Listen at
-// the document level (capture phase) while visible so Escape cancels the confirm
-// — and stop propagation so an underlying MediaViewer's Escape handler doesn't
+// the document level (capture phase) while visible so Escape cancels the confirm,
+// and stop propagation so an underlying MediaViewer's Escape handler doesn't
 // also fire and close the layer beneath the dialog.
 function onKeydown(e: KeyboardEvent) {
   if (!visible.value) return

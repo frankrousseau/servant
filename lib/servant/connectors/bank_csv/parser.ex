@@ -184,7 +184,7 @@ defmodule Servant.Connectors.BankCSV.Parser do
     |> Enum.reject(&(&1 == ""))
     |> case do
       [] -> nil
-      parts -> Enum.join(parts, " — ")
+      parts -> Enum.join(parts, " - ")
     end
   end
 
@@ -199,7 +199,7 @@ defmodule Servant.Connectors.BankCSV.Parser do
     trimmed = String.trim(line)
 
     # `parse_string/1` defaults to `skip_headers: true`, which would consume this
-    # single line as a header and return `[]` — so RFC4180 parsing never ran and
+    # single line as a header and return `[]`, so RFC4180 parsing never ran and
     # every comma-delimited line fell through to the naive splitter, mis-splitting
     # quoted fields that contain commas (e.g. "Smith, John"). Disable header
     # skipping so the one line is actually parsed.

@@ -145,7 +145,7 @@ defmodule Servant.Connectors.SolanaConnector do
                   # successfully-processed signature. Continuing would let a later
                   # success advance last_signature *past* this failed tx, which the
                   # next sync (querying only signatures newer than the cursor)
-                  # would then never re-fetch — silent, permanent data loss.
+                  # would then never re-fetch: silent, permanent data loss.
                   {:halt, {acc, last_sig, errors + 1}}
               end
             end
@@ -187,7 +187,7 @@ defmodule Servant.Connectors.SolanaConnector do
           # Last page
           {:ok, new_acc}
         else
-          # More pages available — use the last signature as cursor
+          # More pages available; use the last signature as cursor
           last = List.last(signatures)
           Process.sleep(500)
 

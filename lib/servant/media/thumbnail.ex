@@ -124,7 +124,7 @@ defmodule Servant.Media.Thumbnail do
 
   # Keyset-paginate by id so we never hold every photo entry in memory at once.
   # Each batch is its own query, so the per-entry `Repo.update` in
-  # `backfill_entry/1` runs between fetches (no open cursor — SQLite-friendly).
+  # `backfill_entry/1` runs between fetches (no open cursor, SQLite-friendly).
   defp stream_in_batches(query, batch_size) do
     Stream.resource(
       fn -> nil end,

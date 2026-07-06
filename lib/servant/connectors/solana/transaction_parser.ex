@@ -13,7 +13,7 @@ defmodule Servant.Connectors.Solana.TransactionParser do
   is failed, has no relevant changes, or changes are below the threshold.
 
   Options:
-    - `:min_lamports` — minimum SOL change in lamports to include (default 1_000_000 = 0.001 SOL)
+    - `:min_lamports`: minimum SOL change in lamports to include (default 1_000_000 = 0.001 SOL)
   """
   def parse(tx, wallet_address, opts \\ []) do
     min_lamports = Keyword.get(opts, :min_lamports, 1_000_000)

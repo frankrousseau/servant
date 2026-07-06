@@ -1,4 +1,4 @@
-# Checklists app — design
+# Checklists app: design
 
 **Approved:** 2026-07-04 (interactively, in-session)
 
@@ -10,7 +10,7 @@ organised by folder, with recurring lists that expose a **Reset** button
 
 ## Approach
 
-Frontend only — zero backend changes. Each checklist is a generic entry:
+Frontend only, zero backend changes. Each checklist is a generic entry:
 
 ```json
 {
@@ -34,24 +34,24 @@ Frontend only — zero backend changes. Each checklist is a generic entry:
 
 ## Components
 
-- `frontend/src/apps/checklists/index.ts` — thin Vue adapter (same as Contacts).
-- `frontend/src/apps/checklists/ChecklistsApp.vue` — sidebar (search, folder
+- `frontend/src/apps/checklists/index.ts`: thin Vue adapter (same as Contacts).
+- `frontend/src/apps/checklists/ChecklistsApp.vue`: sidebar (search, folder
   groups, list rows with done/total count) + main pane (title, folder,
   recurring toggle, items with inline edit/delete, add-item input, Reset,
   delete). Text edits debounced 600 ms; structural edits save immediately;
   saves serialized on a promise chain (same pattern as Notes).
 - Registered in `registry.ts` (icon `ListChecks`) + icon map in `App.vue` +
   `checklist` entry in `KIND_CONFIG` (types.ts) for the data browser.
-- `ChecklistsApp.test.ts` — load/toggle/reset coverage (vitest).
+- `ChecklistsApp.test.ts`: load/toggle/reset coverage (vitest).
 
 ## Rejected alternative
 
 Dedicated backend context + `/api/checklists` (like Notes): no server-side
-logic exists to justify it — reset is a plain JSON update. YAGNI.
+logic exists to justify it; reset is a plain JSON update. YAGNI.
 
 ## Follow-ups (same day)
 
-- Folder reorganisation: native HTML5 drag & drop — drag a list row onto a
+- Folder reorganisation: native HTML5 drag & drop; drag a list row onto a
   folder (or the tree background for root) to change its `data.folder`.
 - Folder rename: pencil button on the folder row; renames `data.folder` on
   every list in the folder (rename to an existing name = merge).

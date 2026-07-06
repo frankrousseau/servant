@@ -26,13 +26,13 @@ defmodule Servant.Connectors.ICalConnector do
     url = config_value(config, "url")
     calendar_name = Map.get(config, "calendar_name", "Calendar")
 
-    # URL is optional — connector can work with file uploads only
+    # URL is optional; the connector can work with file uploads only
     {:ok, %{url: url, calendar_name: calendar_name}}
   end
 
   @impl true
   def sync(%{url: nil} = state) do
-    # No URL configured — import-only mode
+    # No URL configured: import-only mode
     {:ok, [], state}
   end
 
@@ -207,7 +207,7 @@ defmodule Servant.Connectors.ICalConnector do
 
   # Uses the non-raising Date.new/Time.new: the regexes above only validate the
   # digit *shape*, not the values, so a well-formed-but-invalid stamp (Feb 30,
-  # hour 24 — both emitted by some broken calendar generators) must return
+  # hour 24, both emitted by some broken calendar generators) must return
   # {:error, _} rather than raise and crash the worker on a single bad VEVENT.
   defp build_datetime(y, m, d, h, mi, s) do
     with {:ok, date} <- Date.new(int(y), int(m), int(d)),

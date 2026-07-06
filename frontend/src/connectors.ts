@@ -127,7 +127,7 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
     id: 'ical',
     name: 'iCal Calendar',
     description:
-      'Collect your events from any iCal (.ics) feed — Google Calendar, Outlook, etc.',
+      'Collect your events from any iCal (.ics) feed: Google Calendar, Outlook, etc.',
     category: 'Calendar',
     logo: ICAL_LOGO,
     configFields: [
@@ -314,7 +314,7 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
     id: 'apple_health',
     name: 'Apple Health',
     description:
-      'Import your health data from iPhone — steps, heart rate, workouts, sleep, and more.',
+      'Import your health data from iPhone: steps, heart rate, workouts, sleep, and more.',
     category: 'Health',
     logo: APPLE_HEALTH_LOGO,
     configFields: [],
@@ -354,7 +354,7 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
     id: 'invoice_scraper',
     name: 'Invoice Collector',
     description:
-      'Collect your invoices from online services — Anthropic, OVH, and more.',
+      'Collect your invoices from online services: Anthropic, OVH, and more.',
     category: 'Billing',
     logo: INVOICE_LOGO,
     configFields: [

@@ -7,7 +7,7 @@ defmodule Servant.HTTP do
   certificates with a `key_usage_mismatch` error (e.g. data.gouv.fr, some CDN
   certs); it happens before `verify_fun` is invoked, so it can't be worked
   around per-request. For those specific hosts only, pass `verify: false` at the
-  call site (e.g. `req_options(verify: false)`) — never globally, so secret-
+  call site (e.g. `req_options(verify: false)`), never globally, so secret-
   bearing flows (Strava OAuth, RPC/explorers) keep certificate verification.
   """
 
@@ -87,7 +87,7 @@ defmodule Servant.HTTP do
   # IPv6 loopback ::1 and unspecified ::
   defp private_ip?({0, 0, 0, 0, 0, 0, 0, 1}), do: true
   defp private_ip?({0, 0, 0, 0, 0, 0, 0, 0}), do: true
-  # IPv4-mapped IPv6 ::ffff:a.b.c.d — re-check the embedded v4
+  # IPv4-mapped IPv6 ::ffff:a.b.c.d: re-check the embedded v4
   defp private_ip?({0, 0, 0, 0, 0, 0xFFFF, ab, cd}) do
     private_ip?({div(ab, 256), rem(ab, 256), div(cd, 256), rem(cd, 256)})
   end

@@ -250,7 +250,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                 >{{ value }}</a
               >
             </span>
-            <span v-else class="mv-info-value">{{ value ?? '—' }}</span>
+            <span v-else class="mv-info-value">{{ value ?? '-' }}</span>
           </div>
         </div>
       </Transition>

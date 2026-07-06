@@ -148,7 +148,7 @@ function uptime(seconds: number): string {
 }
 
 const bytes = (n: number | null | undefined) =>
-  n == null ? '—' : formatFileSize(n)
+  n == null ? '-' : formatFileSize(n)
 
 // ----- logs helpers -----
 
@@ -302,9 +302,9 @@ const ms = (us: number) =>
             <tbody>
               <tr v-for="w in stats.workers" :key="w.config_id">
                 <td>{{ w.name || w.config_id }}</td>
-                <td>{{ w.connector_type || '—' }}</td>
+                <td>{{ w.connector_type || '-' }}</td>
                 <td class="au-num">{{ bytes(w.memory_bytes) }}</td>
-                <td class="au-num">{{ w.message_queue_len ?? '—' }}</td>
+                <td class="au-num">{{ w.message_queue_len ?? '-' }}</td>
               </tr>
             </tbody>
           </table>
@@ -327,7 +327,7 @@ const ms = (us: number) =>
           >{{ l.path }}</span
         >
         <span class="au-status" :class="statusClass(l.status)">{{
-          l.status ?? '—'
+          l.status ?? '-'
         }}</span>
         <span class="au-dur">{{ ms(l.duration_us) }}</span>
         <span class="au-ip">{{ l.ip || '' }}</span>

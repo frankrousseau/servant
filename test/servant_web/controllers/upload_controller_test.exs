@@ -1,5 +1,5 @@
 defmodule ServantWeb.UploadControllerTest do
-  # async: false — mutates the FILES_DIR env var.
+  # async: false because these tests mutate the FILES_DIR env var.
   use ServantWeb.ConnCase, async: false
 
   setup %{conn: conn} do

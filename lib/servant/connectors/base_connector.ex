@@ -2,7 +2,7 @@ defmodule Servant.Connectors.BaseConnector do
   @moduledoc """
   Connector for the **Base** chain (Coinbase L2) wallet transactions.
 
-  Despite the name, this is **not** an abstract/base connector — it follows the
+  Despite the name, this is **not** an abstract/base connector; it follows the
   `<ChainName>Connector` convention shared with `ArbitrumConnector`,
   `EthereumConnector`, etc. The generic, reusable EVM implementation lives in
   `Servant.Connectors.EVMConnector` (a `__using__` macro); this module is just a

@@ -60,7 +60,7 @@ defmodule ServantWeb.EntryController do
   def backfill_media(conn, _params) do
     user_id = conn.assigns.current_user.id
 
-    # ponytail: fire-and-forget Task, no progress reporting — the client
+    # ponytail: fire-and-forget Task, no progress reporting; the client
     # polls. Move under a Task.Supervisor if this ever needs shutdown safety.
     Task.start(fn -> Servant.Media.Thumbnail.backfill_missing(user_id) end)
 
