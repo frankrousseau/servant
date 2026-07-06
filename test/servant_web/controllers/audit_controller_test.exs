@@ -24,6 +24,19 @@ defmodule ServantWeb.AuditControllerTest do
       conn = get(build_conn(), "/api/audit/system")
       assert json_response(conn, 401)
     end
+
+    test "403 for a non-admin user" do
+      # setup already created the first user (the admin); this one is not.
+      non_admin = user_fixture()
+      token = ServantWeb.Auth.sign_token(ServantWeb.Endpoint, non_admin)
+
+      conn =
+        build_conn()
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> get("/api/audit/system")
+
+      assert json_response(conn, 403)
+    end
   end
 
   describe "logs" do

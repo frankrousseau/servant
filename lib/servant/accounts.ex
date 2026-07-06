@@ -7,9 +7,18 @@ defmodule Servant.Accounts do
   alias Servant.Repo
 
   def register_user(attrs) do
-    %User{}
-    |> User.registration_changeset(attrs)
-    |> Repo.insert()
+    changeset = User.registration_changeset(%User{}, attrs)
+
+    # The first account created on a fresh instance is the operator (admin).
+    # Set programmatically, never cast, so it can't be mass-assigned.
+    changeset =
+      if Repo.aggregate(User, :count) == 0 do
+        Ecto.Changeset.put_change(changeset, :admin, true)
+      else
+        changeset
+      end
+
+    Repo.insert(changeset)
   end
 
   def authenticate_user(username, password) do

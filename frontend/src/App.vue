@@ -116,7 +116,11 @@ function handleLogout() {
           filesProgress ? `${filesProgress.index}/${filesProgress.total}` : ''
         }}
       </router-link>
-      <router-link to="/audit" class="sidebar-settings-link">
+      <router-link
+        v-if="auth.user?.admin"
+        to="/audit"
+        class="sidebar-settings-link"
+      >
         <Activity :size="18" />Audit
       </router-link>
       <router-link to="/settings" class="sidebar-settings-link">

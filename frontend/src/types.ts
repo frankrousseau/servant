@@ -6,6 +6,7 @@ export interface User {
   avatar_path: string | null
   timezone?: string | null
   totp_enabled?: boolean
+  admin?: boolean
 }
 
 export interface Entry {

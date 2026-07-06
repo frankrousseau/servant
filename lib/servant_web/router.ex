@@ -15,6 +15,10 @@ defmodule ServantWeb.Router do
     plug ServantWeb.Plugs.FileAuth
   end
 
+  pipeline :admin do
+    plug ServantWeb.Plugs.RequireAdmin
+  end
+
   scope "/api", ServantWeb do
     pipe_through :api
 
@@ -56,13 +60,16 @@ defmodule ServantWeb.Router do
 
     get "/apps", AppController, :index
 
-    get "/audit/system", AuditController, :system
-    get "/audit/logs", AuditController, :logs
-
     post "/uploads", UploadController, :create
 
     get "/export/entries", ExportController, :entries
     get "/export/entries.ics", ExportController, :ical
+
+    # Operator-only: server-wide stats + all users' access/error logs.
+    pipe_through :admin
+
+    get "/audit/system", AuditController, :system
+    get "/audit/logs", AuditController, :logs
   end
 
   # Enable LiveDashboard in development

@@ -222,6 +222,7 @@ defmodule ServantWeb.AuthController do
         avatar_path: user.avatar_path,
         timezone: user.timezone,
         totp_enabled: Accounts.totp_enabled?(user),
+        admin: user.admin,
         inserted_at: user.inserted_at
       }
     })
