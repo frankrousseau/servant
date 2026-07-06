@@ -2,13 +2,16 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import flatpickr from 'flatpickr'
 import 'flatpickr/dist/flatpickr.min.css'
+import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import type { AppContext, Entry } from '../types'
+import { contactName } from '../../lib/contact'
 import {
   formatTime,
   zonedToUtcISO,
   utcToZonedParts,
   todayInUserTz
 } from '../../lib/datetime'
+import { nextOccurrence, occursOn, recurrenceOf } from './recurrence'
 
 const props = defineProps<{ ctx: AppContext }>()
 
@@ -45,7 +48,33 @@ const modalEndTime = ref('')
 const modalAllDay = ref(false)
 const modalLocation = ref('')
 const modalCalendar = ref('Manual')
+const modalRecurrence = ref('')
+const modalContact = ref('')
 const modalSaving = ref(false)
+
+// ----- contacts (event ↔ contact association) -----
+
+const contacts = ref<Entry[]>([])
+
+const contactByName = computed(() => {
+  const m = new Map<string, Entry>()
+  for (const c of contacts.value) {
+    const k = contactName(c).toLowerCase()
+    if (k !== '(unnamed)' && !m.has(k)) m.set(k, c)
+  }
+  return m
+})
+
+const contactOptions = computed(() =>
+  [...contactByName.value.values()]
+    .map(contactName)
+    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+)
+
+function openEventContact(e: Entry) {
+  const id = e.data.contact_id as string | undefined
+  if (id) props.ctx.navigate(`/contacts/${id}`)
+}
 
 // ----- calendars ("agendas") -----
 // An agenda is an entry of kind "calendar", created through the manage
@@ -240,6 +269,9 @@ function eventsForDateStr(dateStr: string): Entry[] {
   return visibleEvents.value.filter(e => {
     if (!e.occurred_at) return false
     const startDate = eventDateStr(e.occurred_at)
+    // Recurring events repeat from their seed date on (single-day).
+    const rec = recurrenceOf(e.data)
+    if (rec) return occursOn(startDate, rec, dateStr)
     const endStr = e.data.end_at as string | undefined
     if (endStr && !isNaN(new Date(endStr).getTime())) {
       return startDate <= dateStr && eventDateStr(endStr) >= dateStr
@@ -286,10 +318,17 @@ const calendarCells = computed<Cell[]>(() => {
 
 const upcomingDays = computed(() => {
   // Group by the event's date in the user's timezone, from today (user tz) on.
+  // ponytail: a recurring event is listed once, at its next occurrence —
+  // expand the full horizon if that ever feels lacking.
   const today = todayInUserTz()
   const grouped: Record<string, Entry[]> = {}
   for (const e of visibleEvents.value) {
-    const key = e.occurred_at ? eventDateStr(e.occurred_at) : 'unknown'
+    const rec = recurrenceOf(e.data)
+    const key = !e.occurred_at
+      ? 'unknown'
+      : rec
+        ? nextOccurrence(eventDateStr(e.occurred_at), rec, today)
+        : eventDateStr(e.occurred_at)
     ;(grouped[key] ||= []).push(e)
   }
   return Object.keys(grouped)
@@ -329,6 +368,8 @@ function openModal(dateStr: string) {
   modalAllDay.value = false
   modalLocation.value = ''
   modalCalendar.value = 'Manual'
+  modalRecurrence.value = ''
+  modalContact.value = ''
   modalSaving.value = false
   modalOpen.value = true
 }
@@ -356,6 +397,8 @@ function openEditModal(entry: Entry) {
   modalAllDay.value = entry.data.all_day === true
   modalLocation.value = (entry.data.location as string) || ''
   modalCalendar.value = calendarOf(entry)
+  modalRecurrence.value = recurrenceOf(entry.data) || ''
+  modalContact.value = (entry.data.contact_name as string) || ''
   modalSaving.value = false
   modalOpen.value = true
 }
@@ -405,7 +448,12 @@ async function saveEvent() {
       end_at: endAt,
       all_day: allDay,
       location: modalLocation.value.trim() || null,
-      calendar: modalCalendar.value.trim() || 'Manual'
+      calendar: modalCalendar.value.trim() || 'Manual',
+      recurrence: modalRecurrence.value || null,
+      contact_name: modalContact.value.trim() || null,
+      contact_id:
+        contactByName.value.get(modalContact.value.trim().toLowerCase())?.id ||
+        null
     }
   }
 
@@ -490,12 +538,15 @@ watch(modalOpen, async open => {
 async function reload() {
   loadError.value = ''
   try {
-    const [evs, cals] = await Promise.all([
+    const [evs, cals, cts] = await Promise.all([
       props.ctx.api.entries.list({ kind: 'event' }),
-      props.ctx.api.entries.list({ kind: 'calendar' })
+      props.ctx.api.entries.list({ kind: 'calendar' }),
+      // Contacts only feed the association combobox; degrade gracefully.
+      props.ctx.api.entries.list({ kind: 'contact' }).catch(() => [] as Entry[])
     ])
     events.value = evs
     calendarEntities.value = cals
+    contacts.value = cts
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : 'Failed to load events'
   } finally {
@@ -600,6 +651,12 @@ onUnmounted(destroyPickers)
               class="cal-chip-time"
               >{{ formatTime(ev.occurred_at) }}</span
             >
+            <span
+              v-if="ev.data?.recurrence"
+              class="cal-chip-rec"
+              title="Recurring"
+              >↻</span
+            >
             <span class="cal-chip-title">{{ ev.title || 'Untitled' }}</span>
           </div>
           <div v-if="(cell.events?.length ?? 0) > 3" class="cal-cell-more">
@@ -632,10 +689,25 @@ onUnmounted(destroyPickers)
             }}
           </div>
           <div class="cal-event-body">
-            <span class="cal-event-title">{{ e.title || 'Untitled' }}</span>
+            <span class="cal-event-title">
+              <span
+                v-if="e.data.recurrence"
+                class="cal-event-rec"
+                title="Recurring"
+                >↻</span
+              >
+              {{ e.title || 'Untitled' }}
+            </span>
             <span v-if="e.data.location" class="cal-event-loc">{{
               e.data.location
             }}</span>
+            <span
+              v-if="e.data.contact_name"
+              class="cal-event-contact"
+              :title="e.data.contact_id ? 'Open contact' : undefined"
+              @click.stop="openEventContact(e)"
+              >👤 {{ e.data.contact_name }}</span
+            >
             <span
               class="cal-event-cal"
               :style="{ color: calColor(calendarOf(e)) }"
@@ -744,13 +816,32 @@ onUnmounted(destroyPickers)
           <label>Location</label
           ><input v-model="modalLocation" type="text" placeholder="Optional" />
         </div>
+        <div class="cal-modal-row">
+          <div class="cal-modal-field">
+            <label>Calendar</label>
+            <select v-model="modalCalendar">
+              <option v-for="c in calendars" :key="c.name" :value="c.name">
+                {{ c.name }}
+              </option>
+            </select>
+          </div>
+          <div class="cal-modal-field">
+            <label>Repeats</label>
+            <select v-model="modalRecurrence">
+              <option value="">Never</option>
+              <option value="weekly">Every week</option>
+              <option value="monthly">Every month</option>
+              <option value="yearly">Every year</option>
+            </select>
+          </div>
+        </div>
         <div class="cal-modal-field">
-          <label>Calendar</label>
-          <select v-model="modalCalendar">
-            <option v-for="c in calendars" :key="c.name" :value="c.name">
-              {{ c.name }}
-            </option>
-          </select>
+          <label>Contact</label>
+          <AutocompleteInput
+            v-model="modalContact"
+            :options="contactOptions"
+            placeholder="Optional — link a contact"
+          />
         </div>
         <div class="cal-modal-actions">
           <button
@@ -1109,6 +1200,23 @@ onUnmounted(destroyPickers)
 .cal-event-loc {
   font-size: 0.9rem;
   color: var(--text-muted);
+}
+.cal-chip-rec {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  color: var(--cal-color, var(--primary));
+}
+.cal-event-rec {
+  color: var(--text-muted);
+}
+.cal-event-contact {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  align-self: flex-start;
+}
+.cal-event-contact:hover {
+  color: var(--primary);
 }
 .cal-event-cal {
   font-size: 0.8rem;
