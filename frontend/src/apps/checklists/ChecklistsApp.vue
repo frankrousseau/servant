@@ -7,18 +7,15 @@ import {
   onMounted,
   onBeforeUnmount
 } from 'vue'
+import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import type { AppContext, Entry } from '../types'
 import { createFolderOrder } from '../folderOrder'
+import { itemsToMarkdown, parseListText, type Item } from './markdown'
 
 const props = defineProps<{ ctx: AppContext }>()
 const ctx = props.ctx
 
 const folderOrder = createFolderOrder(ctx, 'checklists')
-
-interface Item {
-  text: string
-  done: boolean
-}
 
 // ----- helpers -----
 
@@ -67,6 +64,11 @@ const editFolder = computed({
     if (selected.value) selected.value.data.folder = v
   }
 })
+
+function onFolderInput(v: string) {
+  editFolder.value = v
+  scheduleSave()
+}
 
 const saveStatusLabel = computed(() => {
   if (saveState.value === 'error') return saveError.value || 'Save failed'
@@ -380,6 +382,54 @@ function onItemDragEnd() {
   dropIndex.value = null
 }
 
+// ----- export / copy / paste import -----
+
+const copied = ref(false)
+let copiedTimer: ReturnType<typeof setTimeout> | undefined
+
+function exportJson() {
+  const l = selected.value
+  if (!l) return
+  const payload = {
+    title: l.title || 'Untitled',
+    folder: folderOf(l),
+    recurring: isRecurring(l),
+    items: itemsOf(l)
+  }
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: 'application/json'
+  })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `${(l.title || 'checklist').replace(/[/\\:*?"<>|]/g, '_')}.json`
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
+async function copyMarkdown() {
+  const l = selected.value
+  if (!l) return
+  try {
+    await navigator.clipboard.writeText(itemsToMarkdown(itemsOf(l)))
+  } catch {
+    return
+  }
+  copied.value = true
+  if (copiedTimer) clearTimeout(copiedTimer)
+  copiedTimer = setTimeout(() => (copied.value = false), 1500)
+}
+
+// Pasting a bullet / checkbox list into the add field imports one item per
+// line; anything that is not a list pastes normally.
+function onAddPaste(e: ClipboardEvent) {
+  const l = selected.value
+  const parsed = parseListText(e.clipboardData?.getData('text/plain') || '')
+  if (!l || !parsed) return
+  e.preventDefault()
+  ensureItems(l).push(...parsed)
+  saveNow()
+}
+
 function resetList() {
   const l = selected.value
   if (!l) return
@@ -537,61 +587,82 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
       </p>
       <template v-else>
         <div class="cl-toolbar">
-          <input
-            class="cl-title"
-            v-model="editTitle"
-            placeholder="Untitled"
-            @input="scheduleSave()"
-          />
-          <input
-            class="cl-folder-input"
-            v-model="editFolder"
-            placeholder="Folder"
-            @input="scheduleSave()"
-          />
-          <span
-            class="cl-save-status"
-            :class="{ 'cl-save-status--error': saveState === 'error' }"
-            :title="saveState === 'error' ? saveError : ''"
-            >{{ saveStatusLabel }}</span
-          >
-          <label
-            class="cl-recurring-toggle"
-            title="Recurring lists can be reset"
-          >
+          <div class="cl-toolbar-row">
             <input
-              type="checkbox"
-              :checked="recurring"
-              @change="toggleRecurring"
+              class="cl-title"
+              v-model="editTitle"
+              placeholder="Untitled"
+              @input="scheduleSave()"
             />
-            Recurring
-          </label>
-          <label
-            class="cl-recurring-toggle"
-            title="Show pending items on the dashboard"
-          >
-            <input
-              type="checkbox"
-              :checked="onDashboard"
-              @change="toggleOnDashboard"
+            <span
+              class="cl-save-status"
+              :class="{ 'cl-save-status--error': saveState === 'error' }"
+              :title="saveState === 'error' ? saveError : ''"
+              >{{ saveStatusLabel }}</span
+            >
+            <button
+              class="cl-delete"
+              title="Delete checklist"
+              @click="deleteSelected"
+            >
+              🗑
+            </button>
+          </div>
+          <div class="cl-toolbar-row">
+            <AutocompleteInput
+              class="cl-folder-input"
+              :model-value="editFolder"
+              :options="allFolders"
+              placeholder="Folder"
+              @update:model-value="onFolderInput"
+              @select="saveNow()"
             />
-            Dashboard
-          </label>
-          <button
-            v-if="recurring"
-            class="cl-reset-btn"
-            title="Uncheck all items"
-            @click="resetList"
-          >
-            ↻ Reset
-          </button>
-          <button
-            class="cl-delete"
-            title="Delete checklist"
-            @click="deleteSelected"
-          >
-            🗑
-          </button>
+            <label
+              class="cl-recurring-toggle"
+              title="Recurring lists can be reset"
+            >
+              <input
+                type="checkbox"
+                :checked="recurring"
+                @change="toggleRecurring"
+              />
+              Recurring
+            </label>
+            <label
+              class="cl-recurring-toggle"
+              title="Show pending items on the dashboard"
+            >
+              <input
+                type="checkbox"
+                :checked="onDashboard"
+                @change="toggleOnDashboard"
+              />
+              Dashboard
+            </label>
+            <span class="cl-toolbar-spacer"></span>
+            <button
+              v-if="recurring"
+              class="cl-reset-btn"
+              title="Uncheck all items"
+              @click="resetList"
+            >
+              ↻ Reset
+            </button>
+            <button
+              class="cl-copy-btn"
+              title="Copy as a markdown checkbox list"
+              @click="copyMarkdown"
+            >
+              {{ copied ? '✓ Copied' : '⧉ Copy' }}
+            </button>
+            <button
+              class="cl-export-btn"
+              title="Download as JSON"
+              @click="exportJson"
+            >
+              ⤓ JSON
+            </button>
+          </div>
         </div>
 
         <div class="cl-items">
@@ -639,6 +710,8 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
               class="cl-add-input"
               v-model="newItemText"
               placeholder="Add an item…"
+              title="Paste a bullet or checkbox list to add one item per line"
+              @paste="onAddPaste"
             />
             <button
               type="submit"
@@ -797,18 +870,28 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 }
 .cl-toolbar {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 0.5rem;
   padding: 0.75rem;
   border-bottom: 1px solid var(--border);
+}
+.cl-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.cl-toolbar-spacer {
+  flex: 1;
 }
 .cl-title {
   flex: 1;
   min-width: 0;
   font-weight: 600;
+  font-size: 1.05rem;
 }
 .cl-folder-input {
-  width: 160px;
+  width: 200px;
+  flex-shrink: 0;
 }
 .cl-save-status {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -828,7 +911,9 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   white-space: nowrap;
   cursor: pointer;
 }
-.cl-reset-btn {
+.cl-reset-btn,
+.cl-copy-btn,
+.cl-export-btn {
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text);
@@ -838,7 +923,9 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   cursor: pointer;
   white-space: nowrap;
 }
-.cl-reset-btn:hover {
+.cl-reset-btn:hover,
+.cl-copy-btn:hover,
+.cl-export-btn:hover {
   border-color: var(--primary);
   color: var(--primary);
 }

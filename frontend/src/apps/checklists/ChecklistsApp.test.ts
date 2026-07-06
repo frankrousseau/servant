@@ -240,4 +240,68 @@ describe('ChecklistsApp', () => {
     const itemInput = wrapper.find('.cl-item-text').element as HTMLInputElement
     expect(itemInput.value).toBe('Beurre')
   })
+
+  it('imports a pasted bullet list as one item per line', async () => {
+    const { ctx, update } = makeCtx([checklist('1', 'Courses', '', false, [])])
+    const wrapper = mount(ChecklistsApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+
+    await selectList(wrapper, 'Courses')
+    await wrapper.find('.cl-add-input').trigger('paste', {
+      clipboardData: { getData: () => '- [ ] Lait\n- [x] Pain\n- Beurre' }
+    })
+    await flushPromises()
+
+    expect(update).toHaveBeenCalledWith(
+      '1',
+      expect.objectContaining({
+        data: expect.objectContaining({
+          items: [
+            { text: 'Lait', done: false },
+            { text: 'Pain', done: true },
+            { text: 'Beurre', done: false }
+          ]
+        })
+      })
+    )
+    expect(wrapper.findAll('.cl-item')).toHaveLength(3)
+  })
+
+  it('leaves a non-list paste alone', async () => {
+    const { ctx, update } = makeCtx([checklist('1', 'Courses', '', false, [])])
+    const wrapper = mount(ChecklistsApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+
+    await selectList(wrapper, 'Courses')
+    await wrapper.find('.cl-add-input').trigger('paste', {
+      clipboardData: { getData: () => 'just some text' }
+    })
+    await flushPromises()
+
+    expect(update).not.toHaveBeenCalled()
+    expect(wrapper.findAll('.cl-item')).toHaveLength(0)
+  })
+
+  it('copies the checklist as a markdown checkbox list', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(window.navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true
+    })
+    const { ctx } = makeCtx([
+      checklist('1', 'Courses', '', false, [
+        { text: 'Lait', done: true },
+        { text: 'Pain', done: false }
+      ])
+    ])
+    const wrapper = mount(ChecklistsApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+
+    await selectList(wrapper, 'Courses')
+    await wrapper.find('.cl-copy-btn').trigger('click')
+    await flushPromises()
+
+    expect(writeText).toHaveBeenCalledWith('- [x] Lait\n- [ ] Pain')
+    expect(wrapper.find('.cl-copy-btn').text()).toContain('Copied')
+  })
 })
