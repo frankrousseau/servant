@@ -17,7 +17,7 @@ function daysInMonth(y: number, m: number): number {
   return new Date(y, m, 0).getDate()
 }
 
-function addDays(dateStr: string, n: number): string {
+export function addDays(dateStr: string, n: number): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   const dt = new Date(y, m - 1, d + n)
   const mm = String(dt.getMonth() + 1).padStart(2, '0')
@@ -45,7 +45,7 @@ export function occursOn(seed: string, rec: Recurrence, date: string): boolean {
 }
 
 // First occurrence on or after `from`.
-// ponytail: linear day scan — bounded by the longest gap (a year + slack)
+// ponytail: linear day scan, bounded by the longest gap (a year + slack)
 export function nextOccurrence(
   seed: string,
   rec: Recurrence,

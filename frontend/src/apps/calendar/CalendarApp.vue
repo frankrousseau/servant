@@ -4,7 +4,7 @@ import flatpickr from 'flatpickr'
 import 'flatpickr/dist/flatpickr.min.css'
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import type { AppContext, Entry } from '../types'
-import { contactName } from '../../lib/contact'
+import { birthdaySeed, contactField, contactName } from '../../lib/contact'
 import {
   formatTime,
   zonedToUtcISO,
@@ -55,6 +55,7 @@ const modalSaving = ref(false)
 // ----- contacts (event ↔ contact association) -----
 
 const contacts = ref<Entry[]>([])
+const birthdayPrefs = ref<Entry | null>(null)
 
 const contactByName = computed(() => {
   const m = new Map<string, Entry>()
@@ -75,6 +76,38 @@ function openEventContact(e: Entry) {
   const id = e.data.contact_id as string | undefined
   if (id) props.ctx.navigate(`/contacts/${id}`)
 }
+
+// Virtual yearly events derived from contact birthdays, never stored; they
+// live under the hideable "Birthdays" agenda and click through to the contact.
+// Strictly opt-in: only contacts flagged on their page (prefs/birthdays entry).
+const birthdayEvents = computed<Entry[]>(() => {
+  const optedIn = new Set(
+    (birthdayPrefs.value?.data.contact_ids as string[]) || []
+  )
+  if (!optedIn.size) return []
+  return contacts.value.flatMap(c => {
+    if (!optedIn.has(c.id)) return []
+    const seed = birthdaySeed(contactField(c, 'birthday'))
+    if (!seed) return []
+    return [
+      {
+        ...c,
+        id: `birthday:${c.id}`,
+        kind: 'event',
+        title: `🎂 ${contactName(c)}`,
+        // Noon UTC keeps the civil date stable across user timezones.
+        occurred_at: `${seed}T12:00:00Z`,
+        data: {
+          all_day: true,
+          calendar: 'Birthdays',
+          recurrence: 'yearly',
+          contact_id: c.id,
+          contact_name: contactName(c)
+        }
+      } as Entry
+    ]
+  })
+})
 
 // ----- calendars ("agendas") -----
 // An agenda is an entry of kind "calendar", created through the manage
@@ -148,7 +181,7 @@ async function deleteCalendar(name: string) {
   if (!entity) return
   const count = events.value.filter(e => calendarOf(e) === name).length
   if (count > 0) {
-    manageError.value = `"${name}" still has ${count} event(s) — move or delete them first.`
+    manageError.value = `"${name}" still has ${count} event(s). Move or delete them first.`
     return
   }
   const ok = await props.ctx.confirm.ask({
@@ -197,7 +230,7 @@ const calendars = computed(() => {
   const counts = new Map<string, number>()
   counts.set('Manual', 0)
   for (const name of calendarEntityByName.value.keys()) counts.set(name, 0)
-  for (const e of events.value) {
+  for (const e of allEvents.value) {
     const name = calendarOf(e)
     counts.set(name, (counts.get(name) || 0) + 1)
   }
@@ -228,8 +261,10 @@ function toggleCalendar(name: string) {
   localStorage.setItem('cal-hidden', JSON.stringify([...hiddenCals.value]))
 }
 
+const allEvents = computed(() => [...events.value, ...birthdayEvents.value])
+
 const visibleEvents = computed(() =>
-  events.value.filter(e => !hiddenCals.value.has(calendarOf(e)))
+  allEvents.value.filter(e => !hiddenCals.value.has(calendarOf(e)))
 )
 
 const titleInput = ref<HTMLInputElement | null>(null)
@@ -238,7 +273,7 @@ const endInput = ref<HTMLInputElement | null>(null)
 let fpStart: flatpickr.Instance | null = null
 let fpEnd: flatpickr.Instance | null = null
 
-// Civil "YYYY-MM-DD" of a picked Date (from flatpickr, in the browser's tz) —
+// Civil "YYYY-MM-DD" of a picked Date (from flatpickr, in the browser's tz):
 // the calendar-day the user actually clicked. This is a wall-clock label, later
 // combined with the picked time and interpreted in the user's tz on save.
 function formatISODate(date: Date): string {
@@ -318,7 +353,7 @@ const calendarCells = computed<Cell[]>(() => {
 
 const upcomingDays = computed(() => {
   // Group by the event's date in the user's timezone, from today (user tz) on.
-  // ponytail: a recurring event is listed once, at its next occurrence —
+  // ponytail: a recurring event is listed once, at its next occurrence;
   // expand the full horizon if that ever feels lacking.
   const today = todayInUserTz()
   const grouped: Record<string, Entry[]> = {}
@@ -410,6 +445,11 @@ function closeModal() {
 }
 
 function onEventClick(id: string | undefined) {
+  // Birthdays are virtual: nothing to edit, open the contact instead.
+  if (id?.startsWith('birthday:')) {
+    props.ctx.navigate(`/contacts/${id.slice('birthday:'.length)}`)
+    return
+  }
   const entry = events.value.find(e => e.id === id)
   if (entry) openEditModal(entry)
 }
@@ -538,15 +578,20 @@ watch(modalOpen, async open => {
 async function reload() {
   loadError.value = ''
   try {
-    const [evs, cals, cts] = await Promise.all([
+    const [evs, cals, cts, prefs] = await Promise.all([
       props.ctx.api.entries.list({ kind: 'event' }),
       props.ctx.api.entries.list({ kind: 'calendar' }),
-      // Contacts only feed the association combobox; degrade gracefully.
-      props.ctx.api.entries.list({ kind: 'contact' }).catch(() => [] as Entry[])
+      // Contacts and prefs only feed the association combobox and the
+      // birthday opt-ins; degrade gracefully.
+      props.ctx.api.entries
+        .list({ kind: 'contact' })
+        .catch(() => [] as Entry[]),
+      props.ctx.api.entries.list({ kind: 'prefs' }).catch(() => [] as Entry[])
     ])
     events.value = evs
     calendarEntities.value = cals
     contacts.value = cts
+    birthdayPrefs.value = prefs.find(p => p.title === 'birthdays') || null
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : 'Failed to load events'
   } finally {
@@ -840,7 +885,7 @@ onUnmounted(destroyPickers)
           <AutocompleteInput
             v-model="modalContact"
             :options="contactOptions"
-            placeholder="Optional — link a contact"
+            placeholder="Optional: link a contact"
           />
         </div>
         <div class="cal-modal-actions">
@@ -990,7 +1035,7 @@ onUnmounted(destroyPickers)
   color: var(--text-muted);
 }
 /* Event chips: colored rail + tint per agenda (--cal-color/--cal-rgb are set
-   inline per chip), mono time — same selection language as the rest of the
+   inline per chip), mono time; same selection language as the rest of the
    system */
 .cal-cell-event {
   display: flex;
@@ -1330,7 +1375,7 @@ onUnmounted(destroyPickers)
 </style>
 
 <style>
-/* Flatpickr dark theme (global — the picker renders on document.body). */
+/* Flatpickr dark theme (global: the picker renders on document.body). */
 .flatpickr-calendar {
   background: var(--bg-surface) !important;
   border-color: var(--border) !important;
