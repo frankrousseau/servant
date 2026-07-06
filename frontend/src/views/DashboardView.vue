@@ -10,11 +10,22 @@ import {
   formatDateTime,
   formatTime,
   todayInUserTz,
-  utcToZonedParts,
-  zonedToUtcISO
+  utcToZonedParts
 } from '../lib/datetime'
 import { getConnectorDef } from '../connectors'
 import KindIcon from '../components/KindIcon.vue'
+import {
+  addDays,
+  nextOccurrence,
+  occursOn,
+  recurrenceOf
+} from '../apps/calendar/recurrence'
+import {
+  birthdaySeed,
+  birthdayYearKnown,
+  contactField,
+  contactName
+} from '../lib/contact'
 
 const api = useApi()
 const router = useRouter()
@@ -26,6 +37,8 @@ const connectors = ref<ConnectorConfig[]>([])
 const dailyStats = ref<Record<string, Record<string, number>>>({})
 const events = ref<Entry[]>([])
 const checklists = ref<Entry[]>([])
+const contacts = ref<Entry[]>([])
+const dashPrefs = ref<Entry | null>(null)
 const loading = ref(true)
 
 const { onEntryChange, onBulkChange } = useSocket()
@@ -44,10 +57,12 @@ async function fetchData() {
       connectorsRes,
       dailyRes,
       eventsRes,
-      checklistsRes
+      checklistsRes,
+      contactsRes,
+      prefsRes
     ] = await Promise.all([
       api.get<{ data: Entry[]; meta: { total: number } }>('/api/entries', {
-        per_page: '10',
+        per_page: '30',
         sort: 'inserted_at'
       }),
       api.get<{ data: Record<string, number>; total: number }>(
@@ -58,17 +73,24 @@ async function fetchData() {
         '/api/entries/stats/daily',
         { days: '30' }
       ),
-      // Events from the start of today (user tz) onward; today's list and
-      // the "next:" line both derive from this window.
-      // ponytail: 100 events ahead is plenty for a personal calendar.
+      // All events, not just future ones: recurring events (birthdays,
+      // weekly rituals) have past seed dates but upcoming occurrences.
+      // ponytail: per_page 1000, paginate if a calendar ever outgrows it.
       api.get<{ data: Entry[] }>('/api/entries', {
         kind: 'event',
-        per_page: '100',
-        from: zonedToUtcISO(todayInUserTz(), '00:00')
+        per_page: '1000'
       }),
       api.get<{ data: Entry[] }>('/api/entries', {
         kind: 'checklist',
         per_page: '100'
+      }),
+      api.get<{ data: Entry[] }>('/api/entries', {
+        kind: 'contact',
+        per_page: '1000'
+      }),
+      api.get<{ data: Entry[] }>('/api/entries', {
+        kind: 'prefs',
+        per_page: '10'
       })
     ])
     recentEntries.value = entriesRes.data
@@ -78,6 +100,8 @@ async function fetchData() {
     dailyStats.value = dailyRes.data
     events.value = eventsRes.data
     checklists.value = checklistsRes.data
+    contacts.value = contactsRes.data
+    dashPrefs.value = prefsRes.data.find(p => p.title === 'birthdays') || null
   } catch {
     // API not available yet
   } finally {
@@ -101,16 +125,94 @@ const motdDate = computed(() =>
   })
 )
 
-const todaysEvents = computed(() =>
-  events.value
-    .filter(
-      e =>
-        e.occurred_at && utcToZonedParts(e.occurred_at).date === todayInUserTz()
-    )
+// Today's events, recurring ones included (they occur today when their
+// pattern matches, whatever their seed date).
+const todaysEvents = computed(() => {
+  const today = todayInUserTz()
+  return events.value
+    .filter(e => {
+      if (!e.occurred_at) return false
+      const start = utcToZonedParts(e.occurred_at).date
+      const rec = recurrenceOf(e.data)
+      return rec ? occursOn(start, rec, today) : start === today
+    })
     .sort((a, b) =>
-      (a.occurred_at as string) < (b.occurred_at as string) ? -1 : 1
+      utcToZonedParts(a.occurred_at!).time.localeCompare(
+        utcToZonedParts(b.occurred_at!).time
+      )
     )
-)
+})
+
+// ----- Coming up: next-7-days events + opted-in birthdays -----
+
+interface Occurrence {
+  date: string
+  e: Entry
+}
+
+const upcomingEvents = computed<Occurrence[]>(() => {
+  const today = todayInUserTz()
+  const end = addDays(today, 7)
+  const out: Occurrence[] = []
+  for (const e of events.value) {
+    if (!e.occurred_at) continue
+    const start = utcToZonedParts(e.occurred_at).date
+    const rec = recurrenceOf(e.data)
+    if (rec) {
+      let d = nextOccurrence(start, rec, addDays(today, 1))
+      while (d <= end) {
+        out.push({ date: d, e })
+        d = nextOccurrence(start, rec, addDays(d, 1))
+      }
+    } else if (start > today && start <= end) {
+      out.push({ date: start, e })
+    }
+  }
+  return out.sort((a, b) =>
+    (a.date + utcToZonedParts(a.e.occurred_at!).time).localeCompare(
+      b.date + utcToZonedParts(b.e.occurred_at!).time
+    )
+  )
+})
+
+interface BirthdayRow {
+  id: string
+  date: string
+  name: string
+  age: number | null
+}
+
+// Only contacts explicitly flagged on their page (prefs/birthdays entry),
+// within the next 30 days.
+const upcomingBirthdays = computed<BirthdayRow[]>(() => {
+  const ids = new Set((dashPrefs.value?.data.contact_ids as string[]) || [])
+  if (!ids.size) return []
+  const today = todayInUserTz()
+  const horizon = addDays(today, 30)
+  const out: BirthdayRow[] = []
+  for (const c of contacts.value) {
+    if (!ids.has(c.id)) continue
+    const seed = birthdaySeed(contactField(c, 'birthday'))
+    if (!seed) continue
+    const date = nextOccurrence(seed, 'yearly', today)
+    if (date > horizon) continue
+    const age = birthdayYearKnown(seed)
+      ? Number(date.slice(0, 4)) - Number(seed.slice(0, 4))
+      : null
+    out.push({ id: c.id, date, name: contactName(c), age })
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5)
+})
+
+// "Mon 13" within the week, "Jul 30" beyond (birthdays reach 30 days out).
+function comingLabel(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const opts: Intl.DateTimeFormatOptions =
+    dateStr <= addDays(todayInUserTz(), 7)
+      ? { weekday: 'short', day: 'numeric' }
+      : { month: 'short', day: 'numeric' }
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, opts)
+}
 
 // Next upcoming event on any day: earliest one not yet finished.
 const nextEvent = computed(() => {
@@ -293,6 +395,57 @@ onMounted(fetchData)
                 +{{ pendingItems.length - 5 }} more
               </router-link>
             </div>
+          </section>
+
+          <section
+            v-if="upcomingBirthdays.length || upcomingEvents.length"
+            class="dashboard-section"
+          >
+            <div class="section-header">
+              <h2>Coming up</h2>
+              <router-link to="/apps/calendar" class="section-link"
+                >Calendar</router-link
+              >
+            </div>
+            <div
+              v-for="b in upcomingBirthdays"
+              :key="'b' + b.id"
+              class="today-event coming-clickable"
+              role="button"
+              tabindex="0"
+              @click="router.push(`/contacts/${b.id}`)"
+            >
+              <span class="today-time">{{ comingLabel(b.date) }}</span>
+              <span class="today-title">
+                🎂 {{ b.name
+                }}<template v-if="b.age !== null"> ({{ b.age }})</template>
+              </span>
+            </div>
+            <div
+              v-for="o in upcomingEvents.slice(0, 6)"
+              :key="o.e.id + o.date"
+              class="today-event"
+            >
+              <span class="today-time">
+                {{ comingLabel(o.date)
+                }}<template v-if="!o.e.data.all_day">
+                  {{ formatTime(o.e.occurred_at!) }}</template
+                >
+              </span>
+              <span class="today-title">{{
+                o.e.title || o.e.data.summary
+              }}</span>
+              <span v-if="o.e.data.location" class="today-loc">{{
+                o.e.data.location
+              }}</span>
+            </div>
+            <router-link
+              v-if="upcomingEvents.length > 6"
+              to="/apps/calendar"
+              class="today-more"
+            >
+              +{{ upcomingEvents.length - 6 }} more
+            </router-link>
           </section>
 
           <section class="dashboard-section">
@@ -573,6 +726,14 @@ onMounted(fetchData)
 .today-more {
   padding: 0.3rem 0.5rem;
   font-size: 0.85rem;
+}
+
+.coming-clickable {
+  cursor: pointer;
+  border-radius: 6px;
+}
+.coming-clickable:hover {
+  background: var(--bg-hover);
 }
 
 /* The dashboard owns the viewport: MOTD fixed on top, then two
