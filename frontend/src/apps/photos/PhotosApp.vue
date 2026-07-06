@@ -329,10 +329,31 @@ function onDrop(e: DragEvent) {
     uploadFiles(Array.from(e.dataTransfer.files))
 }
 
-function onThumbClick(p: Entry) {
+// Anchor for shift-click range selection (last photo clicked in select mode).
+let lastClickedId: string | null = null
+
+function onThumbClick(p: Entry, e?: MouseEvent) {
   if (selectionMode.value) {
+    // Shift extends from the anchor to the clicked photo, in grid order.
+    if (e?.shiftKey && lastClickedId && lastClickedId !== p.id) {
+      const list = filtered.value
+      const from = list.findIndex(x => x.id === lastClickedId)
+      const to = list.findIndex(x => x.id === p.id)
+      if (from !== -1 && to !== -1) {
+        const [lo, hi] = from < to ? [from, to] : [to, from]
+        for (let i = lo; i <= hi; i++) selectedIds.value.add(list[i].id)
+        lastClickedId = p.id
+        return
+      }
+    }
     if (selectedIds.value.has(p.id)) selectedIds.value.delete(p.id)
     else selectedIds.value.add(p.id)
+    lastClickedId = p.id
+  } else if (e?.shiftKey) {
+    // Shift-click from browse mode jumps straight into selection.
+    selectionMode.value = true
+    selectedIds.value.add(p.id)
+    lastClickedId = p.id
   } else {
     openViewer(p.id)
   }
@@ -341,11 +362,13 @@ function onThumbClick(p: Entry) {
 function enterSelect() {
   selectionMode.value = true
   selectedIds.value.clear()
+  lastClickedId = null
 }
 function cancelSelect() {
   selectionMode.value = false
   selectedIds.value.clear()
   peopleSearchActive.value = false
+  lastClickedId = null
 }
 function selectAll() {
   for (const p of filtered.value) selectedIds.value.add(p.id)
@@ -730,7 +753,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
             :class="{
               'ph-thumb--selected': selectionMode && selectedIds.has(p.id)
             }"
-            @click="onThumbClick(p)"
+            @click="onThumbClick(p, $event)"
           >
             <span
               v-if="selectionMode"
