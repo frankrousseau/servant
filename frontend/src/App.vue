@@ -16,6 +16,8 @@ import {
   Activity
 } from 'lucide-vue-next'
 import { BUILTIN_APPS } from './apps/registry'
+import { uploading, uploadProgress } from './apps/photos/uploadQueue'
+import CommandPalette from './components/CommandPalette.vue'
 import ConfirmModal from './components/ConfirmModal.vue'
 
 const appIcons: Record<string, unknown> = {
@@ -81,6 +83,19 @@ function handleLogout() {
           </router-link>
         </li>
       </ul>
+      <router-link
+        v-if="uploading"
+        to="/apps/photos"
+        class="sidebar-upload"
+        title="Photo upload in progress"
+      >
+        ⬆ uploading
+        {{
+          uploadProgress
+            ? `${uploadProgress.index}/${uploadProgress.total}`
+            : ''
+        }}
+      </router-link>
       <router-link to="/audit" class="sidebar-settings-link">
         <Activity :size="18" />Audit
       </router-link>
@@ -97,5 +112,6 @@ function handleLogout() {
       <router-view />
     </main>
     <ConfirmModal />
+    <CommandPalette v-if="auth.isAuthenticated" />
   </div>
 </template>
