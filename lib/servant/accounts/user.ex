@@ -15,6 +15,7 @@ defmodule Servant.Accounts.User do
     field :timezone, :string, default: "UTC"
     field :totp_secret, :binary, redact: true
     field :totp_last_used_at, :utc_datetime
+    field :token_version, :integer, default: 0
     field :password, :string, virtual: true, redact: true
 
     timestamps(type: :utc_datetime)

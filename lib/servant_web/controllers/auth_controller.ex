@@ -10,7 +10,7 @@ defmodule ServantWeb.AuthController do
     if registration_enabled?() do
       case Accounts.register_user(params) do
         {:ok, user} ->
-          token = Auth.sign_token(conn, user.id)
+          token = Auth.sign_token(conn, user)
 
           conn
           |> Auth.put_auth_cookie(token)
@@ -78,7 +78,7 @@ defmodule ServantWeb.AuthController do
   end
 
   defp issue_session(conn, user) do
-    token = Auth.sign_token(conn, user.id)
+    token = Auth.sign_token(conn, user)
 
     conn
     |> Auth.put_auth_cookie(token)
@@ -165,6 +165,10 @@ defmodule ServantWeb.AuthController do
   end
 
   def logout(conn, _params) do
+    # Bump the user's token_version so the token just used (and any leaked
+    # copy) stops verifying everywhere, not only in this browser's cookie.
+    Accounts.bump_token_version(conn.assigns.current_user)
+
     conn
     |> Auth.delete_auth_cookie()
     |> json(%{status: "ok"})
@@ -177,7 +181,7 @@ defmodule ServantWeb.AuthController do
     # (it isn't stored in localStorage anymore) and uses this (authenticated via
     # the HttpOnly cookie) to open the realtime socket.
     json(conn, %{
-      token: Auth.sign_token(conn, user.id),
+      token: Auth.sign_token(conn, user),
       data: %{
         id: user.id,
         username: user.username,

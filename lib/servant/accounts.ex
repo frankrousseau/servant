@@ -62,10 +62,20 @@ defmodule Servant.Accounts do
     if Bcrypt.verify_pass(current_password, user.hashed_password) do
       user
       |> User.password_changeset(%{"password" => new_password})
+      # Invalidate existing sessions: a stolen token must not survive the very
+      # rotation a user reaches for after a compromise.
+      |> Ecto.Changeset.put_change(:token_version, user.token_version + 1)
       |> Repo.update()
     else
       {:error, :wrong_password}
     end
+  end
+
+  @doc "Bumps the user's token_version, invalidating every existing auth token."
+  def bump_token_version(%User{} = user) do
+    user
+    |> Ecto.Changeset.change(%{token_version: user.token_version + 1})
+    |> Repo.update()
   end
 
   # ----- TOTP (two-factor authentication) -----
@@ -100,7 +110,12 @@ defmodule Servant.Accounts do
     case verify_totp(user, code) do
       {:ok, user} ->
         user
-        |> Ecto.Changeset.change(%{totp_secret: nil, totp_last_used_at: nil})
+        |> Ecto.Changeset.change(%{
+          totp_secret: nil,
+          totp_last_used_at: nil,
+          # Removing the second factor invalidates existing sessions too.
+          token_version: user.token_version + 1
+        })
         |> Repo.update()
 
       :error ->

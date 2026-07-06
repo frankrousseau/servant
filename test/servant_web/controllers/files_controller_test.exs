@@ -27,8 +27,8 @@ defmodule ServantWeb.FilesControllerTest do
     Path.join([user_id, rel])
   end
 
-  defp with_cookie(conn, user_id) do
-    token = Auth.sign_token(ServantWeb.Endpoint, user_id)
+  defp with_cookie(conn, user) do
+    token = Auth.sign_token(ServantWeb.Endpoint, user)
     Plug.Test.put_req_cookie(conn, Auth.auth_cookie_name(), token)
   end
 
@@ -36,7 +36,7 @@ defmodule ServantWeb.FilesControllerTest do
     user = user_fixture()
     rel = write_file(dir, user.id, "apps/files/hello.txt", "hi there")
 
-    conn = conn |> with_cookie(user.id) |> get("/files/#{rel}")
+    conn = conn |> with_cookie(user) |> get("/files/#{rel}")
     assert response(conn, 200) == "hi there"
   end
 
@@ -53,13 +53,13 @@ defmodule ServantWeb.FilesControllerTest do
     other = user_fixture()
     rel = write_file(dir, owner.id, "apps/files/secret.txt", "bank statement")
 
-    conn = conn |> with_cookie(other.id) |> get("/files/#{rel}")
+    conn = conn |> with_cookie(other) |> get("/files/#{rel}")
     assert json_response(conn, 404)
   end
 
   test "404 for a non-existent file the user could otherwise own", %{conn: conn} do
     user = user_fixture()
-    conn = conn |> with_cookie(user.id) |> get("/files/#{user.id}/apps/files/missing.txt")
+    conn = conn |> with_cookie(user) |> get("/files/#{user.id}/apps/files/missing.txt")
     assert json_response(conn, 404)
   end
 
@@ -67,7 +67,7 @@ defmodule ServantWeb.FilesControllerTest do
     setup %{conn: conn, dir: dir} do
       user = user_fixture()
       rel = write_file(dir, user.id, "apps/photos/clip.mp4", "0123456789")
-      %{conn: with_cookie(conn, user.id), rel: rel}
+      %{conn: with_cookie(conn, user), rel: rel}
     end
 
     test "serves a bounded range with 206 and Content-Range", %{conn: conn, rel: rel} do

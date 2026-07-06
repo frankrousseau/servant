@@ -6,7 +6,6 @@ defmodule ServantWeb.Plugs.FileAuth do
   """
   import Plug.Conn
 
-  alias Servant.Accounts
   alias ServantWeb.Auth
 
   def init(opts), do: opts
@@ -15,8 +14,7 @@ defmodule ServantWeb.Plugs.FileAuth do
     conn = fetch_cookies(conn)
 
     with token when is_binary(token) <- conn.cookies[Auth.auth_cookie_name()],
-         {:ok, user_id} <- Auth.verify_token(conn, token),
-         user when not is_nil(user) <- Accounts.get_user(user_id) do
+         {:ok, user} <- Auth.authenticate_token(conn, token) do
       assign(conn, :current_user, user)
     else
       _ ->

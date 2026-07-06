@@ -38,8 +38,7 @@ defmodule ServantWeb.Auth do
 
   def call(conn, _opts) do
     with {:ok, token} <- fetch_token(conn),
-         {:ok, user_id} <- verify_token(conn, token),
-         user when not is_nil(user) <- Accounts.get_user(user_id) do
+         {:ok, user} <- authenticate_token(conn, token) do
       assign(conn, :current_user, user)
     else
       _ ->
@@ -66,11 +65,31 @@ defmodule ServantWeb.Auth do
     end
   end
 
-  def sign_token(conn, user_id) do
-    Phoenix.Token.sign(conn, "user auth", user_id)
+  @doc """
+  Signs an auth token binding the user id to their current `token_version`.
+  Bumping `token_version` (logout, password change, TOTP disable) invalidates
+  every token signed before the bump.
+  """
+  def sign_token(conn, %{id: user_id} = user) do
+    Phoenix.Token.sign(conn, "user auth", {user_id, Map.get(user, :token_version, 0)})
   end
 
   def verify_token(conn, token) do
     Phoenix.Token.verify(conn, "user auth", token, max_age: @max_age)
+  end
+
+  @doc """
+  Verifies a token and returns the live user only when the embedded
+  `token_version` still matches the stored one. Single source of truth for
+  both the HTTP plug and the socket so they can't drift.
+  """
+  def authenticate_token(context, token) do
+    with {:ok, {user_id, version}} <- verify_token(context, token),
+         user when not is_nil(user) <- Accounts.get_user(user_id),
+         true <- user.token_version == version do
+      {:ok, user}
+    else
+      _ -> :error
+    end
   end
 end

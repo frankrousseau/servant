@@ -82,6 +82,7 @@ defmodule ServantWeb.AuthControllerTest do
     end
 
     test "logout clears the file-auth cookie", %{conn: conn} do
+      {conn, _user} = register_and_log_in_user(conn)
       conn = post(conn, "/api/auth/logout", %{})
       assert conn.resp_cookies["_servant_auth"].max_age == 0
     end
@@ -123,7 +124,7 @@ defmodule ServantWeb.AuthControllerTest do
 
     test "authenticates via the HttpOnly cookie without a Bearer header (FE-SEC-3)", %{conn: conn} do
       user = user_fixture()
-      token = ServantWeb.Auth.sign_token(ServantWeb.Endpoint, user.id)
+      token = ServantWeb.Auth.sign_token(ServantWeb.Endpoint, user)
 
       conn =
         conn
@@ -134,6 +135,43 @@ defmodule ServantWeb.AuthControllerTest do
       assert data["id"] == user.id
       # me/2 hands back a fresh token for the SPA to open the socket with
       assert is_binary(new_token)
+    end
+  end
+
+  describe "token revocation (token_version)" do
+    alias Servant.Accounts
+
+    setup %{conn: conn} do
+      {conn, user} = register_and_log_in_user(conn)
+      %{conn: conn, user: user}
+    end
+
+    test "a token stops working after the user's token_version is bumped", %{
+      conn: conn,
+      user: user
+    } do
+      assert json_response(get(conn, "/api/auth/me"), 200)
+
+      {:ok, _} = Accounts.bump_token_version(user)
+
+      # Same Bearer token, now stale.
+      assert json_response(get(conn, "/api/auth/me"), 401)
+    end
+
+    test "logout bumps the version, invalidating the token", %{conn: conn} do
+      assert json_response(post(conn, "/api/auth/logout"), 200)
+      assert json_response(get(conn, "/api/auth/me"), 401)
+    end
+
+    test "changing the password invalidates existing tokens", %{conn: conn} do
+      conn2 =
+        put(conn, "/api/auth/password", %{
+          "current_password" => "password123",
+          "new_password" => "brand new pass"
+        })
+
+      assert json_response(conn2, 200)
+      assert json_response(get(conn, "/api/auth/me"), 401)
     end
   end
 

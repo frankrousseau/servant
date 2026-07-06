@@ -7,12 +7,13 @@ defmodule ServantWeb.UserSocket do
 
   @impl true
   def connect(%{"token" => token}, socket, _connect_info) do
-    # Same salt/max-age as HTTP auth: delegate so the two can't drift.
-    case ServantWeb.Auth.verify_token(socket, token) do
-      {:ok, user_id} ->
-        {:ok, assign(socket, :user_id, user_id)}
+    # Same path as HTTP auth (verify + token_version check) so the two can't
+    # drift and a revoked token can't open a socket.
+    case ServantWeb.Auth.authenticate_token(socket, token) do
+      {:ok, user} ->
+        {:ok, assign(socket, :user_id, user.id)}
 
-      {:error, _reason} ->
+      :error ->
         :error
     end
   end
