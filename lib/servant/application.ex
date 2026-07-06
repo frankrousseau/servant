@@ -7,19 +7,21 @@ defmodule Servant.Application do
 
   @impl true
   def start(_type, _args) do
-    children = [
-      ServantWeb.Telemetry,
-      Servant.Repo,
-      {Ecto.Migrator,
-       repos: Application.fetch_env!(:servant, :ecto_repos), skip: skip_migrations?()},
-      {Phoenix.PubSub, name: Servant.PubSub},
-      {Registry, keys: :unique, name: Servant.Connectors.Registry},
-      {DynamicSupervisor, name: Servant.Connectors.Supervisor, strategy: :one_for_one},
-      Servant.Connectors.Scheduler,
-      Servant.Audit.LogBuffer,
-      # Start to serve requests, typically the last entry
-      ServantWeb.Endpoint
-    ]
+    children =
+      [
+        ServantWeb.Telemetry,
+        Servant.Repo,
+        {Ecto.Migrator,
+         repos: Application.fetch_env!(:servant, :ecto_repos), skip: skip_migrations?()},
+        {Phoenix.PubSub, name: Servant.PubSub},
+        {Registry, keys: :unique, name: Servant.Connectors.Registry},
+        {DynamicSupervisor, name: Servant.Connectors.Supervisor, strategy: :one_for_one},
+        Servant.Connectors.Scheduler,
+        Servant.Audit.LogBuffer,
+        Servant.Auth.Throttle,
+        # Start to serve requests, typically the last entry
+        ServantWeb.Endpoint
+      ] ++ Servant.Media.Backfill.child_specs()
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options

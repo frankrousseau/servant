@@ -4,6 +4,7 @@ defmodule ServantWeb.AuthController do
   use ServantWeb, :controller
 
   alias Servant.Accounts
+  alias Servant.Auth.Throttle
   alias ServantWeb.Auth
 
   def register(conn, %{"username" => _, "password" => _} = params) do
@@ -53,21 +54,33 @@ defmodule ServantWeb.AuthController do
   end
 
   def login(conn, %{"username" => username, "password" => password}) do
-    case Accounts.authenticate_user(username, password) do
-      {:ok, user} ->
-        if Accounts.totp_enabled?(user) do
-          # Password checked out but the session only opens after the TOTP
-          # step: hand back a short-lived ticket instead of a token.
-          ticket = Phoenix.Token.sign(conn, "totp pending", user.id)
-          json(conn, %{requires_totp: true, ticket: ticket})
-        else
-          issue_session(conn, user)
-        end
+    key = "login:" <> String.downcase(username)
 
-      {:error, :invalid_credentials} ->
-        conn
-        |> put_status(:unauthorized)
-        |> json(%{error: "Invalid username or password"})
+    case Throttle.check(key) do
+      {:error, retry_after} ->
+        too_many(conn, retry_after)
+
+      :ok ->
+        case Accounts.authenticate_user(username, password) do
+          {:ok, user} ->
+            Throttle.reset(key)
+
+            if Accounts.totp_enabled?(user) do
+              # Password checked out but the session only opens after the TOTP
+              # step: hand back a short-lived ticket instead of a token.
+              ticket = Phoenix.Token.sign(conn, "totp pending", user.id)
+              json(conn, %{requires_totp: true, ticket: ticket})
+            else
+              issue_session(conn, user)
+            end
+
+          {:error, :invalid_credentials} ->
+            Throttle.record_failure(key)
+
+            conn
+            |> put_status(:unauthorized)
+            |> json(%{error: "Invalid username or password"})
+        end
     end
   end
 
@@ -75,6 +88,13 @@ defmodule ServantWeb.AuthController do
     conn
     |> put_status(:unprocessable_entity)
     |> json(%{errors: %{detail: "username and password are required"}})
+  end
+
+  defp too_many(conn, retry_after) do
+    conn
+    |> put_resp_header("retry-after", Integer.to_string(retry_after))
+    |> put_status(:too_many_requests)
+    |> json(%{error: "Too many attempts, try again later"})
   end
 
   defp issue_session(conn, user) do
@@ -100,11 +120,23 @@ defmodule ServantWeb.AuthController do
   def totp_verify(conn, %{"ticket" => ticket, "code" => code}) do
     with {:ok, user_id} <-
            Phoenix.Token.verify(conn, "totp pending", ticket, max_age: @totp_ticket_max_age),
+         key = "totp:" <> user_id,
+         :ok <- Throttle.check(key),
          user when not is_nil(user) <- Accounts.get_user(user_id),
          {:ok, user} <- Accounts.verify_totp(user, code) do
+      Throttle.reset(key)
       issue_session(conn, user)
     else
+      {:error, retry_after} when is_integer(retry_after) ->
+        too_many(conn, retry_after)
+
       _ ->
+        # Count the bad code against the user's ticket, throttling guesses.
+        with {:ok, user_id} <-
+               Phoenix.Token.verify(conn, "totp pending", ticket, max_age: @totp_ticket_max_age) do
+          Throttle.record_failure("totp:" <> user_id)
+        end
+
         conn
         |> put_status(:unauthorized)
         |> json(%{error: "Invalid or expired code"})

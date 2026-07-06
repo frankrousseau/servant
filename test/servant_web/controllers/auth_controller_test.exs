@@ -98,6 +98,27 @@ defmodule ServantWeb.AuthControllerTest do
       conn = post(conn, "/api/auth/login", %{"username" => "loginuser"})
       assert json_response(conn, 422)
     end
+
+    test "locks out after too many failed attempts (429)", %{conn: conn} do
+      user = user_fixture(%{"username" => "brutus", "password" => "password123"})
+      Servant.Auth.Throttle.reset("login:brutus")
+
+      for _ <- 1..10 do
+        post(build_conn(), "/api/auth/login", %{
+          "username" => "brutus",
+          "password" => "wrongpass1"
+        })
+      end
+
+      # Even the correct password is refused while locked.
+      conn =
+        post(conn, "/api/auth/login", %{"username" => "brutus", "password" => "password123"})
+
+      assert json_response(conn, 429)
+      assert [_] = get_resp_header(conn, "retry-after")
+      Servant.Auth.Throttle.reset("login:brutus")
+      _ = user
+    end
   end
 
   describe "Bearer auth plug (BE-TEST-3)" do

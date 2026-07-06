@@ -58,11 +58,10 @@ defmodule ServantWeb.EntryController do
   results land.
   """
   def backfill_media(conn, _params) do
-    user_id = conn.assigns.current_user.id
-
-    # ponytail: fire-and-forget Task, no progress reporting; the client
-    # polls. Move under a Task.Supervisor if this ever needs shutdown safety.
-    Task.start(fn -> Servant.Media.Thumbnail.backfill_missing(user_id) end)
+    # Supervised, one job per user in flight (see Servant.Media.Backfill): a
+    # user can't stack concurrent full-library reprocessing jobs. The client
+    # polls its photo list to see results land.
+    Servant.Media.Backfill.start(conn.assigns.current_user.id)
 
     json(conn, %{status: "started"})
   end
