@@ -42,4 +42,30 @@ defmodule Servant.StorageTest do
       assert {:ok, ^abs} = Storage.resolve_public_path(rel)
     end
   end
+
+  describe "delete_public_file/2 ownership scoping" do
+    setup %{dir: dir} do
+      write = fn owner ->
+        rel = "#{owner}/apps/files/doc.txt"
+        abs = Path.join(dir, rel)
+        File.mkdir_p!(Path.dirname(abs))
+        File.write!(abs, "data")
+        {rel, abs}
+      end
+
+      %{write: write}
+    end
+
+    test "deletes a file owned by the caller", %{write: write} do
+      {rel, abs} = write.("owner1")
+      assert Storage.delete_public_file("owner1", "/files/#{rel}") == :ok
+      refute File.exists?(abs)
+    end
+
+    test "refuses to delete another user's file", %{write: write} do
+      {rel, abs} = write.("owner1")
+      assert Storage.delete_public_file("attacker", "/files/#{rel}") == :ok
+      assert File.exists?(abs)
+    end
+  end
 end

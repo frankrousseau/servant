@@ -41,6 +41,21 @@ describe('renderMarkdown', () => {
     expect(html).toContain('class="nt-tag"')
     expect(html).toContain('#project')
   })
+
+  it('does not rewrite wikilink syntax sitting inside an attribute', () => {
+    // The [[y]] lives in the link's title="…"; rewriting it there would break
+    // out of the attribute. It must be left untouched inside the tag.
+    const html = renderMarkdown('[a](http://e.com "x [[y]] q")', () => true)
+    expect(html).toContain('title="x [[y]] q"')
+    expect(html).not.toContain('class="nt-wikilink"')
+  })
+
+  it('rewrites a wikilink in text even next to an inline tag', () => {
+    const html = renderMarkdown('**bold** then [[My Note]]', () => true)
+    expect(html).toContain('<strong>bold</strong>')
+    expect(html).toContain('class="nt-wikilink"')
+    expect(html).toContain('>My Note</a>')
+  })
 })
 
 describe('canon', () => {

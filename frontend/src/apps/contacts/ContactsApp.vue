@@ -4,6 +4,7 @@ import type { AppContext, Entry } from '../types'
 import { useVirtualList } from '@vueuse/core'
 import { formatDate } from '../../lib/datetime'
 import { contactField, contactName, contactInitials } from '../../lib/contact'
+import { safeUrl } from '../../lib/url'
 
 const props = defineProps<{ ctx: AppContext }>()
 
@@ -43,17 +44,6 @@ const getInitials = contactInitials
 const isUnnamed = (c: Entry) => contactName(c) === '(unnamed)'
 const getEmails = (e: Entry) => (e.data.emails as Labeled[]) || []
 const getPhones = (e: Entry) => (e.data.phones as Labeled[]) || []
-
-// Only allow safe schemes for a vCard URL rendered into an href (blocks
-// `javascript:` stored XSS).
-function safeUrl(url: string): string | null {
-  try {
-    const scheme = new URL(url, window.location.origin).protocol
-    return ['http:', 'https:', 'mailto:', 'tel:'].includes(scheme) ? url : null
-  } catch {
-    return null
-  }
-}
 
 function sortContacts(list: Entry[]): Entry[] {
   return [...list].sort((a, b) => {

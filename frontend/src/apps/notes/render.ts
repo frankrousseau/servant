@@ -54,13 +54,25 @@ export function continueListEdit(
   }
 }
 
+// Apply `fn` only to the text between tags, never inside a tag or its
+// attributes. markdown-it (html:false) escapes any `<` in text content, so a
+// literal `<` only ever starts a real tag: injecting <a>/<span> markup this
+// way can't break out of an attribute (e.g. `[[x]]` sitting in a link's
+// title="…"). Runs of text and whole tags are matched alternately.
+function inTextNodes(html: string, fn: (text: string) => string): string {
+  return html.replace(/<[^>]*>|[^<]+/g, chunk =>
+    chunk[0] === '<' ? chunk : fn(chunk)
+  )
+}
+
 /**
  * Renders markdown to HTML, then turns `@[[mentions]]` into contact/event
  * chips, `[[wikilinks]]` into anchors (flagged `--new` when the target note
- * doesn't exist yet, à la Obsidian) and `#tags` into pills. Post-processing
- * the rendered HTML keeps wikilink/tag text as literal brackets/hashes that
- * markdown-it leaves untouched. Mentions are replaced first so the wikilink
- * pass only sees plain `[[...]]`.
+ * doesn't exist yet, à la Obsidian) and `#tags` into pills. The three passes
+ * run over text nodes only (never tag internals) so wikilink/tag text that
+ * markdown-it left as literal brackets/hashes is rewritten without corrupting
+ * attributes. Mentions are replaced first so the wikilink pass only sees
+ * plain `[[...]]`.
  */
 export function renderMarkdown(
   body: string,
@@ -69,26 +81,32 @@ export function renderMarkdown(
 ): string {
   let html = md.render(body || '')
 
-  html = html.replace(/@\[\[([^\][]+)\]\]/g, (_m, raw: string) => {
-    const target = raw.trim()
-    const kind = mentionKind(target)
-    const icon = kind === 'event' ? '📅' : '👤'
-    const cls = kind ? 'nt-mention' : 'nt-mention nt-mention--unknown'
-    return `<a class="${cls}" data-target="${escapeHtml(target)}">${icon} ${escapeHtml(target)}</a>`
-  })
+  html = inTextNodes(html, text =>
+    text.replace(/@\[\[([^\][]+)\]\]/g, (_m, raw: string) => {
+      const target = raw.trim()
+      const kind = mentionKind(target)
+      const icon = kind === 'event' ? '📅' : '👤'
+      const cls = kind ? 'nt-mention' : 'nt-mention nt-mention--unknown'
+      return `<a class="${cls}" data-target="${escapeHtml(target)}">${icon} ${escapeHtml(target)}</a>`
+    })
+  )
 
-  html = html.replace(/\[\[([^\][]+)\]\]/g, (_m, raw: string) => {
-    const target = raw.trim()
-    const cls = resolved(target)
-      ? 'nt-wikilink'
-      : 'nt-wikilink nt-wikilink--new'
-    return `<a class="${cls}" data-target="${escapeHtml(target)}">${escapeHtml(target)}</a>`
-  })
+  html = inTextNodes(html, text =>
+    text.replace(/\[\[([^\][]+)\]\]/g, (_m, raw: string) => {
+      const target = raw.trim()
+      const cls = resolved(target)
+        ? 'nt-wikilink'
+        : 'nt-wikilink nt-wikilink--new'
+      return `<a class="${cls}" data-target="${escapeHtml(target)}">${escapeHtml(target)}</a>`
+    })
+  )
 
-  html = html.replace(
-    /(^|[\s(>])#([\p{L}0-9_][\p{L}0-9_/-]*)/gu,
-    (_m, pre: string, tag: string) =>
-      `${pre}<span class="nt-tag">#${escapeHtml(tag)}</span>`
+  html = inTextNodes(html, text =>
+    text.replace(
+      /(^|[\s(>])#([\p{L}0-9_][\p{L}0-9_/-]*)/gu,
+      (_m, pre: string, tag: string) =>
+        `${pre}<span class="nt-tag">#${escapeHtml(tag)}</span>`
+    )
   )
 
   return html

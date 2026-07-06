@@ -190,7 +190,7 @@ defmodule Servant.Data do
 
   def delete_entry(user_id, id) do
     entry = get_entry!(user_id, id)
-    delete_entry_file(entry)
+    delete_entry_file(user_id, entry)
 
     result = Repo.delete(entry)
 
@@ -204,19 +204,19 @@ defmodule Servant.Data do
     end
   end
 
-  defp delete_entry_file(%{data: data}) when is_map(data) do
-    delete_public_path(data["path"])
-    delete_public_path(data["thumb_path"])
+  defp delete_entry_file(user_id, %{data: data}) when is_map(data) do
+    delete_public_path(user_id, data["path"])
+    delete_public_path(user_id, data["thumb_path"])
     :ok
   end
 
-  defp delete_entry_file(_entry), do: :ok
+  defp delete_entry_file(_user_id, _entry), do: :ok
 
-  defp delete_public_path(path) when is_binary(path) and path != "" do
-    Servant.Storage.delete_public_file(path)
+  defp delete_public_path(user_id, path) when is_binary(path) and path != "" do
+    Servant.Storage.delete_public_file(user_id, path)
   end
 
-  defp delete_public_path(_), do: :ok
+  defp delete_public_path(_user_id, _path), do: :ok
 
   def list_kinds(user_id) do
     Entry

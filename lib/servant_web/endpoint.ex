@@ -58,9 +58,14 @@ defmodule ServantWeb.Endpoint do
   plug ServantWeb.Plugs.AccessLog
 
   plug Plug.Parsers,
-    # Cap JSON/urlencoded bodies at 10MB; multipart gets its own budget slightly
-    # above the 1GB upload limit (enforced in UploadController).
-    parsers: [:urlencoded, :json, {:multipart, length: 1_100_000_000}],
+    # JSON-only API (uploads are multipart). Deliberately no :urlencoded parser:
+    # a cross-site HTML form posts application/x-www-form-urlencoded as a CORS
+    # "simple" request (no preflight); parsing it would let such a form reach
+    # POST /api/auth/login and set the SameSite=Lax cookie (login CSRF). Without
+    # the parser those bodies stay unparsed and the endpoints 422.
+    # Cap JSON at 10MB; multipart gets its own budget just above the 1GB upload
+    # limit (enforced in UploadController).
+    parsers: [:json, {:multipart, length: 1_100_000_000}],
     pass: ["*/*"],
     length: 10_000_000,
     json_decoder: Phoenix.json_library()

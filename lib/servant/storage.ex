@@ -98,15 +98,18 @@ defmodule Servant.Storage do
   end
 
   @doc """
-  Deletes a file referenced by a public URL (`/files/…` or legacy `/uploads/…`).
-  Ignores missing paths.
+  Deletes a file referenced by a public URL (`/files/…` or legacy `/uploads/…`),
+  but only when it belongs to `user_id`. Scoped like the read path so a user
+  can't delete another user's file by pointing an entry's `data.path` at it.
+  Ignores missing or non-owned paths.
   """
-  def delete_public_file(public_path) when is_binary(public_path) do
+  def delete_public_file(user_id, public_path)
+      when is_binary(user_id) and is_binary(public_path) do
     public_path
     |> String.trim()
     |> String.replace_prefix("/files/", "")
     |> String.replace_prefix("/uploads/", "")
-    |> resolve_public_path()
+    |> then(&resolve_owned_path(user_id, &1))
     |> case do
       {:ok, absolute} -> File.rm(absolute)
       :error -> :ok

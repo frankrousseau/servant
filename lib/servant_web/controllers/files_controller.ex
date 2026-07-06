@@ -19,6 +19,13 @@ defmodule ServantWeb.FilesController do
       conn
       |> put_resp_content_type(MIME.from_path(absolute))
       |> put_resp_header("accept-ranges", "bytes")
+      # The files store holds arbitrary user/connector content: keep the
+      # declared type honest (no MIME sniffing) and neutralize any stored
+      # .html/.svg by sandboxing the response, so navigating to it can't run
+      # script on the app origin. Sandbox doesn't affect <img>/<video>
+      # embedding (those aren't document contexts).
+      |> put_resp_header("x-content-type-options", "nosniff")
+      |> put_resp_header("content-security-policy", "sandbox")
       |> send_range_or_all(absolute, size)
     else
       _ ->

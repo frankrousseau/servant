@@ -564,7 +564,7 @@ onMounted(fetchData)
                 <span
                   v-if="getConnectorDef(c.connector_type)"
                   class="connector-mini-logo"
-                  v-html="getConnectorDef(c.connector_type)!.logo"
+                  v-html="getConnectorDef(c.connector_type)?.logo || ''"
                 ></span>
                 <span
                   class="connector-dot"
