@@ -40,44 +40,20 @@ npm install
 
 From the project root:
 
-<<<<<<< Updated upstream
-**Terminal 1 — Phoenix API server (port 4001):**
-||||||| Stash base
-**Terminal 1 — Phoenix API server (port 4000):**
-=======
-```bash
-./bin/dev
-```
-
-This starts Phoenix (port 4000) and the Vite dev server (port 5173) in one terminal. Open `http://localhost:5173` in your browser. Vite proxies `/api` and `/socket` requests to Phoenix on port 4000.
-
-Alternatively, run them in separate terminals:
->>>>>>> Stashed changes
+**Terminal 1 (Phoenix API server, port 4001):**
 
 ```bash
 mix phx.server
 ```
 
-<<<<<<< Updated upstream
-**Terminal 2 — Vite dev server (port 5001):**
+**Terminal 2 (Vite dev server, port 5001):**
 
-||||||| Stash base
-**Terminal 2 — Vite dev server (port 5173):**
-
-=======
->>>>>>> Stashed changes
 ```bash
 cd frontend && npm run dev
 ```
 
-<<<<<<< Updated upstream
 Open `http://localhost:5001` in your browser. Vite proxies `/api` and `/socket` requests to Phoenix on port 4001 (override with `PORT` / `PHOENIX_PORT`).
 
-||||||| Stash base
-Open `http://localhost:5173` in your browser. Vite proxies `/api` and `/socket` requests to Phoenix on port 4000.
-
-=======
->>>>>>> Stashed changes
 ## Project structure
 
 ```
@@ -135,9 +111,9 @@ servant/
 
 - **Connectors** are GenServers that sync data from external services. Each user gets their own connector process. They implement the `Servant.Connectors.Connector` behaviour.
 - **Entries** are the universal data container. Every piece of data (transaction, photo, note, etc.) is an entry with a `kind`, `source`, and JSON `data` payload.
-- **Notes** are entries with `kind: "note"`, managed by the `Servant.Notes` context: `[[wikilinks]]`, `@[[mentions]]` (contacts/events) and `#tags` are parsed on save into the `note_links` table (backlinks + graph), and renames propagate to referring notes. Notes are intentionally **not** mutable through the generic entries API — edit them via `/api/notes`.
+- **Notes** are entries with `kind: "note"`, managed by the `Servant.Notes` context: `[[wikilinks]]`, `@[[mentions]]` (contacts/events) and `#tags` are parsed on save into the `note_links` table (backlinks + graph), and renames propagate to referring notes. Notes are intentionally **not** mutable through the generic entries API; edit them via `/api/notes`.
 - **Connector secrets** are encrypted at rest (AES-256-GCM) via the `Servant.Encrypted.Map` Ecto type; the key derives from `CONNECTOR_ENCRYPTION_KEY` or `SECRET_KEY_BASE`.
-- **All data queries are scoped by `user_id`** — there is no way to access another user's data through the API.
+- **All data queries are scoped by `user_id`**; there is no way to access another user's data through the API.
 - **Phoenix.Token** is used for auth (bearer tokens or an HttpOnly cookie, 30-day max age).
 - **Timestamps are stored in UTC**; the frontend renders them in the user's `timezone` preference.
 - **PubSub** broadcasts entry changes on `"data:<user_id>"` topics (via `Servant.Events`), pushed to clients through Phoenix Channels.
