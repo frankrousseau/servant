@@ -8,6 +8,7 @@ import {
   nextTick,
   watch
 } from 'vue'
+import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import type { AppContext, Entry } from '../types'
 import { renderMarkdown, canon, continueListEdit } from './render'
 import { createFolderOrder } from '../folderOrder'
@@ -273,6 +274,21 @@ const allFolderPaths = computed(() => {
   }
   return [...s]
 })
+
+const folderOptions = computed(() =>
+  [...allFolderPaths.value].sort((a, b) =>
+    a.toLowerCase().localeCompare(b.toLowerCase())
+  )
+)
+
+function onFolderInput(v: string) {
+  editFolder.value = v
+  scheduleSave()
+}
+
+function onFolderSelect() {
+  void flushSave()
+}
 
 // Moves/renames rewrite [[folder/title]] wikilinks server-side; reload so we
 // don't hold (and later save back) stale bodies.
@@ -937,38 +953,49 @@ onBeforeUnmount(() => {
       </p>
       <template v-else>
         <div class="nt-toolbar">
-          <input
-            class="nt-title"
-            v-model="editTitle"
-            placeholder="Untitled"
-            @input="onEditInput"
-          />
-          <input
-            class="nt-folder-input"
-            v-model="editFolder"
-            placeholder="Folder (e.g. Projects/Servant)"
-            @input="onEditInput"
-          />
-          <span
-            class="nt-save-status"
-            :class="{ 'nt-save-status--error': saveState === 'error' }"
-            :title="saveState === 'error' ? saveError : ''"
-            >{{ saveStatusLabel }}</span
-          >
-          <div class="nt-view-toggle">
-            <button
-              v-for="m in viewModes"
-              :key="m"
-              class="nt-vb"
-              :class="{ 'nt-vb--active': viewMode === m }"
-              @click="viewMode = m"
+          <div class="nt-toolbar-row">
+            <input
+              class="nt-title"
+              v-model="editTitle"
+              placeholder="Untitled"
+              @input="onEditInput"
+            />
+            <span
+              class="nt-save-status"
+              :class="{ 'nt-save-status--error': saveState === 'error' }"
+              :title="saveState === 'error' ? saveError : ''"
+              >{{ saveStatusLabel }}</span
             >
-              {{ m }}
+            <button
+              class="nt-delete"
+              title="Delete note"
+              @click="deleteSelected"
+            >
+              🗑
             </button>
           </div>
-          <button class="nt-delete" title="Delete note" @click="deleteSelected">
-            🗑
-          </button>
+          <div class="nt-toolbar-row">
+            <AutocompleteInput
+              class="nt-folder-input"
+              :model-value="editFolder"
+              :options="folderOptions"
+              placeholder="Folder (e.g. Projects/Servant)"
+              @update:model-value="onFolderInput"
+              @select="onFolderSelect"
+            />
+            <span class="nt-toolbar-spacer"></span>
+            <div class="nt-view-toggle">
+              <button
+                v-for="m in viewModes"
+                :key="m"
+                class="nt-vb"
+                :class="{ 'nt-vb--active': viewMode === m }"
+                @click="viewMode = m"
+              >
+                {{ m }}
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="nt-panes">
@@ -1163,10 +1190,18 @@ onBeforeUnmount(() => {
 }
 .nt-toolbar {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 0.5rem;
   padding: 0.85rem 0.75rem;
   border-bottom: 1px solid var(--border);
+}
+.nt-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.nt-toolbar-spacer {
+  flex: 1;
 }
 .nt-title {
   font-weight: 600;
