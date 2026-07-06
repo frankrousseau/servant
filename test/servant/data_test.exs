@@ -92,4 +92,34 @@ defmodule Servant.DataTest do
       assert {:ok, 0} = Data.create_entries(user.id, [])
     end
   end
+
+  describe "q search filter" do
+    test "matches title and JSON data substrings", %{user_a: a} do
+      hit =
+        entry_fixture(a.id, %{
+          "kind" => "note",
+          "source" => "a",
+          "title" => "Groceries",
+          "data" => %{"body" => "buy zorglub"}
+        })
+
+      assert a.id |> Data.list_entries(%{"q" => "grocer"}) |> Enum.map(& &1.id) == [hit.id]
+      assert a.id |> Data.list_entries(%{"q" => "zorglub"}) |> Enum.map(& &1.id) == [hit.id]
+      assert Data.list_entries(a.id, %{"q" => "no-such-thing"}) == []
+    end
+
+    test "combines with kind and stays user-scoped", %{user_a: a, user_b: b, a1: a1} do
+      assert a.id |> Data.list_entries(%{"q" => "A1", "kind" => "note"}) |> Enum.map(& &1.id) ==
+               [a1.id]
+
+      assert a.id |> Data.list_entries(%{"q" => "A1", "kind" => "photo"}) |> Enum.map(& &1.id) ==
+               []
+
+      assert Data.list_entries(b.id, %{"q" => "A1"}) == []
+    end
+
+    test "blank q is ignored", %{user_a: a} do
+      assert length(Data.list_entries(a.id, %{"q" => ""})) == 2
+    end
+  end
 end

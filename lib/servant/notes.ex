@@ -9,11 +9,11 @@ defmodule Servant.Notes do
   scoped by `user_id`.
 
   Storage convention on the entry:
-    * `title`            — the note title (last path segment)
-    * `external_id`      — canonical full-path slug, unique per user
-    * `data["body"]`     — raw markdown
-    * `data["folder"]`   — parent path (e.g. "Projets/Servant"), "" at root
-    * `data["tags"]`     — list of tags parsed from `#hashtags` in the body
+    * `title`: the note title (last path segment)
+    * `external_id`: canonical full-path slug, unique per user
+    * `data["body"]`: raw markdown
+    * `data["folder"]`: parent path (e.g. "Projets/Servant"), "" at root
+    * `data["tags"]`: list of tags parsed from `#hashtags` in the body
   """
 
   import Ecto.Query
@@ -125,6 +125,25 @@ defmodule Servant.Notes do
       )
       |> Repo.all()
       |> Enum.reject(&(&1 == note.id))
+
+    notes_query(user_id)
+    |> where([e], e.id in ^source_ids)
+    |> order_by([e], asc: e.title)
+    |> Repo.all()
+  end
+
+  @doc """
+  Returns the notes that `@[[mention]]` the given entry (a contact or an
+  event), matched by resolved target id.
+  """
+  def mentioning(user_id, entry_id) do
+    source_ids =
+      from(l in NoteLink,
+        where: l.user_id == ^user_id and l.kind == "mention" and l.target_note_id == ^entry_id,
+        select: l.source_note_id,
+        distinct: true
+      )
+      |> Repo.all()
 
     notes_query(user_id)
     |> where([e], e.id in ^source_ids)
@@ -286,8 +305,8 @@ defmodule Servant.Notes do
   end
 
   # Obsidian-style rename propagation: when an update changes the note's keys,
-  # rewrite `[[wikilinks]]` in the notes that pointed at it — `[[title]]` links
-  # get the new title, `[[folder/title]]` links the new full path — then
+  # rewrite `[[wikilinks]]` in the notes that pointed at it (`[[title]]` links
+  # get the new title, `[[folder/title]]` links the new full path), then
   # re-sync those sources' outgoing links so everything still resolves.
   defp propagate_rename(_user_id, _old_note, _note, []), do: :ok
 
@@ -310,7 +329,7 @@ defmodule Servant.Notes do
         Repo.transaction(fn ->
           # Snapshot the vault once and reuse it for every source's link re-sync:
           # rewriting only changes bodies (not titles/paths), so target keys are
-          # stable — avoids reloading all notes per source (was O(N × vault)).
+          # stable; avoids reloading all notes per source (was O(N × vault)).
           all_notes = Repo.all(notes_query(user_id))
 
           all_notes
@@ -352,7 +371,7 @@ defmodule Servant.Notes do
 
   # Maps each target string to a note id when a matching note exists. A
   # full-path key (`folder/title`) is unique per user and always wins; a bare
-  # `title` key only resolves when exactly one note carries it — otherwise the
+  # `title` key only resolves when exactly one note carries it; otherwise the
   # link is left unresolved rather than pointing at an arbitrary same-named note.
   defp resolve_targets(_user_id, [], _notes), do: %{}
 
@@ -397,15 +416,16 @@ defmodule Servant.Notes do
     |> Map.take(names)
   end
 
-  # vcard contact titles look like "Name — org — email"; the display name (or
-  # the title's first segment) is the handle people actually type.
+  # vcard contact titles look like "Name - org - email" (entries created
+  # before July 2026 used " — "); the display name (or the title's first
+  # segment) is the handle people actually type.
   defp mention_keys(title, display_name) do
     title = to_string(title)
 
     [
       canon(to_string(display_name)),
       canon(title),
-      title |> String.split(" — ") |> hd() |> canon()
+      title |> String.split([" - ", " — "]) |> hd() |> canon()
     ]
     |> Enum.uniq()
   end

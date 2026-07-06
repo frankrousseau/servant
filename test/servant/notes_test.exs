@@ -153,7 +153,7 @@ defmodule Servant.NotesTest do
       contact =
         entry_fixture(user.id, %{
           "kind" => "contact",
-          "title" => "Jean Dupont — CGWire — jean@cg-wire.com",
+          "title" => "Jean Dupont - CGWire - jean@cg-wire.com",
           "data" => %{"display_name" => "Jean Dupont"}
         })
 
@@ -200,6 +200,38 @@ defmodule Servant.NotesTest do
 
       mentioning = Notes.get_note!(user.id, mentioning.id)
       assert mentioning.data["body"] == "lunch with @[[Sam]]"
+    end
+
+    test "mentioning/2 returns the notes that mention an entry", %{user: user, other: other} do
+      contact =
+        entry_fixture(user.id, %{
+          "kind" => "contact",
+          "title" => "Sam",
+          "data" => %{"display_name" => "Sam"}
+        })
+
+      {:ok, journal} =
+        Notes.create_note(user.id, %{"title" => "Journal", "body" => "lunch with @[[Sam]]"})
+
+      {:ok, _} = Notes.create_note(user.id, %{"title" => "Other", "body" => "no mention here"})
+
+      assert user.id |> Notes.mentioning(contact.id) |> Enum.map(& &1.id) == [journal.id]
+      assert Notes.mentioning(other.id, contact.id) == []
+    end
+
+    test "legacy em dash contact titles still resolve as mentions", %{user: user} do
+      # Entries created before July 2026 stored titles as "Name — org — email".
+      contact =
+        entry_fixture(user.id, %{
+          "kind" => "contact",
+          "title" => "Marie Curie — Sorbonne — marie@sorbonne.fr",
+          "data" => %{}
+        })
+
+      {:ok, note} =
+        Notes.create_note(user.id, %{"title" => "Labo", "body" => "rdv avec @[[Marie Curie]]"})
+
+      assert user.id |> Notes.mentioning(contact.id) |> Enum.map(& &1.id) == [note.id]
     end
   end
 

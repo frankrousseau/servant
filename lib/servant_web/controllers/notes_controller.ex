@@ -25,6 +25,12 @@ defmodule ServantWeb.NotesController do
     json(conn, %{data: Enum.map(backlinks, &Entry.to_json/1)})
   end
 
+  def mentioning(conn, %{"entry_id" => entry_id}) do
+    user_id = conn.assigns.current_user.id
+    notes = Notes.mentioning(user_id, entry_id)
+    json(conn, %{data: Enum.map(notes, &Entry.to_json/1)})
+  end
+
   def create(conn, params) do
     user_id = conn.assigns.current_user.id
 

@@ -38,6 +38,7 @@ defmodule ServantWeb.Router do
     post "/entries/backfill_media", EntryController, :backfill_media
     resources "/entries", EntryController, except: [:new, :edit]
 
+    get "/notes/mentioning/:entry_id", NotesController, :mentioning
     get "/notes/:id/backlinks", NotesController, :backlinks
     resources "/notes", NotesController, except: [:new, :edit]
 

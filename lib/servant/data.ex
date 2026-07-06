@@ -13,7 +13,7 @@ defmodule Servant.Data do
   @doc """
   Clamps a requested `per_page` into `[1, #{@max_per_page}]`, falling back to the
   default for non-integers. Shared with the controller so pagination metadata
-  (total_pages) and the query LIMIT agree — and so `per_page=0` can't reach a
+  (total_pages) and the query LIMIT agree, and so `per_page=0` can't reach a
   `total/per_page` division or `per_page` negative a `LIMIT -1`.
   """
   def clamp_per_page(val) do
@@ -111,7 +111,7 @@ defmodule Servant.Data do
   Returns `{:ok, inserted_count}`.
   """
   # Chunk size for bulk inserts: each row binds ~11 columns, so 500 rows ≈ 5.5k
-  # bound params — comfortably under SQLite's default 32k variable limit even if
+  # bound params, comfortably under SQLite's default 32k variable limit even if
   # the schema grows, while keeping the number of round-trips low.
   @insert_chunk_size 500
 
@@ -228,7 +228,7 @@ defmodule Servant.Data do
 
   # Filters arrive with either atom keys (internal callers/tests) or string
   # keys (controller params). Normalize once to strings so a single set of
-  # clauses covers both — a filter added on only one form can't slip through.
+  # clauses covers both; a filter added on only one form can't slip through.
   defp apply_filters(query, filters) do
     filters
     |> stringify_keys()
@@ -250,6 +250,12 @@ defmodule Servant.Data do
           {:ok, dt, _} -> where(q, [e], e.occurred_at <= ^dt)
           _ -> q
         end
+
+      # Substring search over the title and the JSON data text (SQLite LIKE,
+      # case-insensitive for ASCII). Powers the command palette.
+      {"q", term}, q when is_binary(term) and term != "" ->
+        pattern = "%" <> term <> "%"
+        where(q, [e], like(e.title, ^pattern) or fragment("? LIKE ?", e.data, ^pattern))
 
       _, q ->
         q

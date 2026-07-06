@@ -75,4 +75,27 @@ defmodule ServantWeb.NotesControllerTest do
       assert response(conn, 204)
     end
   end
+
+  describe "mentioning" do
+    test "lists the caller's notes mentioning an entry", %{conn: conn, user: user} do
+      contact =
+        entry_fixture(user.id, %{
+          "kind" => "contact",
+          "title" => "Sam",
+          "data" => %{"display_name" => "Sam"}
+        })
+
+      {:ok, _} =
+        Notes.create_note(user.id, %{"title" => "Journal", "body" => "lunch with @[[Sam]]"})
+
+      conn = get(conn, "/api/notes/mentioning/#{contact.id}")
+      assert %{"data" => data} = json_response(conn, 200)
+      assert Enum.map(data, & &1["title"]) == ["Journal"]
+    end
+
+    test "401 without a token" do
+      conn = get(build_conn(), "/api/notes/mentioning/some-id")
+      assert json_response(conn, 401)
+    end
+  end
 end
