@@ -236,6 +236,9 @@ defmodule Servant.Data do
       {"kind", kind}, q when is_binary(kind) ->
         where(q, kind: ^kind)
 
+      {"kinds", kinds}, q when is_list(kinds) ->
+        where(q, [e], e.kind in ^kinds)
+
       {"source", source}, q when is_binary(source) ->
         where(q, source: ^source)
 
