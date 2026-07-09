@@ -37,16 +37,59 @@ defmodule ServantWeb.Auth do
   end
 
   def call(conn, _opts) do
-    with {:ok, token} <- fetch_token(conn),
-         {:ok, user} <- authenticate_token(conn, token) do
-      assign(conn, :current_user, user)
-    else
-      _ ->
-        conn
-        |> put_status(:unauthorized)
-        |> Phoenix.Controller.json(%{error: "Unauthorized"})
-        |> halt()
+    case fetch_token(conn) do
+      {:ok, token} -> authenticate_request(conn, token)
+      :error -> unauthorized(conn)
     end
+  end
+
+  # API tokens (srv_ prefix): DB lookup by hash, scopes attached. Failed lookups
+  # feed the per-IP throttle so token values can't be brute forced.
+  defp authenticate_request(conn, "srv_" <> _ = token) do
+    throttle_key = "api_token:" <> ip_string(conn)
+
+    with :ok <- Servant.Auth.Throttle.check(throttle_key),
+         {:ok, user, scopes} <- Servant.ApiTokens.authenticate(token) do
+      Servant.Auth.Throttle.reset(throttle_key)
+
+      conn
+      |> assign(:current_user, user)
+      |> assign(:api_scopes, scopes)
+    else
+      {:error, retry_after} ->
+        conn
+        |> put_status(:too_many_requests)
+        |> Phoenix.Controller.json(%{error: "Too many attempts", retry_after: retry_after})
+        |> halt()
+
+      :error ->
+        Servant.Auth.Throttle.record_failure(throttle_key)
+        unauthorized(conn)
+    end
+  end
+
+  # Session tokens (Phoenix.Token): full access, api_scopes stays nil.
+  defp authenticate_request(conn, token) do
+    case authenticate_token(conn, token) do
+      {:ok, user} ->
+        conn
+        |> assign(:current_user, user)
+        |> assign(:api_scopes, nil)
+
+      :error ->
+        unauthorized(conn)
+    end
+  end
+
+  defp unauthorized(conn) do
+    conn
+    |> put_status(:unauthorized)
+    |> Phoenix.Controller.json(%{error: "Unauthorized"})
+    |> halt()
+  end
+
+  defp ip_string(conn) do
+    conn.remote_ip |> :inet.ntoa() |> to_string()
   end
 
   # Bearer header takes precedence; fall back to the HttpOnly cookie.

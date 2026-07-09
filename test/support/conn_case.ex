@@ -48,4 +48,17 @@ defmodule ServantWeb.ConnCase do
     token = ServantWeb.Auth.sign_token(ServantWeb.Endpoint, user)
     {Plug.Conn.put_req_header(conn, "authorization", "Bearer #{token}"), user}
   end
+
+  @doc """
+  Registers a user, creates an API token with `scopes` and returns
+  `{conn, user}` with the token's plaintext set as Bearer header.
+  """
+  def register_and_log_in_api_token(conn, scopes, attrs \\ %{}) do
+    user = Servant.Fixtures.user_fixture(attrs)
+
+    {:ok, _token, plaintext} =
+      Servant.ApiTokens.create_token(user.id, %{"name" => "test token", "scopes" => scopes})
+
+    {Plug.Conn.put_req_header(conn, "authorization", "Bearer #{plaintext}"), user}
+  end
 end
