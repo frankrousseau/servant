@@ -79,13 +79,15 @@ defmodule Servant.ApiTokensTest do
       {:ok, token, plaintext} =
         ApiTokens.create_token(u.id, %{"name" => "agent", "scopes" => ["data:read"]})
 
-      {:ok, _, _} = ApiTokens.authenticate(plaintext)
-      first_touch = Repo.get!(ApiToken, token.id).last_used_at
+      seeded = DateTime.add(DateTime.utc_now(:second), -30, :second)
+
+      ApiToken
+      |> where(id: ^token.id)
+      |> Repo.update_all(set: [last_used_at: seeded])
 
       {:ok, _, _} = ApiTokens.authenticate(plaintext)
-      second_touch = Repo.get!(ApiToken, token.id).last_used_at
 
-      assert first_touch == second_touch
+      assert Repo.get!(ApiToken, token.id).last_used_at == seeded
     end
   end
 
