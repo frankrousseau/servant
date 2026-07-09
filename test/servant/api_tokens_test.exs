@@ -72,6 +72,21 @@ defmodule Servant.ApiTokensTest do
       {:ok, _, _} = ApiTokens.authenticate(plaintext)
       assert %DateTime{} = Repo.get!(ApiToken, token.id).last_used_at
     end
+
+    test "authenticate debounces last_used_at within 60 seconds" do
+      u = user()
+
+      {:ok, token, plaintext} =
+        ApiTokens.create_token(u.id, %{"name" => "agent", "scopes" => ["data:read"]})
+
+      {:ok, _, _} = ApiTokens.authenticate(plaintext)
+      first_touch = Repo.get!(ApiToken, token.id).last_used_at
+
+      {:ok, _, _} = ApiTokens.authenticate(plaintext)
+      second_touch = Repo.get!(ApiToken, token.id).last_used_at
+
+      assert first_touch == second_touch
+    end
   end
 
   describe "list_tokens/1 and delete_token/2" do
