@@ -64,6 +64,8 @@ defmodule ServantWeb.Router do
         put "/auth/password", AuthController, :change_password
         post "/auth/avatar", AuthController, :upload_avatar
 
+        resources "/tokens", ApiTokenController, only: [:index, :create, :delete]
+
         post "/entries/backfill_media", EntryController, :backfill_media
 
         resources "/connectors", ConnectorController, except: [:new, :edit]
