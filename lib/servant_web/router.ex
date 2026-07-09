@@ -19,6 +19,10 @@ defmodule ServantWeb.Router do
     plug ServantWeb.Plugs.RequireAdmin
   end
 
+  pipeline :session_only do
+    plug ServantWeb.Plugs.SessionOnly
+  end
+
   scope "/api", ServantWeb do
     pipe_through :api
 
@@ -27,49 +31,58 @@ defmodule ServantWeb.Router do
     post "/auth/login", AuthController, :login
     post "/auth/totp/verify", AuthController, :totp_verify
 
-    # Authenticated routes
-    pipe_through :auth
+    scope "/" do
+      pipe_through :auth
 
-    post "/auth/logout", AuthController, :logout
-    get "/auth/me", AuthController, :me
-    post "/auth/totp/setup", AuthController, :totp_setup
-    post "/auth/totp/confirm", AuthController, :totp_confirm
-    delete "/auth/totp", AuthController, :totp_disable
-    put "/auth/profile", AuthController, :update_profile
-    put "/auth/password", AuthController, :change_password
-    post "/auth/avatar", AuthController, :upload_avatar
+      # Reachable by scoped API tokens; scope checks live in the controllers.
+      get "/entries/kinds", EntryController, :kinds
+      get "/entries/sources", EntryController, :sources
+      get "/entries/stats", EntryController, :stats
+      get "/entries/stats/daily", EntryController, :daily_stats
+      resources "/entries", EntryController, except: [:new, :edit]
 
-    get "/entries/kinds", EntryController, :kinds
-    get "/entries/sources", EntryController, :sources
-    get "/entries/stats", EntryController, :stats
-    get "/entries/stats/daily", EntryController, :daily_stats
-    post "/entries/backfill_media", EntryController, :backfill_media
-    resources "/entries", EntryController, except: [:new, :edit]
+      get "/notes/mentioning/:entry_id", NotesController, :mentioning
+      get "/notes/:id/backlinks", NotesController, :backlinks
+      resources "/notes", NotesController, except: [:new, :edit]
 
-    get "/notes/mentioning/:entry_id", NotesController, :mentioning
-    get "/notes/:id/backlinks", NotesController, :backlinks
-    resources "/notes", NotesController, except: [:new, :edit]
+      get "/apps", AppController, :index
 
-    resources "/connectors", ConnectorController, except: [:new, :edit]
-    post "/connectors/:id/start", ConnectorController, :start
-    post "/connectors/:id/stop", ConnectorController, :stop
-    post "/connectors/:id/sync", ConnectorController, :sync
-    post "/connectors/:id/import", ConnectorController, :import_file
-    get "/connectors/:id/logs", ConnectorController, :logs
-    get "/connectors/schedules/:connector_type", ConnectorController, :schedules
+      post "/uploads", UploadController, :create
 
-    get "/apps", AppController, :index
+      get "/export/entries", ExportController, :entries
+      get "/export/entries.ics", ExportController, :ical
 
-    post "/uploads", UploadController, :create
+      scope "/" do
+        pipe_through :session_only
 
-    get "/export/entries", ExportController, :entries
-    get "/export/entries.ics", ExportController, :ical
+        post "/auth/logout", AuthController, :logout
+        get "/auth/me", AuthController, :me
+        post "/auth/totp/setup", AuthController, :totp_setup
+        post "/auth/totp/confirm", AuthController, :totp_confirm
+        delete "/auth/totp", AuthController, :totp_disable
+        put "/auth/profile", AuthController, :update_profile
+        put "/auth/password", AuthController, :change_password
+        post "/auth/avatar", AuthController, :upload_avatar
 
-    # Operator-only: server-wide stats + all users' access/error logs.
-    pipe_through :admin
+        post "/entries/backfill_media", EntryController, :backfill_media
 
-    get "/audit/system", AuditController, :system
-    get "/audit/logs", AuditController, :logs
+        resources "/connectors", ConnectorController, except: [:new, :edit]
+        post "/connectors/:id/start", ConnectorController, :start
+        post "/connectors/:id/stop", ConnectorController, :stop
+        post "/connectors/:id/sync", ConnectorController, :sync
+        post "/connectors/:id/import", ConnectorController, :import_file
+        get "/connectors/:id/logs", ConnectorController, :logs
+        get "/connectors/schedules/:connector_type", ConnectorController, :schedules
+
+        # Operator-only: server-wide stats + all users' access/error logs.
+        scope "/" do
+          pipe_through :admin
+
+          get "/audit/system", AuditController, :system
+          get "/audit/logs", AuditController, :logs
+        end
+      end
+    end
   end
 
   # Enable LiveDashboard in development
