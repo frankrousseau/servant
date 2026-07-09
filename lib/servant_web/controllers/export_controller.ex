@@ -3,6 +3,8 @@ defmodule ServantWeb.ExportController do
 
   use ServantWeb, :controller
 
+  plug ServantWeb.Plugs.Scope, domain: "data"
+
   def entries(conn, _params) do
     user_id = conn.assigns.current_user.id
     entries = Servant.Data.all_entries(user_id)

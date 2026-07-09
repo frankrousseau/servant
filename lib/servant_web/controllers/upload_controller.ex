@@ -3,6 +3,8 @@ defmodule ServantWeb.UploadController do
 
   use ServantWeb, :controller
 
+  plug :check_upload_scope
+
   @default_max_size 1_000_000_000
 
   defp max_size, do: Application.get_env(:servant, :max_upload_size, @default_max_size)
@@ -167,4 +169,21 @@ defmodule ServantWeb.UploadController do
     do: response
 
   defp heic?(path), do: String.ends_with?(String.downcase(path), [".heic", ".heif"])
+
+  # Photos uploads need app:photos:write; every other app id is file storage.
+  defp check_upload_scope(conn, _opts) do
+    domain = if Map.get(conn.params, "app", "files") == "photos", do: "photos", else: "files"
+
+    if Servant.ApiTokens.Scopes.can?(conn.assigns[:api_scopes], domain, :write) do
+      conn
+    else
+      conn
+      |> put_status(:forbidden)
+      |> Phoenix.Controller.json(%{
+        error: "Insufficient scope",
+        required: Servant.ApiTokens.Scopes.scope_name(domain, :write)
+      })
+      |> halt()
+    end
+  end
 end

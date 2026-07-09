@@ -6,6 +6,9 @@ defmodule ServantWeb.EntryController do
   alias Servant.Data
   alias Servant.Data.Entry
 
+  plug ServantWeb.Plugs.Scope,
+       [domain: "data"] when action in [:kinds, :sources, :stats, :daily_stats]
+
   def index(conn, params) do
     user_id = conn.assigns.current_user.id
     entries = Data.list_entries(user_id, params)

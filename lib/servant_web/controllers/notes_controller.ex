@@ -6,6 +6,8 @@ defmodule ServantWeb.NotesController do
   alias Servant.Data.Entry
   alias Servant.Notes
 
+  plug ServantWeb.Plugs.Scope, domain: "notes"
+
   def index(conn, _params) do
     user_id = conn.assigns.current_user.id
     notes = Notes.list_notes(user_id)
