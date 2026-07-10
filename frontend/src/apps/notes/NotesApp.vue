@@ -10,7 +10,7 @@ import {
 } from 'vue'
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import type { AppContext, Entry } from '../types'
-import { todayInUserTz } from '../../lib/datetime'
+import { todayInUserTz, formatDate } from '../../lib/datetime'
 import { renderMarkdown, canon, continueListEdit } from './render'
 import { createFolderOrder } from '../folderOrder'
 
@@ -84,6 +84,10 @@ const bodyRef = ref<HTMLTextAreaElement | null>(null)
 
 const selected = computed(
   () => notes.value.find(n => n.id === selectedId.value) || null
+)
+
+const createdLabel = computed(() =>
+  selected.value ? formatDate(selected.value.inserted_at) : ''
 )
 
 const showEditor = computed(() => viewMode.value !== 'preview')
@@ -1012,6 +1016,9 @@ onBeforeUnmount(() => {
               @select="onFolderSelect"
             />
             <span class="nt-toolbar-spacer"></span>
+            <span v-if="createdLabel" class="nt-created"
+              >Created {{ createdLabel }}</span
+            >
             <div class="nt-view-toggle">
               <button
                 v-for="m in viewModes"
@@ -1274,6 +1281,13 @@ onBeforeUnmount(() => {
 }
 .nt-save-status--error {
   color: var(--danger);
+}
+.nt-created {
+  flex-shrink: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 .nt-view-toggle {
   display: flex;
