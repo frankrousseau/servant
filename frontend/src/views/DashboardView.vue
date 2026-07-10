@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 import { useApi } from '../composables/useApi'
 import { useSocket, debounce } from '../composables/useSocket'
 import type { Entry, ConnectorConfig } from '../types'
@@ -14,21 +15,11 @@ import {
 } from '../lib/datetime'
 import { getConnectorDef } from '../connectors'
 import KindIcon from '../components/KindIcon.vue'
-import {
-  addDays,
-  nextOccurrence,
-  occursOn,
-  recurrenceOf
-} from '../apps/calendar/recurrence'
-import {
-  birthdaySeed,
-  birthdayYearKnown,
-  contactField,
-  contactName
-} from '../lib/contact'
+import { occursOn, recurrenceOf } from '../apps/calendar/recurrence'
 
 const api = useApi()
 const router = useRouter()
+const auth = useAuthStore()
 
 const recentEntries = ref<Entry[]>([])
 const stats = ref<Record<string, number>>({})
@@ -37,8 +28,6 @@ const connectors = ref<ConnectorConfig[]>([])
 const dailyStats = ref<Record<string, Record<string, number>>>({})
 const events = ref<Entry[]>([])
 const checklists = ref<Entry[]>([])
-const contacts = ref<Entry[]>([])
-const dashPrefs = ref<Entry | null>(null)
 const loading = ref(true)
 
 const { onEntryChange, onBulkChange } = useSocket()
@@ -57,9 +46,7 @@ async function fetchData() {
       connectorsRes,
       dailyRes,
       eventsRes,
-      checklistsRes,
-      contactsRes,
-      prefsRes
+      checklistsRes
     ] = await Promise.all([
       api.get<{ data: Entry[]; meta: { total: number } }>('/api/entries', {
         per_page: '30',
@@ -83,14 +70,6 @@ async function fetchData() {
       api.get<{ data: Entry[] }>('/api/entries', {
         kind: 'checklist',
         per_page: '100'
-      }),
-      api.get<{ data: Entry[] }>('/api/entries', {
-        kind: 'contact',
-        per_page: '1000'
-      }),
-      api.get<{ data: Entry[] }>('/api/entries', {
-        kind: 'prefs',
-        per_page: '10'
       })
     ])
     recentEntries.value = entriesRes.data
@@ -100,8 +79,6 @@ async function fetchData() {
     dailyStats.value = dailyRes.data
     events.value = eventsRes.data
     checklists.value = checklistsRes.data
-    contacts.value = contactsRes.data
-    dashPrefs.value = prefsRes.data.find(p => p.title === 'birthdays') || null
   } catch {
     // API not available yet
   } finally {
@@ -109,21 +86,12 @@ async function fetchData() {
   }
 }
 
-// ----- MOTD + Today panel -----
+// ----- Today panel -----
 
 interface ChecklistItem {
   text: string
   done: boolean
 }
-
-const motdDate = computed(() =>
-  formatDate(new Date().toISOString(), {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  })
-)
 
 // Today's events, recurring ones included (they occur today when their
 // pattern matches, whatever their seed date).
@@ -142,77 +110,6 @@ const todaysEvents = computed(() => {
       )
     )
 })
-
-// ----- Coming up: next-7-days events + opted-in birthdays -----
-
-interface Occurrence {
-  date: string
-  e: Entry
-}
-
-const upcomingEvents = computed<Occurrence[]>(() => {
-  const today = todayInUserTz()
-  const end = addDays(today, 7)
-  const out: Occurrence[] = []
-  for (const e of events.value) {
-    if (!e.occurred_at) continue
-    const start = utcToZonedParts(e.occurred_at).date
-    const rec = recurrenceOf(e.data)
-    if (rec) {
-      let d = nextOccurrence(start, rec, addDays(today, 1))
-      while (d <= end) {
-        out.push({ date: d, e })
-        d = nextOccurrence(start, rec, addDays(d, 1))
-      }
-    } else if (start > today && start <= end) {
-      out.push({ date: start, e })
-    }
-  }
-  return out.sort((a, b) =>
-    (a.date + utcToZonedParts(a.e.occurred_at!).time).localeCompare(
-      b.date + utcToZonedParts(b.e.occurred_at!).time
-    )
-  )
-})
-
-interface BirthdayRow {
-  id: string
-  date: string
-  name: string
-  age: number | null
-}
-
-// Only contacts explicitly flagged on their page (prefs/birthdays entry),
-// within the next 30 days.
-const upcomingBirthdays = computed<BirthdayRow[]>(() => {
-  const ids = new Set((dashPrefs.value?.data.contact_ids as string[]) || [])
-  if (!ids.size) return []
-  const today = todayInUserTz()
-  const horizon = addDays(today, 30)
-  const out: BirthdayRow[] = []
-  for (const c of contacts.value) {
-    if (!ids.has(c.id)) continue
-    const seed = birthdaySeed(contactField(c, 'birthday'))
-    if (!seed) continue
-    const date = nextOccurrence(seed, 'yearly', today)
-    if (date > horizon) continue
-    const age = birthdayYearKnown(seed)
-      ? Number(date.slice(0, 4)) - Number(seed.slice(0, 4))
-      : null
-    out.push({ id: c.id, date, name: contactName(c), age })
-  }
-  return out.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5)
-})
-
-// "Mon 13" within the week, "Jul 30" beyond (birthdays reach 30 days out).
-function comingLabel(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  const opts: Intl.DateTimeFormatOptions =
-    dateStr <= addDays(todayInUserTz(), 7)
-      ? { weekday: 'short', day: 'numeric' }
-      : { month: 'short', day: 'numeric' }
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, opts)
-}
 
 // Next upcoming event on any day: earliest one not yet finished.
 const nextEvent = computed(() => {
@@ -350,17 +247,10 @@ onMounted(fetchData)
     <p v-if="loading" class="loading-text">Loading...</p>
 
     <template v-else>
-      <!-- MOTD: the machine's status, terminal style -->
+      <!-- Header: greeting + calendar at a glance -->
       <div class="motd">
         <div class="motd-head">
-          SERVANT <span class="motd-sep">//</span> {{ motdDate }}
-        </div>
-        <div class="motd-line">
-          <span class="motd-num">{{ entriesToday }}</span> entries today
-          &middot; <span class="motd-num">{{ totalEntries }}</span> total
-          <template v-if="lastSyncAt">
-            &middot; last sync {{ relativeTime(lastSyncAt) }}
-          </template>
+          Hello {{ auth.user?.display_name || auth.user?.username }}
         </div>
         <div class="motd-line">
           next:
@@ -369,106 +259,44 @@ onMounted(fetchData)
             {{ nextEvent.title || nextEvent.data.summary }}
           </template>
           <template v-else>nothing scheduled</template>
-          &middot;
-          <span class="motd-num">{{ pendingItems.length }}</span> checklist
-          items pending
+        </div>
+        <div v-if="todaysEvents.length" class="motd-line">
+          today:
+          <template v-for="(e, i) in todaysEvents" :key="e.id">
+            <template v-if="i"> &middot; </template>
+            <span class="motd-num">{{ formatTime(e.occurred_at) }}</span>
+            {{ e.title || e.data.summary }}
+          </template>
         </div>
       </div>
 
       <div class="dashboard-layout">
-        <!-- Main column: Today + Recent activity -->
+        <!-- Main column: Checklists + Coming up + Recent activity -->
         <div class="dashboard-main">
-          <section class="dashboard-section">
+          <section v-if="pendingItems.length" class="dashboard-section">
             <div class="section-header">
-              <h2>Today</h2>
-              <router-link to="/apps/calendar" class="section-link"
-                >Calendar</router-link
-              >
-            </div>
-            <div v-if="todaysEvents.length" class="today-events">
-              <div v-for="e in todaysEvents" :key="e.id" class="today-event">
-                <span class="today-time">{{ formatTime(e.occurred_at) }}</span>
-                <span class="today-title">{{ e.title || e.data.summary }}</span>
-                <span v-if="e.data.location" class="today-loc">{{
-                  e.data.location
-                }}</span>
-              </div>
-            </div>
-            <p v-else class="empty">Nothing scheduled today.</p>
-
-            <div v-if="pendingItems.length" class="today-checklist">
-              <div class="today-divider">
-                <span class="today-divider-label">Checklists</span>
-              </div>
-              <div
-                v-for="it in pendingItems.slice(0, 5)"
-                :key="it.listId + ':' + it.index"
-                class="today-item today-item--clickable"
-                title="Mark as done"
-                @click="checkItem(it)"
-              >
-                <span class="today-box">☐</span>
-                <span class="today-item-text">{{ it.text }}</span>
-                <span class="today-list-name">{{ it.list }}</span>
-              </div>
-              <router-link
-                v-if="pendingItems.length > 5"
-                to="/apps/checklists"
-                class="today-more"
-              >
-                +{{ pendingItems.length - 5 }} more
-              </router-link>
-            </div>
-          </section>
-
-          <section
-            v-if="upcomingBirthdays.length || upcomingEvents.length"
-            class="dashboard-section"
-          >
-            <div class="section-header">
-              <h2>Coming up</h2>
-              <router-link to="/apps/calendar" class="section-link"
-                >Calendar</router-link
+              <h2>Checklists</h2>
+              <router-link to="/apps/checklists" class="section-link"
+                >View all</router-link
               >
             </div>
             <div
-              v-for="b in upcomingBirthdays"
-              :key="'b' + b.id"
-              class="today-event coming-clickable"
-              role="button"
-              tabindex="0"
-              @click="router.push(`/contacts/${b.id}`)"
+              v-for="it in pendingItems.slice(0, 5)"
+              :key="it.listId + ':' + it.index"
+              class="today-item today-item--clickable"
+              title="Mark as done"
+              @click="checkItem(it)"
             >
-              <span class="today-time">{{ comingLabel(b.date) }}</span>
-              <span class="today-title">
-                🎂 {{ b.name
-                }}<template v-if="b.age !== null"> ({{ b.age }})</template>
-              </span>
-            </div>
-            <div
-              v-for="o in upcomingEvents.slice(0, 6)"
-              :key="o.e.id + o.date"
-              class="today-event"
-            >
-              <span class="today-time">
-                {{ comingLabel(o.date)
-                }}<template v-if="!o.e.data.all_day">
-                  {{ formatTime(o.e.occurred_at!) }}</template
-                >
-              </span>
-              <span class="today-title">{{
-                o.e.title || o.e.data.summary
-              }}</span>
-              <span v-if="o.e.data.location" class="today-loc">{{
-                o.e.data.location
-              }}</span>
+              <span class="today-box">☐</span>
+              <span class="today-item-text">{{ it.text }}</span>
+              <span class="today-list-name">{{ it.list }}</span>
             </div>
             <router-link
-              v-if="upcomingEvents.length > 6"
-              to="/apps/calendar"
+              v-if="pendingItems.length > 5"
+              to="/apps/checklists"
               class="today-more"
             >
-              +{{ upcomingEvents.length - 6 }} more
+              +{{ pendingItems.length - 5 }} more
             </router-link>
           </section>
 
@@ -507,6 +335,12 @@ onMounted(fetchData)
           <!-- Stats -->
           <section class="sidebar-section">
             <h2>Statistics</h2>
+            <p class="stats-meta">
+              <span class="stats-num">{{ entriesToday }}</span> entries today
+              <template v-if="lastSyncAt">
+                &middot; last sync {{ relativeTime(lastSyncAt) }}
+              </template>
+            </p>
             <div class="sidebar-stats">
               <div
                 class="stat-card stat-card--total"
@@ -620,7 +454,7 @@ onMounted(fetchData)
   color: var(--text-muted);
 }
 
-/* MOTD */
+/* Header: terminal-style calendar summary */
 .motd {
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -640,11 +474,6 @@ onMounted(fetchData)
   margin-bottom: 0.35rem;
 }
 
-.motd-sep {
-  color: var(--text-muted);
-  text-shadow: none;
-}
-
 .motd-line {
   color: var(--text-muted);
 }
@@ -652,72 +481,6 @@ onMounted(fetchData)
 .motd-num {
   color: var(--text);
   font-weight: 600;
-}
-
-/* Today panel */
-.today-events {
-  display: flex;
-  flex-direction: column;
-}
-
-.today-event {
-  display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-  padding: 0.45rem 0.5rem;
-  border-bottom: 1px solid var(--border);
-  font-size: 0.95rem;
-}
-
-.today-event:last-child {
-  border-bottom: none;
-}
-
-.today-time {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: var(--primary);
-  flex-shrink: 0;
-}
-
-.today-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.today-loc {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-
-.today-checklist {
-  margin-top: 0.75rem;
-  display: flex;
-  flex-direction: column;
-}
-
-.today-divider {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin: 0.25rem 0 0.4rem;
-}
-
-.today-divider::after {
-  content: '';
-  flex: 1;
-  border-top: 1px solid var(--border);
-}
-
-.today-divider-label {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--text-muted);
 }
 
 .today-item {
@@ -763,15 +526,7 @@ onMounted(fetchData)
   font-size: 0.85rem;
 }
 
-.coming-clickable {
-  cursor: pointer;
-  border-radius: 6px;
-}
-.coming-clickable:hover {
-  background: var(--bg-hover);
-}
-
-/* The dashboard owns the viewport: MOTD fixed on top, then two
+/* The dashboard owns the viewport: header fixed on top, then two
    independently scrolling columns. */
 .view {
   height: calc(100vh - 4rem);
@@ -819,6 +574,17 @@ onMounted(fetchData)
 
 .sidebar-section h2 {
   margin: 0 0 0.75rem;
+}
+
+.stats-meta {
+  margin: -0.35rem 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.stats-num {
+  color: var(--text);
+  font-weight: 600;
 }
 
 /* Stats */
