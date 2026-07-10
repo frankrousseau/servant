@@ -19,13 +19,24 @@ defmodule ServantWeb.ApiSpec do
           form `app:<domain>:<read|write>` (notes, checklists, calendar, contacts, photos,
           files, finance, trackers) plus the `data:<read|write>` wildcard. `write` implies
           `read`. Scope failures return 403 with the required scope.
+
+        Raw file bytes under /files and /uploads are session-only in v1: an API token
+        can list photo/file entries but cannot download the underlying files.
         """,
         version: to_string(Application.spec(:servant, :vsn) || "dev")
       },
       servers: [Server.from_endpoint(ServantWeb.Endpoint)],
       paths: Paths.from_router(ServantWeb.Router),
       components: %Components{
-        securitySchemes: %{"bearerAuth" => %SecurityScheme{type: "http", scheme: "bearer"}}
+        securitySchemes: %{
+          "bearerAuth" => %SecurityScheme{type: "http", scheme: "bearer"},
+          "cookieAuth" => %SecurityScheme{
+            type: "apiKey",
+            in: "cookie",
+            name: "_servant_auth",
+            description: "HttpOnly session cookie used by the SPA"
+          }
+        }
       },
       security: [%{"bearerAuth" => []}]
     }
