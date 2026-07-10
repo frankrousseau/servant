@@ -59,6 +59,17 @@ export interface ConnectorConfig {
   updated_at: string
 }
 
+export interface ApiToken {
+  id: string
+  name: string
+  prefix: string
+  scopes: string[]
+  expires_at: string | null
+  last_used_at: string | null
+  inserted_at: string
+  token?: string // present only in the create response
+}
+
 export interface SyncLog {
   id: string
   status: 'running' | 'completed' | 'failed'
