@@ -7,7 +7,7 @@ defmodule ServantWeb.ApiSpec do
 
   @impl OpenApi
   def spec do
-    %OpenApi{
+    spec = %OpenApi{
       info: %Info{
         title: "Servant API",
         description: """
@@ -29,6 +29,7 @@ defmodule ServantWeb.ApiSpec do
       },
       security: [%{"bearerAuth" => []}]
     }
-    |> OpenApiSpex.resolve_schema_modules()
+
+    OpenApiSpex.resolve_schema_modules(spec)
   end
 end
