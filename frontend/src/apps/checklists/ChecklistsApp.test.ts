@@ -131,6 +131,46 @@ describe('ChecklistsApp', () => {
     expect(wrapper.text()).toContain('0/2')
   })
 
+  it('moves completed items to the bottom, keeping relative order', async () => {
+    const { ctx, update } = makeCtx([
+      checklist('1', 'Courses', '', false, [
+        { text: 'a', done: true },
+        { text: 'b', done: false },
+        { text: 'c', done: true },
+        { text: 'd', done: false }
+      ]),
+      checklist('2', 'Vide', '', false, [{ text: 'e', done: false }])
+    ])
+    const wrapper = mount(ChecklistsApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+
+    // no completed item: the button is hidden
+    await selectList(wrapper, 'Vide')
+    expect(wrapper.find('.cl-sort-btn').exists()).toBe(false)
+
+    await selectList(wrapper, 'Courses')
+    await wrapper.find('.cl-sort-btn').trigger('click')
+    await flushPromises()
+
+    expect(update).toHaveBeenCalledWith(
+      '1',
+      expect.objectContaining({
+        data: expect.objectContaining({
+          items: [
+            { text: 'b', done: false },
+            { text: 'd', done: false },
+            { text: 'a', done: true },
+            { text: 'c', done: true }
+          ]
+        })
+      })
+    )
+    const texts = wrapper
+      .findAll('.cl-item-text')
+      .map(i => (i.element as HTMLInputElement).value)
+    expect(texts).toEqual(['b', 'd', 'a', 'c'])
+  })
+
   it('renames a folder across all its lists', async () => {
     const { ctx, update } = makeCtx([
       checklist('1', 'Valise', 'Voyages', false, []),

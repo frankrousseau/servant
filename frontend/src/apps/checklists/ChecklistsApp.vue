@@ -437,6 +437,15 @@ function resetList() {
   saveNow()
 }
 
+// Stable partition: pending items keep their order, done ones sink.
+function sortDoneLast() {
+  const l = selected.value
+  if (!l) return
+  const arr = ensureItems(l)
+  l.data.items = [...arr.filter(i => !i.done), ...arr.filter(i => i.done)]
+  saveNow()
+}
+
 function toggleRecurring(e: Event) {
   const l = selected.value
   if (!l) return
@@ -640,6 +649,14 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
               Dashboard
             </label>
             <span class="cl-toolbar-spacer"></span>
+            <button
+              v-if="doneCount(selected) > 0"
+              class="cl-sort-btn"
+              title="Move completed items to the bottom"
+              @click="sortDoneLast"
+            >
+              ⇩ Done last
+            </button>
             <button
               v-if="recurring"
               class="cl-reset-btn"
@@ -912,6 +929,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   cursor: pointer;
 }
 .cl-reset-btn,
+.cl-sort-btn,
 .cl-copy-btn,
 .cl-export-btn {
   border: 1px solid var(--border);
@@ -924,6 +942,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   white-space: nowrap;
 }
 .cl-reset-btn:hover,
+.cl-sort-btn:hover,
 .cl-copy-btn:hover,
 .cl-export-btn:hover {
   border-color: var(--primary);
