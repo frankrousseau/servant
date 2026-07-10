@@ -245,15 +245,37 @@ const nextEventStamp = computed(() => {
 
 // Only checklists explicitly flagged for the dashboard (per-list toggle).
 const pendingItems = computed(() => {
-  const out: { list: string; text: string }[] = []
+  const out: { listId: string; index: number; list: string; text: string }[] =
+    []
   for (const l of checklists.value) {
     if (l.data.show_on_dashboard !== true) continue
-    for (const it of (l.data.items as ChecklistItem[]) || []) {
-      if (!it.done) out.push({ list: l.title || 'Untitled', text: it.text })
-    }
+    const items = (l.data.items as ChecklistItem[]) || []
+    items.forEach((it, index) => {
+      if (!it.done)
+        out.push({
+          listId: l.id,
+          index,
+          list: l.title || 'Untitled',
+          text: it.text
+        })
+    })
   }
   return out
 })
+
+// Clicking a pending item checks it in its checklist (optimistic, rolled
+// back if the save fails).
+async function checkItem(p: { listId: string; index: number }) {
+  const l = checklists.value.find(x => x.id === p.listId)
+  const it = l ? ((l.data.items as ChecklistItem[]) || [])[p.index] : undefined
+  if (!l || !it || it.done) return
+  it.done = true
+  try {
+    await api.put(`/api/entries/${l.id}`, { title: l.title, data: l.data })
+  } catch {
+    it.done = false
+  }
+}
 
 // Backend daily stats use UTC days; so does this key.
 const entriesToday = computed(() => {
@@ -379,9 +401,11 @@ onMounted(fetchData)
                 <span class="today-divider-label">Checklists</span>
               </div>
               <div
-                v-for="(it, i) in pendingItems.slice(0, 5)"
-                :key="i"
-                class="today-item"
+                v-for="it in pendingItems.slice(0, 5)"
+                :key="it.listId + ':' + it.index"
+                class="today-item today-item--clickable"
+                title="Mark as done"
+                @click="checkItem(it)"
               >
                 <span class="today-box">☐</span>
                 <span class="today-item-text">{{ it.text }}</span>
@@ -707,6 +731,17 @@ onMounted(fetchData)
 .today-box {
   color: var(--text-muted);
   flex-shrink: 0;
+}
+
+.today-item--clickable {
+  cursor: pointer;
+  border-radius: 6px;
+}
+.today-item--clickable:hover {
+  background: var(--bg-hover);
+}
+.today-item--clickable:hover .today-box {
+  color: var(--primary);
 }
 
 .today-item-text {
