@@ -2,8 +2,14 @@ defmodule ServantWeb.UploadController do
   @moduledoc "Multipart uploads: type allow-list, storage, EXIF and thumbnails."
 
   use ServantWeb, :controller
+  use OpenApiSpex.ControllerSpecs
+
+  alias OpenApiSpex.Schema
+  alias ServantWeb.Schemas
 
   plug :check_upload_scope
+
+  tags(["uploads"])
 
   @default_max_size 1_000_000_000
 
@@ -25,6 +31,49 @@ defmodule ServantWeb.UploadController do
     "application/json" => ".json",
     "application/zip" => ".zip"
   }
+
+  operation(:create,
+    summary: "Upload a file",
+    description:
+      "Multipart form: `file` (the upload) plus an optional `app` field (defaults to \"files\"). " <>
+        "Requires app:photos:write when app=photos, otherwise app:files:write. " <>
+        "Images and videos get EXIF/recording-date extraction; photos additionally get a thumbnail and a display-size JPEG.",
+    request_body:
+      {"Upload", "multipart/form-data",
+       %Schema{
+         type: :object,
+         properties: %{
+           file: %Schema{type: :string, format: :binary},
+           app: %Schema{type: :string, description: "target app id, e.g. \"photos\" or \"files\""}
+         },
+         required: [:file]
+       }},
+    responses: [
+      ok:
+        {"Stored file", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             path: %Schema{type: :string},
+             filename: %Schema{type: :string},
+             size: %Schema{type: :integer},
+             mime_type: %Schema{type: :string},
+             app: %Schema{type: :string},
+             date_taken: %Schema{type: :string, format: :"date-time"},
+             latitude: %Schema{type: :number},
+             longitude: %Schema{type: :number},
+             camera: %Schema{type: :string},
+             thumb_path: %Schema{type: :string},
+             display_path: %Schema{type: :string}
+           },
+           required: [:path, :filename, :size, :mime_type, :app]
+         }},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Insufficient scope", "application/json", Schemas.Error},
+      unprocessable_entity: {"Invalid or missing file", "application/json", Schemas.Error},
+      request_entity_too_large: {"File too large", "application/json", Schemas.Error}
+    ]
+  )
 
   def create(conn, params) do
     case params do

@@ -2,13 +2,58 @@ defmodule ServantWeb.EntryController do
   @moduledoc "User-scoped CRUD over entries, plus stats and media backfill."
 
   use ServantWeb, :controller
+  use OpenApiSpex.ControllerSpecs
 
+  alias OpenApiSpex.Schema
   alias Servant.ApiTokens.Scopes
   alias Servant.Data
   alias Servant.Data.Entry
+  alias ServantWeb.Schemas
 
   plug ServantWeb.Plugs.Scope,
        [domain: "data"] when action in [:kinds, :sources, :stats, :daily_stats]
+
+  tags(["entries"])
+
+  @entry_page %Schema{
+    type: :object,
+    properties: %{
+      data: %Schema{type: :array, items: Schemas.Entry},
+      meta: Schemas.PaginationMeta
+    }
+  }
+  @entry_envelope %Schema{type: :object, properties: %{data: Schemas.Entry}}
+
+  operation(:index,
+    summary: "List entries",
+    description:
+      "Filterable, paginated. API tokens only see kinds their scopes can read; an explicit kind filter outside the scopes returns 403.",
+    parameters: [
+      kind: [in: :query, type: :string, required: false],
+      source: [in: :query, type: :string, required: false],
+      q: [in: :query, type: :string, required: false, description: "substring search"],
+      from: [
+        in: :query,
+        type: :string,
+        required: false,
+        description: "ISO8601 lower bound on occurred_at"
+      ],
+      to: [in: :query, type: :string, required: false],
+      sort: [
+        in: :query,
+        type: :string,
+        required: false,
+        description: "inserted_at for newest-first by creation"
+      ],
+      page: [in: :query, type: :integer, required: false],
+      per_page: [in: :query, type: :integer, required: false]
+    ],
+    responses: [
+      ok: {"Entries page", "application/json", @entry_page},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Insufficient scope", "application/json", Schemas.Error}
+    ]
+  )
 
   def index(conn, params) do
     user_id = conn.assigns.current_user.id
@@ -32,11 +77,41 @@ defmodule ServantWeb.EntryController do
     end
   end
 
+  operation(:kinds,
+    summary: "List distinct entry kinds",
+    description: "Requires data:read for an API token.",
+    responses: [
+      ok:
+        {"Kinds", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{data: %Schema{type: :array, items: %Schema{type: :string}}}
+         }},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Insufficient scope", "application/json", Schemas.Error}
+    ]
+  )
+
   def kinds(conn, _params) do
     user_id = conn.assigns.current_user.id
     kinds = Data.list_kinds(user_id)
     json(conn, %{data: kinds})
   end
+
+  operation(:sources,
+    summary: "List distinct entry sources",
+    description: "Requires data:read for an API token.",
+    responses: [
+      ok:
+        {"Sources", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{data: %Schema{type: :array, items: %Schema{type: :string}}}
+         }},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Insufficient scope", "application/json", Schemas.Error}
+    ]
+  )
 
   def sources(conn, _params) do
     user_id = conn.assigns.current_user.id
@@ -44,12 +119,56 @@ defmodule ServantWeb.EntryController do
     json(conn, %{data: sources})
   end
 
+  operation(:stats,
+    summary: "Entry counts by kind",
+    description: "Requires data:read for an API token.",
+    responses: [
+      ok:
+        {"Stats", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             data: %Schema{type: :object, additionalProperties: true},
+             total: %Schema{type: :integer}
+           }
+         }},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Insufficient scope", "application/json", Schemas.Error}
+    ]
+  )
+
   def stats(conn, _params) do
     user_id = conn.assigns.current_user.id
     stats = Data.stats(user_id)
     total = Enum.reduce(stats, 0, fn {_k, v}, acc -> acc + v end)
     json(conn, %{data: stats, total: total})
   end
+
+  operation(:daily_stats,
+    summary: "Entry counts per day",
+    description: "Requires data:read for an API token.",
+    parameters: [
+      days: [
+        in: :query,
+        type: :integer,
+        required: false,
+        description: "window size, 1..90, defaults to 30"
+      ]
+    ],
+    responses: [
+      ok:
+        {"Daily stats", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             data: %Schema{type: :object, additionalProperties: true},
+             days: %Schema{type: :integer}
+           }
+         }},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Insufficient scope", "application/json", Schemas.Error}
+    ]
+  )
 
   def daily_stats(conn, params) do
     user_id = conn.assigns.current_user.id
@@ -62,6 +181,21 @@ defmodule ServantWeb.EntryController do
 
     json(conn, %{data: Data.daily_stats(user_id, days), days: days})
   end
+
+  operation(:backfill_media,
+    summary: "Regenerate missing photo previews",
+    description:
+      "Session-only (API tokens cannot call this). Starts a background job (one per user in flight) that regenerates missing thumbnails and display JPEGs; poll the photos list for results.",
+    responses: [
+      ok:
+        {"Started", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{status: %Schema{type: :string}}
+         }},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error}
+    ]
+  )
 
   @doc """
   Regenerates missing photo previews (thumbnails + display JPEGs) for the
@@ -77,6 +211,18 @@ defmodule ServantWeb.EntryController do
     json(conn, %{status: "started"})
   end
 
+  operation(:show,
+    summary: "Get one entry",
+    description: "Requires read scope on the entry's kind domain for an API token.",
+    parameters: [id: [in: :path, type: :string, required: true]],
+    responses: [
+      ok: {"Entry", "application/json", @entry_envelope},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Insufficient scope", "application/json", Schemas.Error},
+      not_found: {"Not found", "application/json", Schemas.Error}
+    ]
+  )
+
   def show(conn, %{"id" => id}) do
     user_id = conn.assigns.current_user.id
     entry = Data.get_entry!(user_id, id)
@@ -87,6 +233,31 @@ defmodule ServantWeb.EntryController do
       forbidden(conn, required_for(entry.kind, :read))
     end
   end
+
+  operation(:create,
+    summary: "Create an entry",
+    description:
+      "Requires write scope on the kind's domain for an API token. Notes cannot be created here (use /api/notes).",
+    request_body:
+      {"Entry attributes", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{
+           kind: %Schema{type: :string},
+           source: %Schema{type: :string},
+           title: %Schema{type: :string},
+           occurred_at: %Schema{type: :string, format: :"date-time"},
+           data: %Schema{type: :object, additionalProperties: true}
+         },
+         required: [:kind, :source]
+       }},
+    responses: [
+      created: {"Entry", "application/json", @entry_envelope},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Insufficient scope", "application/json", Schemas.Error},
+      unprocessable_entity: {"Validation errors", "application/json", Schemas.Error}
+    ]
+  )
 
   def create(conn, params) do
     user_id = conn.assigns.current_user.id
@@ -108,6 +279,22 @@ defmodule ServantWeb.EntryController do
       forbidden(conn, required_for(kind, :write))
     end
   end
+
+  operation(:update,
+    summary: "Update an entry",
+    description:
+      "Requires write scope on both the entry's current and (if changing) new kind domain for an API token. Notes cannot be edited here (use /api/notes).",
+    parameters: [id: [in: :path, type: :string, required: true]],
+    request_body:
+      {"Entry attributes", "application/json",
+       %Schema{type: :object, properties: %{}, additionalProperties: true}},
+    responses: [
+      ok: {"Entry", "application/json", @entry_envelope},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Insufficient scope", "application/json", Schemas.Error},
+      unprocessable_entity: {"Validation errors", "application/json", Schemas.Error}
+    ]
+  )
 
   def update(conn, %{"id" => id} = params) do
     user_id = conn.assigns.current_user.id
@@ -139,6 +326,18 @@ defmodule ServantWeb.EntryController do
         end
     end
   end
+
+  operation(:delete,
+    summary: "Delete an entry",
+    description: "Requires write scope on the entry's kind domain for an API token.",
+    parameters: [id: [in: :path, type: :string, required: true]],
+    responses: [
+      no_content: "Deleted",
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Insufficient scope", "application/json", Schemas.Error},
+      unprocessable_entity: {"Delete failed", "application/json", Schemas.Error}
+    ]
+  )
 
   def delete(conn, %{"id" => id}) do
     user_id = conn.assigns.current_user.id

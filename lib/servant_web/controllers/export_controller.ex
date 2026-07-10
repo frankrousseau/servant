@@ -2,8 +2,25 @@ defmodule ServantWeb.ExportController do
   @moduledoc "Entry exports: full JSON dump and iCal calendar."
 
   use ServantWeb, :controller
+  use OpenApiSpex.ControllerSpecs
+
+  alias OpenApiSpex.Schema
+  alias ServantWeb.Schemas
 
   plug ServantWeb.Plugs.Scope, domain: "data"
+
+  tags(["export"])
+
+  operation(:entries,
+    summary: "Export all entries as JSON",
+    description:
+      "Full user data dump, downloaded as an attachment. Requires data:read for an API token.",
+    responses: [
+      ok: {"Entries", "application/json", %Schema{type: :array, items: Schemas.Entry}},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Insufficient scope", "application/json", Schemas.Error}
+    ]
+  )
 
   def entries(conn, _params) do
     user_id = conn.assigns.current_user.id
@@ -20,6 +37,17 @@ defmodule ServantWeb.ExportController do
     )
     |> json(data)
   end
+
+  operation(:ical,
+    summary: "Export calendar events as an iCal feed",
+    description:
+      "Entries of kind \"event\" as a .ics attachment. Requires data:read for an API token.",
+    responses: [
+      ok: {"iCal calendar", "text/calendar", %Schema{type: :string}},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Insufficient scope", "application/json", Schemas.Error}
+    ]
+  )
 
   def ical(conn, _params) do
     user_id = conn.assigns.current_user.id
