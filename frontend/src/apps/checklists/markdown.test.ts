@@ -27,10 +27,18 @@ describe('parseListText', () => {
     ])
   })
 
-  it('flattens indentation and skips blank or empty-marker lines', () => {
+  it('keeps one level of indentation and skips blank or empty-marker lines', () => {
     expect(parseListText('- A\n\n  - [ ] B\n- ')).toEqual([
       { text: 'A', done: false },
-      { text: 'B', done: false }
+      { text: 'B', done: false, indent: 1 }
+    ])
+  })
+
+  it('clamps deeper nesting to a single sub-level', () => {
+    expect(parseListText('- A\n\t- B\n      - C')).toEqual([
+      { text: 'A', done: false },
+      { text: 'B', done: false, indent: 1 },
+      { text: 'C', done: false, indent: 1 }
     ])
   })
 
@@ -50,6 +58,16 @@ describe('itemsToMarkdown', () => {
     ]
     const md = itemsToMarkdown(items)
     expect(md).toBe('- [x] Lait\n- [ ] Pain')
+    expect(parseListText(md)).toEqual(items)
+  })
+
+  it('indents sub-items with two spaces and round-trips them', () => {
+    const items = [
+      { text: 'Gâteau', done: false },
+      { text: 'Farine', done: true, indent: 1 }
+    ]
+    const md = itemsToMarkdown(items)
+    expect(md).toBe('- [ ] Gâteau\n  - [x] Farine')
     expect(parseListText(md)).toEqual(items)
   })
 })

@@ -346,6 +346,18 @@ function removeItem(index: number) {
   saveNow()
 }
 
+// Tab indents an item one level, Shift+Tab brings it back (outliner
+// convention). One sub-level only.
+// ponytail: indent is per-item cosmetic; drag-reorder and "Done last" can
+// separate a sub-item from its parent. Group moves if that ever hurts.
+function setIndent(item: Item, e: KeyboardEvent) {
+  const to = e.shiftKey ? 0 : 1
+  if ((item.indent || 0) === to) return
+  if (to) item.indent = to
+  else delete item.indent
+  saveNow()
+}
+
 // ----- item reordering (drag the grip onto another row) -----
 
 const dragIndex = ref<number | null>(null)
@@ -692,6 +704,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
             class="cl-item"
             :class="{
               'cl-item--done': item.done,
+              'cl-item--sub': !!item.indent,
               'cl-item--dragging': dragIndex === i,
               'cl-item--droptarget': dropIndex === i && dragIndex !== i
             }"
@@ -713,6 +726,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
               class="cl-item-text"
               v-model="item.text"
               @input="scheduleSave()"
+              @keydown.tab.prevent="setIndent(item, $event)"
             />
             <button
               class="cl-item-del"
@@ -994,6 +1008,9 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 }
 .cl-item:hover .cl-item-grip {
   opacity: 1;
+}
+.cl-item--sub {
+  margin-left: 1.75rem;
 }
 .cl-item--dragging {
   opacity: 0.4;
