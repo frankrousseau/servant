@@ -15,13 +15,15 @@ defmodule ServantWeb.OpenApiTest do
     assert response(conn, 200) =~ "swagger"
   end
 
+  # Known limitation: the check is path-keyed, so a second /api route reusing
+  # an already-documented action is not independently verified.
   test "every /api route is documented in the spec" do
     spec = ServantWeb.ApiSpec.spec()
 
     documented =
       for {path, item} <- spec.paths,
           verb <- @verbs,
-          not is_nil(Map.get(item, verb)),
+          match?(%OpenApiSpex.Operation{}, Map.get(item, verb)),
           into: MapSet.new(),
           do: {verb, path}
 
