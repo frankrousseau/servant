@@ -26,7 +26,7 @@ defmodule Servant.ApiTokens.Scopes do
   }
 
   @all Enum.flat_map(@app_domains, &["app:#{&1}:read", "app:#{&1}:write"]) ++
-         ["data:read", "data:write"]
+         ["data:read", "data:write", "data:read-binary"]
 
   @doc "Every valid scope string (drives validation and the Settings UI)."
   def all, do: @all
@@ -61,6 +61,13 @@ defmodule Servant.ApiTokens.Scopes do
   def can_kind?(scopes, kind, action) do
     can?(scopes, Map.get(@kind_to_domain, kind, "data"), action)
   end
+
+  @doc """
+  Raw file downloads (/files, /uploads) need an explicit opt-in: the
+  `data:read-binary` scope is never implied by `data:read` or `data:write`.
+  """
+  def can_read_binary?(nil), do: true
+  def can_read_binary?(scopes) when is_list(scopes), do: "data:read-binary" in scopes
 
   @doc """
   Kinds a token may read: `:all` for sessions and data-scoped tokens,

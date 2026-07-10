@@ -143,6 +143,7 @@ const apiTokens = ref<ApiToken[]>([])
 const tokenName = ref('')
 const tokenExpiry = ref('') // yyyy-mm-dd from <input type="date">, optional
 const tokenLevels = ref<Record<string, AccessLevel>>({})
+const tokenReadBinary = ref(false)
 const createdToken = ref<string | null>(null)
 const tokenError = ref('')
 const tokenCreating = ref(false)
@@ -163,7 +164,7 @@ async function loadTokens() {
 
 async function createToken() {
   tokenError.value = ''
-  const scopes = buildScopes(tokenLevels.value)
+  const scopes = buildScopes(tokenLevels.value, tokenReadBinary.value)
   if (!tokenName.value.trim() || !scopes.length) {
     tokenError.value = 'Name and at least one scope are required'
     return
@@ -180,6 +181,7 @@ async function createToken() {
     tokenName.value = ''
     tokenExpiry.value = ''
     tokenLevels.value = {}
+    tokenReadBinary.value = false
     await loadTokens()
   } catch (e) {
     tokenError.value = e instanceof Error ? e.message : 'Creation failed'
@@ -645,6 +647,11 @@ async function changePassword() {
               />
             </div>
           </div>
+          <label class="tk-binary">
+            <input v-model="tokenReadBinary" type="checkbox" />
+            Allow downloading file contents (/files) - never implied by
+            read/write
+          </label>
           <label class="tk-expiry">
             Expires (optional)
             <input v-model="tokenExpiry" type="date" />
@@ -996,5 +1003,17 @@ async function changePassword() {
   color: var(--text-muted);
   max-width: 200px;
   margin-bottom: 0.5rem;
+}
+.tk-binary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+}
+.tk-binary input {
+  accent-color: var(--primary);
 }
 </style>

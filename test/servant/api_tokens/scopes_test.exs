@@ -43,6 +43,14 @@ defmodule Servant.ApiTokens.ScopesTest do
     end
   end
 
+  describe "can_read_binary?/1" do
+    test "sessions can, tokens need the explicit scope" do
+      assert Scopes.can_read_binary?(nil) == true
+      assert Scopes.can_read_binary?(["data:read-binary"]) == true
+      assert Scopes.can_read_binary?(["data:write", "app:photos:read"]) == false
+    end
+  end
+
   describe "can_kind?/3" do
     test "maps kinds to their domain" do
       assert Scopes.can_kind?(["app:trackers:write"], "tracker_log", :write) == true

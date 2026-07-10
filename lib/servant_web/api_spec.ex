@@ -20,8 +20,9 @@ defmodule ServantWeb.ApiSpec do
           files, finance, trackers) plus the `data:<read|write>` wildcard. `write` implies
           `read`. Scope failures return 403 with the required scope.
 
-        Raw file bytes under /files and /uploads are session-only in v1: an API token
-        can list photo/file entries but cannot download the underlying files.
+        Raw file bytes under /files and /uploads need the explicit `data:read-binary`
+        scope (never implied by `data:read`/`data:write`): a token without it can list
+        photo/file entries but cannot download the underlying files.
         """,
         version: to_string(Application.spec(:servant, :vsn) || "dev")
       },

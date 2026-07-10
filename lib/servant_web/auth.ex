@@ -46,24 +46,19 @@ defmodule ServantWeb.Auth do
   # API tokens (srv_ prefix): DB lookup by hash, scopes attached. Failed lookups
   # feed the per-IP throttle so token values can't be brute forced.
   defp authenticate_request(conn, "srv_" <> _ = token) do
-    throttle_key = "api_token:" <> ip_string(conn)
+    case authenticate_api_token(conn, token) do
+      {:ok, user, scopes} ->
+        conn
+        |> assign(:current_user, user)
+        |> assign(:api_scopes, scopes)
 
-    with :ok <- Servant.Auth.Throttle.check(throttle_key),
-         {:ok, user, scopes} <- Servant.ApiTokens.authenticate(token) do
-      Servant.Auth.Throttle.reset(throttle_key)
-
-      conn
-      |> assign(:current_user, user)
-      |> assign(:api_scopes, scopes)
-    else
-      {:error, retry_after} ->
+      {:error, {:throttled, retry_after}} ->
         conn
         |> put_status(:too_many_requests)
         |> Phoenix.Controller.json(%{error: "Too many attempts", retry_after: retry_after})
         |> halt()
 
       :error ->
-        Servant.Auth.Throttle.record_failure(throttle_key)
         unauthorized(conn)
     end
   end
@@ -78,6 +73,29 @@ defmodule ServantWeb.Auth do
 
       :error ->
         unauthorized(conn)
+    end
+  end
+
+  @doc """
+  Authenticates an `srv_` API token with per-IP throttle bookkeeping.
+  Shared by this plug and `FileAuth` so every surface brute-force
+  throttles the same way. Returns `{:ok, user, scopes}`,
+  `{:error, {:throttled, retry_after}}` or `:error`.
+  """
+  def authenticate_api_token(conn, "srv_" <> _ = token) do
+    throttle_key = "api_token:" <> ip_string(conn)
+
+    with :ok <- Servant.Auth.Throttle.check(throttle_key),
+         {:ok, user, scopes} <- Servant.ApiTokens.authenticate(token) do
+      Servant.Auth.Throttle.reset(throttle_key)
+      {:ok, user, scopes}
+    else
+      {:error, retry_after} ->
+        {:error, {:throttled, retry_after}}
+
+      :error ->
+        Servant.Auth.Throttle.record_failure(throttle_key)
+        :error
     end
   end
 

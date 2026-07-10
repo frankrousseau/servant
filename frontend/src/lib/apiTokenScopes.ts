@@ -18,14 +18,22 @@ export const SCOPE_DOMAINS: ScopeDomain[] = [
 
 export type AccessLevel = 'none' | 'read' | 'write'
 
+// Explicit opt-in for raw file downloads (/files); never implied by read/write.
+export const READ_BINARY_SCOPE = 'data:read-binary'
+
 export function scopeFor(domain: string, level: AccessLevel): string | null {
   if (level === 'none') return null
   return domain === 'data' ? `data:${level}` : `app:${domain}:${level}`
 }
 
 // levels: domain id -> access level, from the creation form
-export function buildScopes(levels: Record<string, AccessLevel>): string[] {
-  return SCOPE_DOMAINS.map(d => scopeFor(d.id, levels[d.id] ?? 'none')).filter(
-    (s): s is string => s !== null
-  )
+export function buildScopes(
+  levels: Record<string, AccessLevel>,
+  readBinary = false
+): string[] {
+  const scopes = SCOPE_DOMAINS.map(d =>
+    scopeFor(d.id, levels[d.id] ?? 'none')
+  ).filter((s): s is string => s !== null)
+  if (readBinary) scopes.push(READ_BINARY_SCOPE)
+  return scopes
 }

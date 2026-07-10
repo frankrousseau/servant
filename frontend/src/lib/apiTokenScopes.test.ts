@@ -15,4 +15,12 @@ describe('apiTokenScopes', () => {
     ])
     expect(buildScopes({})).toEqual([])
   })
+
+  it('appends the read-binary opt-in only when asked', () => {
+    expect(buildScopes({ photos: 'read' }, true)).toEqual([
+      'app:photos:read',
+      'data:read-binary'
+    ])
+    expect(buildScopes({ photos: 'read' })).toEqual(['app:photos:read'])
+  })
 })
