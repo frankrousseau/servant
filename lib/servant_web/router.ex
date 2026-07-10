@@ -23,6 +23,17 @@ defmodule ServantWeb.Router do
     plug ServantWeb.Plugs.SessionOnly
   end
 
+  pipeline :openapi do
+    plug OpenApiSpex.Plug.PutApiSpec, module: ServantWeb.ApiSpec
+  end
+
+  scope "/api" do
+    pipe_through :openapi
+
+    get "/openapi.json", OpenApiSpex.Plug.RenderSpec, []
+    get "/docs", OpenApiSpex.Plug.SwaggerUI, path: "/api/openapi.json"
+  end
+
   scope "/api", ServantWeb do
     pipe_through :api
 
