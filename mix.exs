@@ -50,6 +50,7 @@ defmodule Servant.MixProject do
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.5"},
       {:bcrypt_elixir, "~> 3.0"},
+      {:remote_ip, "~> 1.2"},
       {:req, "~> 0.5"},
       {:castore, "~> 1.0"},
       {:saxy, "~> 1.5"},

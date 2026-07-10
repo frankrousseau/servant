@@ -55,6 +55,13 @@ defmodule ServantWeb.Endpoint do
 
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
+
+  # Behind the documented nginx deployment every request arrives from
+  # 127.0.0.1; RemoteIp restores the real client address from
+  # X-Forwarded-For (loopback/private peers count as proxies by default,
+  # and the header is ignored when the peer is a direct public client),
+  # so the per-IP auth throttle and the access log see actual clients.
+  plug RemoteIp
   plug ServantWeb.Plugs.AccessLog
 
   plug Plug.Parsers,
