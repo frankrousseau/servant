@@ -7,6 +7,7 @@ import {
   Cable,
   Settings,
   LogOut,
+  CircleUserRound,
   UserRound,
   CalendarDays,
   FolderOpen,
@@ -124,6 +125,9 @@ function handleLogout() {
         class="sidebar-settings-link"
       >
         <Activity :size="18" />Audit
+      </router-link>
+      <router-link to="/profile" class="sidebar-settings-link">
+        <CircleUserRound :size="18" />Profile
       </router-link>
       <router-link to="/settings" class="sidebar-settings-link">
         <Settings :size="18" />Settings
