@@ -2,8 +2,31 @@ defmodule ServantWeb.ConnectorController do
   @moduledoc "Connector config CRUD and worker start/stop/sync/import."
 
   use ServantWeb, :controller
+  use OpenApiSpex.ControllerSpecs
 
+  alias OpenApiSpex.Schema
   alias Servant.Connectors
+  alias ServantWeb.Schemas
+
+  tags(["connectors"])
+
+  @config %Schema{
+    type: :object,
+    description: "Connector configuration.",
+    additionalProperties: true
+  }
+  @config_envelope %Schema{type: :object, properties: %{data: @config}}
+  @config_list %Schema{type: :object, properties: %{data: %Schema{type: :array, items: @config}}}
+
+  operation(:index,
+    summary: "List connector configs",
+    description: "Session-only (API tokens cannot manage connectors).",
+    responses: [
+      ok: {"Connector configs", "application/json", @config_list},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Session required", "application/json", Schemas.Error}
+    ]
+  )
 
   def index(conn, _params) do
     user_id = conn.assigns.current_user.id
@@ -11,11 +34,47 @@ defmodule ServantWeb.ConnectorController do
     json(conn, %{data: Enum.map(configs, &config_json/1)})
   end
 
+  operation(:show,
+    summary: "Get one connector config",
+    description: "Session-only.",
+    parameters: [id: [in: :path, type: :string, required: true]],
+    responses: [
+      ok: {"Connector config", "application/json", @config_envelope},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Session required", "application/json", Schemas.Error},
+      not_found: {"Not found", "application/json", Schemas.Error}
+    ]
+  )
+
   def show(conn, %{"id" => id}) do
     user_id = conn.assigns.current_user.id
     config = Connectors.get_connector_config!(user_id, id)
     json(conn, %{data: config_json(config)})
   end
+
+  operation(:create,
+    summary: "Create a connector config",
+    description: "Session-only.",
+    request_body:
+      {"Connector config attributes", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{
+           connector_type: %Schema{type: :string},
+           name: %Schema{type: :string},
+           enabled: %Schema{type: :boolean},
+           config: %Schema{type: :object, additionalProperties: true},
+           schedule: %Schema{type: :string}
+         },
+         required: [:connector_type, :name]
+       }},
+    responses: [
+      created: {"Connector config", "application/json", @config_envelope},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Session required", "application/json", Schemas.Error},
+      unprocessable_entity: {"Validation errors", "application/json", Schemas.Error}
+    ]
+  )
 
   def create(conn, params) do
     user_id = conn.assigns.current_user.id
@@ -33,6 +92,21 @@ defmodule ServantWeb.ConnectorController do
     end
   end
 
+  operation(:update,
+    summary: "Update a connector config",
+    description: "Session-only.",
+    parameters: [id: [in: :path, type: :string, required: true]],
+    request_body:
+      {"Connector config attributes", "application/json",
+       %Schema{type: :object, properties: %{}, additionalProperties: true}},
+    responses: [
+      ok: {"Connector config", "application/json", @config_envelope},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Session required", "application/json", Schemas.Error},
+      unprocessable_entity: {"Validation errors", "application/json", Schemas.Error}
+    ]
+  )
+
   def update(conn, %{"id" => id} = params) do
     user_id = conn.assigns.current_user.id
 
@@ -46,6 +120,18 @@ defmodule ServantWeb.ConnectorController do
         |> json(%{errors: format_errors(changeset)})
     end
   end
+
+  operation(:delete,
+    summary: "Delete a connector config",
+    description: "Session-only.",
+    parameters: [id: [in: :path, type: :string, required: true]],
+    responses: [
+      no_content: "Deleted",
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Session required", "application/json", Schemas.Error},
+      unprocessable_entity: {"Delete failed", "application/json", Schemas.Error}
+    ]
+  )
 
   def delete(conn, %{"id" => id}) do
     user_id = conn.assigns.current_user.id
@@ -61,6 +147,20 @@ defmodule ServantWeb.ConnectorController do
     end
   end
 
+  operation(:sync,
+    summary: "Trigger an immediate sync",
+    description: "Session-only. The connector must already be running (see start).",
+    parameters: [id: [in: :path, type: :string, required: true]],
+    responses: [
+      ok:
+        {"Triggered", "application/json",
+         %Schema{type: :object, properties: %{status: %Schema{type: :string}}}},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Session required", "application/json", Schemas.Error},
+      unprocessable_entity: {"Connector not running", "application/json", Schemas.Error}
+    ]
+  )
+
   def sync(conn, %{"id" => id}) do
     user_id = conn.assigns.current_user.id
 
@@ -74,6 +174,20 @@ defmodule ServantWeb.ConnectorController do
         |> json(%{error: "Connector is not running. Start it first."})
     end
   end
+
+  operation(:start,
+    summary: "Start the connector worker",
+    description: "Session-only. Starts the per-user GenServer for this connector config.",
+    parameters: [id: [in: :path, type: :string, required: true]],
+    responses: [
+      ok:
+        {"Status", "application/json",
+         %Schema{type: :object, properties: %{status: %Schema{type: :string}}}},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Session required", "application/json", Schemas.Error},
+      unprocessable_entity: {"Start failed", "application/json", Schemas.Error}
+    ]
+  )
 
   def start(conn, %{"id" => id}) do
     user_id = conn.assigns.current_user.id
@@ -92,11 +206,45 @@ defmodule ServantWeb.ConnectorController do
     end
   end
 
+  operation(:stop,
+    summary: "Stop the connector worker",
+    description: "Session-only.",
+    parameters: [id: [in: :path, type: :string, required: true]],
+    responses: [
+      ok:
+        {"Status", "application/json",
+         %Schema{type: :object, properties: %{status: %Schema{type: :string}}}},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Session required", "application/json", Schemas.Error}
+    ]
+  )
+
   def stop(conn, %{"id" => id}) do
     user_id = conn.assigns.current_user.id
     Connectors.stop_connector(user_id, id)
     json(conn, %{status: "stopped"})
   end
+
+  operation(:import_file,
+    summary: "Import a file into a connector",
+    description:
+      "Session-only. Multipart form with a `file` field; only some connector types support file import.",
+    parameters: [id: [in: :path, type: :string, required: true]],
+    request_body:
+      {"Upload", "multipart/form-data",
+       %Schema{
+         type: :object,
+         properties: %{file: %Schema{type: :string, format: :binary}},
+         required: [:file]
+       }},
+    responses: [
+      ok:
+        {"Import result", "application/json", %Schema{type: :object, additionalProperties: true}},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Session required", "application/json", Schemas.Error},
+      unprocessable_entity: {"Import failed", "application/json", Schemas.Error}
+    ]
+  )
 
   def import_file(conn, %{"id" => id, "file" => %Plug.Upload{} = upload}) do
     user_id = conn.assigns.current_user.id
@@ -126,6 +274,38 @@ defmodule ServantWeb.ConnectorController do
     |> json(%{error: message})
   end
 
+  operation(:logs,
+    summary: "List sync logs for a connector",
+    description: "Session-only.",
+    parameters: [id: [in: :path, type: :string, required: true]],
+    responses: [
+      ok:
+        {"Sync logs", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             data: %Schema{
+               type: :array,
+               items: %Schema{
+                 type: :object,
+                 properties: %{
+                   id: %Schema{type: :string, format: :uuid},
+                   status: %Schema{type: :string},
+                   entries_count: %Schema{type: :integer, nullable: true},
+                   error: %Schema{type: :string, nullable: true},
+                   started_at: %Schema{type: :string, format: :"date-time", nullable: true},
+                   finished_at: %Schema{type: :string, format: :"date-time", nullable: true}
+                 }
+               }
+             }
+           }
+         }},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Session required", "application/json", Schemas.Error},
+      not_found: {"Not found", "application/json", Schemas.Error}
+    ]
+  )
+
   def logs(conn, %{"id" => id}) do
     user_id = conn.assigns.current_user.id
     # Verify ownership
@@ -146,6 +326,26 @@ defmodule ServantWeb.ConnectorController do
         end)
     })
   end
+
+  operation(:schedules,
+    summary: "List supported schedules for a connector type",
+    description: "Session-only.",
+    parameters: [connector_type: [in: :path, type: :string, required: true]],
+    responses: [
+      ok:
+        {"Schedules", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             schedules: %Schema{type: :array, items: %Schema{type: :string}},
+             default: %Schema{type: :string}
+           }
+         }},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Session required", "application/json", Schemas.Error},
+      not_found: {"Unknown connector type", "application/json", Schemas.Error}
+    ]
+  )
 
   def schedules(conn, %{"connector_type" => connector_type}) do
     case Map.get(Connectors.connector_modules(), connector_type) do
