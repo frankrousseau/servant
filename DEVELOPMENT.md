@@ -115,5 +115,7 @@ servant/
 - **Connector secrets** are encrypted at rest (AES-256-GCM) via the `Servant.Encrypted.Map` Ecto type; the key derives from `CONNECTOR_ENCRYPTION_KEY` or `SECRET_KEY_BASE`.
 - **All data queries are scoped by `user_id`**; there is no way to access another user's data through the API.
 - **Phoenix.Token** is used for auth (bearer tokens or an HttpOnly cookie, 30-day max age).
+- **API tokens** (`srv_` prefixed) are scoped (`app:<domain>:<read|write>`, `data:<read|write>`), stored hashed, and managed from Settings.
+- **OpenAPI docs** are served at `/api/openapi.json` (spec) and `/api/docs` (SwaggerUI).
 - **Timestamps are stored in UTC**; the frontend renders them in the user's `timezone` preference.
 - **PubSub** broadcasts entry changes on `"data:<user_id>"` topics (via `Servant.Events`), pushed to clients through Phoenix Channels.

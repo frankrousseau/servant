@@ -26,6 +26,7 @@ To run them separately, see [DEVELOPMENT.md](DEVELOPMENT.md).
 - **Universal data model**: all data stored as typed entries with JSON payloads
 - **Connector plugin system**: pull data from external services on a schedule
 - **Multi-user**: equal accounts; all API/database queries are scoped per user
+- **API access**: scoped, revocable tokens (issued from Settings) for scripts and agents; full OpenAPI docs and a SwaggerUI browser at `/api/docs`
 - **Real-time**: Phoenix Channels push entry changes to connected clients
 - **Self-hosted**: single binary deployment, SQLite database, runs on a Raspberry Pi
 
