@@ -1,0 +1,59 @@
+# Custom apps (installed from git)
+
+Servant can install extra apps from a git repository, per user, from Settings > Apps.
+Installed apps appear in the sidebar and load exactly like the built-in ones.
+
+## Repository convention
+
+The repository must contain, at its root, a `servant-app.json` manifest:
+
+```json
+{
+  "id": "todo-plus",
+  "name": "Todo Plus",
+  "description": "A fancier todo app",
+  "icon": "ListChecks",
+  "entry": "dist/index.js"
+}
+```
+
+- `id` (required): lowercase alphanumeric with dashes/underscores, max 40 chars.
+  Must not collide with built-in app ids or SPA routes.
+- `name` (required): display name, max 60 chars.
+- `entry` (required): repo-relative path to a **pre-built, self-contained ES
+  module** (`.js` or `.mjs`). No build runs on the server (production has no
+  node), so the built file must be committed.
+- `icon` (optional): a lucide icon name already bundled by the SPA; unknown
+  or missing icons fall back to Puzzle.
+- `description` (optional).
+
+## Entry module contract
+
+The entry module default-exports an `AppModule` (see `frontend/src/apps/types.ts`):
+
+```js
+export default {
+  mount(el, ctx) {
+    // el: the host element; ctx: navigate, confirm, viewer, api (entries CRUD,
+    // upload, fetch). Same context as built-in apps.
+    el.innerHTML = '<h1>Hello</h1>'
+  },
+  unmount(el) {}
+}
+```
+
+The module must be self-contained: bare imports (`import ... from 'vue'`) will
+not resolve. Bundle any framework you use, or stick to plain DOM.
+
+## How it works
+
+- Install clones the https repo (shallow), validates the manifest, and copies
+  the tree to `FILES_DIR/{user_id}/installed_apps/{app_id}/` (the `.git`
+  directory is dropped). Requires `git` on the server.
+- The SPA imports the entry module from
+  `/files/{user_id}/installed_apps/{app_id}/{entry}`, authenticated by the
+  session cookie like any file.
+- Installed apps run in the SPA with the user's full session privileges;
+  install only trusted repositories.
+- Uninstalling (Settings > Apps) removes the files and the sidebar entry.
+- To update an app, uninstall and reinstall it.

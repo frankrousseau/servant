@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { watch } from 'vue'
 import { useAuthStore } from './stores/auth'
+import { useAppsStore } from './stores/apps'
 import { useRouter } from 'vue-router'
 import {
   LayoutDashboard,
@@ -16,9 +18,9 @@ import {
   ListChecks,
   Activity,
   Wallet,
-  Target
+  Target,
+  Puzzle
 } from 'lucide-vue-next'
-import { BUILTIN_APPS } from './apps/registry'
 import {
   uploading as photosUploading,
   uploadProgress as photosProgress
@@ -42,7 +44,18 @@ const appIcons: Record<string, unknown> = {
 }
 
 const auth = useAuthStore()
+const apps = useAppsStore()
 const router = useRouter()
+
+// Installed apps come from the API, so they can only load once authenticated;
+// the sidebar shows builtins in the meantime.
+watch(
+  () => auth.isAuthenticated,
+  authed => {
+    if (authed) apps.load().catch(() => {})
+  },
+  { immediate: true }
+)
 
 function handleLogout() {
   auth.logout()
@@ -81,9 +94,11 @@ function handleLogout() {
             <LayoutDashboard :size="18" />Dashboard
           </router-link>
         </li>
-        <li v-for="app in BUILTIN_APPS" :key="app.id">
+        <li v-for="app in apps.defs" :key="app.id">
           <router-link :to="`/apps/${app.id}`">
-            <component :is="appIcons[app.icon]" :size="18" />{{ app.name }}
+            <component :is="appIcons[app.icon] ?? Puzzle" :size="18" />{{
+              app.name
+            }}
           </router-link>
         </li>
         <li>

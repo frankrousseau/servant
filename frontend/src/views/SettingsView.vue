@@ -2,10 +2,11 @@
 import { ref, onMounted } from 'vue'
 import ComboBox from '../components/ComboBox.vue'
 import { useAuthStore } from '../stores/auth'
+import { useAppsStore } from '../stores/apps'
 import { useApi } from '../composables/useApi'
 import { formatDate } from '../lib/datetime'
 import { useConfirm } from '../composables/useConfirm'
-import { Download, TerminalSquare, Copy, Trash2 } from 'lucide-vue-next'
+import { Download, TerminalSquare, Copy, Trash2, Puzzle } from 'lucide-vue-next'
 import type { ApiToken } from '../types'
 import {
   SCOPE_DOMAINS,
@@ -14,8 +15,49 @@ import {
 } from '../lib/apiTokenScopes'
 
 const auth = useAuthStore()
+const apps = useAppsStore()
 const api = useApi()
 const { ask } = useConfirm()
+
+// Installed apps
+const appRepoUrl = ref('')
+const appInstalling = ref(false)
+const appError = ref('')
+
+async function installApp() {
+  const url = appRepoUrl.value.trim()
+  if (!url) return
+
+  const ok = await ask({
+    title: 'Install app',
+    message:
+      'This app will run with the same access to your data as the built-in ' +
+      'apps. Only install repositories you trust.',
+    confirmLabel: 'Install'
+  })
+  if (!ok) return
+
+  appError.value = ''
+  appInstalling.value = true
+  try {
+    await apps.install(url)
+    appRepoUrl.value = ''
+  } catch (e) {
+    appError.value = e instanceof Error ? e.message : 'Install failed'
+  } finally {
+    appInstalling.value = false
+  }
+}
+
+async function uninstallApp(id: string, name: string) {
+  const ok = await ask({
+    title: 'Uninstall app',
+    message: `Uninstall "${name}"? Its files will be removed.`,
+    danger: true
+  })
+  if (!ok) return
+  await apps.uninstall(id)
+}
 
 // API tokens
 const apiTokens = ref<ApiToken[]>([])
@@ -118,7 +160,10 @@ function downloadEntries() {
   downloadFile('/api/export/entries', 'servant_entries.json', exportingEntries)
 }
 
-onMounted(loadTokens)
+onMounted(() => {
+  loadTokens()
+  apps.load().catch(() => {})
+})
 </script>
 
 <template>
@@ -231,6 +276,62 @@ onMounted(loadTokens)
       </div>
     </section>
 
+    <!-- Installed apps -->
+    <section class="card">
+      <div class="card-header">
+        <Puzzle :size="20" class="card-icon" />
+        <h2>Apps</h2>
+      </div>
+      <div class="card-body">
+        <p class="tk-hint">
+          Install extra apps from a git repository containing a servant-app.json
+          manifest and a pre-built entry module. Installed apps run with your
+          full session: only install repositories you trust.
+        </p>
+
+        <table v-if="apps.installed.length" class="tk-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Repository</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="a in apps.installed" :key="a.id">
+              <td>{{ a.name }}</td>
+              <td class="app-repo">{{ a.repo_url }}</td>
+              <td>
+                <button
+                  type="button"
+                  class="tk-revoke"
+                  title="Uninstall"
+                  @click="uninstallApp(a.id, a.name)"
+                >
+                  <Trash2 :size="14" />
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else class="tk-empty">No installed apps yet.</p>
+
+        <form class="app-form" @submit.prevent="installApp">
+          <input
+            v-model="appRepoUrl"
+            type="url"
+            placeholder="https://github.com/you/your-servant-app.git"
+          />
+          <p v-if="appError" class="msg msg-error">{{ appError }}</p>
+          <div class="card-actions">
+            <button type="submit" :disabled="appInstalling || !appRepoUrl">
+              {{ appInstalling ? 'Installing...' : 'Install app' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
     <!-- Export -->
     <section class="card">
       <div class="card-header">
@@ -307,6 +408,18 @@ onMounted(loadTokens)
 .export-actions {
   display: flex;
   gap: 0.5rem;
+}
+
+/* Installed apps */
+.app-repo {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  word-break: break-all;
+}
+.app-form input[type='url'] {
+  width: 100%;
+  margin-bottom: 0.75rem;
 }
 
 /* API tokens */
