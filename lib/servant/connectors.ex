@@ -19,7 +19,8 @@ defmodule Servant.Connectors do
     "vcard" => Servant.Connectors.VCardConnector,
     "apple_health" => Servant.Connectors.AppleHealthConnector,
     "invoice_scraper" => Servant.Connectors.InvoiceScraperConnector,
-    "strava" => Servant.Connectors.StravaConnector
+    "strava" => Servant.Connectors.StravaConnector,
+    "github" => Servant.Connectors.GithubConnector
   }
 
   # Connector types that accept an uploaded file, mapped to the

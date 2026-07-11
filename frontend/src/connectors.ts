@@ -103,6 +103,11 @@ const INVOICE_LOGO = `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.
 
 const STRAVA_LOGO = `<img src="/strava-logo.png" alt="Strava" width="40" height="40" style="border-radius:8px;display:block" />`
 
+const GITHUB_LOGO = `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="40" height="40" rx="8" fill="#181717"/>
+  <path d="M20 9c-6.1 0-11 4.9-11 11 0 4.9 3.2 9 7.5 10.5.6.1.8-.2.8-.5v-2c-3.1.7-3.7-1.3-3.7-1.3-.5-1.3-1.2-1.6-1.2-1.6-1-.7.1-.7.1-.7 1.1.1 1.7 1.1 1.7 1.1 1 1.7 2.6 1.2 3.2.9.1-.7.4-1.2.7-1.5-2.4-.3-5-1.2-5-5.4 0-1.2.4-2.2 1.1-3-.1-.3-.5-1.4.1-2.9 0 0 .9-.3 3 1.1a10.5 10.5 0 0 1 5.5 0c2.1-1.4 3-1.1 3-1.1.6 1.5.2 2.6.1 2.9.7.8 1.1 1.8 1.1 3 0 4.2-2.6 5.1-5 5.4.4.3.7 1 .7 2v3c0 .3.2.6.8.5A11 11 0 0 0 31 20c0-6.1-4.9-11-11-11z" fill="#fff"/>
+</svg>`
+
 // -- Registry --
 
 export const CONNECTOR_DEFS: ConnectorDef[] = [
@@ -394,6 +399,31 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
       password: '',
       totp_secret: ''
     }
+  },
+  {
+    id: 'github',
+    name: 'GitHub',
+    description:
+      'Collect the metadata of your commits across all your GitHub repositories.',
+    category: 'Development',
+    logo: GITHUB_LOGO,
+    configFields: [
+      {
+        key: 'username',
+        label: 'Username',
+        type: 'text',
+        placeholder: 'Your GitHub login',
+        required: true
+      },
+      {
+        key: 'token',
+        label: 'Personal Access Token',
+        type: 'password',
+        placeholder: 'PAT with read access to your repositories',
+        required: true
+      }
+    ],
+    configHint: { username: '', token: '' }
   },
   {
     id: 'strava',
