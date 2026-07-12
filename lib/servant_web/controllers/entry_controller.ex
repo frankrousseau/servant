@@ -182,6 +182,117 @@ defmodule ServantWeb.EntryController do
     json(conn, %{data: Data.daily_stats(user_id, days), days: days})
   end
 
+  operation(:aggregate,
+    summary: "Aggregate entries per day, week, month or year",
+    description:
+      "COUNT of entries or SUM of a numeric data field, bucketed by local day/week/month/year in the given timezone (defaults to the account's timezone preference). Accepts the same filters as the entry list; entries without occurred_at are skipped. API token scope rules match the list endpoint.",
+    parameters: [
+      kind: [in: :query, type: :string, required: false],
+      source: [in: :query, type: :string, required: false],
+      q: [in: :query, type: :string, required: false, description: "substring search"],
+      from: [
+        in: :query,
+        type: :string,
+        required: false,
+        description: "ISO8601 lower bound on occurred_at"
+      ],
+      to: [in: :query, type: :string, required: false],
+      agg: [
+        in: :query,
+        type: :string,
+        required: false,
+        description: "count (default) or sum"
+      ],
+      field: [
+        in: :query,
+        type: :string,
+        required: false,
+        description: "data key to sum, required when agg=sum"
+      ],
+      bucket: [
+        in: :query,
+        type: :string,
+        required: false,
+        description: "day (default), week (ISO week's Monday), month or year"
+      ],
+      tz: [
+        in: :query,
+        type: :string,
+        required: false,
+        description: "IANA timezone, defaults to the account timezone"
+      ]
+    ],
+    responses: [
+      ok:
+        {"Aggregates", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             data: %Schema{
+               type: :array,
+               items: %Schema{
+                 type: :object,
+                 properties: %{
+                   bucket: %Schema{type: :string, description: "YYYY-MM-DD local day"},
+                   value: %Schema{type: :number}
+                 }
+               }
+             },
+             agg: %Schema{type: :string},
+             bucket: %Schema{type: :string},
+             tz: %Schema{type: :string}
+           }
+         }},
+      bad_request: {"Invalid parameters", "application/json", Schemas.Error},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Insufficient scope", "application/json", Schemas.Error}
+    ]
+  )
+
+  def aggregate(conn, params) do
+    user_id = conn.assigns.current_user.id
+
+    with {:ok, params} <- restrict_params(params, conn.assigns[:api_scopes]),
+         {:ok, opts} <- aggregate_opts(conn, params) do
+      json(conn, %{
+        data: Data.aggregate_entries(user_id, params, opts),
+        agg: opts.agg,
+        bucket: opts.bucket,
+        tz: opts.tz
+      })
+    else
+      {:error, required} ->
+        forbidden(conn, required)
+
+      {:bad_request, message} ->
+        conn |> put_status(:bad_request) |> json(%{error: message})
+    end
+  end
+
+  defp aggregate_opts(conn, params) do
+    agg = params["agg"] || "count"
+    field = params["field"]
+    bucket = params["bucket"] || "day"
+    tz = params["tz"] || conn.assigns.current_user.timezone || "UTC"
+
+    cond do
+      agg not in ["count", "sum"] ->
+        {:bad_request, "agg must be count or sum"}
+
+      bucket not in ["day", "week", "month", "year"] ->
+        {:bad_request, "bucket must be day, week, month or year"}
+
+      agg == "sum" and not (is_binary(field) and field =~ ~r/^\w+$/) ->
+        {:bad_request, "agg=sum requires field, a key of the entry data object"}
+
+      match?({:error, _}, DateTime.shift_zone(DateTime.utc_now(), tz)) ->
+        {:bad_request, "invalid timezone"}
+
+      true ->
+        {:ok, %{agg: agg, field: field, bucket: bucket, tz: tz}}
+    end
+  end
+
   operation(:backfill_media,
     summary: "Regenerate missing photo previews",
     description:

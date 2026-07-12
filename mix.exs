@@ -58,6 +58,7 @@ defmodule Servant.MixProject do
       {:nimble_csv, "~> 1.2"},
       {:vix, "~> 0.40"},
       {:open_api_spex, "~> 3.22"},
+      {:tz, "~> 0.28"},
       {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false}
     ]
   end

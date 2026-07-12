@@ -74,6 +74,59 @@ defmodule Servant.Data do
     end)
   end
 
+  @doc """
+  Bucketed aggregation over entries: COUNT of entries, or SUM of a numeric
+  `data` field, grouped by local day/week/month/year in the given IANA
+  timezone (week buckets are the ISO week's Monday). Takes the same filters
+  as `list_entries/2`; entries without `occurred_at` are skipped. Returns
+  `[%{bucket: "YYYY-MM-DD" | "YYYY-MM" | "YYYY", value: number}]` sorted.
+  """
+  def aggregate_entries(user_id, filters, opts) do
+    tz = opts[:tz] || "UTC"
+    bucket = opts[:bucket] || "day"
+
+    query =
+      Entry
+      |> where(user_id: ^user_id)
+      |> where([e], not is_nil(e.occurred_at))
+      |> apply_filters(filters)
+
+    rows =
+      case opts do
+        %{agg: "sum", field: field} ->
+          path = "$." <> field
+
+          query
+          |> select(
+            [e],
+            {e.occurred_at, fragment("CAST(json_extract(?, ?) AS REAL)", e.data, ^path)}
+          )
+          |> Repo.all()
+
+        _ ->
+          query
+          |> select([e], {e.occurred_at, 1})
+          |> Repo.all()
+      end
+
+    # ponytail: per-row tz shift in Elixir; switch to a segmented SQL GROUP BY
+    # (one constant offset per DST segment) if windows grow to 100k+ rows
+    rows
+    |> Enum.group_by(
+      fn {dt, _value} ->
+        dt |> DateTime.shift_zone!(tz) |> DateTime.to_date() |> bucket_key(bucket)
+      end,
+      fn {_dt, value} -> value || 0 end
+    )
+    |> Enum.map(fn {key, values} -> %{bucket: key, value: Enum.sum(values)} end)
+    |> Enum.sort_by(& &1.bucket)
+  end
+
+  defp bucket_key(date, "week"), do: date |> Date.beginning_of_week() |> Date.to_iso8601()
+  defp bucket_key(date, "month"), do: Calendar.strftime(date, "%Y-%m")
+  defp bucket_key(date, "year"), do: Integer.to_string(date.year)
+  defp bucket_key(date, _day), do: Date.to_iso8601(date)
+
   def list_sources(user_id) do
     Entry
     |> where(user_id: ^user_id)

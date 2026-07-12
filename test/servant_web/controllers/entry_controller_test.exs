@@ -73,6 +73,127 @@ defmodule ServantWeb.EntryControllerTest do
     end
   end
 
+  describe "aggregate" do
+    test "counts per local day in the requested timezone", %{conn: conn, user: user} do
+      # 23:30 UTC is already the next day in Paris (UTC+2 in July)
+      entry_fixture(user.id, %{"kind" => "commit", "occurred_at" => "2026-07-10T23:30:00Z"})
+      entry_fixture(user.id, %{"kind" => "commit", "occurred_at" => "2026-07-10T12:00:00Z"})
+      entry_fixture(user.id, %{"kind" => "commit", "occurred_at" => "2026-07-11T08:00:00Z"})
+      entry_fixture(user.id, %{"kind" => "bookmark", "occurred_at" => "2026-07-10T12:00:00Z"})
+      other = user_fixture()
+      entry_fixture(other.id, %{"kind" => "commit", "occurred_at" => "2026-07-10T12:00:00Z"})
+
+      conn = get(conn, "/api/entries/aggregate", %{"kind" => "commit", "tz" => "Europe/Paris"})
+
+      assert %{"data" => data, "agg" => "count", "bucket" => "day", "tz" => "Europe/Paris"} =
+               json_response(conn, 200)
+
+      assert data == [
+               %{"bucket" => "2026-07-10", "value" => 1},
+               %{"bucket" => "2026-07-11", "value" => 2}
+             ]
+    end
+
+    test "sums a data field, counting missing values as zero", %{conn: conn, user: user} do
+      entry_fixture(user.id, %{
+        "kind" => "workout",
+        "occurred_at" => "2026-07-10T10:00:00Z",
+        "data" => %{"distance" => 5.5}
+      })
+
+      entry_fixture(user.id, %{
+        "kind" => "workout",
+        "occurred_at" => "2026-07-10T18:00:00Z",
+        "data" => %{"distance" => 3}
+      })
+
+      entry_fixture(user.id, %{
+        "kind" => "workout",
+        "occurred_at" => "2026-07-11T10:00:00Z",
+        "data" => %{"note" => "no distance"}
+      })
+
+      conn =
+        get(conn, "/api/entries/aggregate", %{
+          "kind" => "workout",
+          "agg" => "sum",
+          "field" => "distance",
+          "tz" => "UTC"
+        })
+
+      assert %{"data" => data, "agg" => "sum"} = json_response(conn, 200)
+
+      assert data == [
+               %{"bucket" => "2026-07-10", "value" => 8.5},
+               %{"bucket" => "2026-07-11", "value" => 0}
+             ]
+    end
+
+    test "skips entries without occurred_at and defaults to the account timezone",
+         %{conn: conn, user: user} do
+      entry_fixture(user.id, %{"kind" => "bookmark"})
+      entry_fixture(user.id, %{"kind" => "bookmark", "occurred_at" => "2026-07-10T12:00:00Z"})
+
+      user |> Ecto.Changeset.change(timezone: "Europe/Paris") |> Servant.Repo.update!()
+
+      conn = get(conn, "/api/entries/aggregate", %{"kind" => "bookmark"})
+      assert %{"data" => data, "tz" => "Europe/Paris"} = json_response(conn, 200)
+      assert data == [%{"bucket" => "2026-07-10", "value" => 1}]
+    end
+
+    test "400 on invalid parameters", %{conn: conn} do
+      assert get(conn, "/api/entries/aggregate", %{"agg" => "avg"}) |> json_response(400)
+      assert get(conn, "/api/entries/aggregate", %{"agg" => "sum"}) |> json_response(400)
+      assert get(conn, "/api/entries/aggregate", %{"tz" => "Mars/Olympus"}) |> json_response(400)
+      assert get(conn, "/api/entries/aggregate", %{"bucket" => "hour"}) |> json_response(400)
+    end
+
+    test "buckets by week, month and year", %{conn: conn, user: user} do
+      # 2026-07-12 is a Sunday; its ISO week starts Monday 2026-07-06
+      entry_fixture(user.id, %{"kind" => "commit", "occurred_at" => "2026-07-12T10:00:00Z"})
+      entry_fixture(user.id, %{"kind" => "commit", "occurred_at" => "2026-07-06T10:00:00Z"})
+      entry_fixture(user.id, %{"kind" => "commit", "occurred_at" => "2026-06-30T10:00:00Z"})
+
+      week =
+        get(conn, "/api/entries/aggregate", %{"kind" => "commit", "bucket" => "week"})
+        |> json_response(200)
+
+      assert week["bucket"] == "week"
+
+      assert week["data"] == [
+               %{"bucket" => "2026-06-29", "value" => 1},
+               %{"bucket" => "2026-07-06", "value" => 2}
+             ]
+
+      month =
+        get(conn, "/api/entries/aggregate", %{"kind" => "commit", "bucket" => "month"})
+        |> json_response(200)
+
+      assert month["data"] == [
+               %{"bucket" => "2026-06", "value" => 1},
+               %{"bucket" => "2026-07", "value" => 2}
+             ]
+
+      year =
+        get(conn, "/api/entries/aggregate", %{"kind" => "commit", "bucket" => "year"})
+        |> json_response(200)
+
+      assert year["data"] == [%{"bucket" => "2026", "value" => 3}]
+    end
+
+    test "API tokens follow the list scope rules" do
+      {conn, user} = register_and_log_in_api_token(build_conn(), ["app:trackers:read"])
+      entry_fixture(user.id, %{"kind" => "tracker_log", "occurred_at" => "2026-07-10T12:00:00Z"})
+      entry_fixture(user.id, %{"kind" => "bank_tx", "occurred_at" => "2026-07-10T12:00:00Z"})
+
+      resp = get(conn, "/api/entries/aggregate", %{"kind" => "bank_tx"})
+      assert json_response(resp, 403)["required"] == "app:finance:read"
+
+      resp = get(conn, "/api/entries/aggregate", %{"tz" => "UTC"})
+      assert json_response(resp, 200)["data"] == [%{"bucket" => "2026-07-10", "value" => 1}]
+    end
+  end
+
   describe "show / update / delete scoping" do
     test "shows the caller's own entry", %{conn: conn, user: user} do
       entry = entry_fixture(user.id, %{"title" => "Readable"})
