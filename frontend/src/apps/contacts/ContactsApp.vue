@@ -420,11 +420,11 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
       <div class="ct-modal">
         <h2 class="ct-modal-title">New Contact</h2>
         <form class="ct-modal-form" @submit.prevent="submitCreate">
+          <div class="ct-modal-field">
+            <label>Name *</label
+            ><input ref="nameInput" v-model="form.display_name" required />
+          </div>
           <div class="ct-modal-grid">
-            <div class="ct-modal-field">
-              <label>Name *</label
-              ><input ref="nameInput" v-model="form.display_name" required />
-            </div>
             <div class="ct-modal-field">
               <label>Organization</label><input v-model="form.org" />
             </div>

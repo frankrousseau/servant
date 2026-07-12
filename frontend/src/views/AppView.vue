@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, watch, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { getAppDef } from '../apps/registry'
+import { useAppsStore } from '../stores/apps'
 import { createAppContext } from '../apps/createContext'
 import type { AppModule, ViewerItem, ViewerAPI } from '../apps/types'
 import MediaViewer from '../components/MediaViewer.vue'
 
 const route = useRoute()
+const appsStore = useAppsStore()
 const mountEl = ref<HTMLElement | null>(null)
 const error = ref('')
 let currentApp: AppModule | null = null
@@ -64,7 +65,11 @@ async function loadApp(appId: string) {
   viewerOpen.value = false
   viewerDeleteCb = null
 
-  const def = getAppDef(appId)
+  // Direct navigation to an installed app can land here before the store
+  // has fetched the list; load() is a no-op when already fetched.
+  await appsStore.load().catch(() => {})
+
+  const def = appsStore.getDef(appId)
   if (!def) {
     error.value = `App "${appId}" not found`
     return
