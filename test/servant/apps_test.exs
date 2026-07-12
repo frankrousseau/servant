@@ -93,6 +93,40 @@ defmodule Servant.AppsTest do
     end
   end
 
+  describe "update_from_dir/2" do
+    test "replaces files and refreshes manifest metadata", %{user: user} do
+      dir = repo_fixture(@manifest)
+      {:ok, app} = Apps.install_from_dir(user.id, dir, "https://example.com/todo.git")
+
+      new_dir = repo_fixture(%{@manifest | "name" => "Todo Plus v2", "entry" => "app.js"})
+      File.write!(Path.join(new_dir, "app.js"), "export default { mount() { /* v2 */ } }")
+
+      assert {:ok, updated} = Apps.update_from_dir(app, new_dir)
+      assert updated.name == "Todo Plus v2"
+      assert updated.entry == "app.js"
+      assert updated.repo_url == "https://example.com/todo.git"
+
+      installed = Apps.install_dir(user.id, "todo-plus")
+      assert File.regular?(Path.join(installed, "app.js"))
+      assert Apps.entry_url(updated) == "/files/#{user.id}/installed_apps/todo-plus/app.js"
+    end
+
+    test "rejects a manifest whose id changed", %{user: user} do
+      dir = repo_fixture(@manifest)
+      {:ok, app} = Apps.install_from_dir(user.id, dir, "https://x")
+
+      new_dir = repo_fixture(%{@manifest | "id" => "other-app"})
+      assert {:error, msg} = Apps.update_from_dir(app, new_dir)
+      assert msg =~ "id changed"
+    end
+  end
+
+  describe "update_from_git/2" do
+    test "returns not_found for unknown apps", %{user: user} do
+      assert Apps.update_from_git(user.id, "nope") == {:error, :not_found}
+    end
+  end
+
   describe "uninstall/2" do
     test "removes the row and the files", %{user: user} do
       dir = repo_fixture(@manifest)

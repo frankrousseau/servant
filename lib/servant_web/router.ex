@@ -78,6 +78,7 @@ defmodule ServantWeb.Router do
         resources "/tokens", ApiTokenController, only: [:index, :create, :delete]
 
         post "/apps", AppController, :create
+        post "/apps/:id/update", AppController, :update
         delete "/apps/:id", AppController, :delete
 
         post "/entries/backfill_media", EntryController, :backfill_media

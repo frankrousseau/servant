@@ -12,6 +12,7 @@ export interface InstalledApp {
   entry_url: string
   repo_url: string
   built_in: boolean
+  updated_at: string
 }
 
 // Builtin apps merged with the user's git-installed apps. Installed apps are
@@ -22,12 +23,14 @@ export const useAppsStore = defineStore('apps', () => {
   const loaded = ref(false)
 
   function toDef(app: InstalledApp): AppDef {
+    // updated_at busts the browser's ES-module cache after an app update
+    const url = `${app.entry_url}?v=${encodeURIComponent(app.updated_at)}`
     return {
       id: app.id,
       name: app.name,
       icon: app.icon || 'Puzzle',
       builtin: false,
-      load: () => import(/* @vite-ignore */ app.entry_url)
+      load: () => import(/* @vite-ignore */ url)
     }
   }
 
@@ -52,10 +55,15 @@ export const useAppsStore = defineStore('apps', () => {
     await load(true)
   }
 
+  async function update(id: string) {
+    await apiJson('POST', `/api/apps/${id}/update`)
+    await load(true)
+  }
+
   async function uninstall(id: string) {
     await apiJson('DELETE', `/api/apps/${id}`)
     installed.value = installed.value.filter(a => a.id !== id)
   }
 
-  return { installed, loaded, defs, getDef, load, install, uninstall }
+  return { installed, loaded, defs, getDef, load, install, update, uninstall }
 })

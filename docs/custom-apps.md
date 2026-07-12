@@ -56,4 +56,5 @@ not resolve. Bundle any framework you use, or stick to plain DOM.
 - Installed apps run in the SPA with the user's full session privileges;
   install only trusted repositories.
 - Uninstalling (Settings > Apps) removes the files and the sidebar entry.
-- To update an app, uninstall and reinstall it.
+- Updating (Settings > Apps, refresh button) re-clones the stored repo URL,
+  re-validates the manifest (the id must not change) and replaces the files.

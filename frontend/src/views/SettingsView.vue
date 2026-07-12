@@ -6,7 +6,14 @@ import { useAppsStore } from '../stores/apps'
 import { useApi } from '../composables/useApi'
 import { formatDate } from '../lib/datetime'
 import { useConfirm } from '../composables/useConfirm'
-import { Download, TerminalSquare, Copy, Trash2, Puzzle } from 'lucide-vue-next'
+import {
+  Download,
+  TerminalSquare,
+  Copy,
+  Trash2,
+  Puzzle,
+  RefreshCw
+} from 'lucide-vue-next'
 import type { ApiToken } from '../types'
 import {
   SCOPE_DOMAINS,
@@ -57,6 +64,20 @@ async function uninstallApp(id: string, name: string) {
   })
   if (!ok) return
   await apps.uninstall(id)
+}
+
+const appUpdating = ref('')
+
+async function updateApp(id: string) {
+  appError.value = ''
+  appUpdating.value = id
+  try {
+    await apps.update(id)
+  } catch (e) {
+    appError.value = e instanceof Error ? e.message : 'Update failed'
+  } finally {
+    appUpdating.value = ''
+  }
 }
 
 // API tokens
@@ -301,7 +322,19 @@ onMounted(() => {
             <tr v-for="a in apps.installed" :key="a.id">
               <td>{{ a.name }}</td>
               <td class="app-repo">{{ a.repo_url }}</td>
-              <td>
+              <td class="app-actions">
+                <button
+                  type="button"
+                  class="tk-revoke"
+                  title="Update from the repository"
+                  :disabled="appUpdating === a.id"
+                  @click="updateApp(a.id)"
+                >
+                  <RefreshCw
+                    :size="14"
+                    :class="{ spin: appUpdating === a.id }"
+                  />
+                </button>
                 <button
                   type="button"
                   class="tk-revoke"
@@ -411,6 +444,20 @@ onMounted(() => {
 }
 
 /* Installed apps */
+.app-actions {
+  white-space: nowrap;
+}
+.app-actions .tk-revoke {
+  margin-left: 0.35rem;
+}
+.app-actions .spin {
+  animation: app-spin 1s linear infinite;
+}
+@keyframes app-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .app-repo {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.78rem;

@@ -128,6 +128,38 @@ defmodule ServantWeb.AppController do
     end
   end
 
+  operation(:update,
+    summary: "Update an installed app",
+    description:
+      "Session-only. Re-clones the app's stored repository, re-validates its " <>
+        "manifest (the id must not change) and replaces the app's files.",
+    parameters: [id: [in: :path, type: :string, required: true]],
+    responses: [
+      ok: {"Updated app", "application/json", %Schema{type: :object}},
+      unprocessable_entity: {"Invalid app", "application/json", Schemas.Error},
+      not_found: {"Not found", "application/json", Schemas.Error},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Session required", "application/json", Schemas.Error}
+    ]
+  )
+
+  def update(conn, %{"id" => app_id}) do
+    case Apps.update_from_git(conn.assigns.current_user.id, app_id) do
+      {:ok, app} ->
+        json(conn, %{data: installed_json(app)})
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "App not found"})
+
+      {:error, message} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: message})
+    end
+  end
+
   operation(:delete,
     summary: "Uninstall an installed app",
     description: "Session-only. Removes the app's files and sidebar entry.",
@@ -161,7 +193,8 @@ defmodule ServantWeb.AppController do
       route: "/apps/#{app.app_id}",
       built_in: false,
       entry_url: Apps.entry_url(app),
-      repo_url: app.repo_url
+      repo_url: app.repo_url,
+      updated_at: app.updated_at
     }
   end
 end

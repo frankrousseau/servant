@@ -40,17 +40,22 @@ defmodule Servant.Apps do
   """
   def install_from_git(user_id, repo_url) do
     with :ok <- validate_repo_url(repo_url) do
-      tmp = Storage.tmp_workspace(user_id)
-      dest = Path.join(tmp, "repo")
+      with_cloned_repo(user_id, repo_url, fn dir ->
+        install_from_dir(user_id, dir, repo_url)
+      end)
+    end
+  end
 
-      try do
-        case git_clone(repo_url, dest) do
-          :ok -> install_from_dir(user_id, dest, repo_url)
-          {:error, msg} -> {:error, msg}
-        end
-      after
-        Storage.cleanup_tmp(tmp)
-      end
+  @doc """
+  Re-clones the stored repo_url of an installed app, re-validates its
+  manifest (the id must not change) and replaces the app's files and
+  metadata. Returns `{:ok, %UserApp{}}`, `{:error, :not_found}` or
+  `{:error, message}`.
+  """
+  def update_from_git(user_id, app_id) do
+    case get_app(user_id, app_id) do
+      nil -> {:error, :not_found}
+      app -> with_cloned_repo(user_id, app.repo_url, &update_from_dir(app, &1))
     end
   end
 
@@ -61,31 +66,37 @@ defmodule Servant.Apps do
   """
   def install_from_dir(user_id, dir, repo_url) do
     with {:ok, manifest} <- read_manifest(dir),
-         :ok <- validate_manifest(user_id, manifest),
+         :ok <- validate_manifest_fields(manifest),
+         :ok <- ensure_not_installed(user_id, manifest["id"]),
          :ok <- validate_entry(dir, manifest["entry"]) do
-      File.rm_rf(Path.join(dir, ".git"))
-      app_dir = install_dir(user_id, manifest["id"])
-      File.rm_rf(app_dir)
-      File.mkdir_p!(Path.dirname(app_dir))
-      File.cp_r!(dir, app_dir)
-
-      attrs = %{
-        app_id: manifest["id"],
-        name: manifest["name"],
-        description: truncate(manifest["description"], 255),
-        icon: truncate(manifest["icon"], 60),
-        entry: manifest["entry"],
-        repo_url: repo_url
-      }
+      copy_app_files(user_id, manifest["id"], dir)
+      attrs = Map.put(manifest_attrs(manifest), :repo_url, repo_url)
 
       case %UserApp{user_id: user_id} |> UserApp.changeset(attrs) |> Repo.insert() do
         {:ok, app} ->
           {:ok, app}
 
         {:error, _changeset} ->
-          File.rm_rf(app_dir)
+          File.rm_rf(install_dir(user_id, manifest["id"]))
           {:error, "an app with id \"#{manifest["id"]}\" is already installed"}
       end
+    end
+  end
+
+  @doc """
+  Updates an installed app from a checked-out repository. Exposed separately
+  from the git clone so tests can exercise the flow without network access.
+  """
+  def update_from_dir(%UserApp{} = app, dir) do
+    with {:ok, manifest} <- read_manifest(dir),
+         :ok <- validate_manifest_fields(manifest),
+         :ok <- ensure_same_id(app, manifest["id"]),
+         :ok <- validate_entry(dir, manifest["entry"]) do
+      copy_app_files(app.user_id, app.app_id, dir)
+
+      app
+      |> UserApp.changeset(manifest_attrs(manifest))
+      |> Repo.update()
     end
   end
 
@@ -108,6 +119,40 @@ defmodule Servant.Apps do
 
   def install_dir(user_id, app_id) do
     Storage.join_files([user_id, "installed_apps", app_id])
+  end
+
+  # --- Clone / file helpers ---
+
+  defp with_cloned_repo(user_id, repo_url, fun) do
+    tmp = Storage.tmp_workspace(user_id)
+    dest = Path.join(tmp, "repo")
+
+    try do
+      case git_clone(repo_url, dest) do
+        :ok -> fun.(dest)
+        {:error, msg} -> {:error, msg}
+      end
+    after
+      Storage.cleanup_tmp(tmp)
+    end
+  end
+
+  defp copy_app_files(user_id, app_id, dir) do
+    File.rm_rf(Path.join(dir, ".git"))
+    app_dir = install_dir(user_id, app_id)
+    File.rm_rf(app_dir)
+    File.mkdir_p!(Path.dirname(app_dir))
+    File.cp_r!(dir, app_dir)
+  end
+
+  defp manifest_attrs(manifest) do
+    %{
+      app_id: manifest["id"],
+      name: manifest["name"],
+      description: truncate(manifest["description"], 255),
+      icon: truncate(manifest["icon"], 60),
+      entry: manifest["entry"]
+    }
   end
 
   # --- Validation ---
@@ -146,7 +191,7 @@ defmodule Servant.Apps do
     end
   end
 
-  defp validate_manifest(user_id, manifest) do
+  defp validate_manifest_fields(manifest) do
     id = manifest["id"]
     name = manifest["name"]
 
@@ -160,12 +205,23 @@ defmodule Servant.Apps do
       not (is_binary(name) and name != "" and String.length(name) <= 60) ->
         {:error, "manifest name is required (60 chars max)"}
 
-      get_app(user_id, id) != nil ->
-        {:error, "an app with id \"#{id}\" is already installed"}
-
       true ->
         :ok
     end
+  end
+
+  defp ensure_not_installed(user_id, app_id) do
+    if get_app(user_id, app_id) do
+      {:error, "an app with id \"#{app_id}\" is already installed"}
+    else
+      :ok
+    end
+  end
+
+  defp ensure_same_id(%UserApp{app_id: app_id}, app_id), do: :ok
+
+  defp ensure_same_id(%UserApp{app_id: expected}, actual) do
+    {:error, "manifest id changed (expected \"#{expected}\", got \"#{actual}\")"}
   end
 
   defp validate_entry(dir, entry) do
