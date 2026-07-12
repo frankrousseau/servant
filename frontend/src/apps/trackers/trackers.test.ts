@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  aggregateByDate,
   heatmapWeeks,
   lastValue,
   logsByDate,
@@ -39,6 +40,53 @@ describe('trackerFromEntry', () => {
     expect(tracker.type).toBe('check')
     expect(tracker.unit).toBe('min')
     expect(tracker.color).toBe(trackerColor('Guitare'))
+  })
+
+  it('parses entry trackers, defaulting agg to count', () => {
+    const entry = log('x', '2026-01-01T12:00:00Z', 0)
+    const tracker = trackerFromEntry({
+      ...entry,
+      kind: 'tracker',
+      title: 'Commits',
+      data: { type: 'entry', entry_kind: 'commit' }
+    })
+    expect(tracker.type).toBe('entry')
+    expect(tracker.entryKind).toBe('commit')
+    expect(tracker.agg).toBe('count')
+    expect(tracker.field).toBeUndefined()
+
+    const sum = trackerFromEntry({
+      ...entry,
+      kind: 'tracker',
+      title: 'Distance',
+      data: { type: 'entry', entry_kind: 'workout', agg: 'sum', field: 'km' }
+    })
+    expect(sum.agg).toBe('sum')
+    expect(sum.field).toBe('km')
+  })
+
+  it('falls back to check when an entry tracker has no kind', () => {
+    const entry = log('x', '2026-01-01T12:00:00Z', 0)
+    const tracker = trackerFromEntry({
+      ...entry,
+      kind: 'tracker',
+      title: 'Broken',
+      data: { type: 'entry' }
+    })
+    expect(tracker.type).toBe('check')
+  })
+})
+
+describe('aggregateByDate', () => {
+  it('maps day buckets to values, dropping non-numeric ones', () => {
+    const map = aggregateByDate([
+      { bucket: '2026-07-10', value: 3 },
+      { bucket: '2026-07-11', value: 8.5 },
+      { bucket: '2026-07-12', value: NaN }
+    ])
+    expect(map.get('2026-07-10')).toBe(3)
+    expect(map.get('2026-07-11')).toBe(8.5)
+    expect(map.size).toBe(2)
   })
 })
 

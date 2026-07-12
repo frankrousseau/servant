@@ -2,6 +2,12 @@
 export type { Entry } from '../types'
 import type { Entry } from '../types'
 
+export interface AggregateBucket {
+  /** Local day "YYYY-MM-DD", week's Monday "YYYY-MM-DD", "YYYY-MM" or "YYYY". */
+  bucket: string
+  value: number
+}
+
 export interface EntriesAPI {
   list(filters?: Record<string, string>): Promise<Entry[]>
   get(id: string): Promise<Entry>
@@ -9,6 +15,12 @@ export interface EntriesAPI {
   update(id: string, attrs: Record<string, unknown>): Promise<Entry>
   delete(id: string): Promise<void>
   stats(): Promise<Record<string, number>>
+  /**
+   * Server-side COUNT/SUM of entries bucketed by local day/week/month/year
+   * in the user's timezone. Same filters as list (kind, source, from, to, q)
+   * plus agg, field (for sum), bucket and tz.
+   */
+  aggregate(params: Record<string, string>): Promise<AggregateBucket[]>
 }
 
 export interface UploadResult {

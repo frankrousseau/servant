@@ -2,19 +2,22 @@ import type { Entry } from '../types'
 import { addDays } from '../calendar/recurrence'
 import { utcToZonedParts } from '../../lib/datetime'
 
-// Pure logic for manual trackers. A tracker is an entry (kind tracker);
+// Pure logic for trackers. A tracker is an entry (kind tracker);
 // each day's observation is a tracker_log entry (one per tracker per day,
-// upserted). Three natures:
+// upserted). Four natures:
 //   check: did it happen (guitar practice), value 0/1
 //   count: how many (alcohol doses), incremented through the day
 //   value: a measured number (weight, minutes), set rather than incremented
+//   entry: computed from existing entries of a kind (commits per day),
+//          COUNT or SUM of a data field via /api/entries/aggregate; no logs
 
-export type TrackerType = 'check' | 'count' | 'value'
+export type TrackerType = 'check' | 'count' | 'value' | 'entry'
 
 export const TRACKER_TYPES: { value: TrackerType; label: string }[] = [
   { value: 'check', label: 'Did it (yes/no)' },
   { value: 'count', label: 'Counter (+1 per unit)' },
-  { value: 'value', label: 'Measure (typed value)' }
+  { value: 'value', label: 'Measure (typed value)' },
+  { value: 'entry', label: 'From existing entries (auto)' }
 ]
 
 export interface Tracker {
@@ -23,6 +26,10 @@ export interface Tracker {
   type: TrackerType
   unit: string
   color: string
+  // entry trackers only
+  entryKind?: string
+  agg?: 'count' | 'sum'
+  field?: string
 }
 
 const PALETTE = [
@@ -47,6 +54,19 @@ export function trackerColor(name: string, stored?: string): string {
 export function trackerFromEntry(e: Entry): Tracker {
   const type = e.data.type as TrackerType
   const name = (e.title || 'Unnamed').trim()
+  const entryKind = ((e.data.entry_kind as string) || '').trim()
+  if (type === 'entry' && entryKind) {
+    return {
+      id: e.id,
+      name,
+      type,
+      unit: ((e.data.unit as string) || '').trim(),
+      color: trackerColor(name, e.data.color as string | undefined),
+      entryKind,
+      agg: e.data.agg === 'sum' ? 'sum' : 'count',
+      field: ((e.data.field as string) || '').trim() || undefined
+    }
+  }
   return {
     id: e.id,
     name,
@@ -54,6 +74,18 @@ export function trackerFromEntry(e: Entry): Tracker {
     unit: ((e.data.unit as string) || '').trim(),
     color: trackerColor(name, e.data.color as string | undefined)
   }
+}
+
+// date -> value from /api/entries/aggregate day buckets (already in user tz).
+export function aggregateByDate(
+  rows: { bucket: string; value: number }[]
+): Map<string, number> {
+  const byDate = new Map<string, number>()
+  for (const r of rows) {
+    if (typeof r.value === 'number' && Number.isFinite(r.value))
+      byDate.set(r.bucket, r.value)
+  }
+  return byDate
 }
 
 // date (user tz) -> value, from that tracker's logs. Later observations of

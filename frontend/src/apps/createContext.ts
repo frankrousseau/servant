@@ -1,6 +1,12 @@
 import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
-import type { AppContext, Entry, UploadResult, ViewerAPI } from './types'
+import type {
+  AggregateBucket,
+  AppContext,
+  Entry,
+  UploadResult,
+  ViewerAPI
+} from './types'
 import { useConfirm } from '../composables/useConfirm'
 import { apiFetch, apiJson } from '../composables/apiClient'
 
@@ -71,6 +77,16 @@ export function createAppContext(viewer: ViewerAPI): AppContext {
           const res = await apiJson<{ data: Record<string, number> }>(
             'GET',
             '/api/entries/stats'
+          )
+          return res.data
+        },
+        async aggregate(
+          params: Record<string, string>
+        ): Promise<AggregateBucket[]> {
+          const res = await apiJson<{ data: AggregateBucket[] }>(
+            'GET',
+            '/api/entries/aggregate',
+            { params }
           )
           return res.data
         }

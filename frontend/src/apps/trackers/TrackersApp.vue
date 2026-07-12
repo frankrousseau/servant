@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import type { AppContext, Entry } from '../types'
 import {
   todayInUserTz,
@@ -10,17 +10,51 @@ import ComboBox from '../../components/ComboBox.vue'
 import TrackerCard from './TrackerCard.vue'
 import {
   TRACKER_TYPES,
+  aggregateByDate,
   logsByDate,
   trackerFromEntry,
   type Tracker
 } from './trackers'
+import { addDays } from '../calendar/recurrence'
+
+// Heatmap window; keep in sync with WEEKS in TrackerCard.vue.
+const WEEKS = 16
 
 const props = defineProps<{ ctx: AppContext }>()
 const ctx = props.ctx
 
 const trackerEntries = ref<Entry[]>([])
 const logEntries = ref<Entry[]>([])
+const entryMaps = ref<Map<string, Map<string, number>>>(new Map())
 const loadState = ref<'loading' | 'ready' | 'error'>('loading')
+
+// Day values of entry-based trackers, computed server-side in the user's
+// timezone; a failing aggregate (revoked scope, deleted kind) shows empty.
+async function loadAggregates(trackers: Entry[]) {
+  const from = zonedToUtcISO(addDays(todayInUserTz(), -WEEKS * 7), '00:00')
+  const maps = new Map<string, Map<string, number>>()
+  await Promise.all(
+    trackers
+      .map(trackerFromEntry)
+      .filter(t => t.type === 'entry' && t.entryKind)
+      .map(async t => {
+        const params: Record<string, string> = { kind: t.entryKind!, from }
+        if (t.agg === 'sum' && t.field) {
+          params.agg = 'sum'
+          params.field = t.field
+        }
+        try {
+          maps.set(
+            t.id,
+            aggregateByDate(await ctx.api.entries.aggregate(params))
+          )
+        } catch {
+          maps.set(t.id, new Map())
+        }
+      })
+  )
+  entryMaps.value = maps
+}
 
 async function reload() {
   try {
@@ -29,6 +63,7 @@ async function reload() {
       ctx.api.entries.list({ kind: 'tracker' }),
       ctx.api.entries.list({ kind: 'tracker_log' })
     ])
+    await loadAggregates(trackers)
     trackerEntries.value = trackers
     logEntries.value = logs
     loadState.value = 'ready'
@@ -50,7 +85,12 @@ const trackers = computed<Tracker[]>(() =>
 const mapsById = computed(() => {
   const m = new Map<string, Map<string, number>>()
   for (const t of trackers.value)
-    m.set(t.id, logsByDate(logEntries.value, t.id))
+    m.set(
+      t.id,
+      t.type === 'entry'
+        ? entryMaps.value.get(t.id) || new Map()
+        : logsByDate(logEntries.value, t.id)
+    )
   return m
 })
 
@@ -93,30 +133,91 @@ const modalOpen = ref(false)
 const draftName = ref('')
 const draftType = ref('check')
 const draftUnit = ref('')
+const draftKind = ref('')
+const draftAgg = ref('count')
+const draftField = ref('')
+const kindOptions = ref<{ value: string; label: string }[]>([])
+const fieldOptions = ref<{ value: string; label: string }[]>([])
 const saving = ref(false)
+
+const AGG_OPTIONS = [
+  { value: 'count', label: 'COUNT entries' },
+  { value: 'sum', label: 'SUM a numeric field' }
+]
 
 function openModal() {
   draftName.value = ''
   draftType.value = 'check'
   draftUnit.value = ''
+  draftKind.value = ''
+  draftAgg.value = 'count'
+  draftField.value = ''
   modalOpen.value = true
+  void loadKindOptions()
 }
 
+// Existing kinds (with entry counts) feed the entry-tracker dropdown; the
+// trackers' own kinds would be circular and are left out.
+async function loadKindOptions() {
+  try {
+    const stats = await ctx.api.entries.stats()
+    kindOptions.value = Object.entries(stats)
+      .filter(([kind]) => kind !== 'tracker' && kind !== 'tracker_log')
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([kind, count]) => ({ value: kind, label: `${kind} (${count})` }))
+  } catch {
+    kindOptions.value = []
+  }
+}
+
+// Numeric data fields of a recent entry of the chosen kind, for SUM.
+watch([draftKind, draftAgg], async ([kind, agg]) => {
+  draftField.value = ''
+  fieldOptions.value = []
+  if (!kind || agg !== 'sum') return
+  try {
+    const res = await ctx.api.fetch(
+      `/api/entries?kind=${encodeURIComponent(kind)}&per_page=1`
+    )
+    const body = (await res.json()) as { data?: Entry[] }
+    const sample = body.data?.[0]?.data || {}
+    fieldOptions.value = Object.entries(sample)
+      .filter(([, v]) => typeof v === 'number')
+      .map(([k]) => ({ value: k, label: k }))
+    if (fieldOptions.value.length === 1)
+      draftField.value = fieldOptions.value[0].value
+  } catch {
+    // keep the empty list; the create button stays disabled
+  }
+})
+
+const draftValid = computed(() => {
+  if (!draftName.value.trim()) return false
+  if (draftType.value !== 'entry') return true
+  if (!draftKind.value) return false
+  return draftAgg.value === 'count' || !!draftField.value
+})
+
 async function createTracker() {
-  const name = draftName.value.trim()
-  if (!name) return
+  if (!draftValid.value) return
   saving.value = true
+  const data: Record<string, unknown> = {
+    type: draftType.value,
+    unit: draftUnit.value.trim() || null
+  }
+  if (draftType.value === 'entry') {
+    data.entry_kind = draftKind.value
+    data.agg = draftAgg.value
+    data.field = draftAgg.value === 'sum' ? draftField.value : null
+  }
   try {
     await ctx.api.entries.create({
       kind: 'tracker',
       source: 'trackers_app',
-      title: name,
-      data: { type: draftType.value, unit: draftUnit.value.trim() || null }
+      title: draftName.value.trim(),
+      data
     })
-    trackerEntries.value = await ctx.api.entries.list({
-      kind: 'tracker',
-      per_page: '200'
-    })
+    await reload()
     modalOpen.value = false
   } catch {
     // leave the modal open
@@ -127,8 +228,12 @@ async function createTracker() {
 
 async function removeTracker(tracker: Tracker) {
   const logs = logEntries.value.filter(l => l.data.tracker_id === tracker.id)
+  const message =
+    tracker.type === 'entry'
+      ? `Delete "${tracker.name}"? The ${tracker.entryKind} entries it counts are kept.`
+      : `Delete "${tracker.name}" and its ${logs.length} log(s)? This cannot be undone.`
   const ok = await ctx.confirm.ask({
-    message: `Delete "${tracker.name}" and its ${logs.length} log(s)? This cannot be undone.`,
+    message,
     confirmLabel: 'Delete',
     danger: true
   })
@@ -200,6 +305,32 @@ async function removeTracker(tracker: Tracker) {
           <label>Nature</label>
           <ComboBox v-model="draftType" :options="TRACKER_TYPES" />
         </div>
+        <template v-if="draftType === 'entry'">
+          <div class="tk-modal-field">
+            <label>Entry kind</label>
+            <ComboBox
+              v-model="draftKind"
+              :options="kindOptions"
+              placeholder="pick a kind"
+            />
+          </div>
+          <div class="tk-modal-field">
+            <label>Aggregation</label>
+            <ComboBox v-model="draftAgg" :options="AGG_OPTIONS" />
+          </div>
+          <div v-if="draftAgg === 'sum'" class="tk-modal-field">
+            <label>Field to sum</label>
+            <ComboBox
+              v-model="draftField"
+              :options="fieldOptions"
+              :placeholder="
+                draftKind
+                  ? 'numeric fields of ' + draftKind
+                  : 'pick a kind first'
+              "
+            />
+          </div>
+        </template>
         <div v-if="draftType !== 'check'" class="tk-modal-field">
           <label>Unit (optional)</label>
           <input v-model="draftUnit" placeholder="dose, kg, min…" />
@@ -209,7 +340,7 @@ async function removeTracker(tracker: Tracker) {
           <button class="tk-btn" @click="modalOpen = false">Cancel</button>
           <button
             class="tk-btn tk-btn--primary"
-            :disabled="saving || !draftName.trim()"
+            :disabled="saving || !draftValid"
             @click="createTracker"
           >
             Create
