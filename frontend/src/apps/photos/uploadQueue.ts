@@ -28,7 +28,7 @@ export const isHeic = (f: File) =>
 // file); revisit if originals matter.
 async function toUploadable(file: File): Promise<File> {
   if (!isHeic(file)) return file
-  const { heicTo } = await import('heic-to')
+  const { heicTo } = await import('heic-to/csp')
   const blob = await heicTo({ blob: file, type: 'image/jpeg', quality: 0.9 })
   return new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
     type: 'image/jpeg'

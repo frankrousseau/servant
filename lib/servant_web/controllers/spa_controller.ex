@@ -6,11 +6,15 @@ defmodule ServantWeb.SpaController do
   # `script-src 'self'` blocks injected/inline scripts (the payoff of removing
   # inline handlers in FE-SEC-5). `style-src` keeps 'unsafe-inline' because the
   # apps and Vue set inline style attributes; that's a far smaller risk than
-  # inline scripts. Only applies in production (Vite serves index.html in dev).
+  # inline scripts. The HEIC-to-JPEG converter (heic-to) runs libheif in a
+  # blob: worker, hence `worker-src blob:`; `wasm-unsafe-eval` permits wasm
+  # compilation only (never JS eval) and engines differ on requiring it.
+  # Only applies in production (Vite serves index.html in dev).
   @csp Enum.join(
          [
            "default-src 'self'",
-           "script-src 'self'",
+           "script-src 'self' 'wasm-unsafe-eval'",
+           "worker-src 'self' blob:",
            "style-src 'self' 'unsafe-inline'",
            "img-src 'self' data:",
            "font-src 'self'",
