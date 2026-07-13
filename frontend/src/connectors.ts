@@ -419,7 +419,7 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
     id: 'invoice_scraper',
     name: 'Invoice Collector',
     description:
-      'Collect your invoices from online services: Anthropic, OVH, and more.',
+      'Collect your invoices from online services: Anthropic, OVH, Bouygues Telecom, EDF.',
     category: 'Billing',
     logo: INVOICE_LOGO,
     configFields: [
@@ -429,7 +429,12 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
         type: 'select',
         placeholder: '',
         required: true,
-        options: [{ value: 'anthropic', label: 'Anthropic' }]
+        options: [
+          { value: 'anthropic', label: 'Anthropic' },
+          { value: 'bouygues', label: 'Bouygues Telecom' },
+          { value: 'edf', label: 'EDF' },
+          { value: 'ovh', label: 'OVH' }
+        ]
       },
       {
         key: 'email',
