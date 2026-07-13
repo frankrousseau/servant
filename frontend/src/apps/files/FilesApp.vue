@@ -139,12 +139,14 @@ function buildVirtual(kind: string, entries: Entry[]): Entry[] {
         )
       )
     } else if (kind === 'photo') {
-      const album = ((e.data.album as string) || '').trim()
-      if (album) groups.add(album)
+      // Shot year (EXIF date, else upload date), same date source as the
+      // Photos app.
+      const year = (e.occurred_at || e.inserted_at || '').slice(0, 4)
+      if (year) groups.add(year)
       out.push(
         vEntry(
           `v:photo:${e.id}`,
-          album ? `v:photos:a:${album}` : 'v:photos',
+          year ? `v:photos:y:${year}` : 'v:photos',
           (e.data.filename as string) || '(unnamed)',
           {
             v: 'photo',
@@ -181,7 +183,7 @@ function buildVirtual(kind: string, entries: Entry[]): Entry[] {
         )
       )
     } else if (kind === 'photo') {
-      out.push(vFolder(`v:photos:a:${g}`, 'v:photos', g))
+      out.push(vFolder(`v:photos:y:${g}`, 'v:photos', g))
     } else {
       out.push(vFolder(`v:invoices:p:${g}`, 'v:invoices', g))
     }
