@@ -1,5 +1,6 @@
 import { ref, type Ref } from 'vue'
 import type { Entry } from '../apps/types'
+import { apiJson } from '../composables/apiClient'
 
 // Generic module-level upload queue. Each app instantiates one at module
 // scope so a running batch survives the app's component unmounting (drop
@@ -90,9 +91,16 @@ export function createUploadQueue<T>(opts: {
       try {
         lastCreated.value = await opts.process(item, tools)
       } catch (e) {
-        uploadErrors.value.push(
-          `${opts.itemName(item)}: ${e instanceof Error ? e.message : 'upload failed'}`
-        )
+        const message = e instanceof Error ? e.message : 'upload failed'
+        uploadErrors.value.push(`${opts.itemName(item)}: ${message}`)
+        // Browser-side failures never reach the server on their own; mirror
+        // them into the Audit error logs. Fire-and-forget.
+        void apiJson('POST', '/api/client_errors', {
+          body: {
+            context: 'upload',
+            message: `${opts.itemName(item)}: ${message}`
+          }
+        }).catch(() => {})
       } finally {
         doneBytes += size
       }

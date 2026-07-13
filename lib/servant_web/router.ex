@@ -64,6 +64,7 @@ defmodule ServantWeb.Router do
       get "/apps", AppController, :index
 
       post "/uploads", UploadController, :create
+      post "/client_errors", ClientErrorController, :create
 
       get "/export/entries", ExportController, :entries
       get "/export/entries.ics", ExportController, :ical
