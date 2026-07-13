@@ -17,7 +17,7 @@
     "@types/markdown-it": "^14.1.2",
     "@vueuse/core": "^14.2.1",
     "flatpickr": "^4.6.13",
-    "heic2any": "^0.0.4",
+    "heic-to": "^1.5.2",
     "lucide-vue-next": "^1.0.0",
     "markdown-it": "^14.2.0",
     "phoenix": "^1.8.5",

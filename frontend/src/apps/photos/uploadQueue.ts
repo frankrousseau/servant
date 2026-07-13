@@ -22,18 +22,39 @@ export const isHeic = (f: File) =>
 
 // The bundled server-side libvips can't decode HEVC, and neither can most
 // browsers: decode HEIC to JPEG in the browser (wasm, lazy-loaded only when
-// a HEIC is actually picked). ponytail: the original HEIC is not kept (the
-// JPEG becomes the archived file); revisit if originals matter.
+// a HEIC is actually picked). heic-to bundles a current libheif; the old
+// heic2any choked on iOS 18 files ("ERR_LIBHEIF format not supported").
+// ponytail: the original HEIC is not kept (the JPEG becomes the archived
+// file); revisit if originals matter.
 async function toUploadable(file: File): Promise<File> {
   if (!isHeic(file)) return file
-  const { default: heic2any } = await import('heic2any')
-  const blob = (await heic2any({
-    blob: file,
-    toType: 'image/jpeg',
-    quality: 0.9
-  })) as Blob
+  const { heicTo } = await import('heic-to')
+  const blob = await heicTo({ blob: file, type: 'image/jpeg', quality: 0.9 })
   return new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
     type: 'image/jpeg'
+  })
+}
+
+// A conversion that never settles (heic2any used to do that on iOS 18
+// files) froze the whole batch at "1/N" with no error. Cap it so the item
+// fails visibly and the batch moves on. 60s covers a 48MP decode on slow
+// hardware.
+function convertWithTimeout(file: File): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error('HEIC conversion timed out')),
+      60_000
+    )
+    toUploadable(file).then(
+      f => {
+        clearTimeout(timer)
+        resolve(f)
+      },
+      e => {
+        clearTimeout(timer)
+        reject(e)
+      }
+    )
   })
 }
 
@@ -102,8 +123,13 @@ const queue = createUploadQueue<PhotoUpload>({
   itemSize: item => item.file.size,
   async process({ file: original, album, api }, tools): Promise<Entry> {
     if (isHeic(original)) tools.setConverting(true)
-    const file = await toUploadable(original)
-    tools.setConverting(false)
+
+    let file: File
+    try {
+      file = await convertWithTimeout(original)
+    } finally {
+      tools.setConverting(false)
+    }
     const result = (await api.upload(
       file,
       'photos',
