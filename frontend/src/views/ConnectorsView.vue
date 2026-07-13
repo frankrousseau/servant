@@ -243,6 +243,15 @@ onMounted(fetchConnectors)
               v-model="setupConfig[field.key]"
               :options="field.options"
             />
+            <textarea
+              v-else-if="field.type === 'textarea'"
+              v-model="setupConfig[field.key]"
+              class="field-textarea"
+              rows="5"
+              :placeholder="field.placeholder"
+              :required="field.required"
+              spellcheck="false"
+            ></textarea>
             <input
               v-else
               v-model="setupConfig[field.key]"
@@ -526,6 +535,13 @@ onMounted(fetchConnectors)
   color: var(--text-muted);
   font-weight: 400;
   margin-left: 0.35rem;
+}
+
+/* PEM keys and other multiline secrets */
+.field-textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  resize: vertical;
 }
 
 .setup-actions {

@@ -105,6 +105,40 @@ async function uploadCSV(event: Event) {
 
 const connectorId = computed(() => route.params.id as string)
 
+// ----- Enable Banking consent flow -----
+
+const isEnableBanking = computed(
+  () => connector.value?.connector_type === 'enable_banking'
+)
+// Fixed callback registered once in the Enable Banking application.
+const ebRedirectUrl = `${window.location.origin}/connectors/eb-callback`
+const ebConnecting = ref(false)
+const ebError = ref('')
+
+const ebAccounts = computed(
+  () => (connector.value?.config.accounts as { name?: string }[]) || []
+)
+const ebValidUntil = computed(
+  () => connector.value?.config.valid_until as string | undefined
+)
+const ebConnected = computed(() => ebAccounts.value.length > 0)
+
+async function ebConnect() {
+  ebConnecting.value = true
+  ebError.value = ''
+  try {
+    const res = await api.post<{ url: string }>(
+      `/api/connectors/${connectorId.value}/enable_banking/auth_url`,
+      { redirect_url: ebRedirectUrl }
+    )
+    window.location.href = res.url
+  } catch (e) {
+    ebError.value =
+      e instanceof Error ? e.message : 'Could not start the bank connection'
+    ebConnecting.value = false
+  }
+}
+
 // `silent` skips the loading toggle so background polling doesn't tear the whole
 // view down to a "Loading…" state every 2s (and drop focus on the title).
 async function fetchConnector(silent = false) {
@@ -425,7 +459,34 @@ onMounted(() => {
           </div>
         </div>
 
-        <h3 v-if="isImportable">Settings</h3>
+        <!-- Bank consent flow (enable_banking only) -->
+        <div v-if="isEnableBanking" class="eb-zone">
+          <p v-if="ebConnected" class="msg-success">
+            Connected: {{ ebAccounts.length }} account(s)<template
+              v-if="ebValidUntil"
+            >
+              , consent valid until
+              {{ new Date(ebValidUntil).toLocaleDateString() }}</template
+            >.
+          </p>
+          <p v-else class="eb-hint">
+            Not connected to the bank yet. Register this redirect URL in your
+            Enable Banking application, then connect:
+            <code>{{ ebRedirectUrl }}</code>
+          </p>
+          <button type="button" :disabled="ebConnecting" @click="ebConnect">
+            {{
+              ebConnecting
+                ? 'Redirecting…'
+                : ebConnected
+                  ? 'Reconnect (renew consent)'
+                  : 'Connect bank account'
+            }}
+          </button>
+          <p v-if="ebError" class="upload-result msg-error">{{ ebError }}</p>
+        </div>
+
+        <h3 v-if="isImportable || isEnableBanking">Settings</h3>
         <pre class="config-pre">{{
           JSON.stringify(connector.config, null, 2)
         }}</pre>
@@ -921,5 +982,31 @@ onMounted(() => {
 .msg-error {
   color: var(--danger);
   background: rgba(240, 108, 108, 0.1);
+}
+
+/* Enable Banking consent flow */
+.eb-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.eb-hint {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.eb-hint code {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  background: var(--bg-hover);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius);
+  user-select: all;
 }
 </style>

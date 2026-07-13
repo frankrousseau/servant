@@ -11,7 +11,7 @@ export interface ConnectorDef {
 export interface ConfigField {
   key: string
   label: string
-  type: 'text' | 'url' | 'number' | 'select' | 'password'
+  type: 'text' | 'url' | 'number' | 'select' | 'password' | 'textarea'
   placeholder: string
   required: boolean
   options?: { value: string; label: string }[]
@@ -111,6 +111,15 @@ const GITHUB_LOGO = `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.o
 const GITLAB_LOGO = `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
   <rect width="40" height="40" rx="8" fill="#171321"/>
   <path d="M20 30 L8.7 21.4 L11.8 11.8 L15.7 18.4 L24.3 18.4 L28.2 11.8 L31.3 21.4 Z" fill="#FC6D26"/>
+</svg>`
+
+const ENABLE_BANKING_LOGO = `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="40" height="40" rx="8" fill="#0E2A47"/>
+  <path d="M20 9l11 6H9l11-6z" fill="#7FD1C0"/>
+  <rect x="11" y="17" width="3" height="10" fill="#7FD1C0"/>
+  <rect x="18.5" y="17" width="3" height="10" fill="#7FD1C0"/>
+  <rect x="26" y="17" width="3" height="10" fill="#7FD1C0"/>
+  <rect x="9" y="29" width="22" height="3" fill="#7FD1C0"/>
 </svg>`
 
 // -- Registry --
@@ -361,6 +370,50 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
       }
     ],
     configHint: { preset: 'n26', account_name: 'Bank' }
+  },
+  {
+    id: 'enable_banking',
+    name: 'Open Banking (Enable Banking)',
+    description:
+      'Sync your bank transactions automatically through Enable Banking (PSD2): Banque Postale, CIC, and most EU banks. Consent renews every 90-180 days.',
+    category: 'Banking',
+    logo: ENABLE_BANKING_LOGO,
+    configFields: [
+      {
+        key: 'application_id',
+        label: 'Application ID',
+        type: 'text',
+        placeholder: 'From the Enable Banking control panel',
+        required: true
+      },
+      {
+        key: 'private_key',
+        label: 'Private key (PEM)',
+        type: 'textarea',
+        placeholder: '-----BEGIN RSA PRIVATE KEY-----',
+        required: true
+      },
+      {
+        key: 'bank_name',
+        label: 'Bank name',
+        type: 'text',
+        placeholder: 'As listed by Enable Banking, e.g. La Banque Postale',
+        required: true
+      },
+      {
+        key: 'country',
+        label: 'Country code',
+        type: 'text',
+        placeholder: 'FR',
+        required: false
+      }
+    ],
+    configHint: {
+      application_id: '',
+      private_key: '',
+      bank_name: '',
+      country: 'FR'
+    }
   },
   {
     id: 'invoice_scraper',

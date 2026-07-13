@@ -89,6 +89,8 @@ defmodule ServantWeb.Router do
         post "/connectors/:id/stop", ConnectorController, :stop
         post "/connectors/:id/sync", ConnectorController, :sync
         post "/connectors/:id/import", ConnectorController, :import_file
+        post "/connectors/:id/enable_banking/auth_url", ConnectorController, :eb_auth_url
+        post "/connectors/:id/enable_banking/exchange", ConnectorController, :eb_exchange
         get "/connectors/:id/logs", ConnectorController, :logs
         get "/connectors/schedules/:connector_type", ConnectorController, :schedules
 

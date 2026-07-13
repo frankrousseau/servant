@@ -21,7 +21,8 @@ defmodule Servant.Connectors do
     "invoice_scraper" => Servant.Connectors.InvoiceScraperConnector,
     "strava" => Servant.Connectors.StravaConnector,
     "github" => Servant.Connectors.GithubConnector,
-    "gitlab" => Servant.Connectors.GitlabConnector
+    "gitlab" => Servant.Connectors.GitlabConnector,
+    "enable_banking" => Servant.Connectors.EnableBankingConnector
   }
 
   # Connector types that accept an uploaded file, mapped to the

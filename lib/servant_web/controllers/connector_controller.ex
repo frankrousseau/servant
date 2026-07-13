@@ -6,6 +6,7 @@ defmodule ServantWeb.ConnectorController do
 
   alias OpenApiSpex.Schema
   alias Servant.Connectors
+  alias Servant.Connectors.EnableBankingConnector
   alias ServantWeb.Schemas
 
   tags(["connectors"])
@@ -223,6 +224,110 @@ defmodule ServantWeb.ConnectorController do
     user_id = conn.assigns.current_user.id
     Connectors.stop_connector(user_id, id)
     json(conn, %{status: "stopped"})
+  end
+
+  operation(:eb_auth_url,
+    summary: "Enable Banking: get the bank authorization URL",
+    description:
+      "Session-only. Starts the PSD2 consent flow for an enable_banking connector; the user opens the returned URL, approves at the bank and lands back on redirect_url with a code.",
+    parameters: [id: [in: :path, type: :string, required: true]],
+    request_body:
+      {"Redirect", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{redirect_url: %Schema{type: :string}},
+         required: [:redirect_url]
+       }},
+    responses: [
+      ok:
+        {"Authorization URL", "application/json",
+         %Schema{type: :object, properties: %{url: %Schema{type: :string}}}},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Session required", "application/json", Schemas.Error},
+      not_found: {"Not found", "application/json", Schemas.Error},
+      unprocessable_entity: {"Cannot start the flow", "application/json", Schemas.Error}
+    ]
+  )
+
+  def eb_auth_url(conn, %{"id" => id} = params) do
+    user_id = conn.assigns.current_user.id
+    config = Connectors.get_connector_config!(user_id, id)
+    redirect_url = params["redirect_url"]
+
+    cond do
+      config.connector_type != "enable_banking" ->
+        unprocessable(conn, "Not an Enable Banking connector")
+
+      not is_binary(redirect_url) or redirect_url == "" ->
+        unprocessable(conn, "redirect_url is required")
+
+      true ->
+        case EnableBankingConnector.auth_url(config.config || %{}, redirect_url, config.id) do
+          {:ok, url} -> json(conn, %{url: url})
+          {:error, message} -> unprocessable(conn, message)
+        end
+    end
+  end
+
+  operation(:eb_exchange,
+    summary: "Enable Banking: exchange the authorization code",
+    description:
+      "Session-only. Completes the consent flow: exchanges the code from the bank redirect for a session, persists it into the connector config and restarts the worker.",
+    parameters: [id: [in: :path, type: :string, required: true]],
+    request_body:
+      {"Authorization code", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{code: %Schema{type: :string}},
+         required: [:code]
+       }},
+    responses: [
+      ok:
+        {"Connected", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{status: %Schema{type: :string}, accounts: %Schema{type: :integer}}
+         }},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Session required", "application/json", Schemas.Error},
+      not_found: {"Not found", "application/json", Schemas.Error},
+      unprocessable_entity: {"Exchange failed", "application/json", Schemas.Error}
+    ]
+  )
+
+  def eb_exchange(conn, %{"id" => id} = params) do
+    user_id = conn.assigns.current_user.id
+    config = Connectors.get_connector_config!(user_id, id)
+    code = params["code"]
+
+    cond do
+      config.connector_type != "enable_banking" ->
+        unprocessable(conn, "Not an Enable Banking connector")
+
+      not is_binary(code) or code == "" ->
+        unprocessable(conn, "code is required")
+
+      true ->
+        case EnableBankingConnector.exchange_code(config.config || %{}, code) do
+          {:ok, session_fields} ->
+            Connectors.persist_connector_cursor(config.id, session_fields)
+
+            # Restart the worker so it picks up the fresh session.
+            Connectors.stop_connector(user_id, config.id)
+            if config.enabled, do: Connectors.start_connector(user_id, config.id)
+
+            json(conn, %{status: "connected", accounts: length(session_fields["accounts"])})
+
+          {:error, message} ->
+            unprocessable(conn, message)
+        end
+    end
+  end
+
+  defp unprocessable(conn, message) do
+    conn
+    |> put_status(:unprocessable_entity)
+    |> json(%{error: message})
   end
 
   operation(:import_file,

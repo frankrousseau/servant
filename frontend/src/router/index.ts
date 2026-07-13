@@ -41,6 +41,14 @@ const router = createRouter({
       meta: { auth: true, title: 'Connectors' }
     },
     {
+      // Fixed PSD2 consent-flow return URL (registered once in the Enable
+      // Banking app); the connector config id travels in ?state.
+      path: '/connectors/eb-callback',
+      name: 'connector-eb-callback',
+      component: () => import('../views/EnableBankingCallbackView.vue'),
+      meta: { auth: true, title: 'Bank connection' }
+    },
+    {
       path: '/connectors/:id',
       name: 'connector-detail',
       component: () => import('../views/ConnectorDetailView.vue'),
