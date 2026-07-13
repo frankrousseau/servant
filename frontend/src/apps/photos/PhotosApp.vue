@@ -94,7 +94,15 @@ const filtered = computed(() => {
 
 // ----- grouping by shot date (occurred_at, i.e. EXIF date, else upload date) -----
 
-const groupBy = ref<'' | 'year' | 'month' | 'week'>('')
+type GroupBy = '' | 'year' | 'month' | 'week'
+const GROUP_BY_KEY = 'servant_photos_group_by'
+
+function storedGroupBy(): GroupBy {
+  const v = localStorage.getItem(GROUP_BY_KEY)
+  return v === 'year' || v === 'month' || v === 'week' ? v : ''
+}
+
+const groupBy = ref<GroupBy>(storedGroupBy())
 
 const albumOptions = computed(() => [
   { value: '', label: 'All photos' },
@@ -109,7 +117,8 @@ const GROUP_OPTIONS = [
 ]
 
 function onGroupByChange(v: string) {
-  groupBy.value = v as '' | 'year' | 'month' | 'week'
+  groupBy.value = v as GroupBy
+  localStorage.setItem(GROUP_BY_KEY, v)
 }
 
 const photoDate = (p: Entry) => (p.occurred_at || p.inserted_at) as string
