@@ -413,6 +413,12 @@ defmodule ServantWeb.AuthController do
                  avatar_path: %Schema{type: :string, nullable: true},
                  timezone: %Schema{type: :string},
                  theme: %Schema{type: :string},
+                 enabled_apps: %Schema{
+                   type: :array,
+                   items: %Schema{type: :string},
+                   nullable: true,
+                   description: "enabled built-in app ids; null means the default set"
+                 },
                  totp_enabled: %Schema{type: :boolean},
                  admin: %Schema{type: :boolean},
                  inserted_at: %Schema{type: :string, format: :"date-time"}
@@ -441,6 +447,7 @@ defmodule ServantWeb.AuthController do
         avatar_path: user.avatar_path,
         timezone: user.timezone,
         theme: user.theme,
+        enabled_apps: user.enabled_apps,
         totp_enabled: Accounts.totp_enabled?(user),
         admin: user.admin,
         inserted_at: user.inserted_at
@@ -462,6 +469,11 @@ defmodule ServantWeb.AuthController do
            theme: %Schema{
              type: :string,
              enum: ["night", "graphite", "day", "sepia", "rosewood"]
+           },
+           enabled_apps: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description: "enabled built-in app ids"
            }
          }
        }},
@@ -480,7 +492,12 @@ defmodule ServantWeb.AuthController do
                  email: %Schema{type: :string, nullable: true},
                  avatar_path: %Schema{type: :string, nullable: true},
                  timezone: %Schema{type: :string},
-                 theme: %Schema{type: :string}
+                 theme: %Schema{type: :string},
+                 enabled_apps: %Schema{
+                   type: :array,
+                   items: %Schema{type: :string},
+                   nullable: true
+                 }
                }
              }
            }
@@ -504,7 +521,8 @@ defmodule ServantWeb.AuthController do
             email: user.email,
             avatar_path: user.avatar_path,
             timezone: user.timezone,
-            theme: user.theme
+            theme: user.theme,
+            enabled_apps: user.enabled_apps
           }
         })
 

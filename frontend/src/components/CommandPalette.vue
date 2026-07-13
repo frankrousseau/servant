@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApi } from '../composables/useApi'
+import { useAppsStore } from '../stores/apps'
 import type { Entry } from '../types'
 import { kindIcon, kindColor } from '../types'
 import { entryRoute } from '../lib/entryRoute'
@@ -15,21 +16,17 @@ const results = ref<Entry[]>([])
 const activeIndex = ref(0)
 const inputRef = ref<HTMLInputElement | null>(null)
 
-const PAGES = [
+const appsStore = useAppsStore()
+
+// Apps come from the store, so disabled built-ins stay out of the palette.
+const pages = computed(() => [
   { label: 'Dashboard', path: '/' },
-  { label: 'Notes', path: '/apps/notes' },
-  { label: 'Checklists', path: '/apps/checklists' },
-  { label: 'Calendar', path: '/apps/calendar' },
-  { label: 'Photos', path: '/apps/photos' },
-  { label: 'Trackers', path: '/apps/trackers' },
-  { label: 'Files', path: '/apps/files' },
-  { label: 'Finance', path: '/apps/finance' },
-  { label: 'Contacts', path: '/apps/contacts' },
+  ...appsStore.defs.map(a => ({ label: a.name, path: `/apps/${a.id}` })),
   { label: 'Data browser', path: '/data' },
   { label: 'Connectors', path: '/connectors' },
   { label: 'Audit', path: '/audit' },
   { label: 'Settings', path: '/settings' }
-]
+])
 
 interface Item {
   key: string
@@ -42,13 +39,15 @@ interface Item {
 
 const pageItems = computed<Item[]>(() => {
   const q = query.value.trim().toLowerCase()
-  return PAGES.filter(p => !q || p.label.toLowerCase().includes(q)).map(p => ({
-    key: 'p:' + p.path,
-    icon: '→',
-    label: p.label,
-    hint: 'page',
-    path: p.path
-  }))
+  return pages.value
+    .filter(p => !q || p.label.toLowerCase().includes(q))
+    .map(p => ({
+      key: 'p:' + p.path,
+      icon: '→',
+      label: p.label,
+      hint: 'page',
+      path: p.path
+    }))
 })
 
 const entryItems = computed<Item[]>(() =>
@@ -212,7 +211,6 @@ onBeforeUnmount(() => {
   padding: 0.85rem 1rem;
   font-size: 1rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color-scheme: dark;
 }
 .cp-input:focus {
   outline: none;

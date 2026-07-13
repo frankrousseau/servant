@@ -63,6 +63,32 @@ defmodule Servant.AccountsTest do
     end
   end
 
+  describe "update_profile/2 enabled_apps" do
+    setup do
+      %{user: user_fixture(%{"username" => "appsuser", "password" => "password123"})}
+    end
+
+    test "defaults to nil (frontend default set)", %{user: user} do
+      assert user.enabled_apps == nil
+    end
+
+    test "accepts a list of app ids", %{user: user} do
+      ids = ["calendar", "files", "my-custom_app2"]
+      assert {:ok, updated} = Accounts.update_profile(user, %{"enabled_apps" => ids})
+      assert updated.enabled_apps == ids
+
+      assert {:ok, cleared} = Accounts.update_profile(updated, %{"enabled_apps" => []})
+      assert cleared.enabled_apps == []
+    end
+
+    test "rejects malformed ids", %{user: user} do
+      assert {:error, changeset} =
+               Accounts.update_profile(user, %{"enabled_apps" => ["ok", "Not A Slug!"]})
+
+      assert %{enabled_apps: ["must be a list of app ids"]} = errors_on(changeset)
+    end
+  end
+
   describe "update_profile/2 timezone" do
     setup do
       %{user: user_fixture(%{"username" => "tzuser", "password" => "password123"})}

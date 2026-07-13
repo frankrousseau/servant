@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { apiJson } from '../composables/apiClient'
-import { BUILTIN_APPS } from '../apps/registry'
+import { enabledBuiltins } from '../apps/registry'
+import { useAuthStore } from './auth'
 import type { AppDef } from '../apps/types'
 
 export interface InstalledApp {
@@ -34,8 +35,12 @@ export const useAppsStore = defineStore('apps', () => {
     }
   }
 
+  // Disabled built-ins disappear everywhere defs is consumed: sidebar,
+  // command palette, and app mounting (getDef misses). Installed apps were
+  // an explicit install, they are always on.
+  const auth = useAuthStore()
   const defs = computed<AppDef[]>(() => [
-    ...BUILTIN_APPS,
+    ...enabledBuiltins(auth.user?.enabled_apps),
     ...installed.value.map(toDef)
   ])
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import ComboBox from '../components/ComboBox.vue'
 import { useAuthStore } from '../stores/auth'
 import { useAppsStore } from '../stores/apps'
@@ -16,6 +16,7 @@ import {
   Palette
 } from 'lucide-vue-next'
 import { THEMES, applyTheme, storedTheme, type ThemeId } from '../lib/theme'
+import { BUILTIN_APPS, DEFAULT_ENABLED_APPS } from '../apps/registry'
 import type { ApiToken } from '../types'
 import {
   SCOPE_DOMAINS,
@@ -27,6 +28,34 @@ const auth = useAuthStore()
 const apps = useAppsStore()
 const api = useApi()
 const { ask } = useConfirm()
+
+// ----- Built-in app toggles -----
+
+// Mirrors the user's preference; null on the account means the default set.
+const enabledApps = ref<string[]>([...DEFAULT_ENABLED_APPS])
+
+watch(
+  () => auth.user?.enabled_apps,
+  ids => {
+    enabledApps.value = [...(ids ?? DEFAULT_ENABLED_APPS)]
+  },
+  { immediate: true }
+)
+
+// Saves on every toggle (sidebar and palette follow live); rolled back if
+// the save fails.
+async function toggleApp(id: string) {
+  const previous = [...enabledApps.value]
+  enabledApps.value = enabledApps.value.includes(id)
+    ? enabledApps.value.filter(x => x !== id)
+    : [...enabledApps.value, id]
+  try {
+    await api.put('/api/auth/profile', { enabled_apps: enabledApps.value })
+    if (auth.user) auth.user.enabled_apps = [...enabledApps.value]
+  } catch {
+    enabledApps.value = previous
+  }
+}
 
 // ----- Appearance -----
 
@@ -356,6 +385,23 @@ onMounted(() => {
         <h2>Apps</h2>
       </div>
       <div class="card-body">
+        <h3 class="app-subhead">Built-in apps</h3>
+        <p class="tk-hint">
+          Disabled apps disappear from the sidebar and the command palette;
+          their data stays untouched.
+        </p>
+        <div class="app-toggles">
+          <label v-for="a in BUILTIN_APPS" :key="a.id" class="toggle">
+            <input
+              type="checkbox"
+              :checked="enabledApps.includes(a.id)"
+              @change="toggleApp(a.id)"
+            />
+            {{ a.name }}
+          </label>
+        </div>
+
+        <h3 class="app-subhead">Installed apps</h3>
         <p class="tk-hint">
           Install extra apps from a git repository containing a servant-app.json
           manifest and a pre-built entry module. Installed apps run with your
@@ -469,6 +515,26 @@ onMounted(() => {
 
 .card-actions {
   padding-top: 0.5rem;
+}
+
+/* Built-in app toggles */
+.app-subhead {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 0 0 0.35rem;
+}
+
+.app-subhead + .tk-hint {
+  margin-top: 0;
+}
+
+.app-toggles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.4rem 1rem;
+  margin-bottom: 1.5rem;
 }
 
 /* Theme picker: each card carries its own data-theme, so the global palette

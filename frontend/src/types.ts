@@ -6,6 +6,7 @@ export interface User {
   avatar_path: string | null
   timezone?: string | null
   theme?: string | null
+  enabled_apps?: string[] | null
   totp_enabled?: boolean
   admin?: boolean
 }

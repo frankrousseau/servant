@@ -60,6 +60,14 @@ export const BUILTIN_APPS: AppDef[] = [
   }
 ]
 
-export function getAppDef(id: string): AppDef | undefined {
-  return BUILTIN_APPS.find(a => a.id === id)
+// Built-in apps enabled for accounts that never touched the Settings
+// toggles (user.enabled_apps is null).
+export const DEFAULT_ENABLED_APPS = ['calendar', 'contacts', 'files', 'photos']
+
+// The built-in apps the user kept enabled; null/undefined means the default
+// set. Unknown ids (from a newer frontend or an uninstalled custom app id
+// that leaked in) are ignored.
+export function enabledBuiltins(ids: string[] | null | undefined): AppDef[] {
+  const enabled = ids ?? DEFAULT_ENABLED_APPS
+  return BUILTIN_APPS.filter(a => enabled.includes(a.id))
 }
