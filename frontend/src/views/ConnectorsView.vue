@@ -30,11 +30,11 @@ function onSetupScheduleChange(v: string) {
 }
 const saving = ref(false)
 
-// Catalog search & sort
+// Catalog search, grouped by category (alphabetical, connectors within too)
 const catalogSearch = ref('')
-const availableDefs = computed(() => {
+const catalogGroups = computed(() => {
   const q = catalogSearch.value.toLowerCase().trim()
-  return [...CONNECTOR_DEFS]
+  const defs = [...CONNECTOR_DEFS]
     .sort((a, b) => a.name.localeCompare(b.name))
     .filter(
       d =>
@@ -42,6 +42,16 @@ const availableDefs = computed(() => {
         d.name.toLowerCase().includes(q) ||
         d.category.toLowerCase().includes(q)
     )
+
+  const groups = new Map<string, ConnectorDef[]>()
+  for (const def of defs) {
+    const group = groups.get(def.category)
+    if (group) group.push(def)
+    else groups.set(def.category, [def])
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([category, items]) => ({ category, items }))
 })
 
 async function fetchConnectors() {
@@ -184,21 +194,27 @@ onMounted(fetchConnectors)
           class="catalog-search"
           placeholder="Search sources..."
         />
-        <div class="catalog-grid">
-          <div
-            v-for="def in availableDefs"
-            :key="def.id"
-            class="catalog-card"
-            @click="openSetup(def)"
-            role="button"
-            tabindex="0"
-          >
-            <div class="catalog-logo" v-html="def.logo"></div>
-            <div class="catalog-body">
-              <span class="catalog-name">{{ def.name }}</span>
-              <span class="catalog-desc">{{ def.description }}</span>
+        <div
+          v-for="group in catalogGroups"
+          :key="group.category"
+          class="catalog-group"
+        >
+          <h3 class="catalog-group-title">{{ group.category }}</h3>
+          <div class="catalog-grid">
+            <div
+              v-for="def in group.items"
+              :key="def.id"
+              class="catalog-card"
+              @click="openSetup(def)"
+              role="button"
+              tabindex="0"
+            >
+              <div class="catalog-logo" v-html="def.logo"></div>
+              <div class="catalog-body">
+                <span class="catalog-name">{{ def.name }}</span>
+                <span class="catalog-desc">{{ def.description }}</span>
+              </div>
             </div>
-            <span class="catalog-category">{{ def.category }}</span>
           </div>
         </div>
       </div>
@@ -415,7 +431,19 @@ onMounted(fetchConnectors)
   margin-bottom: 0.75rem;
 }
 
-/* Catalog (available) */
+/* Catalog (available), grouped by category */
+.catalog-group {
+  margin-bottom: 1.25rem;
+}
+
+.catalog-group-title {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 0.5rem;
+}
+
 .catalog-grid {
   display: flex;
   flex-direction: column;
@@ -474,17 +502,6 @@ onMounted(fetchConnectors)
   font-size: 0.9rem;
   color: var(--text-muted);
   line-height: 1.35;
-}
-
-.catalog-category {
-  position: absolute;
-  top: 0.65rem;
-  right: 0.75rem;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  background: var(--bg-hover);
-  padding: 0.1rem 0.5rem;
-  border-radius: var(--radius);
 }
 
 /* Setup modal */
