@@ -47,6 +47,32 @@ defmodule Servant.Connectors.BankCSV.Parser do
       balance_column: "Balance",
       date_format: :iso,
       decimal_separator: "."
+    },
+    # Export "Téléchargement des opérations" (labanquepostale.fr): account
+    # metadata lines above the real header, then Date;Libellé;Montant(EUROS)
+    "banque_postale" => %{
+      delimiter: ";",
+      date_column: "Date",
+      description_column: "Libellé",
+      amount_column: "Montant(EUROS)",
+      currency_column: nil,
+      balance_column: nil,
+      date_format: :eu_slash,
+      decimal_separator: ","
+    },
+    # CM-CIC export (cic.fr): either split Débit/Crédit columns or a single
+    # Montant column depending on the export screen; both are handled
+    "cic" => %{
+      delimiter: ";",
+      date_column: "Date",
+      description_column: "Libellé",
+      amount_column: "Montant",
+      debit_column: "Débit",
+      credit_column: "Crédit",
+      currency_column: nil,
+      balance_column: "Solde",
+      date_format: :eu_slash,
+      decimal_separator: ","
     }
   }
 
@@ -93,21 +119,22 @@ defmodule Servant.Connectors.BankCSV.Parser do
   defp do_parse(csv_content, preset) do
     lines =
       csv_content
+      |> ensure_utf8()
       |> Servant.Util.strip_bom()
       |> String.trim()
       |> String.split(~r/\r?\n/)
       |> Enum.reject(&(String.trim(&1) == ""))
 
-    case lines do
-      [] ->
+    case {lines, find_header(lines, preset)} do
+      {[], _} ->
         {:error, "Empty CSV"}
 
-      [_header_line] ->
-        {:ok, []}
+      {_, nil} ->
+        {:error,
+         "Could not find the header row (expected a \"#{preset.date_column}\" column); " <>
+           "check the bank format preset"}
 
-      [header_line | data_lines] ->
-        headers = split_line(header_line, preset.delimiter)
-
+      {_, {headers, data_lines}} ->
         transactions =
           data_lines
           |> Enum.with_index(2)
@@ -122,32 +149,66 @@ defmodule Servant.Connectors.BankCSV.Parser do
     end
   end
 
+  # French bank exports (Banque Postale notably) are Latin-1/Windows-1252.
+  defp ensure_utf8(bin) do
+    if String.valid?(bin), do: bin, else: :unicode.characters_to_binary(bin, :latin1)
+  end
+
+  # The header is the first line carrying both the date column and a
+  # description column: Banque Postale exports put account metadata lines
+  # above it, including a "Date ;<export date>" line that the date column
+  # alone would match.
+  defp find_header(lines, preset) do
+    description = preset[:description_column] || List.first(preset[:description_columns] || [])
+
+    lines
+    |> Enum.split_while(fn line ->
+      fields = line |> split_line(preset.delimiter) |> Enum.map(&normalize_header/1)
+
+      not (normalize_header(preset.date_column) in fields and
+             normalize_header(description) in fields)
+    end)
+    |> case do
+      {_preamble, [header | data_lines]} -> {split_line(header, preset.delimiter), data_lines}
+      {_preamble, []} -> nil
+    end
+  end
+
+  # Header spelling drifts between export screens ("Montant(EUROS)" vs
+  # "Montant (EUROS)"); compare and store header keys space- and
+  # case-insensitively.
+  defp normalize_header(nil), do: nil
+
+  defp normalize_header(header) do
+    header |> String.downcase() |> String.replace(" ", "")
+  end
+
   defp parse_line(line, headers, preset, _line_num) do
     values = split_line(line, preset.delimiter)
     row = zip_row(headers, values)
 
-    raw_date = Map.get(row, preset.date_column, "")
+    raw_date = row_get(row, preset.date_column)
 
     date =
       parse_date(raw_date, preset.date_format) ||
         parse_date(raw_date, :iso)
 
     description = build_description(row, preset)
-    amount = parse_amount(Map.get(row, preset.amount_column, ""), preset.decimal_separator)
+    amount = row_amount(row, preset)
 
     currency =
       preset
       |> Map.get(:currency_column, "Currency")
       |> then(fn
         nil -> ""
-        col -> Map.get(row, col, "")
+        col -> row_get(row, col)
       end)
       |> String.trim()
 
     balance =
       case Map.get(preset, :balance_column) do
         nil -> nil
-        col -> parse_amount(Map.get(row, col, ""), preset.decimal_separator)
+        col -> parse_amount(row_get(row, col), preset.decimal_separator)
       end
 
     if date == nil or amount == nil or description == nil do
@@ -170,15 +231,32 @@ defmodule Servant.Connectors.BankCSV.Parser do
 
   defp zip_row(headers, values) do
     headers
+    |> Enum.map(&normalize_header/1)
     |> Enum.zip(values)
     |> Map.new()
+  end
+
+  defp row_get(_row, nil), do: ""
+  defp row_get(row, column), do: Map.get(row, normalize_header(column), "")
+
+  # Split Débit/Crédit columns (CIC) win over a single amount column; a
+  # debit is negative whichever sign the bank exported it with.
+  defp row_amount(row, preset) do
+    debit = parse_amount(row_get(row, preset[:debit_column]), preset.decimal_separator)
+    credit = parse_amount(row_get(row, preset[:credit_column]), preset.decimal_separator)
+
+    cond do
+      is_number(debit) and debit != 0 -> -abs(debit)
+      is_number(credit) -> abs(credit)
+      true -> parse_amount(row_get(row, preset[:amount_column]), preset.decimal_separator)
+    end
   end
 
   defp build_description(row, %{description_columns: columns}) when is_list(columns) do
     columns
     |> Enum.map(fn col ->
       row
-      |> Map.get(col, "")
+      |> row_get(col)
       |> String.trim()
     end)
     |> Enum.reject(&(&1 == ""))
@@ -189,7 +267,7 @@ defmodule Servant.Connectors.BankCSV.Parser do
   end
 
   defp build_description(row, %{description_column: column}) do
-    case String.trim(Map.get(row, column, "")) do
+    case String.trim(row_get(row, column)) do
       "" -> nil
       description -> description
     end
@@ -226,6 +304,20 @@ defmodule Servant.Connectors.BankCSV.Parser do
   # DD.MM.YYYY
   defp parse_date(str, :eu_dot) do
     case Regex.run(~r/^(\d{2})\.(\d{2})\.(\d{4})$/, str) do
+      [_, day, month, year] ->
+        case Date.new(String.to_integer(year), String.to_integer(month), String.to_integer(day)) do
+          {:ok, date} -> date
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  # DD/MM/YYYY (French bank exports)
+  defp parse_date(str, :eu_slash) do
+    case Regex.run(~r|^(\d{2})/(\d{2})/(\d{4})$|, String.trim(str)) do
       [_, day, month, year] ->
         case Date.new(String.to_integer(year), String.to_integer(month), String.to_integer(day)) do
           {:ok, date} -> date

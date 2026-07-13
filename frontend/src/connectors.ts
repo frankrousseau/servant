@@ -334,7 +334,7 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
     id: 'bank_csv',
     name: 'Bank Transactions',
     description:
-      'Import your bank transactions from a CSV file. Supports N26, Revolut, and generic formats.',
+      'Import your bank transactions from a CSV file. Supports Banque Postale, CIC, N26, Revolut, and generic formats.',
     category: 'Banking',
     logo: BANK_CSV_LOGO,
     configFields: [
@@ -345,6 +345,8 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
         placeholder: '',
         required: true,
         options: [
+          { value: 'banque_postale', label: 'La Banque Postale' },
+          { value: 'cic', label: 'CIC / Crédit Mutuel' },
           { value: 'n26', label: 'N26' },
           { value: 'revolut', label: 'Revolut' },
           { value: 'generic', label: 'Generic (comma-separated)' }
