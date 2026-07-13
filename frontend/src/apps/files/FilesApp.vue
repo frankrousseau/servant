@@ -6,6 +6,8 @@ import {
   FileText,
   FileArchive,
   Image as ImageIcon,
+  NotebookPen,
+  Receipt,
   Video
 } from 'lucide-vue-next'
 import ComboBox from '../../components/ComboBox.vue'
@@ -42,8 +44,185 @@ const fileSize = (e: Entry) => field<number>(e, 'size') || 0
 const parentId = (e: Entry) => field<string>(e, 'parent_id') || null
 const filePath = (e: Entry) => field<string>(e, 'path') || null
 
+// ----- virtual read-only mounts (Notes, Photos, Invoices) -----
+// Other apps' entries surfaced as browse-only folders: notes keep their
+// folder tree, photos group by album, invoices by provider. Loaded lazily
+// on first navigation into each mount; no rename/move/delete/upload.
+
+const VIRTUAL_ROOTS = [
+  { id: 'v:notes', name: 'Notes', kind: 'note' },
+  { id: 'v:photos', name: 'Photos', kind: 'photo' },
+  { id: 'v:invoices', name: 'Invoices', kind: 'invoice' }
+]
+
+const VIRTUAL_ROOT_ICONS: Record<string, typeof Folder> = {
+  'v:notes': NotebookPen,
+  'v:photos': ImageIcon,
+  'v:invoices': Receipt
+}
+
+const isVirtual = (e: Entry) => e.id.startsWith('v:')
+const inVirtual = computed(() => !!currentFolder.value?.startsWith('v:'))
+
+function vEntry(
+  id: string,
+  parent: string | null,
+  filename: string,
+  data: Record<string, unknown> = {},
+  base?: Entry
+): Entry {
+  return {
+    id,
+    kind: 'file',
+    source: 'virtual',
+    external_id: null,
+    title: filename,
+    occurred_at: base?.occurred_at ?? null,
+    data: { filename, parent_id: parent, ...data },
+    metadata: {},
+    inserted_at: base?.inserted_at ?? '',
+    updated_at: base?.updated_at ?? ''
+  }
+}
+
+const virtualRootEntries = VIRTUAL_ROOTS.map(r =>
+  vEntry(r.id, null, r.name, { is_folder: true, v: 'root' })
+)
+
+const virtualFiles = ref<Entry[]>([])
+const virtualLoaded = new Set<string>()
+const virtualLoading = ref(false)
+
+const allItems = computed(() => [
+  ...allFiles.value,
+  ...virtualRootEntries,
+  ...virtualFiles.value
+])
+
+function vFolder(id: string, parent: string, name: string): Entry {
+  return vEntry(id, parent, name, { is_folder: true, v: 'vfolder' })
+}
+
+function buildVirtual(kind: string, entries: Entry[]): Entry[] {
+  const out: Entry[] = []
+  const groups = new Set<string>()
+  for (const e of entries) {
+    if (kind === 'note') {
+      const folder = ((e.data.folder as string) || '').trim()
+      let path = ''
+      for (const seg of folder.split('/').filter(Boolean)) {
+        path = path ? `${path}/${seg}` : seg
+        groups.add(path)
+      }
+      out.push(
+        vEntry(
+          `v:note:${e.id}`,
+          path ? `v:notes:f:${path}` : 'v:notes',
+          `${e.title || '(untitled)'}.md`,
+          {
+            v: 'note',
+            entry_id: e.id,
+            size: ((e.data.body as string) || '').length,
+            mime_type: 'text/markdown'
+          },
+          e
+        )
+      )
+    } else if (kind === 'photo') {
+      const album = ((e.data.album as string) || '').trim()
+      if (album) groups.add(album)
+      out.push(
+        vEntry(
+          `v:photo:${e.id}`,
+          album ? `v:photos:a:${album}` : 'v:photos',
+          (e.data.filename as string) || '(unnamed)',
+          {
+            v: 'photo',
+            size: e.data.size,
+            mime_type: e.data.mime_type,
+            path: e.data.path
+          },
+          e
+        )
+      )
+    } else {
+      const provider = ((e.data.provider as string) || '').trim()
+      if (provider) groups.add(provider)
+      out.push(
+        vEntry(
+          `v:invoice:${e.id}`,
+          provider ? `v:invoices:p:${provider}` : 'v:invoices',
+          e.title || '(invoice)',
+          { v: 'invoice', url: e.data.url },
+          e
+        )
+      )
+    }
+  }
+  for (const g of groups) {
+    if (kind === 'note') {
+      const segs = g.split('/')
+      const parent = segs.slice(0, -1).join('/')
+      out.push(
+        vFolder(
+          `v:notes:f:${g}`,
+          parent ? `v:notes:f:${parent}` : 'v:notes',
+          segs[segs.length - 1]
+        )
+      )
+    } else if (kind === 'photo') {
+      out.push(vFolder(`v:photos:a:${g}`, 'v:photos', g))
+    } else {
+      out.push(vFolder(`v:invoices:p:${g}`, 'v:invoices', g))
+    }
+  }
+  return out
+}
+
+const virtualKindOf = (folderId: string) =>
+  VIRTUAL_ROOTS.find(r => folderId === r.id || folderId.startsWith(r.id + ':'))
+    ?.kind
+
+// ponytail: loaded once per app mount, no live refresh; search only covers
+// mounts already visited
+async function loadVirtual(folderId: string) {
+  const kind = virtualKindOf(folderId)
+  if (!kind || virtualLoaded.has(kind)) return
+  virtualLoaded.add(kind)
+  virtualLoading.value = true
+  try {
+    const entries = await props.ctx.api.entries.list({ kind })
+    virtualFiles.value = [...virtualFiles.value, ...buildVirtual(kind, entries)]
+    // Rebuild the breadcrumb if we deep-linked into this mount before it loaded.
+    if (currentFolder.value && virtualKindOf(currentFolder.value) === kind) {
+      setFolder(currentFolder.value)
+    }
+  } catch {
+    virtualLoaded.delete(kind)
+  } finally {
+    virtualLoading.value = false
+  }
+}
+
+const invoiceUrl = (e: Entry) =>
+  field<string>(e, 'v') === 'invoice' ? field<string>(e, 'url') || null : null
+
+function openVirtualFile(f: Entry) {
+  const v = field<string>(f, 'v')
+  if (v === 'note') {
+    props.ctx.navigate(`/apps/notes?selected=${field<string>(f, 'entry_id')}`)
+  } else if (v === 'photo' && filePath(f)) {
+    window.open(filePath(f)!, '_blank')
+  } else if (v === 'invoice' && field<string>(f, 'url')) {
+    window.open(field<string>(f, 'url'), '_blank')
+  }
+}
+
 function fileIcon(e: Entry): typeof Folder {
+  const rootIcon = VIRTUAL_ROOT_ICONS[e.id]
+  if (rootIcon) return rootIcon
   if (isFolder(e)) return Folder
+  if (field<string>(e, 'v') === 'invoice') return Receipt
   const mime = field<string>(e, 'mime_type') || ''
   if (mime.startsWith('image/')) return ImageIcon
   if (mime.startsWith('video/')) return Video
@@ -53,7 +232,7 @@ function fileIcon(e: Entry): typeof Folder {
 }
 
 const currentItems = computed(() =>
-  allFiles.value
+  allItems.value
     .filter(f => parentId(f) === currentFolder.value)
     .sort((a, b) => {
       const af = isFolder(a) ? 0 : 1
@@ -107,7 +286,7 @@ function matchesType(e: Entry): boolean {
 
 // ----- folder paths (for search results and history restore) -----
 
-const byId = computed(() => new Map(allFiles.value.map(f => [f.id, f])))
+const byId = computed(() => new Map(allItems.value.map(f => [f.id, f])))
 
 // Ancestor chain of a folder id, root first. The guard caps a corrupt
 // parent_id cycle.
@@ -133,7 +312,7 @@ function folderPathOf(e: Entry): string {
 const displayed = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (q) {
-    return allFiles.value
+    return allItems.value
       .filter(
         f =>
           !isFolder(f) &&
@@ -167,6 +346,7 @@ async function reload() {
 // Folder navigation goes through the browser history (?folder=<id>) so
 // back/forward work as expected.
 function setFolder(id: string | null, opts: { push?: boolean } = {}) {
+  if (id?.startsWith('v:')) void loadVirtual(id)
   currentFolder.value = id
   folderPath.value = [
     { id: null, name: '~' },
@@ -174,7 +354,11 @@ function setFolder(id: string | null, opts: { push?: boolean } = {}) {
   ]
   selectedId.value = null
   if (opts.push) {
-    history.pushState(null, '', id ? `/apps/files?folder=${id}` : '/apps/files')
+    history.pushState(
+      null,
+      '',
+      id ? `/apps/files?folder=${encodeURIComponent(id)}` : '/apps/files'
+    )
   }
 }
 
@@ -183,8 +367,11 @@ function navigateCrumb(idx: number) {
 }
 
 function openFolder(f: Entry) {
-  if (!isFolder(f)) return
-  setFolder(f.id, { push: true })
+  if (isFolder(f)) {
+    setFolder(f.id, { push: true })
+  } else if (isVirtual(f)) {
+    openVirtualFile(f)
+  }
 }
 
 // Jump from a search result to its containing folder.
@@ -233,8 +420,9 @@ function onFileInput(e: Event) {
 
 function onDrop(e: DragEvent) {
   dragover.value = false
-  // An internal row drag that missed a folder target is a no-op, not an upload.
-  if (draggingId.value) return
+  // An internal row drag that missed a folder target is a no-op, not an
+  // upload; virtual mounts are read-only.
+  if (draggingId.value || inVirtual.value) return
   if (e.dataTransfer?.files.length)
     uploadFiles(Array.from(e.dataTransfer.files))
 }
@@ -249,6 +437,7 @@ const renameInput = ref<HTMLInputElement | null>(null)
 let renameCancelled = false
 
 function startRename(f: Entry) {
+  if (isVirtual(f)) return
   renamingId.value = f.id
   renameValue.value = fileName(f)
   nextTick(() => renameInput.value?.select())
@@ -304,10 +493,13 @@ function onRowDragEnd() {
   dropTargetId.value = null
 }
 
-// A folder can't be dropped into itself or one of its descendants.
+// A folder can't be dropped into itself, one of its descendants, or a
+// read-only virtual mount.
 function canDropOn(target: Entry): boolean {
   const id = draggingId.value
-  if (!id || id === target.id || !isFolder(target)) return false
+  if (!id || id === target.id || !isFolder(target) || isVirtual(target)) {
+    return false
+  }
   return !chainTo(target.id).some(a => a.id === id)
 }
 
@@ -398,8 +590,10 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
             class="fs-type-filter"
             :options="TYPE_FILTER_OPTIONS"
           />
-          <button class="fs-btn" @click="newFolder">+ Folder</button>
-          <label class="fs-btn fs-upload-label">
+          <button v-if="!inVirtual" class="fs-btn" @click="newFolder">
+            + Folder
+          </button>
+          <label v-if="!inVirtual" class="fs-btn fs-upload-label">
             + Upload
             <input type="file" multiple hidden @change="onFileInput" />
           </label>
@@ -429,7 +623,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
       <div
         class="fs-list"
         :class="{ 'fs-dragover': dragover }"
-        @dragover.prevent="dragover = !draggingId"
+        @dragover.prevent="dragover = !draggingId && !inVirtual"
         @dragleave="dragover = false"
         @drop.prevent="onDrop"
       >
@@ -465,7 +659,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
             'fs-row--droptarget': dropTargetId === f.id,
             'fs-row--dragging': draggingId === f.id
           }"
-          :draggable="renamingId !== f.id"
+          :draggable="renamingId !== f.id && !isVirtual(f)"
           @click="selectedId = f.id"
           @dblclick="openFolder(f)"
           @dragstart="onRowDragStart(f, $event)"
@@ -495,8 +689,8 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
             <span
               v-else
               class="fs-name"
-              title="Double-click to rename"
-              @dblclick.stop="startRename(f)"
+              :title="isVirtual(f) ? undefined : 'Double-click to rename'"
+              @dblclick.stop="isVirtual(f) ? openFolder(f) : startRename(f)"
               >{{ fileName(f)
               }}<span v-if="isFolder(f)" class="fs-slash">/</span></span
             >
@@ -512,10 +706,18 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
           <span class="fs-size fs-col-size">{{
             isFolder(f) ? '-' : formatFileSize(fileSize(f))
           }}</span>
-          <span class="fs-date">{{ formatDate(f.inserted_at) }}</span>
+          <span class="fs-date">{{
+            f.inserted_at ? formatDate(f.inserted_at) : '-'
+          }}</span>
         </div>
         <p v-if="displayed.length === 0" class="fs-empty">
-          {{ searchQuery || typeFilter ? 'No match.' : 'Empty directory' }}
+          {{
+            virtualLoading && inVirtual
+              ? 'Reading directory…'
+              : searchQuery || typeFilter
+                ? 'No match.'
+                : 'Empty directory'
+          }}
         </p>
       </div>
     </div>
@@ -539,7 +741,9 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
           </div>
           <div class="fs-meta-row">
             <span class="fs-meta-label">Added</span>
-            <span>{{ formatDate(selected.inserted_at) }}</span>
+            <span>{{
+              selected.inserted_at ? formatDate(selected.inserted_at) : '-'
+            }}</span>
           </div>
           <a
             v-if="filePath(selected)"
@@ -549,6 +753,21 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
             download
             >Download</a
           >
+          <a
+            v-if="field(selected, 'v') === 'note'"
+            class="fs-download"
+            href="#"
+            @click.prevent="openVirtualFile(selected)"
+            >Open in Notes</a
+          >
+          <a
+            v-if="invoiceUrl(selected)"
+            class="fs-download"
+            :href="invoiceUrl(selected)!"
+            target="_blank"
+            rel="noopener"
+            >Open invoice</a
+          >
         </div>
         <div v-else class="fs-detail-meta">
           <div class="fs-meta-row">
@@ -557,13 +776,19 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
           </div>
           <div class="fs-meta-row">
             <span class="fs-meta-label">Created</span>
-            <span>{{ formatDate(selected.inserted_at) }}</span>
+            <span>{{
+              selected.inserted_at ? formatDate(selected.inserted_at) : '-'
+            }}</span>
           </div>
         </div>
-        <button class="fs-rename-btn" @click="startRename(selected)">
-          Rename
-        </button>
-        <button class="fs-delete" @click="deleteItem(selected)">Delete</button>
+        <template v-if="!isVirtual(selected)">
+          <button class="fs-rename-btn" @click="startRename(selected)">
+            Rename
+          </button>
+          <button class="fs-delete" @click="deleteItem(selected)">
+            Delete
+          </button>
+        </template>
       </div>
       <p v-else class="fs-placeholder">Select a file to view details</p>
     </div>
