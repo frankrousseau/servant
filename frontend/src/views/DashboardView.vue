@@ -160,18 +160,9 @@ const pendingItems = computed(() => {
   return out
 })
 
-// Clicking a pending item checks it in its checklist (optimistic, rolled
-// back if the save fails).
-async function checkItem(p: { listId: string; index: number }) {
-  const l = checklists.value.find(x => x.id === p.listId)
-  const it = l ? ((l.data.items as ChecklistItem[]) || [])[p.index] : undefined
-  if (!l || !it || it.done) return
-  it.done = true
-  try {
-    await api.put(`/api/entries/${l.id}`, { title: l.title, data: l.data })
-  } catch {
-    it.done = false
-  }
+// Clicking a pending item opens its checklist (checking off happens there).
+function openChecklist(p: { listId: string }) {
+  router.push(`/apps/checklists?selected=${p.listId}`)
 }
 
 // Backend daily stats use UTC days; so does this key.
@@ -284,8 +275,8 @@ onMounted(fetchData)
               v-for="it in pendingItems.slice(0, 5)"
               :key="it.listId + ':' + it.index"
               class="today-item today-item--clickable"
-              title="Mark as done"
-              @click="checkItem(it)"
+              :title="`Open ${it.list}`"
+              @click="openChecklist(it)"
             >
               <span class="today-box">☐</span>
               <span class="today-item-text">{{ it.text }}</span>
