@@ -1,11 +1,11 @@
 defmodule ServantWeb.Plugs.DavAuth do
   @moduledoc """
-  HTTP Basic authentication for the CalDAV endpoint. CalDAV clients only
-  speak Basic auth, so the password field carries a Servant token: an
-  `srv_` API token (recommended; revocable and scoped to app:calendar) or
-  a session token. The username is informative only; the token identifies
-  the user. Failed `srv_` lookups feed the same per-IP throttle as the
-  JSON API.
+  HTTP Basic authentication for the CalDAV/CardDAV endpoint. DAV clients
+  only speak Basic auth, so the password field carries a Servant token:
+  an `srv_` API token (recommended; revocable and scoped to app:calendar
+  / app:contacts) or a session token. The username is informative only;
+  the token identifies the user. Failed `srv_` lookups feed the same
+  per-IP throttle as the JSON API.
   """
 
   import Plug.Conn

@@ -120,15 +120,16 @@ defmodule ServantWeb.Router do
     end
   end
 
-  # CalDAV endpoint for phone calendar sync (HTTP Basic, token as password).
+  # CalDAV/CardDAV endpoint for phone sync (HTTP Basic, token as password).
   scope "/", ServantWeb do
-    match :*, "/.well-known/caldav", CalDAVController, :well_known
+    match :*, "/.well-known/caldav", DavController, :well_known
+    match :*, "/.well-known/carddav", DavController, :well_known
   end
 
   scope "/dav", ServantWeb do
     pipe_through :dav
 
-    match :*, "/*path", CalDAVController, :dav
+    match :*, "/*path", DavController, :dav
   end
 
   # Authenticated, per-user file serving (must come before the SPA catch-all).
