@@ -869,7 +869,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .ct-modal-btn--primary {
   background: var(--primary);
   border: 1px solid var(--primary);
-  color: #05070f;
+  color: var(--primary-contrast);
 }
 .ct-modal-btn--primary:hover {
   background: var(--primary-hover);
@@ -878,9 +878,5 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .ct-modal-btn--primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-.ct-modal input,
-.ct-modal textarea {
-  color-scheme: dark;
 }
 </style>

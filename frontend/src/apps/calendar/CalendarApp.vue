@@ -1355,7 +1355,7 @@ onUnmounted(destroyPickers)
 .cal-modal-btn--primary {
   background: var(--primary);
   border-color: var(--primary);
-  color: #fff;
+  color: var(--primary-contrast);
 }
 .cal-modal-btn--primary:hover {
   background: var(--primary-hover);

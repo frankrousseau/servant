@@ -12,8 +12,10 @@ import {
   Copy,
   Trash2,
   Puzzle,
-  RefreshCw
+  RefreshCw,
+  Palette
 } from 'lucide-vue-next'
+import { THEMES, applyTheme, storedTheme, type ThemeId } from '../lib/theme'
 import type { ApiToken } from '../types'
 import {
   SCOPE_DOMAINS,
@@ -25,6 +27,25 @@ const auth = useAuthStore()
 const apps = useAppsStore()
 const api = useApi()
 const { ask } = useConfirm()
+
+// ----- Appearance -----
+
+const currentTheme = ref<ThemeId>(storedTheme())
+
+// Applies instantly, then persists; rolled back if the save fails.
+async function selectTheme(id: ThemeId) {
+  if (currentTheme.value === id) return
+  const previous = currentTheme.value
+  currentTheme.value = id
+  applyTheme(id)
+  try {
+    await api.put('/api/auth/profile', { theme: id })
+    if (auth.user) auth.user.theme = id
+  } catch {
+    currentTheme.value = previous
+    applyTheme(previous)
+  }
+}
 
 // Installed apps
 const appRepoUrl = ref('')
@@ -190,6 +211,37 @@ onMounted(() => {
 <template>
   <div class="view">
     <h1>Settings</h1>
+
+    <!-- Appearance -->
+    <section class="card">
+      <div class="card-header">
+        <Palette :size="20" class="card-icon" />
+        <h2>Appearance</h2>
+      </div>
+      <div class="card-body">
+        <div class="theme-grid" role="radiogroup" aria-label="Theme">
+          <button
+            v-for="t in THEMES"
+            :key="t.id"
+            type="button"
+            class="theme-card"
+            :class="{ 'theme-card--active': currentTheme === t.id }"
+            :data-theme="t.id"
+            role="radio"
+            :aria-checked="currentTheme === t.id"
+            :title="t.hint"
+            @click="selectTheme(t.id)"
+          >
+            <span class="theme-screen" aria-hidden="true">
+              <span class="theme-line theme-line--text"></span>
+              <span class="theme-line theme-line--muted"></span>
+              <span class="theme-cursor"></span>
+            </span>
+            <span class="theme-name">{{ t.name }}</span>
+          </button>
+        </div>
+      </div>
+    </section>
 
     <!-- API Tokens -->
     <section class="card">
@@ -417,6 +469,100 @@ onMounted(() => {
 
 .card-actions {
   padding-top: 0.5rem;
+}
+
+/* Theme picker: each card carries its own data-theme, so the global palette
+   blocks in style.css re-resolve the variables inside the preview. */
+.theme-grid {
+  display: flex;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.theme-card {
+  width: 132px;
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.theme-card:hover {
+  background: var(--bg);
+  border-color: var(--text-muted);
+}
+
+.theme-card--active,
+.theme-card--active:hover {
+  border-color: var(--primary);
+  box-shadow: 0 0 12px rgba(var(--primary-rgb), 0.35);
+}
+
+.theme-screen {
+  display: block;
+  position: relative;
+  height: 64px;
+  padding: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.theme-line {
+  display: block;
+  height: 6px;
+  border-radius: 2px;
+  margin-bottom: 6px;
+}
+
+.theme-line--text {
+  width: 72%;
+  background: var(--text);
+  opacity: 0.85;
+}
+
+.theme-line--muted {
+  width: 45%;
+  background: var(--text-muted);
+  opacity: 0.8;
+}
+
+.theme-cursor {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  width: 10px;
+  height: 12px;
+  background: var(--primary);
+  animation: theme-cursor-blink 1.2s steps(1) infinite;
+}
+
+@keyframes theme-cursor-blink {
+  50% {
+    opacity: 0.15;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-cursor {
+    animation: none;
+  }
+}
+
+.theme-name {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 /* Messages */

@@ -796,7 +796,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 .cl-new-btn:focus-visible {
   border-color: var(--primary);
   background: var(--primary);
-  color: #fff;
+  color: var(--primary-contrast);
 }
 .cl-tree {
   flex: 1;

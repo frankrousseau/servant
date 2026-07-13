@@ -916,10 +916,6 @@ async function deleteContact() {
   gap: 0.75rem;
 }
 
-.ct-edit-grid input[type='date'] {
-  color-scheme: dark;
-}
-
 /* Multi-value rows (email, phone) */
 .ct-multi-row {
   display: flex;

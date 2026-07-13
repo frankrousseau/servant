@@ -527,7 +527,6 @@ onMounted(() => {
 
 .filters input[type='date'] {
   width: auto;
-  color-scheme: dark;
 }
 
 .filter-count {

@@ -62,7 +62,8 @@ defmodule ServantWeb.AuthController do
             user: %{
               id: user.id,
               username: user.username,
-              display_name: user.display_name
+              display_name: user.display_name,
+              theme: user.theme
             }
           })
 
@@ -197,7 +198,8 @@ defmodule ServantWeb.AuthController do
       user: %{
         id: user.id,
         username: user.username,
-        display_name: user.display_name
+        display_name: user.display_name,
+        theme: user.theme
       }
     })
   end
@@ -410,6 +412,7 @@ defmodule ServantWeb.AuthController do
                  email: %Schema{type: :string, nullable: true},
                  avatar_path: %Schema{type: :string, nullable: true},
                  timezone: %Schema{type: :string},
+                 theme: %Schema{type: :string},
                  totp_enabled: %Schema{type: :boolean},
                  admin: %Schema{type: :boolean},
                  inserted_at: %Schema{type: :string, format: :"date-time"}
@@ -437,6 +440,7 @@ defmodule ServantWeb.AuthController do
         email: user.email,
         avatar_path: user.avatar_path,
         timezone: user.timezone,
+        theme: user.theme,
         totp_enabled: Accounts.totp_enabled?(user),
         admin: user.admin,
         inserted_at: user.inserted_at
@@ -454,7 +458,11 @@ defmodule ServantWeb.AuthController do
          properties: %{
            display_name: %Schema{type: :string},
            email: %Schema{type: :string},
-           timezone: %Schema{type: :string}
+           timezone: %Schema{type: :string},
+           theme: %Schema{
+             type: :string,
+             enum: ["night", "graphite", "day", "sepia", "rosewood"]
+           }
          }
        }},
     responses: [
@@ -471,7 +479,8 @@ defmodule ServantWeb.AuthController do
                  display_name: %Schema{type: :string, nullable: true},
                  email: %Schema{type: :string, nullable: true},
                  avatar_path: %Schema{type: :string, nullable: true},
-                 timezone: %Schema{type: :string}
+                 timezone: %Schema{type: :string},
+                 theme: %Schema{type: :string}
                }
              }
            }
@@ -494,7 +503,8 @@ defmodule ServantWeb.AuthController do
             display_name: user.display_name,
             email: user.email,
             avatar_path: user.avatar_path,
-            timezone: user.timezone
+            timezone: user.timezone,
+            theme: user.theme
           }
         })
 

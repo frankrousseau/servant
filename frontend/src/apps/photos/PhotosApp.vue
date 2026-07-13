@@ -1045,7 +1045,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 }
 .ph-tag-pill--active {
   background: var(--primary);
-  color: #fff;
+  color: var(--primary-contrast);
 }
 .ph-people-search {
   padding: 0.5rem 1rem;
@@ -1427,7 +1427,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 }
 .ph-modal-suggestion:hover {
   background: var(--primary);
-  color: #fff;
+  color: var(--primary-contrast);
 }
 .ph-modal-section-label {
   font-size: 0.75rem;
@@ -1450,7 +1450,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   border-radius: 20px;
   font-size: 0.8rem;
   background: var(--primary);
-  color: #fff;
+  color: var(--primary-contrast);
 }
 .ph-modal-tag-remove {
   cursor: pointer;

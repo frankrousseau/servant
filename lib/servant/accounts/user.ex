@@ -1,5 +1,7 @@
 defmodule Servant.Accounts.User do
-  @moduledoc "User schema: credentials, profile and timezone preference."
+  @moduledoc "User schema: credentials, profile, timezone and theme preferences."
+
+  @themes ~w(night graphite day sepia rosewood)
 
   use Ecto.Schema
   import Ecto.Changeset
@@ -13,6 +15,7 @@ defmodule Servant.Accounts.User do
     field :email, :string
     field :avatar_path, :string
     field :timezone, :string, default: "UTC"
+    field :theme, :string, default: "night"
     field :totp_secret, :binary, redact: true
     field :totp_last_used_at, :utc_datetime
     field :token_version, :integer, default: 0
@@ -34,9 +37,10 @@ defmodule Servant.Accounts.User do
 
   def profile_changeset(user, attrs) do
     user
-    |> cast(attrs, [:display_name, :email, :timezone])
+    |> cast(attrs, [:display_name, :email, :timezone, :theme])
     |> validate_length(:display_name, max: 100)
     |> validate_format(:email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "must be a valid email")
+    |> validate_inclusion(:theme, @themes)
     |> validate_timezone()
   end
 

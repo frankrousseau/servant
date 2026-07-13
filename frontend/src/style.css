@@ -1,7 +1,14 @@
 /*
- * "Night terminal", Servant as a retro machine: black-blue CRT glass,
- * electric-violet phosphor, pale glow text. Display face is VT323, a true
- * terminal bitmap face, used sparingly (brand, headings, counters).
+ * Servant as a retro machine, one identity, four monitors. The default is
+ * "Night terminal": black-blue CRT glass, electric-violet phosphor, pale
+ * glow text. Display face is VT323, a true terminal bitmap face, used
+ * sparingly (brand, headings, counters). The other themes swap the panel,
+ * never the identity: Graphite (white phosphor on neutral black), Daylight
+ * (violet ink on cool paper), Sepia (amber ink on warm paper). Themes are
+ * selected with data-theme on <html> (see lib/theme.ts); no attribute
+ * means Night. The selectors are attribute-only (not :root[...]) on
+ * purpose: putting data-theme on any element re-themes its subtree, which
+ * is how the Settings theme previews render themselves.
  */
 :root {
   --bg: #05070f;
@@ -13,12 +20,107 @@
   --primary: #9d7bff;
   --primary-hover: #b394ff;
   --primary-rgb: 157, 123, 255;
+  --primary-contrast: #05070f;
   --danger: #ff5c7a;
   --danger-hover: #f0435f;
   --success: #4fd674;
+  --warning: #ffb454;
   --radius: 6px;
   --sidebar-width: 220px;
   --font-display: 'VT323', 'Courier New', monospace;
+  color-scheme: dark;
+}
+
+[data-theme='night'] {
+  --bg: #05070f;
+  --bg-surface: #0a0e1c;
+  --bg-hover: #121830;
+  --border: #1c2342;
+  --text: #d6dcf5;
+  --text-muted: #7a83b3;
+  --primary: #9d7bff;
+  --primary-hover: #b394ff;
+  --primary-rgb: 157, 123, 255;
+  --primary-contrast: #05070f;
+  --danger: #ff5c7a;
+  --danger-hover: #f0435f;
+  --success: #4fd674;
+  --warning: #ffb454;
+  color-scheme: dark;
+}
+
+[data-theme='graphite'] {
+  --bg: #0a0a0a;
+  --bg-surface: #131313;
+  --bg-hover: #1d1d1d;
+  --border: #2b2b2b;
+  --text: #e7e7e7;
+  --text-muted: #909090;
+  --primary: #d8d8d8;
+  --primary-hover: #ffffff;
+  --primary-rgb: 216, 216, 216;
+  --primary-contrast: #0a0a0a;
+  --danger: #e05661;
+  --danger-hover: #c9414c;
+  --success: #6fbf7d;
+  --warning: #d8a35c;
+  color-scheme: dark;
+}
+
+[data-theme='day'] {
+  --bg: #f6f5fa;
+  --bg-surface: #ffffff;
+  --bg-hover: #edeaf6;
+  --border: #ddd8ec;
+  --text: #221d38;
+  --text-muted: #6a6590;
+  --primary: #6b46d9;
+  --primary-hover: #5936c4;
+  --primary-rgb: 107, 70, 217;
+  --primary-contrast: #ffffff;
+  --danger: #d23b5c;
+  --danger-hover: #b82c4b;
+  --success: #1f8a50;
+  --warning: #a86a12;
+  color-scheme: light;
+}
+
+/* Dusty indigo rosewood: knit blankets and quiet mornings. Beige panels,
+   indigo text and navigation, rosewood as the accent; no pure black. */
+[data-theme='rosewood'] {
+  --bg: #e6d7cf;
+  --bg-surface: #efe3dc;
+  --bg-hover: #dcc8bd;
+  --border: #c8b2a7;
+  --text: #2a2d43;
+  --text-muted: #5c618a;
+  --primary: #8a5054;
+  --primary-hover: #5a2230;
+  --primary-rgb: 138, 80, 84;
+  --primary-contrast: #f4eae3;
+  --danger: #a53d4d;
+  --danger-hover: #8c2f3e;
+  --success: #5f7d5a;
+  --warning: #96702e;
+  color-scheme: light;
+}
+
+[data-theme='sepia'] {
+  --bg: #f2e9d8;
+  --bg-surface: #faf3e4;
+  --bg-hover: #e9dec7;
+  --border: #d7c8a8;
+  --text: #3f3227;
+  --text-muted: #75634d;
+  --primary: #9c5f1e;
+  --primary-hover: #7f4c15;
+  --primary-rgb: 156, 95, 30;
+  --primary-contrast: #faf3e4;
+  --danger: #b3402f;
+  --danger-hover: #97301f;
+  --success: #57772f;
+  --warning: #8a6a10;
+  color-scheme: light;
 }
 
 *,
@@ -378,7 +480,7 @@ select:focus {
 
 button {
   background: var(--primary);
-  color: #05070f;
+  color: var(--primary-contrast);
   border: none;
   padding: 0.75rem 1.4rem;
   border-radius: 10px;

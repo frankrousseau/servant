@@ -1125,7 +1125,7 @@ onBeforeUnmount(() => {
 .nt-new-btn:focus-visible {
   border-color: var(--primary);
   background: var(--primary);
-  color: #fff;
+  color: var(--primary-contrast);
 }
 .nt-new-btn:active {
   transform: scale(0.92);
@@ -1473,11 +1473,5 @@ onBeforeUnmount(() => {
 .nt-ac-item:hover,
 .nt-ac-item--active {
   background: var(--bg-hover);
-}
-.nt-body,
-.nt-title,
-.nt-folder-input,
-.nt-search {
-  color-scheme: dark;
 }
 </style>

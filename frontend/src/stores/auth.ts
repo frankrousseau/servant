@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { User } from '../types'
 import { apiErrorMessage } from '../composables/apiClient'
+import { applyTheme } from '../lib/theme'
 
 // Only a non-sensitive "are we logged in?" flag is persisted. The actual auth
 // token lives in an HttpOnly cookie (unreadable by JS) plus an in-memory copy
@@ -23,6 +24,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = newUser
     loggedIn.value = true
     localStorage.setItem(LOGGED_IN_KEY, '1')
+    if (newUser.theme) applyTheme(newUser.theme)
   }
 
   function clearAuth() {
@@ -111,6 +113,7 @@ export const useAuthStore = defineStore('auth', () => {
         const body = await res.json()
         user.value = body.data
         token.value = body.token ?? null
+        if (body.data?.theme) applyTheme(body.data.theme)
       } else if (res.status === 401) {
         clearAuth()
       }

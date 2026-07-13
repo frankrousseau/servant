@@ -700,7 +700,7 @@ onMounted(() => {
 
 .action-btn--primary {
   background: var(--primary);
-  color: #fff;
+  color: var(--primary-contrast);
   border: 1px solid var(--primary);
 }
 

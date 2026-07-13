@@ -628,7 +628,7 @@ onMounted(fetchData)
 
 .stat-icon-badge--total {
   background: linear-gradient(135deg, var(--primary), var(--primary-hover));
-  color: #fff;
+  color: var(--primary-contrast);
 }
 
 .stat-icon-text {

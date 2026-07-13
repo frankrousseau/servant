@@ -660,10 +660,10 @@ function deltaLabel(delta: number): string {
 .fin-btn--primary {
   background: var(--primary);
   border-color: var(--primary);
-  color: #fff;
+  color: var(--primary-contrast);
 }
 .fin-btn--primary:hover:not(:disabled) {
-  color: #fff;
+  color: var(--primary-contrast);
   background: var(--primary-hover);
 }
 .fin-btn:disabled {
@@ -822,7 +822,6 @@ function deltaLabel(delta: number): string {
 }
 .fin-snap-date {
   width: 150px;
-  color-scheme: dark;
 }
 .fin-history {
   padding: 0 0.25rem 0.6rem 1.5rem;

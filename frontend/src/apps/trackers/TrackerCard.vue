@@ -256,7 +256,7 @@ function onDatePick(e: Event) {
 .tk-editing {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.75rem;
-  color: #ffb454;
+  color: var(--warning);
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -325,7 +325,6 @@ function onDatePick(e: Event) {
   width: 150px;
   padding: 0.3rem 0.5rem;
   font-size: 0.8rem;
-  color-scheme: dark;
 }
 .tk-unit {
   color: var(--text-muted);

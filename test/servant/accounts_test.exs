@@ -41,6 +41,28 @@ defmodule Servant.AccountsTest do
     end
   end
 
+  describe "update_profile/2 theme" do
+    setup do
+      %{user: user_fixture(%{"username" => "themeuser", "password" => "password123"})}
+    end
+
+    test "defaults to night", %{user: user} do
+      assert user.theme == "night"
+    end
+
+    test "accepts each known theme", %{user: user} do
+      for theme <- ~w(night graphite day sepia rosewood) do
+        assert {:ok, updated} = Accounts.update_profile(user, %{"theme" => theme})
+        assert updated.theme == theme
+      end
+    end
+
+    test "rejects an unknown theme", %{user: user} do
+      assert {:error, changeset} = Accounts.update_profile(user, %{"theme" => "solarized"})
+      assert %{theme: ["is invalid"]} = errors_on(changeset)
+    end
+  end
+
   describe "update_profile/2 timezone" do
     setup do
       %{user: user_fixture(%{"username" => "tzuser", "password" => "password123"})}

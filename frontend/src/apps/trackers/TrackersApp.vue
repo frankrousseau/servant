@@ -399,10 +399,10 @@ async function removeTracker(tracker: Tracker) {
 .tk-btn--primary {
   background: var(--primary);
   border-color: var(--primary);
-  color: #fff;
+  color: var(--primary-contrast);
 }
 .tk-btn--primary:hover:not(:disabled) {
-  color: #fff;
+  color: var(--primary-contrast);
   background: var(--primary-hover);
 }
 .tk-btn:disabled {
