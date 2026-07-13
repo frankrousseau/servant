@@ -63,6 +63,7 @@ defmodule ServantWeb.AuthController do
               id: user.id,
               username: user.username,
               display_name: user.display_name,
+              avatar_path: user.avatar_path,
               theme: user.theme
             }
           })
@@ -199,6 +200,7 @@ defmodule ServantWeb.AuthController do
         id: user.id,
         username: user.username,
         display_name: user.display_name,
+        avatar_path: user.avatar_path,
         theme: user.theme
       }
     })

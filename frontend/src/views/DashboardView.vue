@@ -241,6 +241,12 @@ onMounted(fetchData)
       <!-- Header: greeting + calendar at a glance -->
       <div class="motd">
         <div class="motd-head">
+          <img
+            v-if="auth.user?.avatar_path"
+            :src="auth.user.avatar_path"
+            alt=""
+            class="motd-avatar"
+          />
           Hello {{ auth.user?.display_name || auth.user?.username }}
         </div>
         <div class="motd-line">
@@ -458,11 +464,23 @@ onMounted(fetchData)
 }
 
 .motd-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
   font-family: var(--font-display);
   font-size: 1.35rem;
   color: var(--primary);
   text-shadow: 0 0 8px rgba(var(--primary-rgb), 0.45);
   margin-bottom: 0.35rem;
+}
+
+.motd-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(var(--primary-rgb), 0.5);
+  box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.35);
 }
 
 .motd-line {
