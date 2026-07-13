@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import {
+  Eye,
+  EyeOff,
   Folder,
   File,
   FileText,
@@ -93,10 +95,18 @@ const virtualFiles = ref<Entry[]>([])
 const virtualLoaded = new Set<string>()
 const virtualLoading = ref(false)
 
+const SHOW_VIRTUAL_KEY = 'servant_files_show_virtual'
+const showVirtual = ref(localStorage.getItem(SHOW_VIRTUAL_KEY) !== '0')
+
+function toggleVirtual() {
+  showVirtual.value = !showVirtual.value
+  localStorage.setItem(SHOW_VIRTUAL_KEY, showVirtual.value ? '1' : '0')
+  if (!showVirtual.value && inVirtual.value) setFolder(null, { push: true })
+}
+
 const allItems = computed(() => [
   ...allFiles.value,
-  ...virtualRootEntries,
-  ...virtualFiles.value
+  ...(showVirtual.value ? [...virtualRootEntries, ...virtualFiles.value] : [])
 ])
 
 function vFolder(id: string, parent: string, name: string): Entry {
@@ -346,6 +356,9 @@ async function reload() {
 // Folder navigation goes through the browser history (?folder=<id>) so
 // back/forward work as expected.
 function setFolder(id: string | null, opts: { push?: boolean } = {}) {
+  // A virtual deep link (URL restore, back button) lands at the root when
+  // the mounts are hidden.
+  if (id?.startsWith('v:') && !showVirtual.value) id = null
   if (id?.startsWith('v:')) void loadVirtual(id)
   currentFolder.value = id
   folderPath.value = [
@@ -590,6 +603,15 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
             class="fs-type-filter"
             :options="TYPE_FILTER_OPTIONS"
           />
+          <button
+            class="fs-btn fs-btn-icon"
+            :title="
+              showVirtual ? 'Hide virtual storage' : 'Show virtual storage'
+            "
+            @click="toggleVirtual"
+          >
+            <component :is="showVirtual ? Eye : EyeOff" :size="15" />
+          </button>
           <button v-if="!inVirtual" class="fs-btn" @click="newFolder">
             + Folder
           </button>
@@ -882,6 +904,11 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 .fs-btn:hover {
   border-color: var(--primary);
   color: var(--text);
+}
+.fs-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.5rem;
 }
 .fs-upload-label {
   display: inline-flex;
