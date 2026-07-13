@@ -27,6 +27,10 @@ defmodule ServantWeb.Router do
     plug OpenApiSpex.Plug.PutApiSpec, module: ServantWeb.ApiSpec
   end
 
+  pipeline :dav do
+    plug ServantWeb.Plugs.DavAuth
+  end
+
   scope "/api" do
     pipe_through :openapi
 
@@ -114,6 +118,17 @@ defmodule ServantWeb.Router do
 
       live_dashboard "/dashboard", metrics: ServantWeb.Telemetry
     end
+  end
+
+  # CalDAV endpoint for phone calendar sync (HTTP Basic, token as password).
+  scope "/", ServantWeb do
+    match :*, "/.well-known/caldav", CalDAVController, :well_known
+  end
+
+  scope "/dav", ServantWeb do
+    pipe_through :dav
+
+    match :*, "/*path", CalDAVController, :dav
   end
 
   # Authenticated, per-user file serving (must come before the SPA catch-all).
