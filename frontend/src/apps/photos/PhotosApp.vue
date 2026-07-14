@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import ComboBox from '../../components/ComboBox.vue'
+import DateInput from '../../components/DateInput.vue'
 import type { AppContext, Entry } from '../types'
 import { formatFileSize } from '../../types'
 import {
@@ -606,7 +607,6 @@ async function rotateSelected(angle: 90 | 270) {
 const dateModalActive = ref(false)
 const dateModalDate = ref('')
 const dateModalTime = ref('')
-const dateInput = ref<HTMLInputElement | null>(null)
 
 function openDateModal() {
   const first = allPhotos.value.find(p => selectedIds.value.has(p.id))
@@ -617,7 +617,6 @@ function openDateModal() {
   dateModalDate.value = parts.date
   dateModalTime.value = parts.time
   dateModalActive.value = true
-  nextTick(() => dateInput.value?.focus())
 }
 function closeDateModal() {
   dateModalActive.value = false
@@ -1200,10 +1199,8 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
           {{ selCount === 1 ? 'photo' : 'photos' }}
         </div>
         <div class="ph-date-row">
-          <input
-            ref="dateInput"
+          <DateInput
             class="ph-modal-input"
-            type="date"
             v-model="dateModalDate"
             @keydown.enter="applyDate"
             @keydown.esc="closeDateModal"

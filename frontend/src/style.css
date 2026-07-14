@@ -693,3 +693,63 @@ dd {
   border: 1px solid var(--border);
   color: var(--text-muted);
 }
+
+/* Flatpickr, themed by the variables above (global: the picker renders on
+   document.body; used by the Calendar app and components/DateInput.vue). */
+.flatpickr-calendar {
+  background: var(--bg-surface) !important;
+  border-color: var(--border) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+}
+.flatpickr-months,
+.flatpickr-weekdays {
+  background: var(--bg-surface) !important;
+}
+.flatpickr-month,
+.flatpickr-current-month .flatpickr-monthDropdown-months {
+  background: var(--bg-surface) !important;
+  color: var(--text) !important;
+}
+span.flatpickr-weekday {
+  color: var(--text-muted) !important;
+  background: var(--bg-surface) !important;
+}
+.flatpickr-day {
+  color: var(--text) !important;
+}
+.flatpickr-day:hover {
+  background: var(--bg-hover) !important;
+  border-color: var(--bg-hover) !important;
+}
+.flatpickr-day.selected {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: var(--primary-contrast) !important;
+}
+.flatpickr-day.today {
+  border-color: var(--primary) !important;
+}
+.flatpickr-day.prevMonthDay,
+.flatpickr-day.nextMonthDay {
+  color: var(--text-muted) !important;
+  opacity: 0.4;
+}
+.flatpickr-months .flatpickr-prev-month,
+.flatpickr-months .flatpickr-next-month {
+  fill: var(--text-muted) !important;
+  color: var(--text-muted) !important;
+}
+.flatpickr-months .flatpickr-prev-month:hover,
+.flatpickr-months .flatpickr-next-month:hover {
+  fill: var(--text) !important;
+  color: var(--text) !important;
+}
+.numInputWrapper span {
+  border-color: var(--border) !important;
+}
+.numInputWrapper span:hover {
+  background: var(--bg-hover) !important;
+}
+.numInputWrapper span svg path {
+  fill: var(--text-muted) !important;
+}

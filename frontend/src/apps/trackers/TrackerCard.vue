@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import DateInput from '../../components/DateInput.vue'
 import {
   heatmapWeeks,
   lastValue,
@@ -119,8 +120,7 @@ function onCellClick(date: string) {
 }
 
 // Explicit way to fix a previous day (the heatmap cells do it too).
-function onDatePick(e: Event) {
-  const v = (e.target as HTMLInputElement).value
+function onDatePick(v: string) {
   if (v && v <= props.today) editDate.value = v
 }
 </script>
@@ -200,13 +200,12 @@ function onDatePick(e: Event) {
           back to today
         </button>
       </span>
-      <input
+      <DateInput
         class="tk-date-pick"
-        type="date"
         title="Fix a previous day"
-        :value="editDate"
+        :model-value="editDate"
         :max="today"
-        @change="onDatePick"
+        @update:model-value="onDatePick"
       />
     </div>
 
