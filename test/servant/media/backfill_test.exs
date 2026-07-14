@@ -22,7 +22,9 @@ defmodule Servant.Media.BackfillTest do
 
     {:ok, pid} = Backfill.start(uid)
     ref = Process.monitor(pid)
-    assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 5000
+    # :noproc when the task already exited before the monitor attached.
+    assert_receive {:DOWN, ^ref, :process, ^pid, reason}, 5000
+    assert reason in [:normal, :noproc]
 
     # The spawned task found the slot taken and exited without work; ours holds.
     assert Backfill.running?(uid)
