@@ -88,6 +88,7 @@ defmodule ServantWeb.Router do
         delete "/apps/:id", AppController, :delete
 
         post "/entries/backfill_media", EntryController, :backfill_media
+        post "/entries/:id/rotate_photo", EntryController, :rotate_photo
 
         resources "/connectors", ConnectorController, except: [:new, :edit]
         post "/connectors/:id/start", ConnectorController, :start

@@ -105,17 +105,25 @@ defmodule Servant.Storage do
   """
   def delete_public_file(user_id, public_path)
       when is_binary(user_id) and is_binary(public_path) do
-    public_path
-    |> String.trim()
-    |> String.replace_prefix("/files/", "")
-    |> String.replace_prefix("/uploads/", "")
-    |> then(&resolve_owned_path(user_id, &1))
-    |> case do
+    case resolve_owned_path(user_id, relative_from_public(public_path)) do
       {:ok, absolute} -> File.rm(absolute)
       :error -> :ok
     end
 
     :ok
+  end
+
+  @doc """
+  Turns a public file URL (`/files/…`, legacy `/uploads/…`, optionally with a
+  cache-busting `?v=` query) back into a storage-relative path.
+  """
+  def relative_from_public(public_path) when is_binary(public_path) do
+    public_path
+    |> String.trim()
+    |> String.split("?", parts: 2)
+    |> hd()
+    |> String.replace_prefix("/files/", "")
+    |> String.replace_prefix("/uploads/", "")
   end
 
   @doc """

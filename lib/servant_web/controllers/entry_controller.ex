@@ -322,6 +322,60 @@ defmodule ServantWeb.EntryController do
     json(conn, %{status: "started"})
   end
 
+  operation(:rotate_photo,
+    summary: "Rotate a photo",
+    description:
+      "Session-only (API tokens cannot call this). Rotates the photo's original file clockwise by `angle` degrees (90, 180 or 270), regenerates its thumbnail and display JPEG, and returns the updated entry.",
+    parameters: [
+      id: [in: :path, type: :string, required: true],
+      angle: [in: :query, type: :integer, required: true]
+    ],
+    responses: [
+      ok: {"Entry", "application/json", @entry_envelope},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      not_found: {"Not found", "application/json", Schemas.Error},
+      unprocessable_entity: {"Rotation failed", "application/json", Schemas.Error}
+    ]
+  )
+
+  def rotate_photo(conn, %{"id" => id} = params) do
+    user_id = conn.assigns.current_user.id
+    entry = Data.get_entry!(user_id, id)
+    mime = entry.data["mime_type"] || ""
+
+    cond do
+      entry.kind != "photo" or String.starts_with?(mime, "video/") ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "Only photos can be rotated"})
+
+      true ->
+        case Servant.Media.PhotoEdit.rotate(entry, parse_angle(params["angle"])) do
+          {:ok, entry} ->
+            json(conn, %{data: Entry.to_json(entry)})
+
+          {:error, message} when is_binary(message) ->
+            conn
+            |> put_status(:unprocessable_entity)
+            |> json(%{error: message})
+
+          {:error, _changeset} ->
+            conn
+            |> put_status(:unprocessable_entity)
+            |> json(%{error: "rotation failed"})
+        end
+    end
+  end
+
+  defp parse_angle(angle) when is_binary(angle) do
+    case Integer.parse(angle) do
+      {n, ""} -> n
+      _ -> nil
+    end
+  end
+
+  defp parse_angle(angle), do: angle
+
   operation(:show,
     summary: "Get one entry",
     description: "Requires read scope on the entry's kind domain for an API token.",

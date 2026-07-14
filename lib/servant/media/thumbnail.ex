@@ -189,10 +189,5 @@ defmodule Servant.Media.Thumbnail do
 
   defp blank?(value), do: not is_binary(value) or value == ""
 
-  defp relative_from_public(public_path) do
-    public_path
-    |> String.trim()
-    |> String.replace_prefix("/files/", "")
-    |> String.replace_prefix("/uploads/", "")
-  end
+  defp relative_from_public(public_path), do: Storage.relative_from_public(public_path)
 end

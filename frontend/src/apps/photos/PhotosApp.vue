@@ -3,7 +3,12 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import ComboBox from '../../components/ComboBox.vue'
 import type { AppContext, Entry } from '../types'
 import { formatFileSize } from '../../types'
-import { formatDate, formatDateTime, utcToZonedParts } from '../../lib/datetime'
+import {
+  formatDate,
+  formatDateTime,
+  utcToZonedParts,
+  zonedToUtcISO
+} from '../../lib/datetime'
 import { contactName, contactInitials } from '../../lib/contact'
 import {
   batchesDone,
@@ -264,8 +269,16 @@ const hasFilters = computed(
 )
 
 const matchingContacts = computed(() => {
-  if (!peopleSearchActive.value || peopleSearchQuery.value.length < 1) return []
+  if (!peopleSearchActive.value) return []
   const q = peopleSearchQuery.value.toLowerCase()
+  if (!q) {
+    // Before any typing, offer the people already tagged on other photos:
+    // recurring people are one click away instead of requiring a search.
+    return allPeople.value
+      .map(p => allContacts.value.find(c => c.id === p.id))
+      .filter((c): c is Entry => !!c)
+      .slice(0, 8)
+  }
   return allContacts.value
     .filter(c =>
       ((c.data.display_name as string) || c.title || '')
@@ -422,6 +435,74 @@ async function deletePhotos(ids: string[]) {
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : 'Delete failed'
   }
+  selectedIds.value.clear()
+  selectionMode.value = false
+  await reload()
+}
+
+// Rotation keeps the selection: fixing an orientation often takes a second
+// quarter turn, so the user should not have to reselect.
+const rotating = ref(false)
+async function rotateSelected(angle: 90 | 270) {
+  const targets = [...selectedIds.value]
+    .map(id => allPhotos.value.find(p => p.id === id))
+    .filter((p): p is Entry => !!p && !isVideo(p))
+  if (!targets.length || rotating.value) return
+  rotating.value = true
+  try {
+    for (const p of targets) {
+      try {
+        await props.ctx.api.fetch(
+          `/api/entries/${p.id}/rotate_photo?angle=${angle}`,
+          { method: 'POST' }
+        )
+      } catch (e) {
+        uploadErrors.value.push(
+          `${(p.data.filename as string) || p.title || p.id}: ${
+            e instanceof Error ? e.message : 'rotation failed'
+          }`
+        )
+      }
+    }
+    await reload()
+  } finally {
+    rotating.value = false
+  }
+}
+
+// ponytail: sets occurred_at + data.date_taken only; the EXIF bytes inside
+// the file are not rewritten (needs exiftool or a lossy vips re-encode).
+const dateModalActive = ref(false)
+const dateModalDate = ref('')
+const dateModalTime = ref('')
+const dateInput = ref<HTMLInputElement | null>(null)
+
+function openDateModal() {
+  const first = allPhotos.value.find(p => selectedIds.value.has(p.id))
+  const iso = first
+    ? (first.data.date_taken as string) || photoDate(first)
+    : new Date().toISOString()
+  const parts = utcToZonedParts(iso)
+  dateModalDate.value = parts.date
+  dateModalTime.value = parts.time
+  dateModalActive.value = true
+  nextTick(() => dateInput.value?.focus())
+}
+function closeDateModal() {
+  dateModalActive.value = false
+}
+async function applyDate() {
+  if (!dateModalDate.value) return
+  const iso = zonedToUtcISO(dateModalDate.value, dateModalTime.value || '00:00')
+  for (const id of selectedIds.value) {
+    const photo = allPhotos.value.find(p => p.id === id)
+    if (!photo) continue
+    await props.ctx.api.entries.update(id, {
+      occurred_at: iso,
+      data: { ...photo.data, date_taken: iso }
+    })
+  }
+  dateModalActive.value = false
   selectedIds.value.clear()
   selectionMode.value = false
   await reload()
@@ -607,6 +688,31 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
           @click="openTagPeople"
         >
           Tag people
+        </button>
+        <button
+          class="ph-btn"
+          :disabled="selCount === 0 || rotating"
+          title="Rotate left"
+          aria-label="Rotate left"
+          @click="rotateSelected(270)"
+        >
+          &#10226;
+        </button>
+        <button
+          class="ph-btn"
+          :disabled="selCount === 0 || rotating"
+          title="Rotate right"
+          aria-label="Rotate right"
+          @click="rotateSelected(90)"
+        >
+          &#10227;
+        </button>
+        <button
+          class="ph-btn"
+          :disabled="selCount === 0"
+          @click="openDateModal"
+        >
+          Set date
         </button>
         <button
           class="ph-btn ph-btn--danger"
@@ -882,6 +988,46 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   </div>
 
   <Teleport to="body">
+    <div
+      v-if="dateModalActive"
+      class="ph-modal-overlay"
+      @click.self="closeDateModal"
+    >
+      <div class="ph-modal">
+        <h3 class="ph-modal-title">Date taken</h3>
+        <div class="ph-modal-section-label">
+          Applies to {{ selCount }} selected
+          {{ selCount === 1 ? 'photo' : 'photos' }}
+        </div>
+        <div class="ph-date-row">
+          <input
+            ref="dateInput"
+            class="ph-modal-input"
+            type="date"
+            v-model="dateModalDate"
+            @keydown.enter="applyDate"
+            @keydown.esc="closeDateModal"
+          />
+          <input
+            class="ph-modal-input"
+            type="time"
+            v-model="dateModalTime"
+            @keydown.enter="applyDate"
+            @keydown.esc="closeDateModal"
+          />
+        </div>
+        <div class="ph-modal-actions">
+          <button class="ph-btn" @click="closeDateModal">Cancel</button>
+          <button
+            class="ph-btn ph-btn--primary"
+            :disabled="!dateModalDate"
+            @click="applyDate"
+          >
+            Apply
+          </button>
+        </div>
+      </div>
+    </div>
     <div
       v-if="tagModalActive"
       class="ph-modal-overlay"
@@ -1416,6 +1562,10 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 .ph-modal-input {
   width: 100%;
   margin-bottom: 0.75rem;
+}
+.ph-date-row {
+  display: flex;
+  gap: 0.5rem;
 }
 .ph-modal-suggestions {
   display: flex;
