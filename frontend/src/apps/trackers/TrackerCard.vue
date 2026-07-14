@@ -72,6 +72,18 @@ function cellStyle(level: number): Record<string, string> {
 // Entry trackers are computed from existing entries: no editing gestures.
 const readOnly = computed(() => props.tracker.type === 'entry')
 
+// The selected cell spelled out (the heatmap only shows intensity).
+const cellInfo = computed(() => {
+  const v = editValue.value
+  const label =
+    props.tracker.type === 'check'
+      ? v > 0
+        ? 'done'
+        : 'not done'
+      : `${Math.round(v * 100) / 100}${props.tracker.unit ? ' ' + props.tracker.unit : ''}`
+  return `${editDate.value} · ${label}`
+})
+
 const statLabel = computed(() => {
   const t = props.tracker
   if (t.type === 'check') return `streak ${streak(props.byDate, props.today)}d`
@@ -103,7 +115,7 @@ function cellTitle(date: string, value: number): string {
 }
 
 function onCellClick(date: string) {
-  if (!readOnly.value) editDate.value = date
+  editDate.value = date
 }
 
 // Explicit way to fix a previous day (the heatmap cells do it too).
@@ -129,14 +141,19 @@ function onDatePick(e: Event) {
         {{ tracker.agg === 'sum' ? `sum of ${tracker.field}` : 'count' }} of
         {{ tracker.entryKind }} entries
       </span>
+      <span class="tk-cell-info">
+        {{ cellInfo }}
+        <button
+          v-if="editDate !== today"
+          class="tk-back"
+          @click="editDate = today"
+        >
+          back to today
+        </button>
+      </span>
     </div>
 
     <div v-else class="tk-controls">
-      <span v-if="editDate !== today" class="tk-editing">
-        {{ editDate }}
-        <button class="tk-back" @click="editDate = today">back to today</button>
-      </span>
-
       <button
         v-if="tracker.type === 'check'"
         class="tk-toggle"
@@ -173,6 +190,16 @@ function onDatePick(e: Event) {
         <span v-if="tracker.unit" class="tk-unit">{{ tracker.unit }}</span>
       </form>
 
+      <span class="tk-cell-info">
+        {{ cellInfo }}
+        <button
+          v-if="editDate !== today"
+          class="tk-back"
+          @click="editDate = today"
+        >
+          back to today
+        </button>
+      </span>
       <input
         class="tk-date-pick"
         type="date"
@@ -189,7 +216,7 @@ function onDatePick(e: Event) {
           <button
             v-if="cell"
             class="tk-cell"
-            :class="{ 'tk-cell--edit': !readOnly && cell.date === editDate }"
+            :class="{ 'tk-cell--edit': cell.date === editDate }"
             :style="cellStyle(cell.level)"
             :title="cellTitle(cell.date, cell.value)"
             @click="onCellClick(cell.date)"
@@ -262,13 +289,15 @@ function onDatePick(e: Event) {
   font-size: 0.75rem;
   color: var(--text-muted);
 }
-.tk-editing {
+.tk-cell-info {
+  margin-left: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.75rem;
-  color: var(--warning);
+  color: var(--text-muted);
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  white-space: nowrap;
 }
 .tk-back {
   border: none;
@@ -330,7 +359,6 @@ function onDatePick(e: Event) {
   text-align: center;
 }
 .tk-date-pick {
-  margin-left: auto;
   width: 150px;
   padding: 0.3rem 0.5rem;
   font-size: 0.8rem;
