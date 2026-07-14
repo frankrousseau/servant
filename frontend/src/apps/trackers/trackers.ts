@@ -147,24 +147,30 @@ export interface HeatCell {
   level: number
 }
 
-// Monday-first column per week, `weeks` columns ending with the current
-// week; days after today are null (not yet lived).
+// Monday of the week containing `date` (Mon-first weeks).
+export function weekMonday(date: string): string {
+  const [y, m, day] = date.split('-').map(Number)
+  const dow = (new Date(Date.UTC(y, m - 1, day)).getUTCDay() + 6) % 7 // Mon=0
+  return addDays(date, -dow)
+}
+
+// Monday-first column per week, `weeks` columns ending with the week of
+// `endDate` (today by default, earlier when browsing the past); days after
+// today are null (not yet lived).
 export function heatmapWeeks(
   byDate: Map<string, number>,
   today: string,
   type: TrackerType,
-  weeks: number
+  weeks: number,
+  endDate = today
 ): (HeatCell | null)[][] {
-  const dow = (d: string) => {
-    const [y, m, day] = d.split('-').map(Number)
-    return (new Date(Date.UTC(y, m - 1, day)).getUTCDay() + 6) % 7 // Mon=0
-  }
-  const monday = addDays(today, -dow(today))
+  const monday = weekMonday(endDate < today ? endDate : today)
   const start = addDays(monday, -7 * (weeks - 1))
+  const last = addDays(monday, 6)
 
   let max = 0
   for (const [d, v] of byDate) {
-    if (d >= start && d <= today && v > max) max = v
+    if (d >= start && d <= last && d <= today && v > max) max = v
   }
 
   const level = (value: number): number => {

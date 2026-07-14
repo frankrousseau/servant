@@ -8,13 +8,16 @@ import {
   type Tracker
 } from './trackers'
 
-const WEEKS = 16
-
-const props = defineProps<{
-  tracker: Tracker
-  byDate: Map<string, number>
-  today: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    tracker: Tracker
+    byDate: Map<string, number>
+    today: string
+    weeks?: number
+    windowEnd?: string
+  }>(),
+  { weeks: 16, windowEnd: '' }
+)
 const emit = defineEmits<{
   set: [date: string, value: number]
   remove: []
@@ -41,8 +44,14 @@ watch(
   { immediate: true }
 )
 
-const weeks = computed(() =>
-  heatmapWeeks(props.byDate, props.today, props.tracker.type, WEEKS)
+const heatWeeks = computed(() =>
+  heatmapWeeks(
+    props.byDate,
+    props.today,
+    props.tracker.type,
+    props.weeks,
+    props.windowEnd || props.today
+  )
 )
 
 const rgb = computed(() => {
@@ -175,7 +184,7 @@ function onDatePick(e: Event) {
     </div>
 
     <div class="tk-heatmap" role="img" :aria-label="`${tracker.name} history`">
-      <div v-for="(week, w) in weeks" :key="w" class="tk-week">
+      <div v-for="(week, w) in heatWeeks" :key="w" class="tk-week">
         <template v-for="(cell, d) in week" :key="d">
           <button
             v-if="cell"

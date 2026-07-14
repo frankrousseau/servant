@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import type { AppContext, Entry } from '../types'
 import {
   todayInUserTz,
@@ -13,12 +13,10 @@ import {
   aggregateByDate,
   logsByDate,
   trackerFromEntry,
+  weekMonday,
   type Tracker
 } from './trackers'
 import { addDays } from '../calendar/recurrence'
-
-// Heatmap window; keep in sync with WEEKS in TrackerCard.vue.
-const WEEKS = 16
 
 const props = defineProps<{ ctx: AppContext }>()
 const ctx = props.ctx
@@ -28,10 +26,46 @@ const logEntries = ref<Entry[]>([])
 const entryMaps = ref<Map<string, Map<string, number>>>(new Map())
 const loadState = ref<'loading' | 'ready' | 'error'>('loading')
 
+// ----- heatmap window: as many weeks as the width fits, browsable back -----
+
+// 11px cell + 3px gap; keep in sync with TrackerCard.vue styles.
+const CELL = 14
+// layout padding + card padding + borders around the heatmap.
+const CHROME = 76
+
+const layoutEl = ref<HTMLElement | null>(null)
+const weeksVisible = ref(16)
+// Last day of the heatmap window; today unless browsing the past.
+const windowEnd = ref(todayInUserTz())
+let resizeObs: ResizeObserver | null = null
+
+function measureWeeks() {
+  const w = layoutEl.value?.clientWidth || 0
+  if (w)
+    weeksVisible.value = Math.min(
+      104,
+      Math.max(8, Math.floor((w - CHROME) / CELL))
+    )
+}
+
+const atToday = computed(() => windowEnd.value >= today.value)
+const windowStart = computed(() =>
+  addDays(weekMonday(windowEnd.value), -7 * (weeksVisible.value - 1))
+)
+
+function shiftWindow(dir: 1 | -1) {
+  const next = addDays(windowEnd.value, dir * 7 * weeksVisible.value)
+  windowEnd.value = next >= today.value ? today.value : next
+}
+
 // Day values of entry-based trackers, computed server-side in the user's
 // timezone; a failing aggregate (revoked scope, deleted kind) shows empty.
+// No `to` bound: the streak/7d stats always need the recent days.
 async function loadAggregates(trackers: Entry[]) {
-  const from = zonedToUtcISO(addDays(todayInUserTz(), -WEEKS * 7), '00:00')
+  const from = zonedToUtcISO(
+    addDays(windowEnd.value, -weeksVisible.value * 7),
+    '00:00'
+  )
   const maps = new Map<string, Map<string, number>>()
   await Promise.all(
     trackers
@@ -72,7 +106,20 @@ async function reload() {
   }
 }
 
-onMounted(reload)
+onMounted(() => {
+  measureWeeks()
+  if (typeof ResizeObserver !== 'undefined' && layoutEl.value) {
+    resizeObs = new ResizeObserver(measureWeeks)
+    resizeObs.observe(layoutEl.value)
+  }
+  void reload()
+})
+onUnmounted(() => resizeObs?.disconnect())
+
+// Moving or resizing the window changes the dates entry trackers need.
+watch([windowEnd, weeksVisible], () => {
+  if (loadState.value === 'ready') void loadAggregates(trackerEntries.value)
+})
 
 const today = computed(() => todayInUserTz())
 
@@ -252,7 +299,7 @@ async function removeTracker(tracker: Tracker) {
 </script>
 
 <template>
-  <div class="tk-layout">
+  <div ref="layoutEl" class="tk-layout">
     <p v-if="loadState === 'loading'" class="tk-placeholder">
       Loading trackers…
     </p>
@@ -261,7 +308,29 @@ async function removeTracker(tracker: Tracker) {
     </p>
     <template v-else>
       <div class="tk-toolbar">
-        <span class="tk-date">{{ today }}</span>
+        <button
+          class="tk-nav"
+          title="Older"
+          aria-label="Older"
+          @click="shiftWindow(-1)"
+        >
+          &#9664;
+        </button>
+        <button
+          class="tk-nav"
+          title="Newer"
+          aria-label="Newer"
+          :disabled="atToday"
+          @click="shiftWindow(1)"
+        >
+          &#9654;
+        </button>
+        <span class="tk-date"
+          >{{ windowStart }} &rarr; {{ atToday ? today : windowEnd }}</span
+        >
+        <button v-if="!atToday" class="tk-back" @click="windowEnd = today">
+          back to today
+        </button>
         <span class="tk-spacer"></span>
         <button class="tk-new" @click="openModal">+ Tracker</button>
       </div>
@@ -278,6 +347,8 @@ async function removeTracker(tracker: Tracker) {
           :tracker="t"
           :by-date="mapsById.get(t.id) || new Map()"
           :today="today"
+          :weeks="weeksVisible"
+          :window-end="windowEnd"
           @set="(date, value) => setValue(t, date, value)"
           @remove="removeTracker(t)"
         />
@@ -354,7 +425,6 @@ async function removeTracker(tracker: Tracker) {
 <style scoped>
 .tk-layout {
   padding: 1rem 1.25rem;
-  max-width: 820px;
   height: calc(100vh - 4rem);
   overflow-y: auto;
 }
@@ -379,6 +449,39 @@ async function removeTracker(tracker: Tracker) {
 }
 .tk-spacer {
   flex: 1;
+}
+.tk-nav {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.tk-nav:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.tk-nav:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.tk-back {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  padding: 0;
+}
+.tk-back:hover {
+  color: var(--text);
 }
 .tk-new,
 .tk-btn {

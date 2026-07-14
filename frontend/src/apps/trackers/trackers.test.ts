@@ -178,4 +178,31 @@ describe('heatmapWeeks', () => {
     expect(count[0][0]!.level).toBe(1)
     expect(count[0][1]!.level).toBe(4)
   })
+
+  it('a past endDate shifts the window back with no future nulls', () => {
+    const weeks = heatmapWeeks(
+      new Map(),
+      '2026-07-07',
+      'check',
+      2,
+      '2026-06-10'
+    )
+    expect(weeks).toHaveLength(2)
+    // Last column is the week of June 10 (Mon June 8), fully lived.
+    expect(weeks[1][0]!.date).toBe('2026-06-08')
+    expect(weeks[1][6]!.date).toBe('2026-06-14')
+    expect(weeks.flat().every(c => c !== null)).toBe(true)
+  })
+
+  it('an endDate beyond today is clamped to today', () => {
+    const weeks = heatmapWeeks(
+      new Map(),
+      '2026-07-07',
+      'check',
+      1,
+      '2026-08-01'
+    )
+    expect(weeks[0][1]!.date).toBe('2026-07-07')
+    expect(weeks[0][2]).toBeNull()
+  })
 })
