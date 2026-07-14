@@ -15,6 +15,7 @@
   "dependencies": {
     "@fontsource/vt323": "^5.2.7",
     "@types/markdown-it": "^14.1.2",
+    "@vladmandic/face-api": "^1.7.15",
     "@vueuse/core": "^14.2.1",
     "flatpickr": "^4.6.13",
     "heic-to": "^1.5.2",

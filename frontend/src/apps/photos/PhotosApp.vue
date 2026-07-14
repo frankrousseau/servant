@@ -10,6 +10,13 @@ import {
   zonedToUtcISO
 } from '../../lib/datetime'
 import { contactName, contactInitials } from '../../lib/contact'
+import FaceChip from './FaceChip.vue'
+import {
+  clusterFaces,
+  facesOf,
+  namedReferences,
+  type FaceCluster
+} from './faces'
 import {
   batchesDone,
   captureVideoFrame,
@@ -262,6 +269,130 @@ async function rebuildVideoThumbs() {
   }
   fixingVideos.value = null
   await reload()
+}
+
+// ----- face detection (browser-side, see faceScan.ts) -----
+
+// The photo the detector can decode: the 1920px display JPEG when it
+// exists, else the original for browser-readable formats. HEIC originals
+// without a display JPEG need "Fix previews" first.
+function faceScanSrc(p: Entry): string | null {
+  if (isVideo(p)) return null
+  const display = field(p, 'display_path') as string
+  if (display) return display
+  const mime = ((field(p, 'mime_type') as string) || '').toLowerCase()
+  const path = field(p, 'path') as string
+  if (path && mime.startsWith('image/') && !mime.includes('hei')) return path
+  return null
+}
+
+const missingFaces = computed(
+  () =>
+    allPhotos.value.filter(p => !('faces' in p.data) && faceScanSrc(p)).length
+)
+const anyFaces = computed(() => allPhotos.value.some(p => facesOf(p).length))
+const scanningFaces = ref<{ done: number; total: number } | null>(null)
+
+async function scanFaces() {
+  const targets = allPhotos.value.filter(
+    p => !('faces' in p.data) && faceScanSrc(p)
+  )
+  if (!targets.length || scanningFaces.value) return
+  scanningFaces.value = { done: 0, total: targets.length }
+  const { detectFaces } = await import('./faceScan')
+  for (const p of targets) {
+    try {
+      const faces = await detectFaces(faceScanSrc(p)!)
+      const updated = await props.ctx.api.entries.update(p.id, {
+        data: { ...p.data, faces }
+      })
+      allPhotos.value = allPhotos.value.map(x =>
+        x.id === updated.id ? updated : x
+      )
+    } catch (e) {
+      uploadErrors.value.push(
+        `${field(p, 'filename') || 'photo'}: ${
+          e instanceof Error ? e.message : 'face scan failed'
+        }`
+      )
+    } finally {
+      if (scanningFaces.value) scanningFaces.value.done++
+    }
+  }
+  scanningFaces.value = null
+}
+
+// ----- naming face clusters -----
+
+interface ClusterRow {
+  cluster: FaceCluster
+  assign: string // selected contact id
+  done?: string // contact name once tagged
+}
+
+const faceModalActive = ref(false)
+const faceRows = ref<ClusterRow[]>([])
+const namingCluster = ref(false)
+
+const contactOptions = computed(() => [
+  { value: '', label: 'Who is this?' },
+  ...allContacts.value
+    .map(c => ({ value: c.id, label: contactName(c) }))
+    .sort((a, b) => a.label.localeCompare(b.label))
+])
+
+const photoById = computed(() => new Map(allPhotos.value.map(p => [p.id, p])))
+function chipSrc(photoId: string): string {
+  const p = photoById.value.get(photoId)
+  return p ? getThumbPath(p) : ''
+}
+
+function openFaceModal() {
+  faceRows.value = clusterFaces(
+    allPhotos.value,
+    namedReferences(allPhotos.value)
+  ).map(c => ({ cluster: c, assign: c.suggestedPersonId || '' }))
+  faceModalActive.value = true
+}
+
+// Tags every photo of the cluster with the chosen contact (through the
+// regular people mechanism) and pins the person on each face, making it a
+// reference for future suggestions.
+async function nameCluster(row: ClusterRow) {
+  const contact = allContacts.value.find(c => c.id === row.assign)
+  if (!contact || row.done || namingCluster.value) return
+  namingCluster.value = true
+  const name = contactName(contact)
+  try {
+    const byPhoto = new Map<string, number[]>()
+    for (const r of row.cluster.faces) {
+      byPhoto.set(r.photoId, [...(byPhoto.get(r.photoId) || []), r.index])
+    }
+    for (const [photoId, indexes] of byPhoto) {
+      const photo = photoById.value.get(photoId)
+      if (!photo) continue
+      const faces = facesOf(photo).map((f, idx) =>
+        indexes.includes(idx) ? { ...f, person_id: contact.id } : f
+      )
+      const people = getPeople(photo)
+      const newPeople = people.some(pp => pp.id === contact.id)
+        ? people
+        : [...people, { id: contact.id, name }]
+      const updated = await props.ctx.api.entries.update(photoId, {
+        data: { ...photo.data, faces, people: newPeople }
+      })
+      allPhotos.value = allPhotos.value.map(x =>
+        x.id === updated.id ? updated : x
+      )
+    }
+    row.done = name
+  } catch (e) {
+    uploadErrors.value.push(
+      `tagging failed: ${e instanceof Error ? e.message : 'unknown error'}`
+    )
+  } finally {
+    namingCluster.value = false
+  }
 }
 
 const hasFilters = computed(
@@ -804,6 +935,21 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
               : `Fix video thumbs (${missingVideoThumbs})`
           }}
         </button>
+        <button
+          v-if="missingFaces > 0 || scanningFaces"
+          class="ph-btn"
+          :disabled="!!scanningFaces"
+          @click="scanFaces"
+        >
+          {{
+            scanningFaces
+              ? `Scanning faces ${scanningFaces.done}/${scanningFaces.total}…`
+              : `Scan faces (${missingFaces})`
+          }}
+        </button>
+        <button v-if="anyFaces" class="ph-btn" @click="openFaceModal">
+          Faces
+        </button>
         <button class="ph-btn" @click="enterSelect">Select</button>
         <label class="ph-btn">
           + Upload<input
@@ -988,6 +1134,60 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   </div>
 
   <Teleport to="body">
+    <div
+      v-if="faceModalActive"
+      class="ph-modal-overlay"
+      @click.self="faceModalActive = false"
+    >
+      <div class="ph-modal ph-modal--faces">
+        <h3 class="ph-modal-title">Faces</h3>
+        <p v-if="!faceRows.length" class="ph-faces-empty">
+          No unnamed faces.
+          {{
+            missingFaces > 0
+              ? 'Run "Scan faces" to detect them first.'
+              : 'Everyone is tagged.'
+          }}
+        </p>
+        <div
+          v-for="(row, i) in faceRows"
+          :key="i"
+          class="ph-face-row"
+          :class="{ 'ph-face-row--done': row.done }"
+        >
+          <div class="ph-face-chips">
+            <FaceChip
+              v-for="(f, j) in row.cluster.faces.slice(0, 5)"
+              :key="j"
+              :src="chipSrc(f.photoId)"
+              :box="f.face.box"
+            />
+          </div>
+          <span class="ph-face-count"
+            >{{ row.cluster.faces.length }}
+            {{ row.cluster.faces.length === 1 ? 'face' : 'faces' }}</span
+          >
+          <span v-if="row.done" class="ph-face-done">{{ row.done }}</span>
+          <template v-else>
+            <ComboBox
+              class="ph-face-pick"
+              v-model="row.assign"
+              :options="contactOptions"
+            />
+            <button
+              class="ph-btn ph-btn--primary"
+              :disabled="!row.assign || namingCluster"
+              @click="nameCluster(row)"
+            >
+              Tag
+            </button>
+          </template>
+        </div>
+        <div class="ph-modal-actions">
+          <button class="ph-btn" @click="faceModalActive = false">Close</button>
+        </div>
+      </div>
+    </div>
     <div
       v-if="dateModalActive"
       class="ph-modal-overlay"
@@ -1566,6 +1766,52 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 .ph-date-row {
   display: flex;
   gap: 0.5rem;
+}
+.ph-modal--faces {
+  max-width: 620px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.ph-faces-empty {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+.ph-face-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.ph-face-row:last-of-type {
+  border-bottom: none;
+  margin-bottom: 0.5rem;
+}
+.ph-face-row--done {
+  opacity: 0.55;
+}
+.ph-face-chips {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.ph-face-count {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.ph-face-pick {
+  margin-left: auto;
+  width: 180px;
+  flex-shrink: 0;
+}
+.ph-face-done {
+  margin-left: auto;
+  color: var(--primary);
+  font-size: 0.85rem;
 }
 .ph-modal-suggestions {
   display: flex;

@@ -17,7 +17,8 @@ defmodule ServantWeb do
   those modules here.
   """
 
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt index.html)
+  # `models` holds the face-detection weights (frontend/public/models).
+  def static_paths, do: ~w(assets fonts images models favicon.ico robots.txt index.html)
 
   def router do
     quote do
