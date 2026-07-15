@@ -86,6 +86,43 @@ defmodule ServantWeb.CalDAVControllerTest do
     assert body =~ "getctag"
   end
 
+  test "agendas referenced only by events become collections too", %{conn: conn} do
+    {conn, user} = basic_setup(conn)
+
+    {:ok, _} =
+      Data.create_entry(user.id, %{
+        "kind" => "event",
+        "source" => "manual",
+        "title" => "Yoga",
+        "occurred_at" => "2026-07-20T18:00:00Z",
+        "data" => %{"calendar" => "Sport", "summary" => "Yoga"}
+      })
+
+    home =
+      conn
+      |> put_req_header("depth", "1")
+      |> dav("PROPFIND", "/dav/calendars/#{user.id}")
+
+    assert response(home, 207) =~ "Sport"
+
+    listing =
+      conn
+      |> put_req_header("depth", "1")
+      |> dav("PROPFIND", "/dav/calendars/#{user.id}/Sport")
+
+    assert response(listing, 207) =~ ".ics"
+
+    report =
+      dav(conn, "REPORT", "/dav/calendars/#{user.id}/Sport", """
+      <?xml version="1.0" encoding="utf-8" ?>
+      <c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+        <d:prop><d:getetag/><c:calendar-data/></d:prop>
+      </c:calendar-query>
+      """)
+
+    assert response(report, 207) =~ "SUMMARY:Yoga"
+  end
+
   test "another user's tree is a 404", %{conn: conn} do
     {conn, _user} = basic_setup(conn)
     other = user_fixture()

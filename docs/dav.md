@@ -26,7 +26,8 @@ them.
 ## What syncs
 
 - **Calendars**: one CalDAV collection per calendar ("agenda"): the
-  ever-present `Manual` plus each calendar created in the app.
+  ever-present `Manual`, each calendar created in the app, and each
+  agenda name your own events reference (agendas without an entity).
 - **Contacts**: a single `contacts` address book.
 - Only user-authored entries are exposed (source `manual`, `caldav` or
   `carddav`). Connector-synced events and contacts (iCal feeds, vCard

@@ -14,13 +14,17 @@ defmodule Servant.CalDAV do
 
   @doc "Calendar collection names for a user."
   def calendars(user_id) do
-    names =
+    entity_names =
       user_id
       |> Data.all_entries(%{"kind" => "calendar"})
       |> Enum.map(&String.trim(&1.title || ""))
-      |> Enum.reject(&(&1 == ""))
 
-    Enum.uniq(["Manual" | names])
+    # Agendas can also exist purely as event references (the app derives its
+    # agenda list the same way): without these, a user-authored event filed
+    # under an entity-less agenda would be invisible to DAV clients.
+    event_names = Enum.map(exposed_events(user_id), &calendar_of/1)
+
+    Enum.uniq(["Manual" | Enum.reject(entity_names ++ event_names, &(&1 == ""))])
   end
 
   @doc "Events of one calendar collection."
