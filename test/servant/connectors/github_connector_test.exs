@@ -25,6 +25,48 @@ defmodule Servant.Connectors.GithubConnectorTest do
       assert {:error, "username is required"} =
                GithubConnector.init(%{}, %{"token" => "ghp_abc"})
     end
+
+    test "parses the exclude_repos list" do
+      config = Map.put(@valid, "exclude_repos", "Satz0249/heliakitsu, evil/*\nother/repo")
+      assert {:ok, state} = GithubConnector.init(%{}, config)
+      assert state.exclude_repos == ["satz0249/heliakitsu", "evil/*", "other/repo"]
+    end
+  end
+
+  describe "rate_limit_wait_ms/2" do
+    defp resp(headers) do
+      %Req.Response{status: 403, headers: Map.new(headers, fn {k, v} -> {k, [v]} end)}
+    end
+
+    test "honors retry-after, clamped to sane bounds" do
+      assert GithubConnector.rate_limit_wait_ms(resp([{"retry-after", "30"}]), 0) == 30_000
+      assert GithubConnector.rate_limit_wait_ms(resp([{"retry-after", "0"}]), 0) == 1_000
+      assert GithubConnector.rate_limit_wait_ms(resp([{"retry-after", "999"}]), 0) == 90_000
+    end
+
+    test "falls back to x-ratelimit-reset when the quota is exhausted" do
+      headers = [{"x-ratelimit-remaining", "0"}, {"x-ratelimit-reset", "1100"}]
+      assert GithubConnector.rate_limit_wait_ms(resp(headers), 1085) == 15_000
+    end
+
+    test "a 403 without rate-limit headers is not a wait" do
+      assert GithubConnector.rate_limit_wait_ms(resp([]), 0) == nil
+
+      headers = [{"x-ratelimit-remaining", "12"}, {"x-ratelimit-reset", "1100"}]
+      assert GithubConnector.rate_limit_wait_ms(resp(headers), 1085) == nil
+    end
+  end
+
+  describe "excluded_repo?/2" do
+    test "matches exact repos and owner wildcards, case-insensitively" do
+      patterns = ["satz0249/heliakitsu", "evil/*"]
+
+      assert GithubConnector.excluded_repo?("Satz0249/HeliaKitsu", patterns)
+      assert GithubConnector.excluded_repo?("evil/anything", patterns)
+      refute GithubConnector.excluded_repo?("cgwire/kitsu", patterns)
+      refute GithubConnector.excluded_repo?(nil, patterns)
+      refute GithubConnector.excluded_repo?("satz0249/heliakitsu", [])
+    end
   end
 
   describe "persisted_config/1" do

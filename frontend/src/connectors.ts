@@ -486,6 +486,13 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
         type: 'password',
         placeholder: 'PAT with read access to your repositories',
         required: true
+      },
+      {
+        key: 'exclude_repos',
+        label: 'Excluded repositories',
+        type: 'text',
+        placeholder: 'owner/repo or owner/*, comma-separated',
+        required: false
       }
     ],
     configHint: { username: '', token: '' }

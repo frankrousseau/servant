@@ -7,11 +7,21 @@ defmodule Servant.Connectors.GithubConnector do
   maintaining a repo list. Only commit metadata is stored: repo, sha, message,
   author, dates, URL; no diffs or per-commit stats.
 
+  The search also matches copies of repositories the user contributed to
+  (someone re-uploading a project keeps its commit authors); the optional
+  `exclude_repos` config (comma-separated `owner/name` or `owner/*`) filters
+  those out.
+
   Search results are capped at 1000 per query, so the sync walks history in
   ascending author-date windows, advancing a persisted `last_author_date`
   cursor. The cursor comparison is inclusive (`>=`) to avoid skipping
   same-second commits; the resulting overlap is deduplicated by the entries
   upsert on `external_id` (the commit sha).
+
+  The Search API allows ~30 requests/minute: consecutive requests within one
+  sync are spaced by ~2s and a rate-limited response is retried after the
+  advertised delay, so a full multi-year backfill completes in a single
+  (slow) sync instead of needing to be relaunched.
   """
 
   use Servant.Connectors.Connector
@@ -20,6 +30,9 @@ defmodule Servant.Connectors.GithubConnector do
   @per_page 100
   # GitHub Search returns at most 1000 results per query
   @search_cap 1000
+  # Search rate limit is ~30 req/min: stay just under it.
+  @throttle_ms 2_100
+  @max_rate_limit_wait_ms 90_000
 
   @impl true
   def id, do: "github"
@@ -50,9 +63,17 @@ defmodule Servant.Connectors.GithubConnector do
          %{
            token: token,
            username: username,
+           exclude_repos: parse_excludes(config_value(config, "exclude_repos", "")),
            last_author_date: config_value(config, "last_author_date")
          }}
     end
+  end
+
+  defp parse_excludes(value) do
+    value
+    |> to_string()
+    |> String.downcase()
+    |> String.split([",", " ", "\n"], trim: true)
   end
 
   @impl true
@@ -64,11 +85,27 @@ defmodule Servant.Connectors.GithubConnector do
   def sync(state) do
     case fetch_all_commits(state, state.last_author_date, []) do
       {:ok, items, new_cursor} ->
-        {:ok, Enum.map(items, &build_entry/1), %{state | last_author_date: new_cursor}}
+        entries =
+          items
+          |> Enum.reject(
+            &excluded_repo?(get_in(&1, ["repository", "full_name"]), state.exclude_repos)
+          )
+          |> Enum.map(&build_entry/1)
+
+        {:ok, entries, %{state | last_author_date: new_cursor}}
 
       {:error, reason} ->
         {:error, reason, state}
     end
+  end
+
+  @doc false
+  def excluded_repo?(_repo, []), do: false
+
+  def excluded_repo?(repo, patterns) do
+    repo = String.downcase(repo || "")
+    owner_wildcard = (repo |> String.split("/") |> hd()) <> "/*"
+    Enum.any?(patterns, &(&1 == repo or &1 == owner_wildcard))
   end
 
   # --- Commit fetching ---
@@ -84,6 +121,7 @@ defmodule Servant.Connectors.GithubConnector do
         last_date = last_author_date(items) || cursor
 
         if length(items) >= @search_cap and total > length(items) and last_date != cursor do
+          Process.sleep(@throttle_ms)
           fetch_all_commits(state, last_date, all)
         else
           {:ok, all, last_date}
@@ -117,11 +155,12 @@ defmodule Servant.Connectors.GithubConnector do
       {"x-github-api-version", "2022-11-28"}
     ]
 
-    case Req.get(url, Servant.HTTP.req_options(headers: headers)) do
+    case search_request(url, headers) do
       {:ok, %Req.Response{status: 200, body: %{"items" => items, "total_count" => total}}} ->
         all = acc ++ items
 
         if length(items) == @per_page and length(all) < @search_cap do
+          Process.sleep(@throttle_ms)
           fetch_page(state, cursor, page + 1, all)
         else
           {:ok, all, total}
@@ -142,6 +181,51 @@ defmodule Servant.Connectors.GithubConnector do
 
       {:error, reason} ->
         {:error, "HTTP error: #{inspect(reason)}"}
+    end
+  end
+
+  # Sleeps out a rate-limited response (per the advertised delay) and retries
+  # instead of failing the sync; a 403 without rate-limit headers (bad scopes)
+  # falls through to the caller's error handling.
+  defp search_request(url, headers, retries \\ 2) do
+    case Req.get(url, Servant.HTTP.req_options(headers: headers)) do
+      {:ok, %Req.Response{status: status} = resp}
+      when status in [403, 429] and retries > 0 ->
+        case rate_limit_wait_ms(resp, System.system_time(:second)) do
+          nil ->
+            {:ok, resp}
+
+          wait_ms ->
+            Process.sleep(wait_ms)
+            search_request(url, headers, retries - 1)
+        end
+
+      other ->
+        other
+    end
+  end
+
+  @doc false
+  def rate_limit_wait_ms(resp, now_unix) do
+    retry_after = header_int(resp, "retry-after")
+    reset = header_int(resp, "x-ratelimit-reset")
+    remaining = header_int(resp, "x-ratelimit-remaining")
+
+    cond do
+      retry_after -> clamp_wait(retry_after * 1000)
+      remaining == 0 and is_integer(reset) -> clamp_wait((reset - now_unix) * 1000)
+      true -> nil
+    end
+  end
+
+  defp clamp_wait(ms), do: ms |> max(1_000) |> min(@max_rate_limit_wait_ms)
+
+  defp header_int(resp, name) do
+    with [value | _] <- Req.Response.get_header(resp, name),
+         {n, _} <- Integer.parse(value) do
+      n
+    else
+      _ -> nil
     end
   end
 
