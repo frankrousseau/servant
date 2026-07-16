@@ -147,6 +147,7 @@ onMounted(fetchConnectors)
             class="active-card"
             :class="{ 'has-error': c.error }"
             @click="router.push(`/connectors/${c.id}`)"
+            v-click-key
             role="button"
             tabindex="0"
           >
@@ -206,6 +207,7 @@ onMounted(fetchConnectors)
               :key="def.id"
               class="catalog-card"
               @click="openSetup(def)"
+              v-click-key
               role="button"
               tabindex="0"
             >

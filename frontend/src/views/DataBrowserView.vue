@@ -307,6 +307,7 @@ onMounted(() => {
         :key="entry.id"
         class="entry-row"
         @click="openDetail(entry)"
+        v-click-key
         role="button"
         tabindex="0"
       >

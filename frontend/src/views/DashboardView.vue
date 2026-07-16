@@ -310,6 +310,7 @@ onMounted(fetchData)
                 :key="entry.id"
                 class="activity-item"
                 @click="goToEntry(entry)"
+                v-click-key
                 role="button"
                 tabindex="0"
               >
@@ -342,6 +343,7 @@ onMounted(fetchData)
               <div
                 class="stat-card stat-card--total"
                 @click="goToData()"
+                v-click-key
                 role="button"
                 tabindex="0"
               >
@@ -373,6 +375,7 @@ onMounted(fetchData)
                 :key="kind"
                 class="stat-card"
                 @click="goToData(kind as string)"
+                v-click-key
                 role="button"
                 tabindex="0"
               >

@@ -449,6 +449,14 @@ select:focus {
   border-color: var(--primary);
 }
 
+/* Keyboard focus needs more than a 1px border-color change (contrast can fall
+   below 3:1 on some themes): add a visible ring for :focus-visible. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.4);
+}
+
 button {
   background: var(--primary);
   color: var(--primary-contrast);

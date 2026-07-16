@@ -520,6 +520,7 @@ async function deleteContact() {
               v-for="e in linkedEvents.slice(0, 8)"
               :key="e.id"
               class="ct-linked-row"
+              v-click-key
               role="button"
               tabindex="0"
               @click="router.push('/apps/calendar')"
@@ -540,6 +541,7 @@ async function deleteContact() {
               v-for="n in mentioningNotes"
               :key="n.id"
               class="ct-linked-row"
+              v-click-key
               role="button"
               tabindex="0"
               @click="openNote(n)"
