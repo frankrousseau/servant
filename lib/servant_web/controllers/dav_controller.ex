@@ -201,50 +201,52 @@ defmodule ServantWeb.DavController do
 
   defp report(conn, ["calendars", uid, cal]) do
     with_calendar(conn, uid, cal, fn ->
-      {:ok, body, conn} = read_body(conn)
-      u = user(conn)
-      tz = user_tz(conn)
-      props = fn event -> data_props(event, ICS.to_ics(event, tz), "c:calendar-data") end
+      with_body(conn, fn body, conn ->
+        u = user(conn)
+        tz = user_tz(conn)
+        props = fn event -> data_props(event, ICS.to_ics(event, tz), "c:calendar-data") end
 
-      responses =
-        if String.contains?(body, "multiget") do
-          for href <- extract_hrefs(body) do
-            case CalDAV.get_event(u.id, cal, basename(href)) do
-              nil -> not_found_xml(href)
-              event -> response_xml(event_href(u, cal, event), props.(event))
+        responses =
+          if String.contains?(body, "multiget") do
+            for href <- extract_hrefs(body) do
+              case CalDAV.get_event(u.id, cal, basename(href)) do
+                nil -> not_found_xml(href)
+                event -> response_xml(event_href(u, cal, event), props.(event))
+              end
+            end
+          else
+            for event <- CalDAV.events(u.id, cal) do
+              response_xml(event_href(u, cal, event), props.(event))
             end
           end
-        else
-          for event <- CalDAV.events(u.id, cal) do
-            response_xml(event_href(u, cal, event), props.(event))
-          end
-        end
 
-      multistatus(conn, responses)
+        multistatus(conn, responses)
+      end)
     end)
   end
 
   defp report(conn, ["addressbooks", uid, @addressbook]) do
     with_owner(conn, uid, fn ->
-      {:ok, body, conn} = read_body(conn)
-      u = user(conn)
-      props = fn contact -> data_props(contact, VCard.to_vcf(contact), "card:address-data") end
+      with_body(conn, fn body, conn ->
+        u = user(conn)
+        props = fn contact -> data_props(contact, VCard.to_vcf(contact), "card:address-data") end
 
-      responses =
-        if String.contains?(body, "multiget") do
-          for href <- extract_hrefs(body) do
-            case CardDAV.get_contact(u.id, basename(href)) do
-              nil -> not_found_xml(href)
-              contact -> response_xml(contact_href(u, contact), props.(contact))
+        responses =
+          if String.contains?(body, "multiget") do
+            for href <- extract_hrefs(body) do
+              case CardDAV.get_contact(u.id, basename(href)) do
+                nil -> not_found_xml(href)
+                contact -> response_xml(contact_href(u, contact), props.(contact))
+              end
+            end
+          else
+            for contact <- CardDAV.contacts(u.id) do
+              response_xml(contact_href(u, contact), props.(contact))
             end
           end
-        else
-          for contact <- CardDAV.contacts(u.id) do
-            response_xml(contact_href(u, contact), props.(contact))
-          end
-        end
 
-      multistatus(conn, responses)
+        multistatus(conn, responses)
+      end)
     end)
   end
 
@@ -310,29 +312,29 @@ defmodule ServantWeb.DavController do
   defp put_resource(conn, _), do: send_resp(conn, 404, "")
 
   defp upsert(conn, existing, put_fun) do
-    {:ok, body, conn} = read_body(conn)
+    with_body(conn, fn body, conn ->
+      cond do
+        get_req_header(conn, "if-none-match") == ["*"] and existing != nil ->
+          send_resp(conn, 412, "")
 
-    cond do
-      get_req_header(conn, "if-none-match") == ["*"] and existing != nil ->
-        send_resp(conn, 412, "")
+        not etag_matches?(conn, existing) ->
+          send_resp(conn, 412, "")
 
-      not etag_matches?(conn, existing) ->
-        send_resp(conn, 412, "")
+        true ->
+          case put_fun.(body) do
+            {:ok, entry, verb} ->
+              conn
+              |> put_resp_header("etag", Dav.etag(entry))
+              |> send_resp(if(verb == :created, do: 201, else: 204), "")
 
-      true ->
-        case put_fun.(body) do
-          {:ok, entry, verb} ->
-            conn
-            |> put_resp_header("etag", Dav.etag(entry))
-            |> send_resp(if(verb == :created, do: 201, else: 204), "")
+            {:error, reason} when is_binary(reason) ->
+              send_resp(conn, 400, reason)
 
-          {:error, reason} when is_binary(reason) ->
-            send_resp(conn, 400, reason)
-
-          {:error, _changeset} ->
-            send_resp(conn, 409, "")
-        end
-    end
+            {:error, _changeset} ->
+              send_resp(conn, 409, "")
+          end
+      end
+    end)
   end
 
   defp delete_resource(conn, ["calendars", uid, cal, name]) do
@@ -357,12 +359,27 @@ defmodule ServantWeb.DavController do
         send_resp(conn, 404, "")
 
       entry ->
-        if etag_matches?(conn, entry) do
-          {:ok, _} = delete_fun.(entry)
-          send_resp(conn, 204, "")
-        else
-          send_resp(conn, 412, "")
+        cond do
+          not etag_matches?(conn, entry) ->
+            send_resp(conn, 412, "")
+
+          match?({:ok, _}, delete_fun.(entry)) ->
+            send_resp(conn, 204, "")
+
+          true ->
+            send_resp(conn, 500, "")
         end
+    end
+  end
+
+  # Reads the request body, answering 413 rather than crashing on a body larger
+  # than Plug's default 8 MB limit (a huge multiget REPORT, a vCard with a big
+  # embedded photo).
+  defp with_body(conn, fun) do
+    case read_body(conn) do
+      {:ok, body, conn} -> fun.(body, conn)
+      {:more, _partial, conn} -> send_resp(conn, 413, "")
+      {:error, _reason} -> send_resp(conn, 400, "")
     end
   end
 

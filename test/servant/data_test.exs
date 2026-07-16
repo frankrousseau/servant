@@ -7,9 +7,9 @@ defmodule Servant.DataTest do
     user_a = user_fixture()
     user_b = user_fixture()
 
-    a1 = entry_fixture(user_a.id, %{"kind" => "note", "source" => "a", "title" => "A1"})
+    a1 = entry_fixture(user_a.id, %{"kind" => "task", "source" => "a", "title" => "A1"})
     a2 = entry_fixture(user_a.id, %{"kind" => "photo", "source" => "a", "title" => "A2"})
-    b1 = entry_fixture(user_b.id, %{"kind" => "note", "source" => "b", "title" => "B1"})
+    b1 = entry_fixture(user_b.id, %{"kind" => "task", "source" => "b", "title" => "B1"})
 
     %{user_a: user_a, user_b: user_b, a1: a1, a2: a2, b1: b1}
   end
@@ -27,14 +27,14 @@ defmodule Servant.DataTest do
     end
 
     test "stats are per-user", %{user_a: a, user_b: b} do
-      assert Data.stats(a.id) == %{"note" => 1, "photo" => 1}
-      assert Data.stats(b.id) == %{"note" => 1}
+      assert Data.stats(a.id) == %{"task" => 1, "photo" => 1}
+      assert Data.stats(b.id) == %{"task" => 1}
     end
 
     test "list_sources / list_kinds are per-user", %{user_a: a, user_b: b} do
       assert Enum.sort(Data.list_sources(a.id)) == ["a"]
       assert Enum.sort(Data.list_sources(b.id)) == ["b"]
-      assert Enum.sort(Data.list_kinds(a.id)) == ["note", "photo"]
+      assert Enum.sort(Data.list_kinds(a.id)) == ["photo", "task"]
     end
 
     test "get_entry! cannot read another user's entry", %{user_a: a, b1: b1} do
@@ -54,8 +54,8 @@ defmodule Servant.DataTest do
     end
 
     test "filters never cross the user boundary", %{user_a: a, a1: a1, b1: b1} do
-      # B has a "note" too, but A's note filter must surface only A's.
-      ids = a.id |> Data.list_entries(%{"kind" => "note"}) |> Enum.map(& &1.id)
+      # B has a "task" too, but A's task filter must surface only A's.
+      ids = a.id |> Data.list_entries(%{"kind" => "task"}) |> Enum.map(& &1.id)
       assert ids == [a1.id]
       refute b1.id in ids
     end
@@ -97,7 +97,7 @@ defmodule Servant.DataTest do
     test "matches title and JSON data substrings", %{user_a: a} do
       hit =
         entry_fixture(a.id, %{
-          "kind" => "note",
+          "kind" => "task",
           "source" => "a",
           "title" => "Groceries",
           "data" => %{"body" => "buy zorglub"}
@@ -109,7 +109,7 @@ defmodule Servant.DataTest do
     end
 
     test "combines with kind and stays user-scoped", %{user_a: a, user_b: b, a1: a1} do
-      assert a.id |> Data.list_entries(%{"q" => "A1", "kind" => "note"}) |> Enum.map(& &1.id) ==
+      assert a.id |> Data.list_entries(%{"q" => "A1", "kind" => "task"}) |> Enum.map(& &1.id) ==
                [a1.id]
 
       assert a.id |> Data.list_entries(%{"q" => "A1", "kind" => "photo"}) |> Enum.map(& &1.id) ==

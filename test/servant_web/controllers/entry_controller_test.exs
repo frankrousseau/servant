@@ -27,10 +27,17 @@ defmodule ServantWeb.EntryControllerTest do
 
   describe "create" do
     test "201 with valid params", %{conn: conn} do
-      conn = post(conn, "/api/entries", %{"kind" => "note", "source" => "ui", "title" => "Hi"})
+      conn =
+        post(conn, "/api/entries", %{"kind" => "bookmark", "source" => "ui", "title" => "Hi"})
+
       assert %{"data" => data} = json_response(conn, 201)
       assert data["title"] == "Hi"
-      assert data["kind"] == "note"
+      assert data["kind"] == "bookmark"
+    end
+
+    test "422 when creating a note (must use the notes API)", %{conn: conn} do
+      conn = post(conn, "/api/entries", %{"kind" => "note", "source" => "ui", "title" => "Hi"})
+      assert %{"error" => _} = json_response(conn, 422)
     end
 
     test "422 when required fields are missing", %{conn: conn} do
@@ -222,7 +229,7 @@ defmodule ServantWeb.EntryControllerTest do
     end
 
     test "refuses to update a note through the generic entries API", %{conn: conn, user: user} do
-      note = entry_fixture(user.id, %{"kind" => "note", "source" => "notes"})
+      {:ok, note} = Servant.Notes.create_note(user.id, %{"title" => "A note"})
       conn = put(conn, "/api/entries/#{note.id}", %{"title" => "hijacked"})
       assert %{"error" => _} = json_response(conn, 422)
     end

@@ -39,6 +39,9 @@ defmodule Servant.Media.PhotoEdit do
           {:ok, updated}
 
         error ->
+          # The entry still points at the old files; drop the freshly written
+          # rotated original and its derivatives so they don't leak on disk.
+          remove_files(entry.user_id, data)
           error
       end
     end
@@ -82,7 +85,9 @@ defmodule Servant.Media.PhotoEdit do
   defp put_derived(data, key, {:ok, url, _relative}), do: Map.put(data, key, url)
   defp put_derived(data, key, :error), do: Map.delete(data, key)
 
-  defp remove_old_files(%Entry{user_id: user_id, data: data}) do
+  defp remove_old_files(%Entry{user_id: user_id, data: data}), do: remove_files(user_id, data)
+
+  defp remove_files(user_id, data) do
     for key <- ["path", "thumb_path", "display_path"],
         url = data[key],
         is_binary(url) do

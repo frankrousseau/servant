@@ -285,12 +285,38 @@ defmodule Servant.Notes do
     )
     |> Repo.update_all(set: [target_note_id: nil])
 
+    # Only claim keys this note can unambiguously own. The full path is always
+    # unique, but a bare `[[title]]` must stay unresolved when several notes
+    # share that title (same rule as resolve_targets); claiming it here would let
+    # the last-written same-named note steal every such backlink.
+    claimable = claimable_keys(user_id, note)
+
     from(l in NoteLink,
-      where: l.user_id == ^user_id and l.kind == "wikilink" and l.target_path in ^keys
+      where: l.user_id == ^user_id and l.kind == "wikilink" and l.target_path in ^claimable
     )
     |> Repo.update_all(set: [target_note_id: note.id])
 
     :ok
+  end
+
+  defp claimable_keys(user_id, %Entry{} = note) do
+    folder = note.data |> Map.get("folder", "") |> to_string()
+    full = canon(full_path(folder, note.title || ""))
+    title = canon(note.title || "")
+
+    if title_unique?(user_id, note.id, title) do
+      Enum.uniq([title, full])
+    else
+      [full]
+    end
+  end
+
+  defp title_unique?(user_id, note_id, canon_title) do
+    notes_query(user_id)
+    |> where([e], e.id != ^note_id)
+    |> select([e], e.title)
+    |> Repo.all()
+    |> Enum.all?(fn t -> canon(t || "") != canon_title end)
   end
 
   # Ids of notes whose links currently resolve to `note` (including itself, so

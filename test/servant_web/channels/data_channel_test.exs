@@ -38,7 +38,7 @@ defmodule ServantWeb.DataChannelTest do
 
     {:ok, _entry} =
       Data.create_entry(user.id, %{
-        "kind" => "note",
+        "kind" => "bookmark",
         "source" => "test",
         "title" => "Hello"
       })
@@ -48,7 +48,7 @@ defmodule ServantWeb.DataChannelTest do
 
   test "pushes an entry_change event when an entry is deleted", %{socket: socket, user: user} do
     {:ok, entry} =
-      Data.create_entry(user.id, %{"kind" => "note", "source" => "test", "title" => "Bye"})
+      Data.create_entry(user.id, %{"kind" => "bookmark", "source" => "test", "title" => "Bye"})
 
     {:ok, _reply, _socket} = subscribe_and_join(socket, "data:#{user.id}", %{})
 

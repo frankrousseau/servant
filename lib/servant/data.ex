@@ -140,18 +140,25 @@ defmodule Servant.Data do
   end
 
   def create_entry(user_id, attrs) do
-    result =
-      %Entry{user_id: user_id}
-      |> Entry.changeset(attrs)
-      |> Repo.insert()
+    # Notes must go through Servant.Notes so their wikilinks/mentions are parsed
+    # into note_links; creating one here would leave the graph incomplete. Mirror
+    # of the guard in update_entry/3.
+    if get_attr(attrs, :kind) == "note" do
+      {:error, :notes_api_required}
+    else
+      result =
+        %Entry{user_id: user_id}
+        |> Entry.changeset(attrs)
+        |> Repo.insert()
 
-    case result do
-      {:ok, entry} ->
-        broadcast(user_id, {:entry_created, entry})
-        {:ok, entry}
+      case result do
+        {:ok, entry} ->
+          broadcast(user_id, {:entry_created, entry})
+          {:ok, entry}
 
-      error ->
-        error
+        error ->
+          error
+      end
     end
   end
 
@@ -195,19 +202,19 @@ defmodule Servant.Data do
     %{
       id: Ecto.UUID.generate(),
       user_id: user_id,
-      kind: field(attrs, :kind),
-      source: field(attrs, :source),
-      external_id: field(attrs, :external_id),
-      title: field(attrs, :title),
-      occurred_at: normalize_datetime(field(attrs, :occurred_at)),
-      data: field(attrs, :data) || %{},
-      metadata: field(attrs, :metadata) || %{},
+      kind: get_attr(attrs, :kind),
+      source: get_attr(attrs, :source),
+      external_id: get_attr(attrs, :external_id),
+      title: get_attr(attrs, :title),
+      occurred_at: normalize_datetime(get_attr(attrs, :occurred_at)),
+      data: get_attr(attrs, :data) || %{},
+      metadata: get_attr(attrs, :metadata) || %{},
       inserted_at: now,
       updated_at: now
     }
   end
 
-  defp field(attrs, key), do: Map.get(attrs, Atom.to_string(key)) || Map.get(attrs, key)
+  defp get_attr(attrs, key), do: Map.get(attrs, Atom.to_string(key)) || Map.get(attrs, key)
 
   defp normalize_datetime(%DateTime{} = dt), do: DateTime.truncate(dt, :second)
 
@@ -260,6 +267,9 @@ defmodule Servant.Data do
   defp delete_entry_file(user_id, %{data: data}) when is_map(data) do
     delete_public_path(user_id, data["path"])
     delete_public_path(user_id, data["thumb_path"])
+    # Photos also carry a full-size display JPEG; without this it would survive
+    # the delete on disk (and stay readable via its /files URL).
+    delete_public_path(user_id, data["display_path"])
     :ok
   end
 

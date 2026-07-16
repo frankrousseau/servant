@@ -435,6 +435,11 @@ defmodule ServantWeb.EntryController do
           |> put_status(:created)
           |> json(%{data: Entry.to_json(entry)})
 
+        {:error, :notes_api_required} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "Notes must be created through the notes API (/api/notes)"})
+
         {:error, changeset} ->
           conn
           |> put_status(:unprocessable_entity)
