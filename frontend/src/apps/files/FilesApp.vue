@@ -16,6 +16,7 @@ import ComboBox from '../../components/ComboBox.vue'
 import type { AppContext, Entry } from '../types'
 import { formatFileSize } from '../../types'
 import { formatDate } from '../../lib/datetime'
+import { safeUrl } from '../../lib/url'
 import {
   batchesDone,
   enqueueUploads,
@@ -216,8 +217,12 @@ async function loadVirtual(folderId: string) {
   }
 }
 
+// Invoice URLs are scraped verbatim from provider portals, so a hostile/MITM'd
+// portal could inject a javascript: URI: filter through safeUrl before any href.
 const invoiceUrl = (e: Entry) =>
-  field<string>(e, 'v') === 'invoice' ? field<string>(e, 'url') || null : null
+  field<string>(e, 'v') === 'invoice'
+    ? safeUrl(field<string>(e, 'url') || '')
+    : null
 
 function openVirtualFile(f: Entry) {
   const v = field<string>(f, 'v')
@@ -225,8 +230,9 @@ function openVirtualFile(f: Entry) {
     props.ctx.navigate(`/apps/notes?selected=${field<string>(f, 'entry_id')}`)
   } else if (v === 'photo' && filePath(f)) {
     window.open(filePath(f)!, '_blank')
-  } else if (v === 'invoice' && field<string>(f, 'url')) {
-    window.open(field<string>(f, 'url'), '_blank')
+  } else if (v === 'invoice') {
+    const url = safeUrl(field<string>(f, 'url') || '')
+    if (url) window.open(url, '_blank', 'noopener')
   }
 }
 
