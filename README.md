@@ -4,28 +4,27 @@ A self-hosted personal data hub. Aggregates data from external services (banking
 
 ## Local development
 
-First-time setup (Erlang 27+, Elixir 1.18+, Node.js 22+; see [DEVELOPMENT.md](DEVELOPMENT.md) for details):
+First-time setup (Erlang 29+, Elixir 1.18+, Node.js 22+; the exact pinned versions are in `.tool-versions`, see [DEVELOPMENT.md](DEVELOPMENT.md) for details):
 
 ```bash
 mix setup
 cd frontend && npm install
 ```
 
-Start the dev environment:
+Start the dev environment in two terminals:
 
 ```bash
-./bin/dev
+mix phx.server              # Phoenix API on port 4001
+cd frontend && npm run dev  # Vite frontend on port 5001
 ```
 
-This starts Phoenix (port 4000) and the Vite frontend (port 5173) in one terminal. Open `http://localhost:5173`. Vite proxies `/api` and `/socket` requests to Phoenix.
-
-To run them separately, see [DEVELOPMENT.md](DEVELOPMENT.md).
+Open `http://localhost:5001`. Vite proxies `/api` and `/socket` requests to Phoenix. See [DEVELOPMENT.md](DEVELOPMENT.md) for more.
 
 ## Features
 
 - **Universal data model**: all data stored as typed entries with JSON payloads
 - **Connector plugin system**: pull data from external services on a schedule
-- **Multi-user**: equal accounts; all API/database queries are scoped per user
+- **Multi-user**: all API/database queries are scoped per user; the first account created is the operator (admin), who additionally sees the cross-user Audit page
 - **API access**: scoped, revocable tokens (issued from Settings) for scripts and agents; full OpenAPI docs and a SwaggerUI browser at `/api/docs`
 - **Real-time**: Phoenix Channels push entry changes to connected clients
 - **Self-hosted**: single binary deployment, SQLite database, runs on a Raspberry Pi
@@ -40,7 +39,7 @@ To run them separately, see [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ### Prerequisites
 
-- Erlang 27+ and Elixir 1.18+
+- Erlang 29+ and Elixir 1.18+ (pinned versions in `.tool-versions`)
 - Node.js 22+: required to build the frontend. Also required **at runtime** if you
   use the **Invoice Collector** connector, which runs Playwright scripts via `node`
   (run `npm install` in `priv/scrapers/`). Not needed at runtime otherwise.
@@ -151,4 +150,7 @@ servant.local {
 2. Register the first user account
 3. Add connectors from the Connectors page
 
-All user accounts are equal; there is no admin/member hierarchy.
+The first account created on a fresh instance becomes the operator (admin); it
+alone can open the Audit page (system health and cross-user access/error logs).
+Data itself stays scoped per user, operator included: there is no way to read
+another account's entries through the API.

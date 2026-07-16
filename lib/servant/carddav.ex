@@ -2,8 +2,9 @@ defmodule Servant.CardDAV do
   @moduledoc """
   Data access for the CardDAV endpoint: a single "contacts" address book
   containing user-authored contacts only (source "manual" or "carddav").
-  Connector-synced contacts (vcard imports) are deliberately excluded:
-  their syncs wholesale-replace entries, so phone edits would be lost.
+  Connector-synced contacts (vcard imports) are deliberately excluded: they
+  are re-fetched on a schedule and don't preserve a phone's raw vCard payload,
+  so exposing them for editing over DAV would drop that payload on the next sync.
   """
 
   alias Servant.CardDAV.VCard

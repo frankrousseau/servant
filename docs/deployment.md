@@ -74,13 +74,13 @@ RUN npm ci
 
 # vite.config.ts writes the build to ../priv/static
 COPY frontend/ ./
-COPY priv/static/ /app/priv/static/
+RUN mkdir -p /app/priv/static
 RUN npm run build
 
 ###############################################################################
 # Stage 2: build the Elixir release
 ###############################################################################
-FROM hexpm/elixir:1.18.3-erlang-27.3.4-debian-bookworm-20260112-slim AS build
+FROM hexpm/elixir:1.20.2-erlang-29.0.3-debian-bookworm-20260623-slim AS build
 
 # Build tools for the exqlite NIF (SQLite is compiled in, no system sqlite needed)
 RUN apt-get update -y \
@@ -124,9 +124,11 @@ ENV LANG=en_US.UTF-8 LANGUAGE=en_US:en LC_ALL=en_US.UTF-8
 
 WORKDIR /app
 
-# Database lives on a mounted volume
-RUN mkdir -p /data && chown nobody:nogroup /data
+# Database and user files live on a mounted volume
+RUN mkdir -p /data/files /data/tmp && chown -R nobody:nogroup /data
 ENV DATABASE_PATH=/data/servant.db
+ENV FILES_DIR=/data/files
+ENV TMP_DIR=/data/tmp
 
 COPY --from=build --chown=nobody:nogroup /app/_build/prod/rel/servant ./
 COPY --chown=nobody:nogroup docker-entrypoint.sh /app/docker-entrypoint.sh
@@ -223,8 +225,8 @@ volumes:
 | `SECRET_KEY_BASE` | ✅ | _(none)_ | Signs tokens/cookies. Generate with `mix phx.gen.secret`. |
 | `PHX_HOST` | ✅ | `example.com` | Public hostname (used to build URLs). |
 | `DATABASE_PATH` | ✅ | `/data/servant.db` (set in image) | Absolute path to the SQLite file; must be on the volume. |
-| `FILES_DIR` | ✅ | `/data/files` (set in image) | Persistent user files (`apps/`, `connectors/`, `account/`). |
-| `TMP_DIR` | ✅ | `/data/tmp` (set in image) | Scratch space for imports and processing (safe to purge). |
+| `FILES_DIR` | image | `/data/files` (set in image) | Persistent user files (`apps/`, `connectors/`, `account/`). The image sets it to the volume; only override it if you change the layout. |
+| `TMP_DIR` | image | `/data/tmp` (set in image) | Scratch space for imports and processing (safe to purge). Set by the image. |
 | `PHX_SERVER` | ✅ | `true` (set in image) | Must be truthy or the HTTP server won't start. |
 | `PORT` | | `4000` | HTTP listen port inside the container. |
 | `POOL_SIZE` | | `5` | SQLite connection pool size. |

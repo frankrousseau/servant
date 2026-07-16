@@ -31,8 +31,9 @@ them.
 - **Contacts**: a single `contacts` address book.
 - Only user-authored entries are exposed (source `manual`, `caldav` or
   `carddav`). Connector-synced events and contacts (iCal feeds, vCard
-  imports) are wholesale-replaced on every sync, so phone edits to them
-  would be lost; subscribe to those feeds directly on the phone instead.
+  imports) are excluded: they are re-fetched on a schedule and don't keep a
+  phone's raw ICS/vCard payload, so editing them over DAV would drop that
+  payload on the next sync. Subscribe to those feeds directly on the phone.
 - Items created on the phone keep their raw ICS/vCard payload, so
   alarms, attendees, complex RRULEs, photos and structured names survive
   round-trips even though the apps only understand their simple fields.

@@ -16,9 +16,9 @@ Then install the pinned versions from `.tool-versions`:
 asdf install
 ```
 
-This gives you:
-- Erlang 27.2.1
-- Elixir 1.18.3
+This installs the versions pinned in `.tool-versions` (currently):
+- Erlang 29.0.3
+- Elixir 1.20.2-otp-29
 - Node.js 22.18.0
 
 ## Backend setup
@@ -56,12 +56,23 @@ Open `http://localhost:5001` in your browser. Vite proxies `/api` and `/socket` 
 
 ## Project structure
 
+Not exhaustive: a map of the main subsystems, not every file.
+
 ```
 servant/
 ├── lib/
 │   ├── servant/
 │   │   ├── accounts/          # User schema (incl. timezone preference)
-│   │   ├── accounts.ex        # Registration, authentication
+│   │   ├── accounts.ex        # Registration, authentication, TOTP
+│   │   ├── api_tokens/        # Scoped `srv_` API token schema
+│   │   ├── api_tokens.ex      # API token CRUD + scope model
+│   │   ├── apps/              # Installed-app schema (git-installed custom apps)
+│   │   ├── apps.ex            # Custom-app install/update from a git repo
+│   │   ├── audit/            # Ring buffers + error log handler
+│   │   ├── audit.ex           # System-health probes, cross-user access/error logs
+│   │   ├── auth/              # Throttle (ETS anti-brute-force)
+│   │   ├── caldav/, carddav/  # ICS / vCard codecs (round-trip raw payload)
+│   │   ├── caldav.ex, carddav.ex, dav.ex  # DAV data access + ETag/CTag
 │   │   ├── connectors/        # Connector behaviour, worker, scheduler, configs
 │   │   ├── connectors.ex      # Connector config CRUD, start/stop
 │   │   ├── data/              # Entry schema
@@ -70,13 +81,16 @@ servant/
 │   │   ├── notes.ex           # Notes context: wikilinks, backlinks, mentions, tags
 │   │   ├── encrypted/         # Ecto type for encrypted-at-rest maps
 │   │   ├── encrypted.ex       # AES-256-GCM for connector secrets
-│   │   ├── media/             # EXIF extraction, thumbnail generation (vix)
+│   │   ├── media/             # EXIF, thumbnails/display JPEGs (vix), rotation, backfill
+│   │   ├── http.ex            # Req defaults + SSRF guard for connector fetches
 │   │   ├── events.ex          # Shared PubSub broadcasting ("data:<user_id>")
 │   │   └── storage.ex         # Per-user file storage layout
 │   └── servant_web/
-│       ├── controllers/       # Auth, Entry, Note, Connector, Upload, Export, App, Files, SPA
+│       ├── controllers/       # Auth, Entry, Note, Connector, Upload, Export, App, Files, Audit, Dav, SPA
 │       ├── channels/          # UserSocket, DataChannel
-│       ├── plugs/             # FileAuth (cookie-authenticated /files)
+│       ├── plugs/             # FileAuth, DavAuth, Scope, SessionOnly, RequireAdmin, AccessLog
+│       ├── schemas/           # OpenApiSpex request/response schemas
+│       ├── api_spec.ex        # OpenAPI spec generated from the router
 │       ├── auth.ex            # Bearer/cookie auth plug
 │       ├── router.ex          # API routes + SPA fallback
 │       └── endpoint.ex

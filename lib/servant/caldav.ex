@@ -3,8 +3,10 @@ defmodule Servant.CalDAV do
   Data access for the CalDAV endpoint: one collection per calendar
   ("agenda" entities of kind "calendar" plus the ever-present "Manual"),
   containing user-authored events only (source "manual" or "caldav").
-  Connector-synced events (ical, ...) are deliberately excluded: their
-  syncs wholesale-replace entries, so phone edits would be lost.
+  Connector-synced events (ical, ...) are deliberately excluded: they are
+  re-fetched on a schedule and don't preserve a phone's raw ICS payload, so
+  exposing them for editing over DAV would drop that payload on the next sync.
+  Subscribe to those feeds directly on the phone instead.
   """
 
   alias Servant.CalDAV.ICS
