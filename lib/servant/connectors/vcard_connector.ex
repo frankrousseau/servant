@@ -219,11 +219,15 @@ defmodule Servant.Connectors.VCardConnector do
   end
 
   defp unescape(text) do
+    # Neutralize escaped backslashes first (via a placeholder) so a literal "\\n"
+    # decodes to "\n" and not a newline. Mirrors Servant.CalDAV.ICS.unescape/1.
     text
+    |> String.replace("\\\\", "\0")
     |> String.replace("\\n", "\n")
+    |> String.replace("\\N", "\n")
     |> String.replace("\\,", ",")
     |> String.replace("\\;", ";")
-    |> String.replace("\\\\", "\\")
+    |> String.replace("\0", "\\")
   end
 
   # --- Entry builder ---

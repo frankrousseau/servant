@@ -101,21 +101,40 @@ defmodule Servant.Connectors.Worker do
         {:ok, inserted} = Data.create_entries(state.user_id, entries)
 
         Connectors.complete_sync_log(sync_log, inserted)
-
-        Connectors.persist_connector_cursor(
-          state.config_id,
-          state.connector_module.persisted_config(new_connector_state)
-        )
-
+        persist_cursor(state, new_connector_state)
         update_sync_status(state.config_id, nil)
         schedule_sync(%{state | state: new_connector_state})
 
       {:error, reason, new_connector_state} ->
-        Logger.error("Connector sync error: #{inspect(reason)}")
+        Logger.error("Connector sync error [#{sync_context(state)}]: #{inspect(reason)}")
         Connectors.fail_sync_log(sync_log, inspect(reason))
+        # Persist the returned state too: a connector may have rotated a
+        # refresh_token before the failing step, and losing it (until the next
+        # successful sync) would break the connector on the next restart.
+        persist_cursor(state, new_connector_state)
         update_sync_status(state.config_id, inspect(reason))
         schedule_sync(%{state | state: new_connector_state})
     end
+  rescue
+    # A raise inside sync/1 or create_entries would otherwise crash the worker,
+    # leaving this sync_log stuck in "running" forever. Fail it, re-arm, move on.
+    e ->
+      reason = Exception.message(e)
+      Logger.error("Connector sync crashed [#{sync_context(state)}]: #{reason}")
+      Connectors.fail_sync_log(sync_log, reason)
+      update_sync_status(state.config_id, reason)
+      schedule_sync(state)
+  end
+
+  defp persist_cursor(%__MODULE__{} = state, connector_state) do
+    Connectors.persist_connector_cursor(
+      state.config_id,
+      state.connector_module.persisted_config(connector_state)
+    )
+  end
+
+  defp sync_context(%__MODULE__{} = state) do
+    "#{state.connector_module.id()} config=#{state.config_id} user=#{state.user_id}"
   end
 
   # A DB error while opening the sync log shouldn't crash the worker (which,

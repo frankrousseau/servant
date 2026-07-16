@@ -19,6 +19,8 @@ defmodule Servant.Connectors.EnableBankingConnector do
 
   use Servant.Connectors.Connector
 
+  require Logger
+
   @api_base "https://api.enablebanking.com"
   @jwt_ttl 3600
   # Refetch window behind the cursor: banks book transactions late.
@@ -107,8 +109,21 @@ defmodule Servant.Connectors.EnableBankingConnector do
       end)
 
     case {entries, errors} do
-      {[], [reason | _]} -> {:error, reason, state}
-      _ -> {:ok, entries, %{state | cursors: cursors}}
+      {[], [reason | _]} ->
+        {:error, reason, state}
+
+      {_, []} ->
+        {:ok, entries, %{state | cursors: cursors}}
+
+      {_, errs} ->
+        # Some accounts synced, others failed (e.g. a partially revoked consent).
+        # The worker marks the sync "completed" and clears config.error on {:ok},
+        # so without this the amputated accounts would be silently invisible.
+        Logger.error(
+          "enable_banking: #{length(errs)} account(s) failed to sync: #{Enum.join(errs, "; ")}"
+        )
+
+        {:ok, entries, %{state | cursors: cursors}}
     end
   end
 

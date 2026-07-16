@@ -107,9 +107,9 @@ defmodule Servant.Connectors.WorkerTest do
       )
 
     Worker.sync_now(user.id, config.id)
+    # Handling the failed sync (below) proves the worker survived it
     _ = :sys.get_state(pid)
 
-    assert Process.alive?(pid)
     assert [log | _] = Connectors.list_sync_logs(config.id)
     assert log.status == "failed"
     assert Connectors.get_connector_config!(user.id, config.id).error =~ "sync_failed"

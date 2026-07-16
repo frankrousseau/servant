@@ -4,6 +4,7 @@ defmodule Servant.Connectors do
   """
 
   import Ecto.Query
+  require Logger
   alias Servant.Connectors.{ConnectorConfig, ConnectorEnvironment, SyncLog, Worker}
   alias Servant.Repo
 
@@ -155,7 +156,24 @@ defmodule Servant.Connectors do
     |> where(enabled: true)
     |> Repo.all()
     |> Enum.each(fn config ->
-      start_connector(config.user_id, config.id)
+      # A worker whose init/1 returns {:stop, reason} (bad config, removed
+      # provider) would otherwise die at boot with no log and no config.error,
+      # leaving an "enabled" connector silently dead. :ignore is normal.
+      case start_connector(config.user_id, config.id) do
+        {:ok, _pid} ->
+          :ok
+
+        :ignore ->
+          :ok
+
+        {:error, {:already_started, _pid}} ->
+          :ok
+
+        {:error, reason} ->
+          Logger.error(
+            "Failed to start connector config=#{config.id} user=#{config.user_id}: #{inspect(reason)}"
+          )
+      end
     end)
   end
 

@@ -152,6 +152,11 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
       {:ok, {:error, message}} ->
         {:error, "Failed to run scraper: #{message}"}
 
+      # Task.yield/2 returns {:exit, reason} if the task died abnormally; without
+      # this clause it would fall through as a CaseClauseError and crash the worker.
+      {:exit, reason} ->
+        {:error, "Scraper crashed: #{inspect(reason)}"}
+
       nil ->
         {:error, "Scraper timed out after #{@cmd_timeout}ms"}
     end

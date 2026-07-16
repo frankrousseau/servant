@@ -15,8 +15,10 @@ defmodule Servant.Application do
          repos: Application.fetch_env!(:servant, :ecto_repos), skip: skip_migrations?()},
         {Phoenix.PubSub, name: Servant.PubSub},
         {Registry, keys: :unique, name: Servant.Connectors.Registry},
-        {DynamicSupervisor, name: Servant.Connectors.Supervisor, strategy: :one_for_one},
-        Servant.Connectors.Scheduler,
+        # DynamicSupervisor + Scheduler as a rest_for_one unit: a collapse of the
+        # worker supervisor must re-run start_all_enabled, or connectors stop
+        # syncing until the next full restart.
+        Servant.Connectors.WorkerSupervisor,
         Servant.Audit.LogBuffer,
         Servant.Auth.Throttle,
         # Start to serve requests, typically the last entry
