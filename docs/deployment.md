@@ -5,8 +5,10 @@ release that serves both the JSON API and the pre-built Vue SPA on one port,
 backed by a SQLite database on a mounted volume.
 
 > Servant is API-only Phoenix + a Vue SPA. The SPA is built into `priv/static/`
-> at image-build time and served by Phoenix, so the running container needs
-> **no Node.js**, only the compiled release.
+> at image-build time and served by Phoenix, so the release itself needs no
+> Node.js at runtime. The image does ship Node + Chromium, but only for the
+> optional Invoice Collector connector; see
+> [Invoice Collector](#invoice-collector-optional) to drop them.
 
 ## Overview
 
@@ -129,6 +131,20 @@ ENV DATABASE_PATH=/data/servant.db
 COPY --from=build --chown=nobody:nogroup /app/_build/prod/rel/servant ./
 COPY --chown=nobody:nogroup docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
+
+# Invoice Collector: its Playwright scraper runs via node at sync time.
+# Node 22 + scraper deps + Chromium add roughly 1 GB to the image; delete
+# this block (and the ENV line) if you do not use that connector.
+RUN apt-get update -y && apt-get install -y curl \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
+RUN cd /app/lib/servant-*/priv/scrapers \
+    && npm ci --omit=dev \
+    && npx playwright install --with-deps chromium \
+    && rm -rf /var/lib/apt/lists/* /root/.npm \
+    && chmod -R a+rX /opt/playwright
 
 USER nobody
 
@@ -301,6 +317,21 @@ servant.local {
 
 Add Caddy as a second compose service, or terminate TLS at an existing nginx/
 Traefik in front of the `servant` service.
+
+## Invoice Collector (optional)
+
+The Invoice Collector connector runs Playwright scripts via `node` at sync
+time, so stage 3 of the Dockerfile installs Node.js 22, the scraper
+dependencies (`npm ci` in the release's `priv/scrapers/`) and Playwright's
+Chromium (under `/opt/playwright`, readable by the `nobody` user). Playwright
+launches Chromium with its sandbox disabled by default, so it runs fine as an
+unprivileged user.
+
+This block is the only reason the runtime image contains Node.js, and it
+accounts for roughly 1 GB. If you do not use the connector, delete it (and
+the `PLAYWRIGHT_BROWSERS_PATH` line) for a slim image; Invoice Collector
+syncs then fail with an explicit "Node.js is not installed on the server"
+error instead of running.
 
 ## Notes & gotchas
 

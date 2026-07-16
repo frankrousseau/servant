@@ -86,13 +86,32 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
     e -> {:error, "Failed to run scraper: #{Exception.message(e)}"}
   end
 
+  # Preflight the runtime requirements so a missing piece yields an actionable
+  # error instead of a raw :enoent (the default Docker image ships without
+  # Node.js; see docs/deployment.md).
   defp do_run_scraper(state) do
     script = script_path()
+    node = System.find_executable("node")
 
-    unless File.exists?(script) do
-      raise "Scraper not found at #{script}. Run 'npm install' in priv/scrapers/."
+    cond do
+      is_nil(node) ->
+        {:error,
+         "Node.js is not installed on the server. The Invoice Collector runs " <>
+           "Playwright scripts via node; see 'Invoice Collector' in docs/deployment.md."}
+
+      not File.exists?(script) ->
+        {:error, "Scraper script not found at #{script}."}
+
+      not File.dir?(Path.join(Path.dirname(script), "node_modules")) ->
+        {:error,
+         "Scraper dependencies are missing: run 'npm install' in #{Path.dirname(script)}."}
+
+      true ->
+        run_node(node, script, state)
     end
+  end
 
+  defp run_node(node, script, state) do
     # Only the (non-secret) provider goes on the command line. Secrets are
     # passed via environment variables so they don't leak through `ps`/`/proc`.
     args = [script, "--provider", state.provider]
@@ -116,7 +135,7 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
     task =
       Task.async(fn ->
         try do
-          {:ok, System.cmd("node", args, stderr_to_stdout: false, env: env)}
+          {:ok, System.cmd(node, args, stderr_to_stdout: false, env: env)}
         rescue
           e -> {:error, Exception.message(e)}
         end
@@ -127,7 +146,8 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
         parse_output(stdout)
 
       {:ok, {:ok, {_stdout, exit_code}}} ->
-        {:error, "Scraper failed (exit code #{exit_code})"}
+        # The scraper logs its errors to stderr, which flows to the server logs
+        {:error, "Scraper failed (exit code #{exit_code}), details in the server logs"}
 
       {:ok, {:error, message}} ->
         {:error, "Failed to run scraper: #{message}"}
