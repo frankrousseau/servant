@@ -61,7 +61,12 @@ function shiftWindow(dir: 1 | -1) {
 // Day values of entry-based trackers, computed server-side in the user's
 // timezone; a failing aggregate (revoked scope, deleted kind) shows empty.
 // No `to` bound: the streak/7d stats always need the recent days.
+// Window navigation and the ResizeObserver can fire overlapping loads; a stale
+// (slower) response must not clobber the current window's data.
+let aggregateSeq = 0
+
 async function loadAggregates(trackers: Entry[]) {
+  const seq = ++aggregateSeq
   const from = zonedToUtcISO(
     addDays(windowEnd.value, -weeksVisible.value * 7),
     '00:00'
@@ -87,7 +92,7 @@ async function loadAggregates(trackers: Entry[]) {
         }
       })
   )
-  entryMaps.value = maps
+  if (seq === aggregateSeq) entryMaps.value = maps
 }
 
 async function reload() {
@@ -143,7 +148,14 @@ const mapsById = computed(() => {
 
 // One log per tracker per day: update the day's entry when it exists,
 // create it otherwise.
+const inFlight = new Set<string>()
+
 async function setValue(tracker: Tracker, date: string, value: number) {
+  // Two quick taps both miss the not-yet-created log and each create one,
+  // producing duplicate logs for the same tracker/day. Serialize per (tracker, day).
+  const key = `${tracker.id}:${date}`
+  if (inFlight.has(key)) return
+  inFlight.add(key)
   const existing = logEntries.value.find(
     l =>
       l.data.tracker_id === tracker.id &&
@@ -171,6 +183,8 @@ async function setValue(tracker: Tracker, date: string, value: number) {
     }
   } catch {
     // the card keeps showing the stored value
+  } finally {
+    inFlight.delete(key)
   }
 }
 

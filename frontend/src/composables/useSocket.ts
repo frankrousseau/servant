@@ -1,6 +1,7 @@
 import { watch, onUnmounted } from 'vue'
 import { Socket, Channel } from 'phoenix'
 import { useAuthStore } from '../stores/auth'
+import { reportClientError } from '../lib/reportError'
 import type { Entry } from '../types'
 
 export function useSocket() {
@@ -33,10 +34,27 @@ export function useSocket() {
       params: { token: auth.token }
     })
 
+    // A silently dead realtime channel (expired token mid-session, server error)
+    // leaves the UI showing stale data with no signal; surface it instead.
+    // phoenix's bundled types omit Socket.onError, but it exists at runtime.
+    ;(socket as unknown as { onError(cb: () => void): void }).onError(() =>
+      reportClientError('socket', 'websocket connection error')
+    )
+
     socket.connect()
 
     channel = socket.channel(`data:${auth.user.id}`, {})
-    channel.join()
+    channel
+      .join()
+      .receive('error', reason =>
+        reportClientError(
+          'socket-join',
+          `channel join failed: ${JSON.stringify(reason)}`
+        )
+      )
+      .receive('timeout', () =>
+        reportClientError('socket-join', 'channel join timed out')
+      )
 
     channel.on('entry_change', (payload: { entry: Entry }) => {
       for (const cb of entryChangeCallbacks) {

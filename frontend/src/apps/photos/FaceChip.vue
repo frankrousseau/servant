@@ -27,6 +27,19 @@ function draw() {
     const s = Math.min(side, nw, nh)
     el.getContext('2d')?.drawImage(img, sx, sy, s, s, 0, 0, SIZE, SIZE)
   }
+  // A missing/deleted thumbnail would otherwise leave a blank canvas: draw a
+  // placeholder glyph so the chip reads as "image unavailable", not empty.
+  img.onerror = () => {
+    const ctx = el.getContext('2d')
+    if (!ctx) return
+    ctx.fillStyle = 'rgba(128,128,128,0.15)'
+    ctx.fillRect(0, 0, SIZE, SIZE)
+    ctx.fillStyle = 'rgba(128,128,128,0.7)'
+    ctx.font = '24px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('?', SIZE / 2, SIZE / 2)
+  }
   img.src = props.src
 }
 

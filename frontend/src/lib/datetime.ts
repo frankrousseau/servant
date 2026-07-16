@@ -99,8 +99,12 @@ export function zonedToUtcISO(
 ): string {
   const zone = tz || Intl.DateTimeFormat().resolvedOptions().timeZone
   // Treat the wall time as if it were UTC, then subtract the zone's offset.
+  // The offset can differ between the naive guess and the true instant across a
+  // DST boundary, so recompute it once at the first estimate: two passes pin the
+  // correct offset for every real transition.
   const guess = new Date(`${dateStr}T${timeStr}:00Z`).getTime()
-  return new Date(guess - tzOffsetMs(zone, guess)).toISOString()
+  const firstPass = guess - tzOffsetMs(zone, guess)
+  return new Date(guess - tzOffsetMs(zone, firstPass)).toISOString()
 }
 
 // A UTC ISO string -> its wall-clock parts in `tz`, for pre-filling date/time

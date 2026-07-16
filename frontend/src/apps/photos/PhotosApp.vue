@@ -42,6 +42,9 @@ const tagFilter = ref('')
 const peopleFilter = ref('')
 const loading = ref(true)
 const loadError = ref('')
+// Long backfill/scan loops check this so they stop when the app is unmounted
+// (navigating away) instead of running on in the background.
+let alive = true
 const selectionMode = ref(false)
 const peopleSearchActive = ref(false)
 const peopleSearchQuery = ref('')
@@ -216,6 +219,7 @@ async function rebuildPreviews() {
     // missing anymore, up to ~1 minute.
     for (let i = 0; i < 15; i++) {
       await new Promise(r => setTimeout(r, 4000))
+      if (!alive) break
       await reload()
       if (missingPreviews.value === 0) break
     }
@@ -240,6 +244,7 @@ async function rebuildVideoThumbs() {
   if (!targets.length || fixingVideos.value) return
   fixingVideos.value = { done: 0, total: targets.length }
   for (const p of targets) {
+    if (!alive) break
     try {
       const path = field(p, 'path') as string
       if (!path) throw new Error('no file path')
@@ -302,6 +307,7 @@ async function scanFaces() {
   scanningFaces.value = { done: 0, total: targets.length }
   const { detectFaces } = await import('./faceScan')
   for (const p of targets) {
+    if (!alive) break
     try {
       const faces = await detectFaces(faceScanSrc(p)!)
       const updated = await props.ctx.api.entries.update(p.id, {
@@ -624,18 +630,24 @@ function closeDateModal() {
 async function applyDate() {
   if (!dateModalDate.value) return
   const iso = zonedToUtcISO(dateModalDate.value, dateModalTime.value || '00:00')
-  for (const id of selectedIds.value) {
-    const photo = allPhotos.value.find(p => p.id === id)
-    if (!photo) continue
-    await props.ctx.api.entries.update(id, {
-      occurred_at: iso,
-      data: { ...photo.data, date_taken: iso }
-    })
+  loadError.value = ''
+  try {
+    for (const id of selectedIds.value) {
+      const photo = allPhotos.value.find(p => p.id === id)
+      if (!photo) continue
+      await props.ctx.api.entries.update(id, {
+        occurred_at: iso,
+        data: { ...photo.data, date_taken: iso }
+      })
+    }
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : 'Failed to set the date'
+  } finally {
+    dateModalActive.value = false
+    selectedIds.value.clear()
+    selectionMode.value = false
+    await reload()
   }
-  dateModalActive.value = false
-  selectedIds.value.clear()
-  selectionMode.value = false
-  await reload()
 }
 
 function openTagPeople() {
@@ -651,20 +663,26 @@ function onPeopleKeydown(e: KeyboardEvent) {
 }
 async function tagWithContact(c: Entry) {
   const name = contactName(c)
-  for (const id of selectedIds.value) {
-    const photo = allPhotos.value.find(p => p.id === id)
-    if (!photo) continue
-    const existing = getPeople(photo)
-    if (existing.some(pp => pp.id === c.id)) continue
-    await props.ctx.api.entries.update(id, {
-      data: { ...photo.data, people: [...existing, { id: c.id, name }] }
-    })
+  loadError.value = ''
+  try {
+    for (const id of selectedIds.value) {
+      const photo = allPhotos.value.find(p => p.id === id)
+      if (!photo) continue
+      const existing = getPeople(photo)
+      if (existing.some(pp => pp.id === c.id)) continue
+      await props.ctx.api.entries.update(id, {
+        data: { ...photo.data, people: [...existing, { id: c.id, name }] }
+      })
+    }
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : 'Failed to tag people'
+  } finally {
+    peopleSearchActive.value = false
+    peopleSearchQuery.value = ''
+    selectedIds.value.clear()
+    selectionMode.value = false
+    await reload()
   }
-  peopleSearchActive.value = false
-  peopleSearchQuery.value = ''
-  selectedIds.value.clear()
-  selectionMode.value = false
-  await reload()
 }
 
 function openTagModal() {
@@ -679,51 +697,74 @@ function closeTagModal() {
 async function applyTag(tag: string) {
   const t = tag.trim()
   if (!t) return
-  for (const id of selectedIds.value) {
-    const photo = allPhotos.value.find(p => p.id === id)
-    if (!photo) continue
-    const existing = getTags(photo)
-    if (existing.includes(t)) continue
-    await props.ctx.api.entries.update(id, {
-      data: { ...photo.data, tags: [...existing, t] }
-    })
+  loadError.value = ''
+  try {
+    for (const id of selectedIds.value) {
+      const photo = allPhotos.value.find(p => p.id === id)
+      if (!photo) continue
+      const existing = getTags(photo)
+      if (existing.includes(t)) continue
+      await props.ctx.api.entries.update(id, {
+        data: { ...photo.data, tags: [...existing, t] }
+      })
+    }
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : 'Failed to add the tag'
+  } finally {
+    tagModalActive.value = false
+    tagModalQuery.value = ''
+    selectedIds.value.clear()
+    selectionMode.value = false
+    await reload()
   }
-  tagModalActive.value = false
-  tagModalQuery.value = ''
-  selectedIds.value.clear()
-  selectionMode.value = false
-  await reload()
 }
 async function removeTagFromSelected(tag: string) {
-  for (const id of selectedIds.value) {
-    const photo = allPhotos.value.find(p => p.id === id)
-    if (!photo) continue
-    const existing = getTags(photo)
-    if (!existing.includes(tag)) continue
-    await props.ctx.api.entries.update(id, {
-      data: { ...photo.data, tags: existing.filter(t => t !== tag) }
-    })
+  loadError.value = ''
+  try {
+    for (const id of selectedIds.value) {
+      const photo = allPhotos.value.find(p => p.id === id)
+      if (!photo) continue
+      const existing = getTags(photo)
+      if (!existing.includes(tag)) continue
+      await props.ctx.api.entries.update(id, {
+        data: { ...photo.data, tags: existing.filter(t => t !== tag) }
+      })
+    }
+  } catch (e) {
+    loadError.value =
+      e instanceof Error ? e.message : 'Failed to remove the tag'
+  } finally {
+    const photos = await props.ctx.api.entries.list({ kind: 'photo' })
+    allPhotos.value = photos.sort(
+      (a, b) =>
+        new Date(b.inserted_at).getTime() - new Date(a.inserted_at).getTime()
+    )
+    nextTick(() => tagInput.value?.focus())
   }
-  const photos = await props.ctx.api.entries.list({ kind: 'photo' })
-  allPhotos.value = photos.sort(
-    (a, b) =>
-      new Date(b.inserted_at).getTime() - new Date(a.inserted_at).getTime()
-  )
-  nextTick(() => tagInput.value?.focus())
 }
 async function removeTagAction() {
   if (!tagFilter.value) return
-  for (const id of selectedIds.value) {
-    const photo = allPhotos.value.find(p => p.id === id)
-    if (!photo) continue
-    const existing = getTags(photo)
-    await props.ctx.api.entries.update(id, {
-      data: { ...photo.data, tags: existing.filter(t => t !== tagFilter.value) }
-    })
+  loadError.value = ''
+  try {
+    for (const id of selectedIds.value) {
+      const photo = allPhotos.value.find(p => p.id === id)
+      if (!photo) continue
+      const existing = getTags(photo)
+      await props.ctx.api.entries.update(id, {
+        data: {
+          ...photo.data,
+          tags: existing.filter(t => t !== tagFilter.value)
+        }
+      })
+    }
+  } catch (e) {
+    loadError.value =
+      e instanceof Error ? e.message : 'Failed to remove the tag'
+  } finally {
+    selectedIds.value.clear()
+    selectionMode.value = false
+    await reload()
   }
-  selectedIds.value.clear()
-  selectionMode.value = false
-  await reload()
 }
 
 function openViewer(photoId: string, opts: { push?: boolean } = {}) {
@@ -762,7 +803,10 @@ function openViewer(photoId: string, opts: { push?: boolean } = {}) {
     }
   })
   const idx = photos.findIndex(p => p.id === photoId)
-  props.ctx.viewer.open(items, Math.max(0, idx))
+  // The deep-linked photo may be outside the active filter; don't silently open
+  // the first one (idx -1 -> 0) as if it were the requested photo.
+  if (idx === -1) return
+  props.ctx.viewer.open(items, idx)
 }
 
 watch(peopleSearchActive, active => {
@@ -785,7 +829,10 @@ onMounted(async () => {
   const initial = new URLSearchParams(window.location.search).get('photo')
   if (initial) openViewer(initial, { push: false })
 })
-onUnmounted(() => window.removeEventListener('popstate', onPopState))
+onUnmounted(() => {
+  alive = false
+  window.removeEventListener('popstate', onPopState)
+})
 </script>
 
 <template>

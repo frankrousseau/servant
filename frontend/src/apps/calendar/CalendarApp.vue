@@ -847,10 +847,13 @@ onUnmounted(destroyPickers)
         </div>
         <div class="cal-modal-row">
           <div class="cal-modal-field">
-            <label>Start date</label><input ref="startInput" type="date" />
+            <!-- type=text (not date): flatpickr provides the themed calendar; a
+                 native date picker would open a second calendar on top of it. -->
+            <label>Start date</label
+            ><input ref="startInput" type="text" readonly />
           </div>
           <div class="cal-modal-field">
-            <label>End date</label><input ref="endInput" type="date" />
+            <label>End date</label><input ref="endInput" type="text" readonly />
           </div>
         </div>
         <label class="cal-allday-toggle">
