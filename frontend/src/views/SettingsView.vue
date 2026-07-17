@@ -13,11 +13,14 @@ import {
   Trash2,
   Puzzle,
   RefreshCw,
-  Palette
+  Palette,
+  Wrench,
+  Pencil,
+  Undo2
 } from 'lucide-vue-next'
 import { THEMES, applyTheme, storedTheme, type ThemeId } from '../lib/theme'
 import { BUILTIN_APPS, DEFAULT_ENABLED_APPS } from '../apps/registry'
-import type { ApiToken } from '../types'
+import type { ApiToken, AiConfig, AgentRun } from '../types'
 import {
   SCOPE_DOMAINS,
   buildScopes,
@@ -130,6 +133,150 @@ async function updateApp(id: string) {
   }
 }
 
+// ----- Agents (model server config + run history) -----
+
+const aiConfig = ref<AiConfig>({
+  enabled: false,
+  base_url: '',
+  model: '',
+  api_key: null
+})
+const aiSaving = ref(false)
+const aiError = ref('')
+const agentRuns = ref<AgentRun[]>([])
+
+async function loadAiConfig() {
+  try {
+    aiConfig.value = (await api.get<{ data: AiConfig }>('/api/ai_config')).data
+    if (aiConfig.value.enabled) await loadAgentRuns()
+  } catch {
+    // section shows defaults; not fatal for the rest of settings
+  }
+}
+
+async function loadAgentRuns() {
+  try {
+    agentRuns.value = (
+      await api.get<{ data: AgentRun[] }>('/api/apps/runs')
+    ).data
+  } catch {
+    agentRuns.value = []
+  }
+}
+
+async function saveAiConfig(overrides: Partial<AiConfig> = {}) {
+  aiError.value = ''
+  aiSaving.value = true
+  try {
+    const body = { ...aiConfig.value, ...overrides }
+    aiConfig.value = (
+      await api.put<{ data: AiConfig }>('/api/ai_config', body)
+    ).data
+    if (aiConfig.value.enabled) await loadAgentRuns()
+  } catch (e) {
+    aiError.value = e instanceof Error ? e.message : 'Save failed'
+  } finally {
+    aiSaving.value = false
+  }
+}
+
+// The checkbox is an uncontrolled `:checked` bound to aiConfig.value.enabled;
+// when the confirm dialog is cancelled or the save fails, aiConfig.value.enabled
+// does not change, so resetting the DOM checkbox to it at the end of every
+// path (success or not) keeps the two in sync.
+async function toggleAgents(event: Event) {
+  if (!aiConfig.value.enabled) {
+    const ok = await ask({
+      title: 'Enable agents',
+      message:
+        'App generation requests will be sent to the model server configured ' +
+        'below. Only your app descriptions are sent, never your data. ' +
+        'Generated code can be incorrect: review an app before trusting it.',
+      confirmLabel: 'Enable'
+    })
+    if (ok) await saveAiConfig({ enabled: true })
+  } else {
+    await saveAiConfig({ enabled: false })
+  }
+  const target = event.target as HTMLInputElement
+  target.checked = aiConfig.value.enabled
+}
+
+// ----- App generation (builder agent) -----
+
+const genName = ref('')
+const genDescription = ref('')
+const genBusy = ref(false)
+const genError = ref('')
+const modifyingId = ref('')
+const modifyInstruction = ref('')
+const restoringId = ref('')
+
+async function pollRun(id: string): Promise<AgentRun> {
+  for (;;) {
+    const run = (await api.get<{ data: AgentRun }>(`/api/apps/runs/${id}`)).data
+    if (run.status !== 'running') return run
+    await new Promise(resolve => setTimeout(resolve, 2000))
+  }
+}
+
+async function generateApp() {
+  genError.value = ''
+  genBusy.value = true
+  try {
+    const runId = await apps.generate(
+      genName.value.trim(),
+      genDescription.value.trim()
+    )
+    const run = await pollRun(runId)
+    if (run.status === 'ok') {
+      genName.value = ''
+      genDescription.value = ''
+      await apps.load(true)
+    } else {
+      genError.value = run.error || 'Generation failed'
+    }
+    await loadAgentRuns()
+  } catch (e) {
+    genError.value = e instanceof Error ? e.message : 'Generation failed'
+  } finally {
+    genBusy.value = false
+  }
+}
+
+async function modifyApp(id: string) {
+  genError.value = ''
+  genBusy.value = true
+  try {
+    const runId = await apps.modify(id, modifyInstruction.value.trim())
+    const run = await pollRun(runId)
+    if (run.status === 'ok') {
+      modifyingId.value = ''
+      modifyInstruction.value = ''
+      await apps.load(true)
+    } else {
+      genError.value = run.error || 'Modification failed'
+    }
+    await loadAgentRuns()
+  } catch (e) {
+    genError.value = e instanceof Error ? e.message : 'Modification failed'
+  } finally {
+    genBusy.value = false
+  }
+}
+
+async function restoreApp(id: string) {
+  genError.value = ''
+  restoringId.value = id
+  try {
+    await apps.restore(id)
+  } catch (e) {
+    genError.value = e instanceof Error ? e.message : 'Restore failed'
+  } finally {
+    restoringId.value = ''
+  }
+}
+
 // API tokens
 const apiTokens = ref<ApiToken[]>([])
 const tokenName = ref('')
@@ -233,6 +380,7 @@ function downloadEntries() {
 
 onMounted(() => {
   loadTokens()
+  loadAiConfig()
   apps.load().catch(() => {})
 })
 </script>
@@ -417,32 +565,78 @@ onMounted(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="a in apps.installed" :key="a.id">
-              <td>{{ a.name }}</td>
-              <td class="app-repo">{{ a.repo_url }}</td>
-              <td class="app-actions">
-                <button
-                  type="button"
-                  class="tk-revoke"
-                  title="Update from the repository"
-                  :disabled="appUpdating === a.id"
-                  @click="updateApp(a.id)"
-                >
-                  <RefreshCw
-                    :size="14"
-                    :class="{ spin: appUpdating === a.id }"
-                  />
-                </button>
-                <button
-                  type="button"
-                  class="tk-revoke"
-                  title="Uninstall"
-                  @click="uninstallApp(a.id, a.name)"
-                >
-                  <Trash2 :size="14" />
-                </button>
-              </td>
-            </tr>
+            <template v-for="a in apps.installed" :key="a.id">
+              <tr>
+                <td>{{ a.name }}</td>
+                <td class="app-repo">{{ a.repo_url || 'generated' }}</td>
+                <td class="app-actions">
+                  <button
+                    v-if="a.repo_url"
+                    type="button"
+                    class="tk-revoke"
+                    title="Update from the repository"
+                    :disabled="appUpdating === a.id"
+                    @click="updateApp(a.id)"
+                  >
+                    <RefreshCw
+                      :size="14"
+                      :class="{ spin: appUpdating === a.id }"
+                    />
+                  </button>
+                  <button
+                    v-if="a.generated && aiConfig.enabled"
+                    type="button"
+                    class="tk-revoke"
+                    title="Modify with the configured model"
+                    :disabled="genBusy"
+                    @click="modifyingId = modifyingId === a.id ? '' : a.id"
+                  >
+                    <Pencil :size="14" />
+                  </button>
+                  <button
+                    v-if="a.generated && a.has_previous && aiConfig.enabled"
+                    type="button"
+                    class="tk-revoke"
+                    title="Restore the previous version"
+                    :disabled="restoringId === a.id"
+                    @click="restoreApp(a.id)"
+                  >
+                    <Undo2 :size="14" />
+                  </button>
+                  <button
+                    type="button"
+                    class="tk-revoke"
+                    title="Uninstall"
+                    @click="uninstallApp(a.id, a.name)"
+                  >
+                    <Trash2 :size="14" />
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="modifyingId === a.id">
+                <td colspan="3">
+                  <form class="app-form" @submit.prevent="modifyApp(a.id)">
+                    <textarea
+                      v-model="modifyInstruction"
+                      rows="3"
+                      placeholder="Describe the change"
+                    ></textarea>
+                    <div class="card-actions">
+                      <button
+                        type="submit"
+                        :disabled="genBusy || !modifyInstruction.trim()"
+                      >
+                        {{
+                          genBusy
+                            ? `Running on ${aiConfig.model}...`
+                            : `Modify (runs on ${aiConfig.model})`
+                        }}
+                      </button>
+                    </div>
+                  </form>
+                </td>
+              </tr>
+            </template>
           </tbody>
         </table>
         <p v-else class="tk-empty">No installed apps yet.</p>
@@ -460,6 +654,138 @@ onMounted(() => {
             </button>
           </div>
         </form>
+
+        <template v-if="aiConfig.enabled">
+          <h3 class="app-subhead">Generate an app</h3>
+          <p class="tk-hint">
+            Describe the app; the configured model writes it and it installs
+            like any other app. Review it before trusting it with your data.
+          </p>
+          <form class="app-form" @submit.prevent="generateApp">
+            <input v-model="genName" type="text" placeholder="App name" />
+            <textarea
+              v-model="genDescription"
+              rows="3"
+              placeholder="What should the app do?"
+            ></textarea>
+            <p v-if="genError" class="msg msg-error">{{ genError }}</p>
+            <div class="card-actions">
+              <button
+                type="submit"
+                :disabled="genBusy || !genName.trim() || !genDescription.trim()"
+              >
+                {{
+                  genBusy
+                    ? `Generating with ${aiConfig.model}...`
+                    : `Generate (runs on ${aiConfig.model})`
+                }}
+              </button>
+            </div>
+          </form>
+        </template>
+      </div>
+    </section>
+
+    <!-- Agents -->
+    <section class="card">
+      <div class="card-header">
+        <Wrench :size="20" class="card-icon" />
+        <h2>Agents</h2>
+      </div>
+      <div class="card-body">
+        <p class="tk-hint">
+          Agents call a language model server that you configure (a local Ollama
+          by default). Each run records the model used and the tokens consumed.
+          Generated code can be incorrect: review an app before trusting it with
+          your data.
+        </p>
+
+        <label class="tk-binary">
+          <span class="tk-domain-label">Enable agents</span>
+          <span class="tk-binary-box">
+            <input
+              type="checkbox"
+              :checked="aiConfig.enabled"
+              :disabled="aiSaving"
+              @change="toggleAgents($event)"
+            />
+          </span>
+        </label>
+
+        <form class="ai-form" @submit.prevent="saveAiConfig()">
+          <label class="tk-expiry">
+            <span class="tk-domain-label">Base URL</span>
+            <input
+              v-model="aiConfig.base_url"
+              type="text"
+              placeholder="http://localhost:11434/v1"
+            />
+          </label>
+          <label class="tk-expiry">
+            <span class="tk-domain-label">Model</span>
+            <input
+              v-model="aiConfig.model"
+              type="text"
+              placeholder="qwen2.5-coder:14b"
+            />
+          </label>
+          <label class="tk-expiry">
+            <span class="tk-domain-label">API key (optional)</span>
+            <input
+              v-model="aiConfig.api_key"
+              type="password"
+              placeholder="not needed for local servers"
+            />
+          </label>
+          <div class="card-actions">
+            <button type="submit" :disabled="aiSaving">
+              {{ aiSaving ? 'Saving...' : 'Save' }}
+            </button>
+          </div>
+        </form>
+
+        <template v-if="aiConfig.enabled">
+          <h3 class="app-subhead">Runs</h3>
+          <table v-if="agentRuns.length" class="tk-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Action</th>
+                <th>App</th>
+                <th>Model</th>
+                <th>Tokens</th>
+                <th>Duration</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="r in agentRuns" :key="r.id">
+                <td>{{ formatDate(r.inserted_at) }}</td>
+                <td>{{ r.action }}</td>
+                <td>{{ r.app_id || '-' }}</td>
+                <td>{{ r.model }}</td>
+                <td>
+                  {{
+                    r.input_tokens != null
+                      ? `${r.input_tokens} in / ${r.output_tokens} out`
+                      : '-'
+                  }}
+                </td>
+                <td>
+                  {{
+                    r.duration_ms != null
+                      ? `${Math.round(r.duration_ms / 1000)}s`
+                      : '-'
+                  }}
+                </td>
+                <td :title="r.error || ''">{{ r.status }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else class="tk-empty">No runs yet.</p>
+        </template>
+
+        <p v-if="aiError" class="msg msg-error">{{ aiError }}</p>
       </div>
     </section>
 
@@ -679,6 +1005,14 @@ onMounted(() => {
 .app-form input[type='url'] {
   width: 100%;
   margin-bottom: 0.75rem;
+}
+.app-form input[type='text'],
+.app-form textarea {
+  width: 100%;
+  margin-bottom: 0.75rem;
+}
+.ai-form {
+  margin-bottom: 1.5rem;
 }
 
 /* API tokens */

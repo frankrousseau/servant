@@ -72,6 +72,28 @@ export interface ApiToken {
   token?: string // present only in the create response
 }
 
+export interface AiConfig {
+  enabled: boolean
+  base_url: string
+  model: string
+  api_key: string | null
+}
+
+export interface AgentRun {
+  id: string
+  type: string
+  action: string
+  app_id: string | null
+  status: 'running' | 'ok' | 'error'
+  model: string
+  prompt: string | null
+  input_tokens: number | null
+  output_tokens: number | null
+  duration_ms: number | null
+  error: string | null
+  inserted_at: string
+}
+
 export interface SyncLog {
   id: string
   status: 'running' | 'completed' | 'failed'

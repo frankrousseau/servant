@@ -11,8 +11,10 @@ export interface InstalledApp {
   description: string | null
   icon: string | null
   entry_url: string
-  repo_url: string
+  repo_url: string | null
   built_in: boolean
+  generated: boolean
+  has_previous: boolean
   updated_at: string
 }
 
@@ -70,5 +72,44 @@ export const useAppsStore = defineStore('apps', () => {
     installed.value = installed.value.filter(a => a.id !== id)
   }
 
-  return { installed, loaded, defs, getDef, load, install, update, uninstall }
+  async function generate(name: string, description: string) {
+    const res = await apiJson<{ data: { id: string } }>(
+      'POST',
+      '/api/apps/generate',
+      {
+        body: { name, description }
+      }
+    )
+    return res.data.id
+  }
+
+  async function modify(id: string, instruction: string) {
+    const res = await apiJson<{ data: { id: string } }>(
+      'POST',
+      `/api/apps/${id}/modify`,
+      {
+        body: { instruction }
+      }
+    )
+    return res.data.id
+  }
+
+  async function restore(id: string) {
+    await apiJson('POST', `/api/apps/${id}/restore`)
+    await load(true)
+  }
+
+  return {
+    installed,
+    loaded,
+    defs,
+    getDef,
+    load,
+    install,
+    update,
+    uninstall,
+    generate,
+    modify,
+    restore
+  }
 })
