@@ -19,6 +19,9 @@ defmodule Servant.Accounts.User do
     # nil means "the default set" (DEFAULT_ENABLED_APPS in the frontend
     # registry); ids are opaque here, the frontend owns the app list
     field :enabled_apps, {:array, :string}
+    # AI agents config (enabled/base_url/model/api_key), encrypted at rest
+    # like connector secrets
+    field :ai_config, Servant.Encrypted.Map, redact: true
     field :totp_secret, :binary, redact: true
     field :totp_last_used_at, :utc_datetime
     field :token_version, :integer, default: 0
@@ -74,6 +77,10 @@ defmodule Servant.Accounts.User do
   def avatar_changeset(user, avatar_path) do
     user
     |> change(%{avatar_path: avatar_path})
+  end
+
+  def ai_config_changeset(user, config) when is_map(config) do
+    change(user, ai_config: config)
   end
 
   def password_changeset(user, attrs) do

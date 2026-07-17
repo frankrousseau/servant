@@ -21,6 +21,8 @@ defmodule Servant.Application do
         Servant.Connectors.WorkerSupervisor,
         Servant.Audit.LogBuffer,
         Servant.Auth.Throttle,
+        # Builder agent generations run here (fire-and-forget, run row = status)
+        {Task.Supervisor, name: Servant.Agents.TaskSupervisor},
         # Start to serve requests, typically the last entry
         ServantWeb.Endpoint
       ] ++ Servant.Media.Backfill.child_specs()

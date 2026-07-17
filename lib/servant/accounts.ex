@@ -47,6 +47,66 @@ defmodule Servant.Accounts do
     |> Repo.update()
   end
 
+  @ai_defaults %{
+    "enabled" => false,
+    "base_url" => "http://localhost:11434/v1",
+    "model" => "",
+    "api_key" => nil
+  }
+
+  @doc "AI agents config with defaults merged in (string keys)."
+  def ai_config(%User{} = user), do: Map.merge(@ai_defaults, user.ai_config || %{})
+
+  def ai_enabled?(%User{} = user), do: ai_config(user)["enabled"] == true
+
+  @doc "ai_config with the API key replaced by \"***\" (for API responses)."
+  def masked_ai_config(%User{} = user) do
+    config = ai_config(user)
+    %{config | "api_key" => if(config["api_key"], do: "***", else: nil)}
+  end
+
+  @doc """
+  Updates the AI config from user-supplied attrs. Unknown keys are ignored;
+  an api_key of "***" keeps the stored one (that is what the API returns).
+  """
+  def update_ai_config(%User{} = user, attrs) when is_map(attrs) do
+    current = ai_config(user)
+
+    config = %{
+      "enabled" => Map.get(attrs, "enabled", current["enabled"]) == true,
+      "base_url" =>
+        attrs |> Map.get("base_url", current["base_url"]) |> to_string() |> String.trim(),
+      "model" => attrs |> Map.get("model", current["model"]) |> to_string() |> String.trim(),
+      "api_key" => resolve_api_key(Map.get(attrs, "api_key", :keep), current["api_key"])
+    }
+
+    cond do
+      not String.starts_with?(config["base_url"], ["http://", "https://"]) ->
+        {:error, "base_url must be an http(s) URL"}
+
+      config["enabled"] and config["model"] == "" ->
+        {:error, "model is required to enable agents"}
+
+      true ->
+        user |> User.ai_config_changeset(config) |> Repo.update()
+    end
+  end
+
+  defp resolve_api_key(:keep, current), do: current
+  defp resolve_api_key("***", current), do: current
+  defp resolve_api_key(nil, _current), do: nil
+
+  defp resolve_api_key(key, _current) when is_binary(key) do
+    case String.trim(key) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  # Non-binary garbage (e.g. api_key: 123 in the PUT JSON) keeps the current
+  # key instead of raising a FunctionClauseError.
+  defp resolve_api_key(_key, current), do: current
+
   def update_avatar(user, %Plug.Upload{path: tmp_path, content_type: content_type}) do
     ext =
       case content_type do
