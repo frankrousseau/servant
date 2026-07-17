@@ -67,6 +67,83 @@ defmodule ServantWeb.AppControllerTest do
     end
   end
 
+  describe "builder agent endpoints" do
+    defp enable_agents(user) do
+      {:ok, user} =
+        Servant.Accounts.update_ai_config(user, %{
+          "enabled" => true,
+          "model" => "test-model",
+          # closed port: the task fails fast and the run ends up "error"; we
+          # never assert on that final status here
+          "base_url" => "http://localhost:9/v1"
+        })
+
+      user
+    end
+
+    test "403 on every agent route when agents are disabled", %{conn: conn} do
+      assert conn
+             |> post("/api/apps/generate", %{"name" => "X", "description" => "y"})
+             |> json_response(403)
+
+      assert conn |> post("/api/apps/x/modify", %{"instruction" => "y"}) |> json_response(403)
+      assert conn |> post("/api/apps/x/restore") |> json_response(403)
+      assert conn |> get("/api/apps/runs") |> json_response(403)
+      assert conn |> get("/api/apps/runs/x") |> json_response(403)
+    end
+
+    test "generate returns 202 with a pollable run", %{conn: conn, user: user} do
+      enable_agents(user)
+
+      conn = post(conn, "/api/apps/generate", %{"name" => "My Todo", "description" => "todos"})
+      assert %{"data" => %{"id" => run_id, "status" => "running"}} = json_response(conn, 202)
+
+      conn = get(conn, "/api/apps/runs/#{run_id}")
+      assert %{"data" => data} = json_response(conn, 200)
+      assert data["action"] == "create"
+      assert data["model"] == "test-model"
+      assert data["app_id"] == "my-todo"
+
+      wait_for_agent_tasks()
+    end
+
+    test "generate rejects an invalid name", %{conn: conn, user: user} do
+      enable_agents(user)
+      conn = post(conn, "/api/apps/generate", %{"name" => "!!!", "description" => "y"})
+      assert %{"error" => _} = json_response(conn, 422)
+    end
+
+    test "modify 404s on an unknown app", %{conn: conn, user: user} do
+      enable_agents(user)
+      conn = post(conn, "/api/apps/nope/modify", %{"instruction" => "x"})
+      assert json_response(conn, 404)
+    end
+
+    test "runs lists the user's runs", %{conn: conn, user: user} do
+      enable_agents(user)
+      post(conn, "/api/apps/generate", %{"name" => "A B", "description" => "d"})
+
+      conn = get(conn, "/api/apps/runs")
+      assert %{"data" => [run | _]} = json_response(conn, 200)
+      assert run["type"] == "builder"
+
+      wait_for_agent_tasks()
+    end
+
+    test "restore surfaces Apps errors", %{conn: conn, user: user} do
+      enable_agents(user)
+      conn = post(conn, "/api/apps/nope/restore")
+      assert json_response(conn, 404)
+    end
+
+    defp wait_for_agent_tasks do
+      for pid <- Task.Supervisor.children(Servant.Agents.TaskSupervisor) do
+        ref = Process.monitor(pid)
+        assert_receive {:DOWN, ^ref, :process, ^pid, _reason}
+      end
+    end
+  end
+
   defp install_fixture_app(user) do
     dir = Path.join(System.tmp_dir!(), "servant-app-#{Ecto.UUID.generate()}")
     File.mkdir_p!(Path.join(dir, "dist"))

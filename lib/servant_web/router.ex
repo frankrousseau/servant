@@ -87,6 +87,15 @@ defmodule ServantWeb.Router do
         post "/apps/:id/update", AppController, :update
         delete "/apps/:id", AppController, :delete
 
+        post "/apps/generate", AppController, :generate
+        get "/apps/runs", AppController, :runs
+        get "/apps/runs/:id", AppController, :run
+        post "/apps/:id/modify", AppController, :modify
+        post "/apps/:id/restore", AppController, :restore
+
+        get "/ai_config", AiConfigController, :show
+        put "/ai_config", AiConfigController, :update
+
         post "/entries/backfill_media", EntryController, :backfill_media
         post "/entries/:id/rotate_photo", EntryController, :rotate_photo
 
