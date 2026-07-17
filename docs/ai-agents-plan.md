@@ -1,5 +1,9 @@
 # Agents IA : Réflexion
 
+> Statut 2026-07-17 : partiellement implémenté (config multi-provider via un
+> protocole OpenAI-compatible, agents récurrents "rapports", builder d'apps).
+> Voir DEVELOPMENT.md ; ce document reste des notes de conception.
+
 ## Concept
 
 Lancer un agent IA à intervalle régulier (cron) pour analyser, enrichir ou résumer les données collectées par Servant.
