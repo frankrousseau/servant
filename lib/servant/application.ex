@@ -23,6 +23,7 @@ defmodule Servant.Application do
         Servant.Auth.Throttle,
         # Builder agent generations run here (fire-and-forget, run row = status)
         {Task.Supervisor, name: Servant.Agents.TaskSupervisor},
+        Servant.Agents.Scheduler,
         # Start to serve requests, typically the last entry
         ServantWeb.Endpoint
       ] ++ Servant.Media.Backfill.child_specs()

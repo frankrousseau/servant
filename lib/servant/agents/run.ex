@@ -22,6 +22,7 @@ defmodule Servant.Agents.Run do
     field :duration_ms, :integer
     field :error, :string
 
+    belongs_to :agent, Servant.Agents.Agent
     belongs_to :user, Servant.Accounts.User
 
     timestamps(type: :utc_datetime)
