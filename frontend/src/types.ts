@@ -79,10 +79,23 @@ export interface AiConfig {
   api_key: string | null
 }
 
+export interface Agent {
+  id: string
+  name: string
+  prompt: string
+  kinds: string[]
+  lookback_days: number
+  schedule: 'every_hour' | 'every_day' | 'every_week'
+  enabled: boolean
+  last_run_at: string | null
+  inserted_at: string
+}
+
 export interface AgentRun {
   id: string
   type: string
   action: string
+  agent_id: string | null
   app_id: string | null
   status: 'running' | 'ok' | 'error'
   model: string

@@ -24,6 +24,7 @@ const pages = computed(() => [
   ...appsStore.defs.map(a => ({ label: a.name, path: `/apps/${a.id}` })),
   { label: 'Data browser', path: '/data' },
   { label: 'Connectors', path: '/connectors' },
+  { label: 'Agents', path: '/agents' },
   { label: 'Audit', path: '/audit' },
   { label: 'Settings', path: '/settings' }
 ])

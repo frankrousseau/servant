@@ -19,7 +19,8 @@ import {
   Activity,
   Wallet,
   Target,
-  Puzzle
+  Puzzle,
+  Wrench
 } from 'lucide-vue-next'
 import {
   uploading as photosUploading,
@@ -108,6 +109,9 @@ function handleLogout() {
           <router-link to="/connectors">
             <Cable :size="18" />Sources
           </router-link>
+        </li>
+        <li>
+          <router-link to="/agents"> <Wrench :size="18" />Agents </router-link>
         </li>
       </ul>
       <router-link
