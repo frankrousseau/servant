@@ -58,3 +58,22 @@ not resolve. Bundle any framework you use, or stick to plain DOM.
 - Uninstalling (Settings > Apps) removes the files and the sidebar entry.
 - Updating (Settings > Apps, refresh button) re-clones the stored repo URL,
   re-validates the manifest (the id must not change) and replaces the files.
+
+## Generated apps (builder agent)
+
+When agents are enabled (Settings > Agents, off by default), Servant can also
+write an app for you: Settings > Apps > "Generate an app" sends your
+description to the model server you configured (any OpenAI-compatible
+endpoint; a local Ollama by default) and installs the produced module through
+the same rail as git apps: same manifest validation, same /files serving,
+same session privileges.
+
+- Generated apps have no repository. They can be modified (a new instruction
+  rewrites the module; the previous version is kept as `index.prev.js`) and
+  restored (swap back to that previous version) from Settings > Apps.
+- The model only receives your app name, your description and, on modify,
+  the app's current source: never your personal data.
+- Every run is recorded with its model, token usage and duration in
+  Settings > Agents.
+- Generated code can be incorrect: review an app before trusting it with
+  your data.
