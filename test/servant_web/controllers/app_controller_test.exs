@@ -88,8 +88,6 @@ defmodule ServantWeb.AppControllerTest do
 
       assert conn |> post("/api/apps/x/modify", %{"instruction" => "y"}) |> json_response(403)
       assert conn |> post("/api/apps/x/restore") |> json_response(403)
-      assert conn |> get("/api/apps/runs") |> json_response(403)
-      assert conn |> get("/api/apps/runs/x") |> json_response(403)
     end
 
     test "generate returns 202 with a pollable run", %{conn: conn, user: user} do
@@ -98,7 +96,7 @@ defmodule ServantWeb.AppControllerTest do
       conn = post(conn, "/api/apps/generate", %{"name" => "My Todo", "description" => "todos"})
       assert %{"data" => %{"id" => run_id, "status" => "running"}} = json_response(conn, 202)
 
-      conn = get(conn, "/api/apps/runs/#{run_id}")
+      conn = get(conn, "/api/agents/runs/#{run_id}")
       assert %{"data" => data} = json_response(conn, 200)
       assert data["action"] == "create"
       assert data["model"] == "test-model"
@@ -119,21 +117,18 @@ defmodule ServantWeb.AppControllerTest do
       assert json_response(conn, 404)
     end
 
-    test "runs lists the user's runs", %{conn: conn, user: user} do
-      enable_agents(user)
-      post(conn, "/api/apps/generate", %{"name" => "A B", "description" => "d"})
-
-      conn = get(conn, "/api/apps/runs")
-      assert %{"data" => [run | _]} = json_response(conn, 200)
-      assert run["type"] == "builder"
-
-      wait_for_agent_tasks()
-    end
-
     test "restore surfaces Apps errors", %{conn: conn, user: user} do
       enable_agents(user)
       conn = post(conn, "/api/apps/nope/restore")
       assert json_response(conn, 404)
+    end
+
+    test "GET /api/apps/runs is gone (moved to /api/agents/runs)", %{conn: conn} do
+      # No route matches "/api/apps/runs" anymore, so it falls through to the
+      # SPA catch-all (there is no NoRouteError to catch with
+      # assert_error_sent: the router has a wildcard "/*path" route).
+      conn = get(conn, "/api/apps/runs")
+      assert html_response(conn, 200)
     end
 
     defp wait_for_agent_tasks do

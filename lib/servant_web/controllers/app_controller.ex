@@ -4,16 +4,16 @@ defmodule ServantWeb.AppController do
   use ServantWeb, :controller
   use OpenApiSpex.ControllerSpecs
 
+  import ServantWeb.AgentRunJSON
+
   alias OpenApiSpex.Schema
-  alias Servant.Accounts
-  alias Servant.Agents
   alias Servant.Apps
   alias Servant.Apps.Generator
   alias ServantWeb.Schemas
 
   tags(["apps"])
 
-  plug :require_agents when action in [:generate, :modify, :restore, :runs, :run]
+  plug ServantWeb.Plugs.RequireAgents when action in [:generate, :modify, :restore]
 
   operation(:index,
     summary: "List apps (built-in and installed)",
@@ -283,40 +283,6 @@ defmodule ServantWeb.AppController do
     end
   end
 
-  operation(:runs,
-    summary: "List agent runs (model, tokens, duration)",
-    description: "Session-only; requires agents enabled. Newest first, 50 max.",
-    responses: [
-      ok: {"Runs", "application/json", %Schema{type: :object}},
-      forbidden: {"Agents disabled or session required", "application/json", Schemas.Error},
-      unauthorized: {"Unauthorized", "application/json", Schemas.Error}
-    ]
-  )
-
-  def runs(conn, _params) do
-    runs = Agents.list_runs(conn.assigns.current_user.id)
-    json(conn, %{data: Enum.map(runs, &run_json/1)})
-  end
-
-  operation(:run,
-    summary: "Get one agent run (for polling)",
-    description: "Session-only; requires agents enabled.",
-    parameters: [id: [in: :path, type: :string, required: true]],
-    responses: [
-      ok: {"Run", "application/json", %Schema{type: :object}},
-      not_found: {"Not found", "application/json", Schemas.Error},
-      forbidden: {"Agents disabled or session required", "application/json", Schemas.Error},
-      unauthorized: {"Unauthorized", "application/json", Schemas.Error}
-    ]
-  )
-
-  def run(conn, %{"id" => id}) do
-    case Agents.get_run(conn.assigns.current_user.id, id) do
-      nil -> conn |> put_status(:not_found) |> json(%{error: "Run not found"})
-      run -> json(conn, %{data: run_json(run)})
-    end
-  end
-
   defp installed_json(app) do
     %{
       id: app.app_id,
@@ -330,34 +296,6 @@ defmodule ServantWeb.AppController do
       updated_at: app.updated_at,
       generated: is_nil(app.repo_url),
       has_previous: Apps.previous_version?(app)
-    }
-  end
-
-  defp require_agents(conn, _opts) do
-    if Accounts.ai_enabled?(conn.assigns.current_user) do
-      conn
-    else
-      conn
-      |> put_status(:forbidden)
-      |> json(%{error: "AI agents are disabled in Settings"})
-      |> halt()
-    end
-  end
-
-  defp run_json(run) do
-    %{
-      id: run.id,
-      type: run.type,
-      action: run.action,
-      app_id: run.app_id,
-      status: run.status,
-      model: run.model,
-      prompt: run.prompt,
-      input_tokens: run.input_tokens,
-      output_tokens: run.output_tokens,
-      duration_ms: run.duration_ms,
-      error: run.error,
-      inserted_at: run.inserted_at
     }
   end
 end

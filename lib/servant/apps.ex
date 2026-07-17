@@ -21,7 +21,7 @@ defmodule Servant.Apps do
   # Builtin app ids plus SPA top-level routes an installed app must not shadow
   @reserved_ids ~w(calendar checklists contacts files finance notes photos
                    trackers dashboard data connectors settings profile audit
-                   login register app apps)
+                   login register agents app apps)
 
   def list_apps(user_id) do
     UserApp

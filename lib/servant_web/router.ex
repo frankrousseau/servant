@@ -88,8 +88,10 @@ defmodule ServantWeb.Router do
         delete "/apps/:id", AppController, :delete
 
         post "/apps/generate", AppController, :generate
-        get "/apps/runs", AppController, :runs
-        get "/apps/runs/:id", AppController, :run
+        get "/agents/runs", AgentController, :runs
+        get "/agents/runs/:id", AgentController, :show_run
+        post "/agents/:id/run", AgentController, :run
+        resources "/agents", AgentController, except: [:new, :edit]
         post "/apps/:id/modify", AppController, :modify
         post "/apps/:id/restore", AppController, :restore
 
