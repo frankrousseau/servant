@@ -54,8 +54,15 @@ defmodule Servant.Apps do
   """
   def update_from_git(user_id, app_id) do
     case get_app(user_id, app_id) do
-      nil -> {:error, :not_found}
-      app -> with_cloned_repo(user_id, app.repo_url, &update_from_dir(app, &1))
+      nil ->
+        {:error, :not_found}
+
+      app ->
+        if generated?(app) do
+          {:error, "generated apps have no git repository to update from"}
+        else
+          with_cloned_repo(user_id, app.repo_url, &update_from_dir(app, &1))
+        end
     end
   end
 
@@ -94,9 +101,11 @@ defmodule Servant.Apps do
          :ok <- validate_entry(dir, manifest["entry"]) do
       copy_app_files(app.user_id, app.app_id, dir)
 
+      # force: true bumps updated_at even when the manifest reproduces the
+      # same fields (?v= is the SPA's only ES-module cache-buster)
       app
       |> UserApp.changeset(manifest_attrs(manifest))
-      |> Repo.update()
+      |> Repo.update(force: true)
     end
   end
 
@@ -119,6 +128,45 @@ defmodule Servant.Apps do
 
   def install_dir(user_id, app_id) do
     Storage.join_files([user_id, "installed_apps", app_id])
+  end
+
+  @doc "True when the app was written by the builder agent (no git repo)."
+  def generated?(%UserApp{repo_url: repo_url}), do: is_nil(repo_url)
+
+  @doc "True when the app has a restorable previous version on disk."
+  def previous_version?(%UserApp{} = app) do
+    generated?(app) and
+      File.regular?(Path.join(install_dir(app.user_id, app.app_id), "index.prev.js"))
+  end
+
+  @doc """
+  Swaps a generated app's entry module with its saved previous version
+  (`index.prev.js`) and bumps updated_at so the SPA reloads the module.
+  """
+  def restore_previous(user_id, app_id) do
+    app = get_app(user_id, app_id)
+    dir = install_dir(user_id, app_id)
+    prev = Path.join(dir, "index.prev.js")
+
+    cond do
+      is_nil(app) ->
+        {:error, :not_found}
+
+      not generated?(app) ->
+        {:error, "only generated apps have a restorable version"}
+
+      not File.regular?(prev) ->
+        {:error, "no previous version to restore"}
+
+      true ->
+        current = Path.join(dir, app.entry)
+        swap = Path.join(dir, "index.swap.js")
+        File.rename!(current, swap)
+        File.rename!(prev, current)
+        File.rename!(swap, prev)
+        # force: true bumps updated_at even without changes (?v= cache busting)
+        app |> UserApp.changeset(%{}) |> Repo.update(force: true)
+    end
   end
 
   # --- Clone / file helpers ---

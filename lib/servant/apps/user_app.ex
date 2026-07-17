@@ -23,7 +23,7 @@ defmodule Servant.Apps.UserApp do
   def changeset(user_app, attrs) do
     user_app
     |> cast(attrs, [:app_id, :name, :description, :icon, :entry, :repo_url])
-    |> validate_required([:app_id, :name, :entry, :repo_url])
+    |> validate_required([:app_id, :name, :entry])
     |> unique_constraint([:user_id, :app_id])
   end
 end
