@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import MarkdownIt from 'markdown-it'
 import ComboBox from '../components/ComboBox.vue'
 import { useApi } from '../composables/useApi'
 import { useConfirm } from '../composables/useConfirm'
@@ -98,6 +99,15 @@ function reportsOf(agentId: string) {
 
 function reportContent(r: Entry): string {
   return typeof r.data.content === 'string' ? r.data.content : ''
+}
+
+// html: false (the default) escapes any HTML the model emits, so v-html below
+// only ever injects markup produced by markdown-it itself.
+const md = new MarkdownIt({ breaks: true, linkify: true })
+const rawReport = ref(false)
+
+function reportHtml(r: Entry): string {
+  return md.render(reportContent(r))
 }
 
 function lastRunOf(agentId: string) {
@@ -492,9 +502,32 @@ onMounted(() => {
                     {{ r.title || 'Report' }} -
                     {{ formatDate(r.occurred_at || r.inserted_at) }}
                   </button>
-                  <pre v-if="expandedReport === r.id" class="report-content">{{
-                    reportContent(r)
-                  }}</pre>
+                  <template v-if="expandedReport === r.id">
+                    <div class="report-view-tabs">
+                      <button
+                        type="button"
+                        :class="{ active: !rawReport }"
+                        @click="rawReport = false"
+                      >
+                        Rendered
+                      </button>
+                      <button
+                        type="button"
+                        :class="{ active: rawReport }"
+                        @click="rawReport = true"
+                      >
+                        Markdown
+                      </button>
+                    </div>
+                    <pre v-if="rawReport" class="report-content">{{
+                      reportContent(r)
+                    }}</pre>
+                    <div
+                      v-else
+                      class="report-content report-rendered"
+                      v-html="reportHtml(r)"
+                    ></div>
+                  </template>
                 </div>
               </template>
             </template>
@@ -540,7 +573,12 @@ onMounted(() => {
                         : '-'
                     }}
                   </td>
-                  <td :title="r.error || ''">{{ r.status }}</td>
+                  <td>
+                    {{ r.status }}
+                    <div v-if="r.error" class="run-error" :title="r.error">
+                      {{ r.error }}
+                    </div>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -694,7 +732,12 @@ onMounted(() => {
                         : '-'
                     }}
                   </td>
-                  <td :title="r.error || ''">{{ r.status }}</td>
+                  <td>
+                    {{ r.status }}
+                    <div v-if="r.error" class="run-error" :title="r.error">
+                      {{ r.error }}
+                    </div>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -852,6 +895,18 @@ onMounted(() => {
   background: rgba(240, 108, 108, 0.1);
 }
 
+.run-error {
+  color: var(--danger);
+  font-size: 0.8rem;
+  max-width: 26rem;
+  white-space: normal;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .report-agent-name {
   font-size: 0.85rem;
   color: var(--text);
@@ -906,5 +961,52 @@ onMounted(() => {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.75rem 1rem;
+}
+.report-view-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0.35rem 0;
+}
+.report-view-tabs button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  padding: 0.15rem 0.6rem;
+  cursor: pointer;
+}
+.report-view-tabs button.active {
+  color: var(--text);
+  border-color: var(--primary);
+}
+.report-rendered {
+  white-space: normal;
+  font-size: 0.9rem;
+}
+.report-rendered :deep(h1),
+.report-rendered :deep(h2),
+.report-rendered :deep(h3),
+.report-rendered :deep(h4) {
+  font-size: 1rem;
+  margin: 0.75rem 0 0.35rem;
+}
+.report-rendered :deep(p),
+.report-rendered :deep(ul),
+.report-rendered :deep(ol) {
+  margin: 0.5rem 0;
+}
+.report-rendered :deep(ul),
+.report-rendered :deep(ol) {
+  padding-left: 1.25rem;
+}
+.report-rendered :deep(table) {
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+}
+.report-rendered :deep(th),
+.report-rendered :deep(td) {
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.5rem;
 }
 </style>
