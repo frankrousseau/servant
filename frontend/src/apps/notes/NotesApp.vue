@@ -883,32 +883,6 @@ onBeforeUnmount(() => {
           placeholder="Search notes..."
           v-model="searchQuery"
         />
-        <button
-          class="nt-today-btn"
-          title="Open today's journal note (Journal/date)"
-          @click="openTodayNote"
-        >
-          Today
-        </button>
-        <button
-          class="nt-new-btn"
-          title="New note"
-          aria-label="New note"
-          @click="createNote()"
-        >
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </button>
       </div>
       <div class="nt-tree" @dragover.prevent @drop.prevent="onTreeDrop('')">
         <template v-if="treeRows.length">
@@ -977,6 +951,38 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="nt-main">
+      <div class="nt-main-topbar">
+        <span class="nt-count"
+          >{{ filteredNotes.length }}
+          <span class="nt-count-unit">{{
+            filteredNotes.length === 1 ? 'NOTE' : 'NOTES'
+          }}</span></span
+        >
+        <div class="nt-topbar-actions">
+          <button
+            class="nt-today-btn"
+            title="Open today's journal note (Journal/date)"
+            @click="openTodayNote"
+          >
+            Today
+          </button>
+          <button class="nt-new-btn" @click="createNote()">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            New note
+          </button>
+        </div>
+      </div>
       <p v-if="loadState === 'loading'" class="nt-placeholder">
         Loading notes…
       </p>
@@ -1104,15 +1110,40 @@ onBeforeUnmount(() => {
 .nt-search {
   flex: 1;
 }
-.nt-new-btn {
-  width: 32px;
+.nt-main-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  padding: 0;
-  display: grid;
-  place-items: center;
+}
+.nt-count {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+.nt-count-unit {
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+.nt-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.nt-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 32px;
+  padding: 0 0.75rem;
+  flex-shrink: 0;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
+  font-size: 0.85rem;
   border-radius: 8px;
   cursor: pointer;
   transition:
@@ -1124,14 +1155,14 @@ onBeforeUnmount(() => {
 .nt-new-btn:hover,
 .nt-new-btn:focus-visible {
   border-color: var(--primary);
-  background: var(--primary);
-  color: var(--primary-contrast);
+  color: var(--primary);
 }
 .nt-new-btn:active {
   transform: scale(0.92);
 }
 .nt-today-btn {
   flex-shrink: 0;
+  height: 32px;
   padding: 0 0.6rem;
   border: 1px solid var(--border);
   background: transparent;
