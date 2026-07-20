@@ -8,6 +8,7 @@ import {
   onBeforeUnmount
 } from 'vue'
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
+import DateInput from '../../components/DateInput.vue'
 import type { AppContext, Entry } from '../types'
 import { createFolderOrder } from '../folderOrder'
 import { itemsToMarkdown, parseListText, type Item } from './markdown'
@@ -265,6 +266,7 @@ function selectList(id: string, opts: { push?: boolean } = {}) {
   saveState.value = 'idle'
   saveError.value = ''
   newItemText.value = ''
+  dueEditIndex.value = null
   selectedId.value = id
   if (opts.push !== false) {
     history.pushState(null, '', `/apps/checklists?selected=${id}`)
@@ -344,6 +346,43 @@ function removeItem(index: number) {
   if (!l) return
   ensureItems(l).splice(index, 1)
   saveNow()
+}
+
+// ----- deadlines -----
+
+const dueEditIndex = ref<number | null>(null)
+
+function setDue(item: Item, due: string) {
+  if (due) item.due = due
+  else delete item.due
+  dueEditIndex.value = null
+  saveNow()
+}
+
+function clearDue(item: Item) {
+  delete item.due
+  dueEditIndex.value = null
+  saveNow()
+}
+
+// Local civil date; a deadline is a day, not an instant.
+function todayStr(): string {
+  const d = new Date()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function overdue(item: Item): boolean {
+  return !!item.due && !item.done && item.due < todayStr()
+}
+
+function formatDue(due: string): string {
+  const [y, m, d] = due.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC'
+  })
 }
 
 // Tab indents an item one level, Shift+Tab brings it back (outliner
@@ -732,6 +771,38 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
               @input="scheduleSave()"
               @keydown.tab.prevent="setIndent(item, $event)"
             />
+            <template v-if="dueEditIndex === i">
+              <DateInput
+                class="cl-due-input"
+                :model-value="item.due || ''"
+                title="Deadline"
+                @update:model-value="setDue(item, $event)"
+              />
+              <button
+                class="cl-due-clear"
+                title="Remove deadline"
+                @click="clearDue(item)"
+              >
+                ×
+              </button>
+            </template>
+            <button
+              v-else-if="item.due"
+              class="cl-due-chip"
+              :class="{ 'cl-due-chip--overdue': overdue(item) }"
+              :title="'Deadline ' + item.due"
+              @click="dueEditIndex = i"
+            >
+              {{ formatDue(item.due) }}
+            </button>
+            <button
+              v-else
+              class="cl-item-due-btn"
+              title="Set a deadline"
+              @click="dueEditIndex = i"
+            >
+              🗓
+            </button>
             <button
               class="cl-item-del"
               title="Remove item"
@@ -1107,6 +1178,62 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   visibility: visible;
 }
 .cl-item-del:hover {
+  color: var(--danger);
+}
+.cl-due-chip {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.cl-due-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.cl-due-chip--overdue {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.cl-item-due-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  visibility: hidden;
+  flex-shrink: 0;
+}
+.cl-item:hover .cl-item-due-btn {
+  visibility: visible;
+}
+.cl-item-due-btn:hover {
+  color: var(--primary);
+}
+.cl-due-input {
+  width: 110px;
+  flex-shrink: 0;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+}
+.cl-due-clear {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  flex-shrink: 0;
+}
+.cl-due-clear:hover {
   color: var(--danger);
 }
 .cl-add {

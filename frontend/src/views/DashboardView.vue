@@ -91,6 +91,7 @@ async function fetchData() {
 interface ChecklistItem {
   text: string
   done: boolean
+  due?: string
 }
 
 // Today's events, recurring ones included (they occur today when their
@@ -141,9 +142,15 @@ const nextEventStamp = computed(() => {
 })
 
 // Only checklists explicitly flagged for the dashboard (per-list toggle).
+// Deadlined items surface first (soonest date on top of the 5-item cut).
 const pendingItems = computed(() => {
-  const out: { listId: string; index: number; list: string; text: string }[] =
-    []
+  const out: {
+    listId: string
+    index: number
+    list: string
+    text: string
+    due?: string
+  }[] = []
   for (const l of checklists.value) {
     if (l.data.show_on_dashboard !== true) continue
     const items = (l.data.items as ChecklistItem[]) || []
@@ -153,12 +160,33 @@ const pendingItems = computed(() => {
           listId: l.id,
           index,
           list: l.title || 'Untitled',
-          text: it.text
+          text: it.text,
+          due: it.due
         })
     })
   }
-  return out
+  return out.sort((a, b) => {
+    if (!!a.due !== !!b.due) return a.due ? -1 : 1
+    if (a.due && b.due) return a.due.localeCompare(b.due)
+    return 0
+  })
 })
+
+// Local civil date, matching the checklists app's overdue rule.
+const todayLocal = (() => {
+  const d = new Date()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${String(d.getDate()).padStart(2, '0')}`
+})()
+
+function formatDue(due: string): string {
+  const [y, m, d] = due.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC'
+  })
+}
 
 // Clicking a pending item opens its checklist (checking off happens there).
 function openChecklist(p: { listId: string }) {
@@ -286,6 +314,12 @@ onMounted(fetchData)
             >
               <span class="today-box">☐</span>
               <span class="today-item-text">{{ it.text }}</span>
+              <span
+                v-if="it.due"
+                class="today-due"
+                :class="{ 'today-due--overdue': it.due < todayLocal }"
+                >{{ formatDue(it.due) }}</span
+              >
               <span class="today-list-name">{{ it.list }}</span>
             </div>
             <router-link
@@ -524,6 +558,22 @@ onMounted(fetchData)
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.today-due {
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.today-due--overdue {
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 .today-list-name {

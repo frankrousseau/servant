@@ -3,6 +3,8 @@ export interface Item {
   done: boolean
   // 1 = sub-item (one level deep); absent = top level
   indent?: number
+  // Deadline as "YYYY-MM-DD"; shown on the row and in the calendar
+  due?: string
 }
 
 // One item per line of a pasted list: `- x`, `* x`, `+ x`, `• x`, `1. x`,

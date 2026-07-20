@@ -5,6 +5,7 @@ import 'flatpickr/dist/flatpickr.min.css'
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
 import type { AppContext, Entry } from '../types'
+import type { Item as ChecklistItem } from '../checklists/markdown'
 import { birthdaySeed, contactField, contactName } from '../../lib/contact'
 import {
   formatTime,
@@ -33,6 +34,7 @@ const MONTH_NAMES = [
 const DAY_HEADERS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 const events = ref<Entry[]>([])
+const checklists = ref<Entry[]>([])
 const viewMode = ref<'calendar' | 'list'>('calendar')
 const currentYear = ref(new Date().getFullYear())
 const currentMonth = ref(new Date().getMonth())
@@ -116,6 +118,35 @@ const birthdayEvents = computed<Entry[]>(() => {
     ]
   })
 })
+
+// Virtual all-day events from checklist item deadlines (items carry an
+// optional due "YYYY-MM-DD"); pending items only, checking one off removes
+// it from the calendar. Same mechanics as birthdays: never stored, own
+// hideable "Deadlines" agenda, click-through to the checklist.
+const deadlineEvents = computed<Entry[]>(() =>
+  checklists.value.flatMap(l => {
+    const items = (l.data.items as ChecklistItem[]) || []
+    return items.flatMap((item, i) =>
+      item.due && !item.done
+        ? [
+            {
+              ...l,
+              id: `deadline:${l.id}:${i}`,
+              kind: 'event',
+              title: `⏰ ${item.text}`,
+              occurred_at: `${item.due}T12:00:00Z`,
+              data: {
+                all_day: true,
+                calendar: 'Deadlines',
+                checklist_id: l.id,
+                checklist_title: l.title
+              }
+            } as Entry
+          ]
+        : []
+    )
+  })
+)
 
 // ----- calendars ("agendas") -----
 // An agenda is an entry of kind "calendar", created through the manage
@@ -269,7 +300,11 @@ function toggleCalendar(name: string) {
   localStorage.setItem('cal-hidden', JSON.stringify([...hiddenCals.value]))
 }
 
-const allEvents = computed(() => [...events.value, ...birthdayEvents.value])
+const allEvents = computed(() => [
+  ...events.value,
+  ...birthdayEvents.value,
+  ...deadlineEvents.value
+])
 
 const visibleEvents = computed(() =>
   allEvents.value.filter(e => !hiddenCals.value.has(calendarOf(e)))
@@ -458,6 +493,12 @@ function onEventClick(id: string | undefined) {
     props.ctx.navigate(`/contacts/${id.slice('birthday:'.length)}`)
     return
   }
+  // Deadlines are virtual too: open their checklist.
+  if (id?.startsWith('deadline:')) {
+    const listId = id.slice('deadline:'.length).split(':')[0]
+    props.ctx.navigate(`/apps/checklists?selected=${listId}`)
+    return
+  }
   const entry = events.value.find(e => e.id === id)
   if (entry) openEditModal(entry)
 }
@@ -586,20 +627,24 @@ watch(modalOpen, async open => {
 async function reload() {
   loadError.value = ''
   try {
-    const [evs, cals, cts, prefs] = await Promise.all([
+    const [evs, cals, cts, prefs, lists] = await Promise.all([
       props.ctx.api.entries.list({ kind: 'event' }),
       props.ctx.api.entries.list({ kind: 'calendar' }),
-      // Contacts and prefs only feed the association combobox and the
-      // birthday opt-ins; degrade gracefully.
+      // Contacts, prefs and checklists only feed the association combobox,
+      // the birthday opt-ins and the deadline agenda; degrade gracefully.
       props.ctx.api.entries
         .list({ kind: 'contact' })
         .catch(() => [] as Entry[]),
-      props.ctx.api.entries.list({ kind: 'prefs' }).catch(() => [] as Entry[])
+      props.ctx.api.entries.list({ kind: 'prefs' }).catch(() => [] as Entry[]),
+      props.ctx.api.entries
+        .list({ kind: 'checklist' })
+        .catch(() => [] as Entry[])
     ])
     events.value = evs
     calendarEntities.value = cals
     contacts.value = cts
     birthdayPrefs.value = prefs.find(p => p.title === 'birthdays') || null
+    checklists.value = lists
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : 'Failed to load events'
   } finally {
