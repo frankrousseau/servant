@@ -13,6 +13,7 @@ import { useVirtualList } from '@vueuse/core'
 import { formatDate } from '../../lib/datetime'
 import { contactField, contactName, contactInitials } from '../../lib/contact'
 import { safeUrl } from '../../lib/url'
+import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
 import {
   RELATION_TYPES,
@@ -286,6 +287,13 @@ function mutateTags(mutate: (cur: string[]) => string[]) {
     return { ...entry.data, tags: next }
   })
 }
+
+// Only tags the contact does not already carry; selecting one adds it.
+const tagSuggestions = computed(() => {
+  if (!selected.value) return []
+  const current = tagsOf(selected.value)
+  return allTags.value.filter(t => !current.includes(t))
+})
 
 function addTag() {
   const tag = newTag.value.trim().toLowerCase()
@@ -849,16 +857,13 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                 >&times;</span
               >
             </button>
-            <form class="ct-tag-add" @submit.prevent="addTag">
-              <input
-                v-model="newTag"
-                list="ct-tag-options"
-                placeholder="+ tag"
-              />
-              <datalist id="ct-tag-options">
-                <option v-for="t in allTags" :key="t" :value="t" />
-              </datalist>
-            </form>
+            <AutocompleteInput
+              v-model="newTag"
+              class="ct-tag-add"
+              :options="tagSuggestions"
+              placeholder="+ tag"
+              @select="addTag"
+            />
           </div>
 
           <div class="ct-section-card">
@@ -1282,16 +1287,24 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .ct-tag-x:hover {
   color: var(--danger);
 }
-.ct-tag-add input {
+.ct-tag-add {
   width: 90px;
+}
+.ct-tag-add :deep(input) {
+  width: 100%;
   padding: 0.15rem 0.5rem;
   font-size: 0.78rem;
   border-radius: 999px;
   background: transparent;
   border: 1px dashed var(--border);
 }
-.ct-tag-add input:focus {
+.ct-tag-add :deep(input:focus) {
   border-style: solid;
+}
+/* The wrapper is chip-sized; let the suggestion list breathe past it. */
+.ct-tag-add :deep(.ac-list) {
+  min-width: 160px;
+  right: auto;
 }
 .ct-header-edit {
   margin-left: auto;

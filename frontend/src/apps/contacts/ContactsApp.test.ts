@@ -80,8 +80,30 @@ describe('ContactsApp', () => {
     await flushPromises()
     await selectContact(wrapper, 'Alice')
 
-    await wrapper.find('.ct-tag-add input').setValue('  Family  ')
-    await wrapper.find('.ct-tag-add').trigger('submit')
+    const input = wrapper.find('.ct-tag-add input')
+    await input.setValue('  Family  ')
+    await input.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+
+    expect(update).toHaveBeenCalledWith('a', {
+      data: expect.objectContaining({ tags: ['family'] })
+    })
+  })
+
+  it('clicking a suggestion adds the tag immediately', async () => {
+    const alice = contact('a', 'Alice')
+    const bob = contact('b', 'Bob', { tags: ['family'] })
+    const { ctx, update } = makeCtx([alice, bob])
+    const wrapper = mount(ContactsApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    await selectContact(wrapper, 'Alice')
+
+    await wrapper.find('.ct-tag-add input').trigger('focus')
+    const option = wrapper
+      .findAll('.ct-tag-add .ac-option')
+      .find(o => o.text() === 'family')
+    expect(option).toBeTruthy()
+    await option!.trigger('mousedown')
     await flushPromises()
 
     expect(update).toHaveBeenCalledWith('a', {
@@ -211,8 +233,9 @@ describe('ContactsApp', () => {
     const d1 = deferred<Entry>()
     update.mockImplementationOnce(() => d1.promise)
 
-    await wrapper.find('.ct-tag-add input').setValue('urgent')
-    await wrapper.find('.ct-tag-add').trigger('submit')
+    const tagInput = wrapper.find('.ct-tag-add input')
+    await tagInput.setValue('urgent')
+    await tagInput.trigger('keydown', { key: 'Enter' })
     expect(update).toHaveBeenCalledTimes(1)
 
     await wrapper.find('.ct-header-edit').trigger('click')
@@ -243,8 +266,9 @@ describe('ContactsApp', () => {
     const d1 = deferred<Entry>()
     update.mockImplementationOnce(() => d1.promise)
 
-    await wrapper.find('.ct-tag-add input').setValue('urgent')
-    await wrapper.find('.ct-tag-add').trigger('submit')
+    const tagInput = wrapper.find('.ct-tag-add input')
+    await tagInput.setValue('urgent')
+    await tagInput.trigger('keydown', { key: 'Enter' })
 
     await wrapper.find('.ct-header-edit').trigger('click')
     await flushPromises()
