@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, reactive, nextTick, onMounted, onUnmounted } from 'vue'
+import {
+  ref,
+  computed,
+  reactive,
+  watch,
+  nextTick,
+  onMounted,
+  onUnmounted
+} from 'vue'
 import type { AppContext, Entry } from '../types'
 import { useVirtualList } from '@vueuse/core'
 import { formatDate } from '../../lib/datetime'
@@ -98,6 +106,11 @@ function toggleTagFilter(tag: string) {
   activeTag.value = activeTag.value === tag ? null : tag
 }
 
+// A removed tag must release the filter, or the list locks on "No match."
+watch(allTags, tags => {
+  if (activeTag.value && !tags.includes(activeTag.value)) activeTag.value = null
+})
+
 // Virtualize the list so a large address book renders only the visible rows.
 const {
   list: virtualContacts,
@@ -117,6 +130,7 @@ function selectContact(id: string) {
   selectedId.value = id
   mode.value = 'view'
   formError.value = ''
+  newTag.value = ''
   history.replaceState(null, '', '/apps/contacts?selected=' + id)
   void loadLinked()
 }
@@ -194,35 +208,44 @@ async function toggleBirthdayOnDashboard() {
 
 const newTag = ref('')
 
-async function saveTags(next: string[]) {
+// Tag saves are serialized and re-derive from the freshest entry inside the
+// chain: two quick chip clicks must not both branch off the same stale list.
+let tagChain: Promise<void> = Promise.resolve()
+
+function mutateTags(mutate: (cur: string[]) => string[]) {
   const c = selected.value
   if (!c) return
-  try {
-    const updated = await props.ctx.api.entries.update(c.id, {
-      data: { ...c.data, tags: next }
+  const id = c.id
+  tagChain = tagChain
+    .then(async () => {
+      const entry = allContacts.value.find(x => x.id === id)
+      if (!entry) return
+      const cur = tagsOf(entry)
+      const next = mutate(cur)
+      if (next.length === cur.length && next.every((t, i) => t === cur[i])) {
+        return
+      }
+      const updated = await props.ctx.api.entries.update(id, {
+        data: { ...entry.data, tags: next }
+      })
+      allContacts.value = allContacts.value.map(x =>
+        x.id === updated.id ? updated : x
+      )
     })
-    allContacts.value = allContacts.value.map(x =>
-      x.id === updated.id ? updated : x
-    )
-  } catch {
-    // chips reflect the server state again on the next load
-  }
+    .catch(() => {
+      // chips reflect the server state again on the next load
+    })
 }
 
 function addTag() {
-  const c = selected.value
   const tag = newTag.value.trim().toLowerCase()
   newTag.value = ''
-  if (!c || !tag) return
-  const cur = tagsOf(c)
-  if (cur.includes(tag)) return
-  void saveTags([...cur, tag])
+  if (!tag) return
+  mutateTags(cur => (cur.includes(tag) ? cur : [...cur, tag]))
 }
 
 function removeTag(tag: string) {
-  const c = selected.value
-  if (!c) return
-  void saveTags(tagsOf(c).filter(t => t !== tag))
+  mutateTags(cur => cur.filter(t => t !== tag))
 }
 
 function openNote(n: Entry) {
