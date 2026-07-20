@@ -85,10 +85,12 @@ const router = createRouter({
       meta: { auth: true }
     },
     {
+      // The contact page merged into the Contacts app; keep the permalink.
       path: '/contacts/:id',
-      name: 'contact-detail',
-      component: () => import('../views/ContactDetailView.vue'),
-      meta: { auth: true, title: 'Contact' }
+      redirect: to => ({
+        path: '/apps/contacts',
+        query: { selected: to.params.id }
+      })
     },
     {
       path: '/photos/:id',

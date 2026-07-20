@@ -21,22 +21,25 @@ const selectedId = ref<string | null>(
 const loading = ref(true)
 const loadError = ref('')
 
-const modalOpen = ref(false)
-const creating = ref(false)
-const modalError = ref('')
+// The detail column is the single workplace: it shows the full contact,
+// edits it in place, and hosts creation (no modal, no separate page).
+const mode = ref<'view' | 'edit' | 'create'>('view')
+const saving = ref(false)
+const formError = ref('')
+const avatarUploading = ref(false)
 const nameInput = ref<HTMLInputElement | null>(null)
+const searchInput = ref<HTMLInputElement | null>(null)
 const form = reactive({
   display_name: '',
   org: '',
   title: '',
-  email: '',
-  email_type: '',
-  phone: '',
-  phone_type: '',
+  emails: [] as Labeled[],
+  phones: [] as Labeled[],
   address: '',
   birthday: '',
   url: '',
-  note: ''
+  note: '',
+  photo: ''
 })
 
 const fld = contactField
@@ -94,76 +97,242 @@ const websiteHref = computed(() =>
 
 function selectContact(id: string) {
   selectedId.value = id
+  mode.value = 'view'
+  formError.value = ''
   history.replaceState(null, '', '/apps/contacts?selected=' + id)
+  void loadLinked()
 }
 
 function onSearch() {
   selectedId.value = null
+  mode.value = 'view'
   history.replaceState(null, '', '/apps/contacts')
 }
 
+// ----- linked data (events, note mentions) + dashboard-birthday opt-in -----
+
+const linkedEvents = ref<Entry[]>([])
+const mentioningNotes = ref<Entry[]>([])
+// The opt-in list (whose birthdays show in the calendar and on the dashboard)
+// lives in its own entry (kind prefs, title birthdays) rather than on the
+// contact: vCard connector re-syncs replace contact data wholesale.
+const dashPrefs = ref<Entry | null>(null)
+
+async function loadLinked() {
+  const id = selectedId.value
+  linkedEvents.value = []
+  mentioningNotes.value = []
+  if (!id) return
+  try {
+    const [events, notesRes, prefs] = await Promise.all([
+      // q narrows server-side (the id appears in data.contact_id); the
+      // filter below makes the match exact.
+      props.ctx.api.entries.list({ kind: 'event', q: id }),
+      props.ctx.api.fetch(`/api/notes/mentioning/${id}`),
+      props.ctx.api.entries.list({ kind: 'prefs' })
+    ])
+    if (id !== selectedId.value) return
+    linkedEvents.value = events
+      .filter(e => e.data.contact_id === id)
+      .sort((a, b) => (b.occurred_at || '').localeCompare(a.occurred_at || ''))
+    if (notesRes.ok) {
+      mentioningNotes.value = (
+        (await notesRes.json()) as { data: Entry[] }
+      ).data
+    }
+    dashPrefs.value = prefs.find(p => p.title === 'birthdays') || null
+  } catch {
+    // linked sections simply stay empty
+  }
+}
+
+const birthdayOnDashboard = computed(() => {
+  const ids = (dashPrefs.value?.data.contact_ids as string[]) || []
+  return !!selectedId.value && ids.includes(selectedId.value)
+})
+
+async function toggleBirthdayOnDashboard() {
+  const id = selectedId.value
+  if (!id) return
+  const cur = (dashPrefs.value?.data.contact_ids as string[]) || []
+  const next = cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id]
+  try {
+    if (dashPrefs.value) {
+      dashPrefs.value = await props.ctx.api.entries.update(dashPrefs.value.id, {
+        data: { ...dashPrefs.value.data, contact_ids: next }
+      })
+    } else {
+      dashPrefs.value = await props.ctx.api.entries.create({
+        kind: 'prefs',
+        source: 'manual',
+        title: 'birthdays',
+        data: { contact_ids: next }
+      })
+    }
+  } catch {
+    // leave the checkbox as-is
+  }
+}
+
+function openNote(n: Entry) {
+  props.ctx.navigate('/apps/notes?selected=' + n.id)
+}
+
+// ----- create / edit form -----
+
 function openCreate() {
-  modalError.value = ''
-  Object.keys(form).forEach(k => ((form as Record<string, string>)[k] = ''))
-  modalOpen.value = true
+  form.display_name = ''
+  form.org = ''
+  form.title = ''
+  form.emails = [{ value: '', type: '' }]
+  form.phones = [{ value: '', type: '' }]
+  form.address = ''
+  form.birthday = ''
+  form.url = ''
+  form.note = ''
+  form.photo = ''
+  formError.value = ''
+  selectedId.value = null
+  history.replaceState(null, '', '/apps/contacts')
+  mode.value = 'create'
   nextTick(() => nameInput.value?.focus())
 }
 
-function closeCreate() {
-  modalOpen.value = false
+function openEdit() {
+  const c = selected.value
+  if (!c) return
+  form.display_name = fld(c, 'display_name')
+  form.org = fld(c, 'org')
+  form.title = fld(c, 'title')
+  form.emails = getEmails(c).length
+    ? getEmails(c).map(e => ({ ...e }))
+    : [{ value: '', type: '' }]
+  form.phones = getPhones(c).length
+    ? getPhones(c).map(p => ({ ...p }))
+    : [{ value: '', type: '' }]
+  form.address = fld(c, 'address')
+  form.birthday = fld(c, 'birthday')
+  form.url = fld(c, 'url')
+  form.note = fld(c, 'note')
+  form.photo = fld(c, 'photo')
+  formError.value = ''
+  mode.value = 'edit'
+  nextTick(() => nameInput.value?.focus())
 }
 
-async function submitCreate() {
+function cancelForm() {
+  mode.value = 'view'
+  formError.value = ''
+}
+
+function addEmail() {
+  form.emails.push({ value: '', type: '' })
+}
+function removeEmail(i: number) {
+  form.emails.splice(i, 1)
+}
+function addPhone() {
+  form.phones.push({ value: '', type: '' })
+}
+function removePhone(i: number) {
+  form.phones.splice(i, 1)
+}
+
+async function uploadPhoto(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  avatarUploading.value = true
+  try {
+    const res = await props.ctx.api.upload(file, 'contacts')
+    form.photo = res.path
+  } catch (err) {
+    formError.value = err instanceof Error ? err.message : 'Upload failed'
+  } finally {
+    avatarUploading.value = false
+    input.value = ''
+  }
+}
+
+async function saveForm() {
   const displayName = form.display_name.trim()
   if (!displayName) return
+  saving.value = true
+  formError.value = ''
 
-  creating.value = true
-  modalError.value = ''
-
-  const emails: Labeled[] = []
-  if (form.email.trim())
-    emails.push({ value: form.email.trim(), type: form.email_type.trim() })
-  const phones: Labeled[] = []
-  if (form.phone.trim())
-    phones.push({ value: form.phone.trim(), type: form.phone_type.trim() })
-
+  const emails = form.emails
+    .filter(e => e.value.trim())
+    .map(e => ({ value: e.value.trim(), type: e.type.trim() }))
+  const phones = form.phones
+    .filter(p => p.value.trim())
+    .map(p => ({ value: p.value.trim(), type: p.type.trim() }))
   const titleParts = [
     displayName,
     form.org.trim(),
     form.title.trim(),
-    form.email.trim()
+    emails[0]?.value
   ].filter(Boolean)
 
+  const data = {
+    display_name: displayName,
+    org: form.org.trim() || null,
+    title: form.title.trim() || null,
+    emails,
+    phones,
+    address: form.address.trim() || null,
+    birthday: form.birthday.trim() || null,
+    url: form.url.trim() || null,
+    note: form.note.trim() || null,
+    photo: form.photo || null
+  }
+
   try {
-    const created = await props.ctx.api.entries.create({
-      kind: 'contact',
-      source: 'manual',
-      title: titleParts.join(' - '),
-      data: {
-        display_name: displayName,
-        org: form.org.trim() || null,
-        title: form.title.trim() || null,
-        emails,
-        phones,
-        address: form.address.trim() || null,
-        birthday: form.birthday.trim() || null,
-        url: form.url.trim() || null,
-        note: form.note.trim() || null
-      }
-    })
-    allContacts.value = sortContacts([...allContacts.value, created])
-    selectContact(created.id)
-    modalOpen.value = false
+    if (mode.value === 'edit' && selected.value) {
+      const updated = await props.ctx.api.entries.update(selected.value.id, {
+        title: titleParts.join(' - '),
+        data: { ...selected.value.data, ...data }
+      })
+      allContacts.value = sortContacts(
+        allContacts.value.map(c => (c.id === updated.id ? updated : c))
+      )
+      selectContact(updated.id)
+    } else {
+      const created = await props.ctx.api.entries.create({
+        kind: 'contact',
+        source: 'manual',
+        title: titleParts.join(' - '),
+        data
+      })
+      allContacts.value = sortContacts([...allContacts.value, created])
+      selectContact(created.id)
+    }
   } catch (err) {
-    modalError.value =
-      err instanceof Error ? err.message : 'Failed to create contact'
+    formError.value = err instanceof Error ? err.message : 'Failed to save'
   } finally {
-    creating.value = false
+    saving.value = false
+  }
+}
+
+async function deleteContact() {
+  const c = selected.value
+  if (!c) return
+  const ok = await props.ctx.confirm.ask({
+    message: `Delete "${contactName(c)}"?`,
+    danger: true
+  })
+  if (!ok) return
+  try {
+    await props.ctx.api.entries.delete(c.id)
+    allContacts.value = allContacts.value.filter(x => x.id !== c.id)
+    selectedId.value = null
+    history.replaceState(null, '', '/apps/contacts')
+  } catch {
+    // the contact stays listed; a retry goes through the same button
   }
 }
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && modalOpen.value) closeCreate()
+  if (e.key === 'Escape' && mode.value !== 'view') cancelForm()
 }
 
 async function reload() {
@@ -175,12 +344,14 @@ async function reload() {
     loadError.value = e instanceof Error ? e.message : 'Failed to load contacts'
   } finally {
     loading.value = false
+    nextTick(() => searchInput.value?.focus())
   }
 }
 
 onMounted(() => {
   document.addEventListener('keydown', onKeydown)
   reload()
+  if (selectedId.value) void loadLinked()
 })
 onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 </script>
@@ -192,34 +363,13 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
     <div class="ct-list-col">
       <div class="ct-search-wrap">
         <input
+          ref="searchInput"
           class="ct-search"
           type="text"
           placeholder="Search contacts..."
           v-model="searchQuery"
           @input="onSearch"
         />
-        <span class="ct-count"
-          >{{ filtered.length }} <span class="ct-count-unit">REC</span></span
-        >
-        <button
-          class="ct-add-contact-btn"
-          title="New contact"
-          @click="openCreate"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-        </button>
       </div>
       <div v-if="filtered.length === 0" class="ct-list">
         <p v-if="allContacts.length === 0" class="ct-empty">
@@ -254,254 +404,398 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
     </div>
 
     <div class="ct-detail-col">
-      <div v-if="selected" class="ct-detail">
-        <div class="ct-detail-header">
-          <span
-            v-if="fld(selected, 'photo')"
-            class="ct-avatar ct-avatar--lg ct-avatar--photo"
-          >
-            <img :src="fld(selected, 'photo')" alt="" loading="lazy" />
-          </span>
-          <span v-else class="ct-avatar ct-avatar--lg">{{
-            getInitials(contactName(selected))
-          }}</span>
-          <div>
-            <h2 class="ct-detail-name">{{ contactName(selected) }}</h2>
-            <span
-              v-if="fld(selected, 'title') || fld(selected, 'org')"
-              class="ct-detail-sub"
-              >{{
-                [fld(selected, 'title'), fld(selected, 'org')]
-                  .filter(Boolean)
-                  .join(' · ')
-              }}</span
-            >
-          </div>
-        </div>
-
-        <div class="ct-section-card">
-          <h3 class="ct-section-title">Contact Info</h3>
-          <div
-            v-for="(e, i) in getEmails(selected)"
-            :key="'e' + i"
-            class="ct-info-row"
-          >
-            <svg
-              class="ct-info-icon"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <rect width="20" height="16" x="2" y="4" rx="2" />
-              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-            </svg>
-            <div class="ct-info-body">
-              <a class="ct-link" :href="'mailto:' + e.value">{{ e.value }}</a>
-              <span v-if="e.type" class="ct-info-type">{{ e.type }}</span>
-            </div>
-          </div>
-          <div
-            v-for="(p, i) in getPhones(selected)"
-            :key="'p' + i"
-            class="ct-info-row"
-          >
-            <svg
-              class="ct-info-icon"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path
-                d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"
-              />
-            </svg>
-            <div class="ct-info-body">
-              <a class="ct-link" :href="'tel:' + p.value">{{ p.value }}</a>
-              <span v-if="p.type" class="ct-info-type">{{ p.type }}</span>
-            </div>
-          </div>
-          <span
-            v-if="!getEmails(selected).length && !getPhones(selected).length"
-            class="ct-muted"
-          >
-            No contact info
-          </span>
-        </div>
-
-        <div
-          v-if="
-            fld(selected, 'address') ||
-            fld(selected, 'birthday') ||
-            fld(selected, 'url') ||
-            fld(selected, 'note')
-          "
-          class="ct-section-card"
+      <div class="ct-detail-topbar">
+        <span class="ct-count"
+          >{{ filtered.length }}
+          <span class="ct-count-unit">{{
+            filtered.length === 1 ? 'CONTACT' : 'CONTACTS'
+          }}</span></span
         >
-          <h3 class="ct-section-title">Details</h3>
-          <div class="ct-meta-list">
-            <div v-if="fld(selected, 'address')" class="ct-meta-row">
-              <span class="ct-meta-key">Address</span
-              ><span>{{ fld(selected, 'address') }}</span>
-            </div>
-            <div v-if="fld(selected, 'birthday')" class="ct-meta-row">
-              <span class="ct-meta-key">Birthday</span
-              ><span>{{ fld(selected, 'birthday') }}</span>
-            </div>
-            <div v-if="fld(selected, 'url')" class="ct-meta-row">
-              <span class="ct-meta-key">Website</span>
-              <span>
-                <a
-                  v-if="websiteHref"
-                  class="ct-link"
-                  :href="websiteHref"
-                  target="_blank"
-                  rel="noopener"
-                  >{{ fld(selected, 'url') }}</a
-                >
-                <template v-else>{{ fld(selected, 'url') }}</template>
-              </span>
-            </div>
-            <div v-if="fld(selected, 'note')" class="ct-meta-row">
-              <span class="ct-meta-key">Note</span>
-              <span class="ct-note">{{ fld(selected, 'note') }}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="ct-section-card ct-section-card--muted">
-          <h3 class="ct-section-title">Info</h3>
-          <div class="ct-meta-list">
-            <div class="ct-meta-row">
-              <span class="ct-meta-key">Source</span>
-              <span>{{ fld(selected, 'source_name') || selected.source }}</span>
-            </div>
-            <div class="ct-meta-row">
-              <span class="ct-meta-key">Added</span>
-              <span>{{ formatDate(selected.inserted_at) }}</span>
-            </div>
-            <div v-if="selected.external_id" class="ct-meta-row">
-              <span class="ct-meta-key">ID</span>
-              <span class="ct-mono">{{ selected.external_id }}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="ct-detail-footer">
-          <button
-            class="ct-footer-btn"
-            @click="ctx.navigate('/contacts/' + selected.id + '?edit=1')"
+        <button class="ct-add-contact-btn" @click="openCreate">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
           >
-            Edit
-          </button>
-          <button
-            class="ct-footer-btn ct-footer-btn--link"
-            @click="ctx.navigate('/contacts/' + selected.id)"
-          >
-            Open full page
-          </button>
-        </div>
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          Add contact
+        </button>
       </div>
-      <p v-else class="ct-placeholder">Select a contact to view details</p>
-    </div>
-  </div>
+      <div class="ct-detail-body">
+        <!-- Create / edit -->
+        <form v-if="mode !== 'view'" class="ct-form" @submit.prevent="saveForm">
+          <h2 class="ct-form-title">
+            {{ mode === 'create' ? 'New contact' : 'Edit contact' }}
+          </h2>
 
-  <Teleport to="body">
-    <div v-if="modalOpen" class="ct-modal-overlay" @click.self="closeCreate">
-      <div class="ct-modal">
-        <h2 class="ct-modal-title">New Contact</h2>
-        <form class="ct-modal-form" @submit.prevent="submitCreate">
-          <div class="ct-modal-field">
-            <label>Name *</label
-            ><input ref="nameInput" v-model="form.display_name" required />
-          </div>
-          <div class="ct-modal-grid">
-            <div class="ct-modal-field">
-              <label>Organization</label><input v-model="form.org" />
-            </div>
-            <div class="ct-modal-field">
-              <label>Title</label
-              ><input
-                v-model="form.title"
-                placeholder="e.g. Software Engineer"
+          <div class="ct-form-photo">
+            <label class="ct-form-avatar">
+              <img v-if="form.photo" :src="form.photo" alt="" />
+              <span v-else class="ct-form-avatar-placeholder">{{
+                getInitials(form.display_name || '?')
+              }}</span>
+              <span
+                class="ct-form-avatar-overlay"
+                :class="{ uploading: avatarUploading }"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"
+                  />
+                  <circle cx="12" cy="13" r="3" />
+                </svg>
+              </span>
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                @change="uploadPhoto"
               />
+            </label>
+          </div>
+
+          <div class="ct-section-card">
+            <h3 class="ct-section-title">Basic Info</h3>
+            <div class="ct-form-grid">
+              <div class="ct-form-field ct-form-field--full">
+                <label>Name *</label>
+                <input ref="nameInput" v-model="form.display_name" required />
+              </div>
+              <div class="ct-form-field">
+                <label>Organization</label>
+                <input v-model="form.org" />
+              </div>
+              <div class="ct-form-field">
+                <label>Title</label>
+                <input
+                  v-model="form.title"
+                  placeholder="e.g. Software Engineer"
+                />
+              </div>
             </div>
           </div>
-          <div class="ct-modal-section-label">Contact</div>
-          <div class="ct-modal-row">
-            <input
-              v-model="form.email"
-              type="email"
-              placeholder="Email"
-              class="ct-modal-flex"
-            />
-            <input
-              v-model="form.email_type"
-              placeholder="Type"
-              class="ct-modal-type"
-            />
-          </div>
-          <div class="ct-modal-row">
-            <input
-              v-model="form.phone"
-              type="tel"
-              placeholder="Phone"
-              class="ct-modal-flex"
-            />
-            <input
-              v-model="form.phone_type"
-              placeholder="Type"
-              class="ct-modal-type"
-            />
-          </div>
-          <div class="ct-modal-section-label">Details</div>
-          <div class="ct-modal-field">
-            <label>Address</label><input v-model="form.address" />
-          </div>
-          <div class="ct-modal-grid">
-            <div class="ct-modal-field">
-              <label>Birthday</label
-              ><input v-model="form.birthday" type="date" />
-            </div>
-            <div class="ct-modal-field">
-              <label>Website</label
-              ><input v-model="form.url" type="url" placeholder="https://..." />
-            </div>
-          </div>
-          <div class="ct-modal-field">
-            <label>Note</label
-            ><textarea v-model="form.note" rows="2"></textarea>
-          </div>
-          <p v-if="modalError" class="ct-modal-error">{{ modalError }}</p>
-          <div class="ct-modal-actions">
-            <button
-              type="button"
-              class="ct-modal-btn ct-modal-btn--cancel"
-              @click="closeCreate"
+
+          <div class="ct-section-card">
+            <h3 class="ct-section-title">Contact</h3>
+            <div
+              v-for="(e, i) in form.emails"
+              :key="'e' + i"
+              class="ct-form-row"
             >
+              <input
+                v-model="e.value"
+                type="email"
+                placeholder="Email"
+                class="ct-form-flex"
+              />
+              <input v-model="e.type" placeholder="Type" class="ct-form-type" />
+              <button
+                type="button"
+                class="ct-row-remove"
+                title="Remove"
+                @click="removeEmail(i)"
+              >
+                &times;
+              </button>
+            </div>
+            <button type="button" class="ct-row-add" @click="addEmail">
+              + Email
+            </button>
+            <div
+              v-for="(p, i) in form.phones"
+              :key="'p' + i"
+              class="ct-form-row"
+            >
+              <input
+                v-model="p.value"
+                type="tel"
+                placeholder="Phone"
+                class="ct-form-flex"
+              />
+              <input v-model="p.type" placeholder="Type" class="ct-form-type" />
+              <button
+                type="button"
+                class="ct-row-remove"
+                title="Remove"
+                @click="removePhone(i)"
+              >
+                &times;
+              </button>
+            </div>
+            <button type="button" class="ct-row-add" @click="addPhone">
+              + Phone
+            </button>
+          </div>
+
+          <div class="ct-section-card">
+            <h3 class="ct-section-title">Details</h3>
+            <div class="ct-form-grid">
+              <div class="ct-form-field ct-form-field--full">
+                <label>Address</label>
+                <input v-model="form.address" />
+              </div>
+              <div class="ct-form-field">
+                <label>Birthday</label>
+                <input v-model="form.birthday" type="date" />
+              </div>
+              <div class="ct-form-field">
+                <label>Website</label>
+                <input
+                  v-model="form.url"
+                  type="url"
+                  placeholder="https://..."
+                />
+              </div>
+            </div>
+            <div class="ct-form-field">
+              <label>Note</label>
+              <textarea v-model="form.note" rows="3"></textarea>
+            </div>
+          </div>
+
+          <p v-if="formError" class="ct-form-error">{{ formError }}</p>
+          <div class="ct-form-actions">
+            <button type="button" class="ct-btn" @click="cancelForm">
               Cancel
             </button>
             <button
               type="submit"
-              class="ct-modal-btn ct-modal-btn--primary"
-              :disabled="creating"
+              class="ct-btn ct-btn--primary"
+              :disabled="saving"
             >
-              {{ creating ? 'Creating...' : 'Create' }}
+              {{ saving ? 'Saving...' : mode === 'create' ? 'Create' : 'Save' }}
             </button>
           </div>
         </form>
+
+        <!-- View -->
+        <div v-else-if="selected" class="ct-detail">
+          <div class="ct-detail-header">
+            <span
+              v-if="fld(selected, 'photo')"
+              class="ct-avatar ct-avatar--lg ct-avatar--photo"
+            >
+              <img :src="fld(selected, 'photo')" alt="" loading="lazy" />
+            </span>
+            <span v-else class="ct-avatar ct-avatar--lg">{{
+              getInitials(contactName(selected))
+            }}</span>
+            <div>
+              <h2 class="ct-detail-name">{{ contactName(selected) }}</h2>
+              <span
+                v-if="fld(selected, 'title') || fld(selected, 'org')"
+                class="ct-detail-sub"
+                >{{
+                  [fld(selected, 'title'), fld(selected, 'org')]
+                    .filter(Boolean)
+                    .join(' · ')
+                }}</span
+              >
+            </div>
+            <button class="ct-footer-btn ct-header-edit" @click="openEdit">
+              Edit
+            </button>
+          </div>
+
+          <div class="ct-section-card">
+            <h3 class="ct-section-title">Contact Info</h3>
+            <div
+              v-for="(e, i) in getEmails(selected)"
+              :key="'e' + i"
+              class="ct-info-row"
+            >
+              <svg
+                class="ct-info-icon"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect width="20" height="16" x="2" y="4" rx="2" />
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+              </svg>
+              <div class="ct-info-body">
+                <a class="ct-link" :href="'mailto:' + e.value">{{ e.value }}</a>
+                <span v-if="e.type" class="ct-info-type">{{ e.type }}</span>
+              </div>
+            </div>
+            <div
+              v-for="(p, i) in getPhones(selected)"
+              :key="'p' + i"
+              class="ct-info-row"
+            >
+              <svg
+                class="ct-info-icon"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"
+                />
+              </svg>
+              <div class="ct-info-body">
+                <a class="ct-link" :href="'tel:' + p.value">{{ p.value }}</a>
+                <span v-if="p.type" class="ct-info-type">{{ p.type }}</span>
+              </div>
+            </div>
+            <span
+              v-if="!getEmails(selected).length && !getPhones(selected).length"
+              class="ct-muted"
+            >
+              No contact info
+            </span>
+          </div>
+
+          <div
+            v-if="
+              fld(selected, 'address') ||
+              fld(selected, 'birthday') ||
+              fld(selected, 'url') ||
+              fld(selected, 'note')
+            "
+            class="ct-section-card"
+          >
+            <h3 class="ct-section-title">Details</h3>
+            <div class="ct-meta-list">
+              <div v-if="fld(selected, 'address')" class="ct-meta-row">
+                <span class="ct-meta-key">Address</span
+                ><span>{{ fld(selected, 'address') }}</span>
+              </div>
+              <div v-if="fld(selected, 'birthday')" class="ct-meta-row">
+                <span class="ct-meta-key">Birthday</span
+                ><span>{{ fld(selected, 'birthday') }}</span>
+              </div>
+              <div v-if="fld(selected, 'url')" class="ct-meta-row">
+                <span class="ct-meta-key">Website</span>
+                <span>
+                  <a
+                    v-if="websiteHref"
+                    class="ct-link"
+                    :href="websiteHref"
+                    target="_blank"
+                    rel="noopener"
+                    >{{ fld(selected, 'url') }}</a
+                  >
+                  <template v-else>{{ fld(selected, 'url') }}</template>
+                </span>
+              </div>
+              <div v-if="fld(selected, 'note')" class="ct-meta-row">
+                <span class="ct-meta-key">Note</span>
+                <span class="ct-note">{{ fld(selected, 'note') }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="fld(selected, 'birthday')" class="ct-section-card">
+            <h3 class="ct-section-title">Parameters</h3>
+            <label class="ct-dash-toggle">
+              <input
+                type="checkbox"
+                :checked="birthdayOnDashboard"
+                @change="toggleBirthdayOnDashboard"
+              />
+              🎂 Show this birthday in the calendar and on the dashboard
+            </label>
+          </div>
+
+          <div v-if="linkedEvents.length" class="ct-section-card">
+            <h3 class="ct-section-title">Events</h3>
+            <div
+              v-for="e in linkedEvents.slice(0, 8)"
+              :key="e.id"
+              class="ct-linked-row"
+              role="button"
+              tabindex="0"
+              @click="ctx.navigate('/apps/calendar')"
+              @keydown.enter="ctx.navigate('/apps/calendar')"
+            >
+              <span class="ct-linked-meta">{{
+                formatDate(e.occurred_at || e.inserted_at)
+              }}</span>
+              <span class="ct-linked-title">
+                <span v-if="e.data.recurrence" title="Recurring">↻</span>
+                {{ e.title || 'Untitled' }}
+              </span>
+            </div>
+          </div>
+
+          <div v-if="mentioningNotes.length" class="ct-section-card">
+            <h3 class="ct-section-title">Mentioned in</h3>
+            <div
+              v-for="n in mentioningNotes"
+              :key="n.id"
+              class="ct-linked-row"
+              role="button"
+              tabindex="0"
+              @click="openNote(n)"
+              @keydown.enter="openNote(n)"
+            >
+              <span class="ct-linked-title">{{ n.title || 'Untitled' }}</span>
+              <span v-if="n.data.folder" class="ct-linked-meta">{{
+                n.data.folder
+              }}</span>
+            </div>
+          </div>
+
+          <div class="ct-section-card ct-section-card--muted">
+            <h3 class="ct-section-title">Info</h3>
+            <div class="ct-meta-list">
+              <div class="ct-meta-row">
+                <span class="ct-meta-key">Source</span>
+                <span>{{
+                  fld(selected, 'source_name') || selected.source
+                }}</span>
+              </div>
+              <div class="ct-meta-row">
+                <span class="ct-meta-key">Added</span>
+                <span>{{ formatDate(selected.inserted_at) }}</span>
+              </div>
+              <div v-if="selected.external_id" class="ct-meta-row">
+                <span class="ct-meta-key">ID</span>
+                <span class="ct-mono">{{ selected.external_id }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="ct-detail-footer">
+            <button
+              class="ct-footer-btn ct-footer-btn--danger"
+              @click="deleteContact"
+            >
+              Delete contact
+            </button>
+          </div>
+        </div>
+        <p v-else class="ct-placeholder">Select a contact to view details</p>
       </div>
     </div>
-  </Teleport>
+  </div>
 </template>
 
 <style scoped>
@@ -522,6 +816,20 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   border-right: 1px solid var(--border);
 }
 .ct-detail-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ct-detail-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.ct-detail-body {
   flex: 1;
   overflow-y: auto;
   padding: 1.5rem;
@@ -613,6 +921,9 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.88rem;
 }
+.ct-detail {
+  max-width: 640px;
+}
 .ct-detail-header {
   display: flex;
   align-items: center;
@@ -629,6 +940,9 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .ct-detail-sub {
   font-size: 0.9rem;
   color: var(--text-muted);
+}
+.ct-header-edit {
+  margin-left: auto;
 }
 .ct-avatar--photo {
   padding: 0;
@@ -726,12 +1040,56 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   font-family: monospace;
   font-size: 0.85rem;
 }
+.ct-linked-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.45rem 0.25rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.ct-linked-row:last-child {
+  border-bottom: none;
+}
+.ct-linked-row:hover {
+  background: var(--bg-hover);
+}
+.ct-linked-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ct-linked-meta {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+.ct-linked-row .ct-linked-meta:last-child {
+  margin-left: auto;
+}
+.ct-dash-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  color: var(--text);
+}
+.ct-dash-toggle input {
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  margin: 0;
+  accent-color: var(--primary);
+}
 .ct-detail-footer {
   margin-top: 0.5rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border);
   display: flex;
-  gap: 1rem;
+  justify-content: flex-end;
 }
 .ct-footer-btn {
   font-size: 0.85rem;
@@ -746,136 +1104,182 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   border-color: var(--primary);
   color: var(--text);
 }
-.ct-footer-btn--link {
-  border: none;
-  color: var(--primary);
-  padding: 0.4rem 0;
-}
-.ct-footer-btn--link:hover {
-  text-decoration: underline;
-  background: none;
-  color: var(--primary);
+.ct-footer-btn--danger:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: rgba(240, 108, 108, 0.08);
 }
 .ct-add-contact-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 32px;
+  gap: 0.4rem;
   height: 32px;
+  padding: 0 0.75rem;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
+  font-size: 0.85rem;
   cursor: pointer;
   flex-shrink: 0;
-  padding: 0;
 }
 .ct-add-contact-btn:hover {
   border-color: var(--primary);
   color: var(--primary);
 }
-.ct-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  z-index: 10000;
+
+/* Create / edit form */
+.ct-form {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 640px;
 }
-.ct-modal {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1.5rem;
-  width: 100%;
-  max-width: 520px;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-.ct-modal-title {
-  margin: 0 0 1.25rem;
+.ct-form-title {
+  margin: 0;
   font-family: var(--font-display);
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-size: 1.4rem;
 }
-.ct-modal-form {
+.ct-form-photo {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  justify-content: center;
 }
-.ct-modal-grid {
+.ct-form-avatar {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  cursor: pointer;
+  overflow: hidden;
+}
+.ct-form-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ct-form-avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(108, 206, 201, 0.15);
+  color: #6ccec9;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+.ct-form-avatar-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.ct-form-avatar-overlay.uploading {
+  opacity: 0.6;
+}
+.ct-form-avatar:hover .ct-form-avatar-overlay {
+  opacity: 1;
+}
+.ct-form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
 }
-.ct-modal-grid:has(:nth-child(3)) {
-  grid-template-columns: 1fr 1fr 1fr;
+.ct-form-field--full {
+  grid-column: 1 / -1;
 }
-.ct-modal-field {
+.ct-form-field {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
-.ct-modal-field label {
+.ct-form-field label {
   font-size: 0.8rem;
   color: var(--text-muted);
 }
-.ct-modal-section-label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  margin-top: 0.5rem;
-}
-.ct-modal-row {
+.ct-form-row {
   display: flex;
   gap: 0.375rem;
+  margin-bottom: 0.375rem;
 }
-.ct-modal-flex {
+.ct-form-flex {
   flex: 1;
 }
-.ct-modal-type {
+.ct-form-type {
   width: 90px;
 }
-.ct-modal-error {
+.ct-row-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+.ct-row-remove:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.ct-row-add {
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0.3rem 0;
+}
+.ct-row-add:hover {
+  text-decoration: underline;
+}
+.ct-form-error {
   color: var(--danger);
   font-size: 0.85rem;
   margin: 0;
 }
-.ct-modal-actions {
+.ct-form-actions {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
-  margin-top: 0.75rem;
 }
-.ct-modal-btn {
+.ct-btn {
   padding: 0.5rem 1rem;
   border-radius: 8px;
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
-}
-.ct-modal-btn--cancel {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text);
 }
-.ct-modal-btn--cancel:hover {
+.ct-btn:hover {
   border-color: var(--text-muted);
 }
-.ct-modal-btn--primary {
+.ct-btn--primary {
   background: var(--primary);
-  border: 1px solid var(--primary);
+  border-color: var(--primary);
   color: var(--primary-contrast);
 }
-.ct-modal-btn--primary:hover {
+.ct-btn--primary:hover {
   background: var(--primary-hover);
   border-color: var(--primary-hover);
 }
-.ct-modal-btn--primary:disabled {
+.ct-btn--primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
