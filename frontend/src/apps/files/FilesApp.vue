@@ -406,16 +406,25 @@ function onPopState() {
   setFolder(new URLSearchParams(window.location.search).get('folder'))
 }
 
+// No naming dialog: the folder is created with a placeholder name and its
+// row goes straight into inline rename. Leaving the name empty (or Esc)
+// deletes the just-created entry.
 async function newFolder() {
-  const name = prompt('Folder name:')
-  if (!name) return
-  await props.ctx.api.entries.create({
+  const created = await props.ctx.api.entries.create({
     kind: 'file',
     source: 'files_app',
-    title: name,
-    data: { filename: name, is_folder: true, parent_id: currentFolder.value }
+    title: 'New folder',
+    data: {
+      filename: 'New folder',
+      is_folder: true,
+      parent_id: currentFolder.value
+    }
   })
   await reload()
+  selectedId.value = created.id
+  creatingId.value = created.id
+  const f = byId.value.get(created.id)
+  if (f) startRename(f)
 }
 
 // Upload state and pipeline live in ./uploadQueue (module scope) so a batch
@@ -454,8 +463,18 @@ function onDrop(e: DragEvent) {
 
 const renamingId = ref<string | null>(null)
 const renameValue = ref('')
+// Function ref: a plain ref inside v-for collects an array, breaking
+// .select()/.blur(); only one rename input ever renders at a time.
 const renameInput = ref<HTMLInputElement | null>(null)
+
+function setRenameInput(el: unknown) {
+  renameInput.value = el as HTMLInputElement | null
+}
+
 let renameCancelled = false
+
+// Entry created by newFolder and still being named; aborting deletes it.
+const creatingId = ref<string | null>(null)
 
 function startRename(f: Entry) {
   if (isVirtual(f)) return
@@ -475,9 +494,17 @@ async function onRenameBlur() {
   renameCancelled = false
   const id = renamingId.value
   renamingId.value = null
+  const creating = creatingId.value === id
+  creatingId.value = null
   const f = id ? byId.value.get(id) : undefined
   const name = renameValue.value.trim()
-  if (cancelled || !f || !name || name === fileName(f)) return
+  if (!f) return
+  if (creating && (cancelled || !name)) {
+    await props.ctx.api.entries.delete(f.id)
+    await reload()
+    return
+  }
+  if (cancelled || !name || name === fileName(f)) return
   await props.ctx.api.entries.update(f.id, {
     title: name,
     data: { ...f.data, filename: name }
@@ -707,7 +734,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
           <span class="fs-name-cell">
             <input
               v-if="renamingId === f.id"
-              ref="renameInput"
+              :ref="setRenameInput"
               v-model="renameValue"
               class="fs-name fs-name-input"
               @click.stop
