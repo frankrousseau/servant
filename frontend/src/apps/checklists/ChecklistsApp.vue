@@ -501,25 +501,6 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
           placeholder="Search checklists..."
           v-model="searchQuery"
         />
-        <button
-          class="cl-new-btn"
-          title="New checklist"
-          aria-label="New checklist"
-          @click="createList()"
-        >
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </button>
       </div>
       <div class="cl-tree" @dragover.prevent @drop.prevent="onDrop('')">
         <template v-if="rows.length">
@@ -600,6 +581,29 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
     </div>
 
     <div class="cl-main">
+      <div class="cl-main-topbar">
+        <span class="cl-count"
+          >{{ filtered.length }}
+          <span class="cl-count-unit">{{
+            filtered.length === 1 ? 'CHECKLIST' : 'CHECKLISTS'
+          }}</span></span
+        >
+        <button class="cl-new-btn" @click="createList()">
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          New checklist
+        </button>
+      </div>
       <p v-if="loadState === 'loading'" class="cl-placeholder">
         Loading checklists…
       </p>
@@ -780,23 +784,42 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   flex: 1;
   min-width: 0;
 }
-.cl-new-btn {
-  width: 32px;
+.cl-main-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  padding: 0;
-  display: grid;
-  place-items: center;
+}
+.cl-count {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+.cl-count-unit {
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+.cl-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 32px;
+  padding: 0 0.75rem;
+  flex-shrink: 0;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
+  font-size: 0.85rem;
   border-radius: 8px;
   cursor: pointer;
 }
 .cl-new-btn:hover,
 .cl-new-btn:focus-visible {
   border-color: var(--primary);
-  background: var(--primary);
-  color: var(--primary-contrast);
+  color: var(--primary);
 }
 .cl-tree {
   flex: 1;
