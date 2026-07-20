@@ -48,12 +48,19 @@ watch(query, () => {
   activeIndex.value = filtered.value.length ? 0 : -1
 })
 
+// On searchable combos the control itself becomes the filter input while
+// open; swapping focused elements fires a focusout with no related target,
+// which must not close the panel we just opened.
+let swapping = false
+
 function openPanel() {
   open.value = true
   query.value = ''
   activeIndex.value = opts.value.findIndex(o => o.value === props.modelValue)
+  swapping = true
   void nextTick(() => {
     searchEl.value?.focus()
+    swapping = false
     scrollActiveIntoView()
   })
 }
@@ -72,7 +79,7 @@ function toggle() {
 function select(option: Option) {
   emit('update:modelValue', option.value)
   close()
-  buttonEl.value?.focus()
+  void nextTick(() => buttonEl.value?.focus())
 }
 
 function move(delta: number) {
@@ -127,7 +134,7 @@ function onKeydown(e: KeyboardEvent) {
     if (open.value) {
       e.stopPropagation()
       close()
-      buttonEl.value?.focus()
+      void nextTick(() => buttonEl.value?.focus())
     }
   } else if (
     e.key.length === 1 &&
@@ -141,13 +148,30 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 function onFocusout(e: FocusEvent) {
+  if (swapping) return
   if (!root.value?.contains(e.relatedTarget as Node)) close()
 }
 </script>
 
 <template>
   <div ref="root" class="cb" @keydown="onKeydown" @focusout="onFocusout">
+    <!-- While a searchable combo is open, the control itself is the filter:
+         choices appear right away and typing narrows them in place. -->
+    <input
+      v-if="searchable && open"
+      ref="searchEl"
+      v-model="query"
+      class="cb-control cb-filter"
+      type="text"
+      role="combobox"
+      aria-expanded="true"
+      aria-autocomplete="list"
+      :placeholder="currentLabel || placeholder || ''"
+      autocomplete="off"
+      spellcheck="false"
+    />
     <button
+      v-else
       ref="buttonEl"
       type="button"
       class="cb-control"
@@ -164,15 +188,6 @@ function onFocusout(e: FocusEvent) {
       <span class="cb-caret" aria-hidden="true">▾</span>
     </button>
     <div v-if="open" class="cb-panel">
-      <input
-        v-if="searchable"
-        ref="searchEl"
-        v-model="query"
-        class="cb-search"
-        type="text"
-        placeholder="Filter…"
-        spellcheck="false"
-      />
       <div ref="listEl" class="cb-list" role="listbox">
         <div
           v-for="(option, i) in filtered"
@@ -233,6 +248,16 @@ function onFocusout(e: FocusEvent) {
   font-size: 0.7rem;
   flex-shrink: 0;
 }
+.cb-filter {
+  border-color: var(--primary);
+  cursor: text;
+}
+.cb-filter:focus {
+  outline: none;
+}
+.cb-filter::placeholder {
+  color: var(--text-muted);
+}
 .cb-panel {
   position: absolute;
   top: calc(100% + 4px);
@@ -243,28 +268,18 @@ function onFocusout(e: FocusEvent) {
   max-width: 320px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   overflow: hidden;
-}
-.cb-search {
-  width: 100%;
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  padding: 0.45rem 0.65rem;
-  font-size: 0.85rem;
-}
-.cb-search:focus {
-  outline: none;
+  padding: 0.25rem;
 }
 .cb-list {
   max-height: 240px;
   overflow-y: auto;
 }
 .cb-option {
-  padding: 0.4rem 0.65rem;
+  padding: 0.42rem 0.65rem;
+  border-radius: 6px;
   font-size: 0.85rem;
   cursor: pointer;
   white-space: nowrap;

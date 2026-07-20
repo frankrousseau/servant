@@ -63,27 +63,23 @@ describe('ComboBox', () => {
     ])
   })
 
-  it('shows a filter box on long lists and filters options', async () => {
+  it('long lists open the choices directly, typing in the control filters', async () => {
     const many = Array.from({ length: 20 }, (_, i) => `Option ${i}`)
     const wrapper = make(many, 'Option 3')
     await wrapper.find('.cb-control').trigger('click')
 
-    const search = wrapper.find('.cb-search')
-    expect(search.exists()).toBe(true)
-    await search.setValue('option 1')
+    // The full list is visible immediately; the control became the filter.
+    expect(wrapper.findAll('.cb-option')).toHaveLength(20)
+    const filter = wrapper.find('input.cb-filter')
+    expect(filter.exists()).toBe(true)
+
+    await filter.setValue('option 12')
     const labels = wrapper.findAll('.cb-option').map(o => o.text())
-    expect(labels).toEqual([
-      'Option 1',
-      'Option 10',
-      'Option 11',
-      'Option 12',
-      'Option 13',
-      'Option 14',
-      'Option 15',
-      'Option 16',
-      'Option 17',
-      'Option 18',
-      'Option 19'
-    ])
+    expect(labels).toEqual(['Option 12'])
+
+    await wrapper.find('.cb-option').trigger('mousedown')
+    expect(wrapper.emitted('update:modelValue')![0]).toEqual(['Option 12'])
+    expect(wrapper.find('.cb-panel').exists()).toBe(false)
+    expect(wrapper.find('button.cb-control').exists()).toBe(true)
   })
 })
