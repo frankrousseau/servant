@@ -13,7 +13,17 @@ import { useVirtualList } from '@vueuse/core'
 import { formatDate } from '../../lib/datetime'
 import { contactField, contactName, contactInitials } from '../../lib/contact'
 import { safeUrl } from '../../lib/url'
-import { tagsOf } from './relations'
+import {
+  RELATION_TYPES,
+  inverseType,
+  relationLabel,
+  relationsOf,
+  tagsOf,
+  withRelation,
+  withoutRelation,
+  type Relation,
+  type RelationType
+} from './relations'
 
 const props = defineProps<{ ctx: AppContext }>()
 
@@ -248,6 +258,71 @@ function removeTag(tag: string) {
   mutateTags(cur => cur.filter(t => t !== tag))
 }
 
+// ----- relations (reciprocal, saved immediately on both cards) -----
+
+const newRelType = ref<RelationType>('friend')
+const newRelName = ref('')
+
+const relTargets = computed(() =>
+  allContacts.value.filter(c => c.id !== selectedId.value)
+)
+
+const visibleRelations = computed(() => {
+  if (!selected.value) return []
+  return relationsOf(selected.value)
+    .map(r => ({
+      ...r,
+      contact: allContacts.value.find(c => c.id === r.contact_id) || null
+    }))
+    .filter((r): r is Relation & { contact: Entry } => r.contact !== null)
+})
+
+async function saveRelations(target: Entry, next: Relation[]) {
+  const updated = await props.ctx.api.entries.update(target.id, {
+    data: { ...target.data, relations: next }
+  })
+  allContacts.value = allContacts.value.map(x =>
+    x.id === updated.id ? updated : x
+  )
+}
+
+async function addRelation() {
+  const c = selected.value
+  const name = newRelName.value.trim()
+  if (!c || !name) return
+  const target = relTargets.value.find(
+    t => contactName(t).toLowerCase() === name.toLowerCase()
+  )
+  if (!target) return
+  newRelName.value = ''
+  try {
+    await saveRelations(
+      c,
+      withRelation(relationsOf(c), target.id, newRelType.value)
+    )
+    await saveRelations(
+      target,
+      withRelation(relationsOf(target), c.id, inverseType(newRelType.value))
+    )
+  } catch {
+    // a partial write settles on the next load
+  }
+}
+
+async function removeRelation(contactId: string) {
+  const c = selected.value
+  if (!c) return
+  try {
+    await saveRelations(c, withoutRelation(relationsOf(c), contactId))
+    const other = allContacts.value.find(x => x.id === contactId)
+    if (other) {
+      await saveRelations(other, withoutRelation(relationsOf(other), c.id))
+    }
+  } catch {
+    // a partial write settles on the next load
+  }
+}
+
 function openNote(n: Entry) {
   props.ctx.navigate('/apps/notes?selected=' + n.id)
 }
@@ -398,6 +473,12 @@ async function deleteContact() {
   try {
     await props.ctx.api.entries.delete(c.id)
     allContacts.value = allContacts.value.filter(x => x.id !== c.id)
+    for (const o of allContacts.value) {
+      const rels = relationsOf(o)
+      if (rels.some(r => r.contact_id === c.id)) {
+        saveRelations(o, withoutRelation(rels, c.id)).catch(() => {})
+      }
+    }
     selectedId.value = null
     history.replaceState(null, '', '/apps/contacts')
   } catch {
@@ -835,6 +916,55 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             </label>
           </div>
 
+          <div class="ct-section-card">
+            <h3 class="ct-section-title">Relations</h3>
+            <div
+              v-for="r in visibleRelations"
+              :key="r.contact_id"
+              class="ct-linked-row"
+              role="button"
+              tabindex="0"
+              @click="selectContact(r.contact_id)"
+              @keydown.enter="selectContact(r.contact_id)"
+            >
+              <span class="ct-linked-meta">{{ relationLabel(r.type) }}</span>
+              <span class="ct-linked-title">{{ contactName(r.contact) }}</span>
+              <span
+                class="ct-rel-x"
+                title="Remove relation"
+                @click.stop="removeRelation(r.contact_id)"
+                >&times;</span
+              >
+            </div>
+            <form class="ct-rel-add" @submit.prevent="addRelation">
+              <select v-model="newRelType" class="ct-rel-type">
+                <option v-for="t in RELATION_TYPES" :key="t" :value="t">
+                  {{ relationLabel(t) }}
+                </option>
+              </select>
+              <input
+                v-model="newRelName"
+                class="ct-rel-name"
+                list="ct-rel-options"
+                placeholder="Contact name..."
+              />
+              <datalist id="ct-rel-options">
+                <option
+                  v-for="t in relTargets"
+                  :key="t.id"
+                  :value="contactName(t)"
+                />
+              </datalist>
+              <button
+                type="submit"
+                class="ct-rel-btn"
+                :disabled="!newRelName.trim()"
+              >
+                Link
+              </button>
+            </form>
+          </div>
+
           <div v-if="linkedEvents.length" class="ct-section-card">
             <h3 class="ct-section-title">Events</h3>
             <div
@@ -1236,6 +1366,49 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 .ct-linked-row .ct-linked-meta:last-child {
   margin-left: auto;
+}
+.ct-rel-x {
+  margin-left: auto;
+  padding: 0 0.25rem;
+  color: var(--text-muted);
+  visibility: hidden;
+}
+.ct-linked-row:hover .ct-rel-x {
+  visibility: visible;
+}
+.ct-rel-x:hover {
+  color: var(--danger);
+}
+.ct-rel-add {
+  display: flex;
+  gap: 0.375rem;
+  margin-top: 0.6rem;
+}
+.ct-rel-type {
+  width: 110px;
+  flex-shrink: 0;
+}
+.ct-rel-name {
+  flex: 1;
+  min-width: 0;
+}
+.ct-rel-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  padding: 0.35rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.ct-rel-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.ct-rel-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 .ct-dash-toggle {
   display: flex;
