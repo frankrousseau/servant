@@ -50,13 +50,18 @@ export function tagsOf(entry: Entry): string[] {
 export function relationsOf(entry: Entry): Relation[] {
   const raw = entry.data.relations
   if (!Array.isArray(raw)) return []
-  return raw.filter(
+  const filtered = raw.filter(
     (r): r is Relation =>
       !!r &&
       typeof r === 'object' &&
       typeof (r as Relation).contact_id === 'string' &&
       (RELATION_TYPES as readonly string[]).includes((r as Relation).type)
   )
+  // A well-formed but duplicated contact_id (writable by other API clients)
+  // would otherwise render with a duplicate :key; last one wins.
+  const byContact = new Map<string, Relation>()
+  for (const r of filtered) byContact.set(r.contact_id, r)
+  return [...byContact.values()]
 }
 
 export function withRelation(

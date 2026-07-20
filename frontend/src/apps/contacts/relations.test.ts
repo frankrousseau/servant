@@ -71,6 +71,18 @@ describe('tagsOf / relationsOf', () => {
     )
     expect(rels).toEqual([{ contact_id: 'a', type: 'friend' }])
   })
+
+  it('dedupes duplicate contact_ids, last wins', () => {
+    const rels = relationsOf(
+      entry({
+        relations: [
+          { contact_id: 'a', type: 'friend' },
+          { contact_id: 'a', type: 'parent' }
+        ]
+      })
+    )
+    expect(rels).toEqual([{ contact_id: 'a', type: 'parent' }])
+  })
 })
 
 describe('withRelation / withoutRelation', () => {

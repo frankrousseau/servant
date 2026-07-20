@@ -141,6 +141,7 @@ function selectContact(id: string) {
   mode.value = 'view'
   formError.value = ''
   newTag.value = ''
+  newRelName.value = ''
   history.replaceState(null, '', '/apps/contacts?selected=' + id)
   void loadLinked()
 }
@@ -435,6 +436,9 @@ async function saveForm() {
 
   try {
     if (mode.value === 'edit' && selected.value) {
+      // Drain queued tag/relation saves first: this PATCH replaces data
+      // wholesale from selected.value, and edit mode queues nothing new.
+      await saveChain
       const updated = await props.ctx.api.entries.update(selected.value.id, {
         title: titleParts.join(' - '),
         data: { ...selected.value.data, ...data }
