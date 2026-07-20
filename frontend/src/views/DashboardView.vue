@@ -112,10 +112,37 @@ const todaysEvents = computed(() => {
     )
 })
 
+// Checklist deadlines compete for the "next" slot once they are less than
+// a week out (pending items only, virtual all-day events like the calendar).
+const upcomingDeadlines = computed<Entry[]>(() => {
+  const d = new Date()
+  d.setDate(d.getDate() + 7)
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const horizon = `${d.getFullYear()}-${m}-${String(d.getDate()).padStart(2, '0')}`
+  const out: Entry[] = []
+  for (const l of checklists.value) {
+    const items = (l.data.items as ChecklistItem[]) || []
+    items.forEach((it, i) => {
+      if (it.done || !it.due) return
+      if (it.due < todayLocal || it.due > horizon) return
+      out.push({
+        ...l,
+        id: `deadline:${l.id}:${i}`,
+        kind: 'event',
+        title: `⏰ ${it.text}`,
+        occurred_at: `${it.due}T12:00:00Z`,
+        // Open until the end of its civil day, so it stays "next" all day.
+        data: { all_day: true, end_at: `${it.due}T23:59:59Z` }
+      } as Entry)
+    })
+  }
+  return out
+})
+
 // Next upcoming event on any day: earliest one not yet finished.
 const nextEvent = computed(() => {
   const now = new Date().toISOString()
-  const upcoming = events.value
+  const upcoming = [...events.value, ...upcomingDeadlines.value]
     .filter(
       e =>
         e.occurred_at &&
@@ -127,11 +154,17 @@ const nextEvent = computed(() => {
   return upcoming[0] || null
 })
 
-// Time only if the next event is today, weekday + time otherwise.
+// Time only if the next event is today, weekday + time otherwise; all-day
+// items (deadlines) carry no meaningful time.
 const nextEventStamp = computed(() => {
   const e = nextEvent.value
   if (!e?.occurred_at) return ''
-  return utcToZonedParts(e.occurred_at).date === todayInUserTz()
+  const isToday = utcToZonedParts(e.occurred_at).date === todayInUserTz()
+  if (e.data.all_day) {
+    if (isToday) return 'today'
+    return formatDateTime(e.occurred_at, { weekday: 'short', day: 'numeric' })
+  }
+  return isToday
     ? formatTime(e.occurred_at)
     : formatDateTime(e.occurred_at, {
         weekday: 'short',
