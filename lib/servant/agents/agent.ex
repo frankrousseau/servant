@@ -1,13 +1,18 @@
 defmodule Servant.Agents.Agent do
   @moduledoc """
-  A recurring agent: a prompt run on a schedule over a selection of the
-  user's entries, producing report entries (kind "ai_report").
+  A recurring agent run on a schedule over a selection of the user's
+  entries. Two modes: "prompt" (the model writes an ai_report entry) and
+  "recipe" (a declarative recipe interpreted deterministically, producing
+  a report entry with no model call).
   """
 
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias Servant.Agents.Recipe
+
   @schedules ~w(every_hour every_day every_week)
+  @modes ~w(prompt recipe)
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -15,6 +20,8 @@ defmodule Servant.Agents.Agent do
   schema "agents" do
     field :name, :string
     field :prompt, :string
+    field :mode, :string, default: "prompt"
+    field :recipe, :map
     field :kinds, {:array, :string}
     field :lookback_days, :integer, default: 7
     field :schedule, :string, default: "every_day"
@@ -28,14 +35,60 @@ defmodule Servant.Agents.Agent do
 
   def changeset(agent, attrs) do
     agent
-    |> cast(attrs, [:name, :prompt, :kinds, :lookback_days, :schedule, :enabled])
-    |> validate_required([:name, :prompt, :kinds])
+    |> cast(attrs, [:name, :prompt, :mode, :recipe, :kinds, :lookback_days, :schedule, :enabled])
+    |> validate_required([:name, :kinds])
+    |> validate_inclusion(:mode, @modes)
     |> validate_length(:name, max: 60)
     |> validate_length(:prompt, max: 4000)
     |> update_change(:kinds, &Enum.uniq/1)
     |> validate_kinds()
     |> validate_number(:lookback_days, greater_than: 0, less_than_or_equal_to: 365)
     |> validate_inclusion(:schedule, @schedules)
+    |> validate_by_mode()
+  end
+
+  # Prompt agents need a prompt; recipe agents need a valid recipe. Switching
+  # mode clears the field the new mode doesn't use, so a stored-but-inactive
+  # value can never resurface just by flipping mode back.
+  defp validate_by_mode(changeset) do
+    case get_field(changeset, :mode) do
+      "recipe" ->
+        changeset
+        |> validate_required([:recipe])
+        |> validate_recipe()
+        |> clear_field_unless_nil(:prompt)
+
+      _mode ->
+        changeset
+        |> validate_required([:prompt])
+        |> clear_field_unless_nil(:recipe)
+    end
+  end
+
+  # Reads the current (possibly unchanged, possibly changed) recipe directly
+  # instead of validate_change/3, which only runs when :recipe is part of
+  # this changeset's changes: a bare mode switch to "recipe" with no recipe
+  # change must still validate whatever recipe is already on the record.
+  defp validate_recipe(changeset) do
+    case get_field(changeset, :recipe) do
+      # validate_required/2 above already errors on a nil recipe.
+      nil ->
+        changeset
+
+      recipe ->
+        case Recipe.validate(recipe) do
+          :ok -> changeset
+          {:error, message} -> add_error(changeset, :recipe, message)
+        end
+    end
+  end
+
+  defp clear_field_unless_nil(changeset, field) do
+    if get_field(changeset, field) == nil do
+      changeset
+    else
+      put_change(changeset, field, nil)
+    end
   end
 
   def schedules, do: @schedules

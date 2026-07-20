@@ -1,14 +1,16 @@
 defmodule Servant.Agents do
   @moduledoc """
   Shared bookkeeping for AI agent runs. Every run records the model used,
-  the tokens consumed and its duration (Sustainable AI manifesto). v1 only
-  ships the "builder" type; explorer and recurrent agents will reuse this.
+  the tokens consumed and its duration (Sustainable AI manifesto). Two
+  recurrent modes ship: prompt reports (model-driven) and deterministic
+  recipes (local aggregation). v1 also ships the "builder" type.
   """
 
   import Ecto.Query
 
   alias Servant.Accounts
   alias Servant.Agents.Agent
+  alias Servant.Agents.Recipe
   alias Servant.Agents.Run
   alias Servant.AI
   alias Servant.Data
@@ -26,6 +28,26 @@ defmodule Servant.Agents do
   section is empty, say so briefly. If the data is marked as a truncated
   extract, mention that the report covers a partial extract. Keep the
   report short and factual: totals, notable items, simple trends.
+  """
+
+  @recipe_system_prompt """
+  You translate a plain-language description of a recurring data script
+  into a JSON recipe. Reply with a single JSON object only: no code
+  fence, no prose.
+
+  Recipe shape (every key optional):
+  - "where": array of {"field", "op", "value"} conditions, AND semantics.
+    Ops: eq, neq, contains, gt, gte, lt, lte, exists (exists takes no
+    value). Fields: "title", "source", "occurred_at", "data.<key>",
+    "metadata.<key>".
+  - "group_by": a field path, or "day" | "week" | "month" (buckets on the
+    entry date).
+  - "aggregate": {"op": one of sum avg count min max last, "field": a
+    field path}. count takes no field. Omit aggregate to list the entries
+    instead.
+  - "emit_if": {"op": one of eq neq gt gte lt lte, "value": a number}.
+    Only valid with an aggregate and without group_by: the report is only
+    produced when the aggregated value matches.
   """
 
   def list_agents(user_id) do
@@ -156,7 +178,10 @@ defmodule Servant.Agents do
   """
   def run_now(user, agent, ai_opts \\ []) do
     with {:ok, run, agent} <- prepare_run(user, agent) do
-      execute_report(run, user, agent, ai_opts)
+      case agent.mode do
+        "recipe" -> execute_recipe(run, user, agent)
+        _mode -> execute_report(run, user, agent, ai_opts)
+      end
     end
   end
 
@@ -165,7 +190,10 @@ defmodule Servant.Agents do
     with {:ok, run, agent} <- prepare_run(user, agent) do
       {:ok, _pid} =
         Task.Supervisor.start_child(Servant.Agents.TaskSupervisor, fn ->
-          execute_report(run, user, agent, [])
+          case agent.mode do
+            "recipe" -> execute_recipe(run, user, agent)
+            _mode -> execute_report(run, user, agent, [])
+          end
         end)
 
       {:ok, run}
@@ -181,13 +209,158 @@ defmodule Servant.Agents do
         try do
           run_now(user, agent)
         rescue
-          # the run row was already failed by execute_report's rescue
+          # the run row was already failed by the execute rescue (report or recipe)
           _exception -> :error
         end
       end
     end
 
     :ok
+  end
+
+  @doc """
+  Asks the configured model to translate a plain-language description
+  into a recipe (authoring time only; execution never calls the model).
+  The prompt carries entry kinds and data key names, never values. One
+  repair round on an invalid reply. Every draft is a tracked run.
+  """
+  def draft_recipe(user, description, kinds, ai_opts \\ []) do
+    config = Accounts.ai_config(user)
+
+    cond do
+      config["enabled"] != true ->
+        {:error, "agents are disabled in Settings"}
+
+      not is_binary(description) or String.trim(description) == "" ->
+        {:error, "description is required"}
+
+      true ->
+        do_draft(user, config, description, List.wrap(kinds), ai_opts)
+    end
+  end
+
+  defp do_draft(user, config, description, kinds, ai_opts) do
+    {:ok, run} =
+      create_run(user.id, %{
+        type: "recurrent",
+        action: "draft_recipe",
+        status: "running",
+        model: config["model"],
+        prompt: String.slice(description, 0, 2000)
+      })
+
+    started = System.monotonic_time(:millisecond)
+
+    try do
+      messages = [
+        %{role: "system", content: @recipe_system_prompt},
+        %{role: "user", content: draft_request(user.id, description, kinds)}
+      ]
+
+      case AI.chat(config, messages, ai_opts) do
+        {:ok, %{content: content, usage: usage}} ->
+          case parse_recipe(content) do
+            {:ok, recipe} ->
+              {:ok, run} = complete_run(run, usage, elapsed(started))
+              {:ok, recipe, run}
+
+            {:error, message} ->
+              repair_draft(run, config, messages, content, message, usage, started, ai_opts)
+          end
+
+        {:error, message} ->
+          {:ok, run} = fail_run(run, message, nil, elapsed(started))
+          {:error, message, run}
+      end
+    rescue
+      exception ->
+        {:ok, _run} = fail_run(run, Exception.message(exception), nil, elapsed(started))
+        reraise exception, __STACKTRACE__
+    end
+  end
+
+  defp repair_draft(run, config, messages, previous, message, usage, started, ai_opts) do
+    messages =
+      messages ++
+        [
+          %{role: "assistant", content: previous},
+          %{
+            role: "user",
+            content:
+              "That recipe is invalid: #{message}. Reply with a corrected JSON object only."
+          }
+        ]
+
+    case AI.chat(config, messages, ai_opts) do
+      {:ok, %{content: content, usage: usage2}} ->
+        total = add_usage(usage, usage2)
+
+        case parse_recipe(content) do
+          {:ok, recipe} ->
+            {:ok, run} = complete_run(run, total, elapsed(started))
+            {:ok, recipe, run}
+
+          {:error, message2} ->
+            {:ok, run} = fail_run(run, message2, total, elapsed(started))
+            {:error, message2, run}
+        end
+
+      {:error, message2} ->
+        {:ok, run} = fail_run(run, message2, usage, elapsed(started))
+        {:error, message2, run}
+    end
+  end
+
+  defp parse_recipe(content) do
+    json =
+      case Regex.run(~r/```(?:json)?\s*(\{.*\})\s*```/s, content) do
+        [_, fenced] -> fenced
+        nil -> String.trim(content)
+      end
+
+    case Jason.decode(json) do
+      {:ok, recipe} when is_map(recipe) ->
+        case Recipe.validate(recipe) do
+          :ok -> {:ok, recipe}
+          {:error, _} = error -> error
+        end
+
+      {:ok, _other} ->
+        {:error, "the reply must be a JSON object"}
+
+      {:error, _} ->
+        {:error, "the reply is not valid JSON"}
+    end
+  end
+
+  defp draft_request(user_id, description, kinds) do
+    keys = sample_keys(user_id, kinds)
+    keys_line = if keys == [], do: "(none found)", else: Enum.join(keys, ", ")
+
+    "Script: #{description}\n\n" <>
+      "Entry kinds: #{Enum.join(kinds, ", ")}\n" <>
+      "Known data fields (from recent entries, names only): #{keys_line}"
+  end
+
+  # Key names only: the draft never needs personal values.
+  defp sample_keys(user_id, kinds) do
+    user_id
+    |> Data.list_entries(%{"kinds" => kinds, "per_page" => 20})
+    |> Enum.flat_map(fn entry ->
+      entry.data |> Map.keys() |> Enum.map(&"data.#{&1}")
+    end)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp add_usage(nil, usage), do: usage
+  defp add_usage(usage, nil), do: usage
+
+  defp add_usage(a, b) do
+    %{
+      input_tokens: a.input_tokens + b.input_tokens,
+      output_tokens: a.output_tokens + b.output_tokens
+    }
   end
 
   defp prepare_run(user, agent) do
@@ -209,8 +382,8 @@ defmodule Servant.Agents do
             action: "report",
             agent_id: agent.id,
             status: "running",
-            model: config["model"],
-            prompt: String.slice(agent.prompt, 0, 2000)
+            model: if(agent.mode == "recipe", do: nil, else: config["model"]),
+            prompt: agent.prompt && String.slice(agent.prompt, 0, 2000)
           })
 
         case result do
@@ -264,6 +437,49 @@ defmodule Servant.Agents do
 
       {:error, %Ecto.Changeset{}} ->
         {:ok, run} = fail_run(run, "could not store the report", usage, elapsed(started))
+        {:error, run.error, run}
+    end
+  end
+
+  defp execute_recipe(run, user, agent) do
+    started = System.monotonic_time(:millisecond)
+
+    try do
+      from_dt = DateTime.add(DateTime.utc_now(), -agent.lookback_days * 86_400, :second)
+      entries = Data.entries_window(user.id, agent.kinds, from_dt)
+
+      case Recipe.run(agent.recipe, entries) do
+        {:ok, content} ->
+          store_recipe_report(run, user, agent, content, started)
+
+        :skip ->
+          {:ok, run} = complete_run(run, nil, elapsed(started))
+          {:ok, nil, run}
+      end
+    rescue
+      exception ->
+        {:ok, _run} = fail_run(run, Exception.message(exception), nil, elapsed(started))
+        reraise exception, __STACKTRACE__
+    end
+  end
+
+  defp store_recipe_report(run, user, agent, content, started) do
+    attrs = %{
+      "kind" => "report",
+      "source" => "agent",
+      "title" => "#{agent.name} - #{Date.to_iso8601(Date.utc_today())}",
+      "occurred_at" => DateTime.utc_now(),
+      "data" => %{"content" => content},
+      "metadata" => %{"agent_id" => agent.id, "run_id" => run.id}
+    }
+
+    case Data.create_entry(user.id, attrs) do
+      {:ok, entry} ->
+        {:ok, run} = complete_run(run, nil, elapsed(started))
+        {:ok, entry, run}
+
+      {:error, %Ecto.Changeset{}} ->
+        {:ok, run} = fail_run(run, "could not store the report", nil, elapsed(started))
         {:error, run.error, run}
     end
   end

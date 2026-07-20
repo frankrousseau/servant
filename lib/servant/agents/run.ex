@@ -42,7 +42,7 @@ defmodule Servant.Agents.Run do
       :duration_ms,
       :error
     ])
-    |> validate_required([:type, :action, :status, :model])
+    |> validate_required([:type, :action, :status])
     |> validate_inclusion(:status, ~w(running ok error))
   end
 end

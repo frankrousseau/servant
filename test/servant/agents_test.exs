@@ -425,4 +425,327 @@ defmodule Servant.AgentsTest do
     pid = start_supervised!({Servant.Agents.Scheduler, name: :test_agent_scheduler})
     assert :sys.get_state(pid) == %{task_ref: nil}
   end
+
+  describe "recipe agents CRUD" do
+    test "mode defaults to prompt and prompt stays required" do
+      user = user_fixture()
+
+      assert {:error, changeset} =
+               Agents.create_agent(user.id, %{"name" => "A", "kinds" => ["note"]})
+
+      assert %{prompt: _} = errors_on(changeset)
+
+      assert {:ok, agent} =
+               Agents.create_agent(user.id, %{"name" => "A", "prompt" => "p", "kinds" => ["note"]})
+
+      assert agent.mode == "prompt"
+      assert agent.recipe == nil
+    end
+
+    test "mode recipe requires a valid recipe and no prompt" do
+      user = user_fixture()
+
+      assert {:error, changeset} =
+               Agents.create_agent(user.id, %{
+                 "name" => "A",
+                 "kinds" => ["note"],
+                 "mode" => "recipe"
+               })
+
+      assert %{recipe: _} = errors_on(changeset)
+
+      assert {:error, changeset} =
+               Agents.create_agent(user.id, %{
+                 "name" => "A",
+                 "kinds" => ["note"],
+                 "mode" => "recipe",
+                 "recipe" => %{"bogus" => true}
+               })
+
+      assert %{recipe: _} = errors_on(changeset)
+
+      assert {:ok, agent} =
+               Agents.create_agent(user.id, %{
+                 "name" => "A",
+                 "kinds" => ["note"],
+                 "mode" => "recipe",
+                 "recipe" => %{"aggregate" => %{"op" => "count"}}
+               })
+
+      assert agent.mode == "recipe"
+      assert agent.prompt == nil
+    end
+
+    test "unknown mode is rejected" do
+      user = user_fixture()
+
+      assert {:error, changeset} =
+               Agents.create_agent(user.id, %{
+                 "name" => "A",
+                 "prompt" => "p",
+                 "kinds" => ["note"],
+                 "mode" => "script"
+               })
+
+      assert %{mode: _} = errors_on(changeset)
+    end
+
+    test "an invalid recipe alongside mode prompt is ignored, not stored" do
+      user = user_fixture()
+
+      assert {:ok, agent} =
+               Agents.create_agent(user.id, %{
+                 "name" => "A",
+                 "kinds" => ["note"],
+                 "mode" => "prompt",
+                 "prompt" => "p",
+                 "recipe" => %{"bogus" => true}
+               })
+
+      assert agent.mode == "prompt"
+      assert agent.recipe == nil
+    end
+
+    test "switching a recipe agent to prompt clears the recipe; switching back needs a fresh one" do
+      user = user_fixture()
+
+      {:ok, agent} =
+        Agents.create_agent(user.id, %{
+          "name" => "A",
+          "kinds" => ["note"],
+          "mode" => "recipe",
+          "recipe" => %{"aggregate" => %{"op" => "count"}}
+        })
+
+      assert {:ok, agent} = Agents.update_agent(agent, %{"mode" => "prompt", "prompt" => "p"})
+      assert agent.recipe == nil
+
+      reloaded = Agents.get_agent(user.id, agent.id)
+      assert reloaded.recipe == nil
+
+      # Nothing to resurrect: flipping mode back alone is rejected, not
+      # silently reactivating the recipe that used to be stored.
+      assert {:error, changeset} = Agents.update_agent(reloaded, %{"mode" => "recipe"})
+      assert %{recipe: _} = errors_on(changeset)
+    end
+
+    test "switching a prompt agent to recipe clears the prompt" do
+      user = user_fixture()
+
+      {:ok, agent} =
+        Agents.create_agent(user.id, %{"name" => "A", "kinds" => ["note"], "prompt" => "p"})
+
+      assert {:ok, agent} =
+               Agents.update_agent(agent, %{
+                 "mode" => "recipe",
+                 "recipe" => %{"aggregate" => %{"op" => "count"}}
+               })
+
+      assert agent.prompt == nil
+
+      reloaded = Agents.get_agent(user.id, agent.id)
+      assert reloaded.prompt == nil
+    end
+  end
+
+  describe "recipe agent runs" do
+    defp recipe_agent(user, recipe, attrs \\ %{}) do
+      {:ok, agent} =
+        Agents.create_agent(
+          user.id,
+          Map.merge(
+            %{"name" => "R", "kinds" => ["bank_tx"], "mode" => "recipe", "recipe" => recipe},
+            attrs
+          )
+        )
+
+      agent
+    end
+
+    test "produces a kind report entry without model metadata, run has no tokens" do
+      user = user_with_ai()
+
+      {:ok, _} =
+        Servant.Data.create_entry(user.id, %{
+          "kind" => "bank_tx",
+          "source" => "test",
+          "title" => "t",
+          "occurred_at" => DateTime.utc_now(),
+          "data" => %{"amount" => 12}
+        })
+
+      agent = recipe_agent(user, %{"aggregate" => %{"op" => "sum", "field" => "data.amount"}})
+
+      assert {:ok, entry, run} = Agents.run_now(user, agent)
+
+      assert entry.kind == "report"
+      assert entry.source == "agent"
+      assert entry.data["content"] =~ "12"
+      assert entry.metadata["agent_id"] == agent.id
+      assert entry.metadata["run_id"] == run.id
+      refute Map.has_key?(entry.metadata, "model")
+
+      assert run.status == "ok"
+      assert run.model == nil
+      assert run.input_tokens == nil
+      assert run.duration_ms != nil
+    end
+
+    test "emit_if false completes the run without creating an entry" do
+      user = user_with_ai()
+
+      agent =
+        recipe_agent(user, %{
+          "aggregate" => %{"op" => "count"},
+          "emit_if" => %{"op" => "gte", "value" => 1}
+        })
+
+      assert {:ok, nil, run} = Agents.run_now(user, agent)
+      assert run.status == "ok"
+      assert Servant.Data.all_entries(user.id, %{"kind" => "report"}) == []
+    end
+
+    test "the window is not capped by pagination (60 entries all counted)" do
+      user = user_with_ai()
+
+      for i <- 1..60 do
+        {:ok, _} =
+          Servant.Data.create_entry(user.id, %{
+            "kind" => "bank_tx",
+            "source" => "test",
+            "title" => "t#{i}",
+            "occurred_at" => DateTime.utc_now(),
+            "data" => %{"amount" => 1}
+          })
+      end
+
+      agent = recipe_agent(user, %{"aggregate" => %{"op" => "count"}})
+
+      assert {:ok, entry, _run} = Agents.run_now(user, agent)
+      assert entry.data["content"] =~ "60"
+    end
+
+    test "only entries inside the lookback window count" do
+      user = user_with_ai()
+
+      {:ok, old} =
+        Servant.Data.create_entry(user.id, %{
+          "kind" => "bank_tx",
+          "source" => "test",
+          "title" => "old",
+          "occurred_at" => DateTime.add(DateTime.utc_now(), -10 * 86_400, :second),
+          "data" => %{}
+        })
+
+      _ = old
+
+      agent =
+        recipe_agent(user, %{"aggregate" => %{"op" => "count"}}, %{"lookback_days" => 7})
+
+      assert {:ok, entry, _run} = Agents.run_now(user, agent)
+      assert entry.data["content"] =~ "0"
+    end
+  end
+
+  describe "draft_recipe/4" do
+    defp ai_json(recipe) do
+      %{
+        "choices" => [%{"message" => %{"content" => Jason.encode!(recipe)}}],
+        "usage" => %{"prompt_tokens" => 10, "completion_tokens" => 5}
+      }
+    end
+
+    test "returns the validated recipe and a tracked run" do
+      user = user_with_ai()
+      recipe = %{"aggregate" => %{"op" => "count"}}
+
+      plug = fn conn -> Req.Test.json(conn, ai_json(recipe)) end
+
+      assert {:ok, ^recipe, run} =
+               Agents.draft_recipe(user, "count my transactions", ["bank_tx"], plug: plug)
+
+      assert run.action == "draft_recipe"
+      assert run.type == "recurrent"
+      assert run.status == "ok"
+      assert run.input_tokens == 10
+      assert run.agent_id == nil
+    end
+
+    test "the draft prompt carries kinds and data keys, never values" do
+      user = user_with_ai()
+
+      {:ok, _} =
+        Servant.Data.create_entry(user.id, %{
+          "kind" => "bank_tx",
+          "source" => "test",
+          "title" => "secret shop",
+          "occurred_at" => DateTime.utc_now(),
+          "data" => %{"amount" => 4242, "category" => "hidden-category"}
+        })
+
+      parent = self()
+
+      plug = fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        send(parent, {:ai_request, body})
+        Req.Test.json(conn, ai_json(%{"aggregate" => %{"op" => "count"}}))
+      end
+
+      assert {:ok, _recipe, _run} = Agents.draft_recipe(user, "count", ["bank_tx"], plug: plug)
+
+      assert_receive {:ai_request, body}
+      assert body =~ "bank_tx"
+      assert body =~ "data.amount"
+      assert body =~ "data.category"
+      refute body =~ "4242"
+      refute body =~ "hidden-category"
+      refute body =~ "secret shop"
+    end
+
+    test "invalid first reply gets one repair round with cumulative usage" do
+      user = user_with_ai()
+      counter = start_supervised!({Agent, fn -> 0 end})
+
+      plug = fn conn ->
+        n = Agent.get_and_update(counter, fn n -> {n, n + 1} end)
+
+        if n == 0 do
+          Req.Test.json(conn, %{
+            "choices" => [%{"message" => %{"content" => "not json at all"}}],
+            "usage" => %{"prompt_tokens" => 10, "completion_tokens" => 5}
+          })
+        else
+          Req.Test.json(conn, ai_json(%{"aggregate" => %{"op" => "count"}}))
+        end
+      end
+
+      assert {:ok, _recipe, run} = Agents.draft_recipe(user, "count", ["bank_tx"], plug: plug)
+      assert run.status == "ok"
+      assert run.input_tokens == 20
+      assert run.output_tokens == 10
+    end
+
+    test "two invalid replies fail the run" do
+      user = user_with_ai()
+
+      plug = fn conn ->
+        Req.Test.json(conn, %{
+          "choices" => [%{"message" => %{"content" => "{\"bogus\": true}"}}],
+          "usage" => %{"prompt_tokens" => 1, "completion_tokens" => 1}
+        })
+      end
+
+      assert {:error, message, run} = Agents.draft_recipe(user, "count", ["bank_tx"], plug: plug)
+      assert message =~ "unknown"
+      assert run.status == "error"
+    end
+
+    test "refuses when agents are disabled or the description is blank" do
+      user = user_fixture()
+      assert {:error, _} = Agents.draft_recipe(user, "count", ["bank_tx"])
+
+      ai_user = user_with_ai()
+      assert {:error, _} = Agents.draft_recipe(ai_user, "  ", ["bank_tx"])
+    end
+  end
 end

@@ -37,6 +37,20 @@ defmodule Servant.Data do
     |> Repo.all()
   end
 
+  @doc """
+  All entries of the given kinds with occurred_at >= from, newest first,
+  unpaginated. Used by agent recipes: a truncated aggregate would be a
+  wrong number, and there is no token cost pushing for a cap.
+  """
+  def entries_window(user_id, kinds, from_dt) do
+    Entry
+    |> where(user_id: ^user_id)
+    |> where([e], e.kind in ^kinds)
+    |> where([e], e.occurred_at >= ^from_dt)
+    |> order_by(desc: :occurred_at, desc: :inserted_at)
+    |> Repo.all()
+  end
+
   def count_entries(user_id, filters \\ %{}) do
     Entry
     |> where(user_id: ^user_id)
