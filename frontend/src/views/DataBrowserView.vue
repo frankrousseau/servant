@@ -180,6 +180,22 @@ async function saveEntry() {
 
 const { ask } = useConfirm()
 
+async function deleteAllOfKind() {
+  const kind = filterKind.value
+  if (!kind) return
+  const ok = await ask({
+    message: `Delete all ${meta.value.total} "${kind}" entries? This cannot be undone.`
+  })
+  if (!ok) return
+  try {
+    await api.del(`/api/entries?kind=${encodeURIComponent(kind)}`)
+    filterKind.value = ''
+    await fetchFilters()
+  } catch (e) {
+    pageError.value = errMessage(e, 'Failed to delete entries')
+  }
+}
+
 async function deleteEntry(entry: Entry) {
   const ok = await ask({
     message: `Delete "${entry.title || entry.kind}" entry?`
@@ -295,6 +311,13 @@ onMounted(() => {
         <span class="filter-count" v-if="!loading"
           >{{ meta.total }} entries</span
         >
+        <button
+          v-if="filterKind && meta.total > 0 && !loading"
+          class="small danger"
+          @click="deleteAllOfKind"
+        >
+          Delete all
+        </button>
       </div>
     </div>
 

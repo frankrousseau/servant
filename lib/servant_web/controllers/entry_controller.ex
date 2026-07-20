@@ -528,6 +528,34 @@ defmodule ServantWeb.EntryController do
     end
   end
 
+  operation(:delete_by_kind,
+    summary: "Delete all entries of a kind",
+    description: "Requires write scope on the kind's domain for an API token.",
+    parameters: [kind: [in: :query, type: :string, required: true]],
+    responses: [
+      ok: {"Deleted count", "application/json", Schemas.DeletedCount},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Insufficient scope", "application/json", Schemas.Error}
+    ]
+  )
+
+  def delete_by_kind(conn, %{"kind" => kind}) when is_binary(kind) and kind != "" do
+    user_id = conn.assigns.current_user.id
+
+    if Scopes.can_kind?(conn.assigns[:api_scopes], kind, :write) do
+      count = Data.delete_entries_by_kind(user_id, kind)
+      json(conn, %{deleted: count})
+    else
+      forbidden(conn, required_for(kind, :write))
+    end
+  end
+
+  def delete_by_kind(conn, _params) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{error: "kind query parameter is required"})
+  end
+
   # Session tokens see everything. An explicit kind filter outside the token's
   # scopes is a 403; without one, the query is restricted to readable kinds.
   defp restrict_params(params, nil), do: {:ok, params}

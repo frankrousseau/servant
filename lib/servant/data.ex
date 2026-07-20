@@ -262,6 +262,29 @@ defmodule Servant.Data do
     end
   end
 
+  @doc """
+  Deletes every entry of the given kind for the user, cleaning up any files
+  the entries reference, then emits one aggregated broadcast.
+
+  Returns the number of deleted entries. note_links rows are cleaned by the
+  FK on_delete, same as unitary deletes.
+  """
+  def delete_entries_by_kind(user_id, kind) when is_binary(kind) do
+    Entry
+    |> where(user_id: ^user_id, kind: ^kind)
+    |> select([e], e.data)
+    |> Repo.all()
+    |> Enum.each(&delete_entry_file(user_id, %{data: &1}))
+
+    {count, _} =
+      Entry
+      |> where(user_id: ^user_id, kind: ^kind)
+      |> Repo.delete_all()
+
+    if count > 0, do: broadcast(user_id, {:entries_changed, %{count: count}})
+    count
+  end
+
   def delete_entry(user_id, id) do
     entry = get_entry!(user_id, id)
     delete_entry_file(user_id, entry)

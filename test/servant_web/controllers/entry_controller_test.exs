@@ -46,6 +46,24 @@ defmodule ServantWeb.EntryControllerTest do
     end
   end
 
+  describe "delete_by_kind" do
+    test "deletes all entries of the kind and returns the count", %{conn: conn, user: user} do
+      entry_fixture(user.id, %{"kind" => "bookmark"})
+      entry_fixture(user.id, %{"kind" => "bookmark"})
+      keep = entry_fixture(user.id, %{"kind" => "photo"})
+
+      conn = delete(conn, "/api/entries?kind=bookmark")
+      assert json_response(conn, 200) == %{"deleted" => 2}
+      remaining_ids = user.id |> Servant.Data.list_entries() |> Enum.map(& &1.id)
+      assert remaining_ids == [keep.id]
+    end
+
+    test "400 without a kind param", %{conn: conn} do
+      conn = delete(conn, "/api/entries?kind=")
+      assert %{"error" => _} = json_response(conn, 400)
+    end
+  end
+
   describe "daily stats" do
     import Ecto.Query
 
