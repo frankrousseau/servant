@@ -223,4 +223,40 @@ describe('ContactsApp', () => {
     const formBody = update.mock.calls[1][1] as { data: { tags: string[] } }
     expect(formBody.data.tags).toEqual(['urgent'])
   })
+
+  it('keeps the edit-form PATCH on the contact captured at submit if selection moves mid-drain', async () => {
+    const alice = contact('a', 'Alice')
+    const bob = contact('b', 'Bob')
+    const { ctx, update } = makeCtx([alice, bob])
+    const wrapper = mount(ContactsApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    await selectContact(wrapper, 'Alice')
+
+    const d1 = deferred<Entry>()
+    update.mockImplementationOnce(() => d1.promise)
+
+    await wrapper.find('.ct-tag-add input').setValue('urgent')
+    await wrapper.find('.ct-tag-add').trigger('submit')
+
+    await wrapper.find('.ct-header-edit').trigger('click')
+    await flushPromises()
+    await wrapper.find('.ct-form input[required]').setValue('Alice Renamed')
+    await wrapper.find('.ct-form').trigger('submit')
+    expect(update).toHaveBeenCalledTimes(1)
+
+    // The user clicks Bob while the drain is still pending: the form PATCH
+    // must still target Alice, not the new selection.
+    await selectContact(wrapper, 'Bob')
+
+    d1.resolve({ ...alice, data: { ...alice.data, tags: ['urgent'] } })
+    await flushPromises()
+
+    expect(update).toHaveBeenCalledTimes(2)
+    expect(update.mock.calls[1][0]).toBe('a')
+    const formBody = update.mock.calls[1][1] as {
+      data: { display_name: string; tags: string[] }
+    }
+    expect(formBody.data.display_name).toBe('Alice Renamed')
+    expect(formBody.data.tags).toEqual(['urgent'])
+  })
 })

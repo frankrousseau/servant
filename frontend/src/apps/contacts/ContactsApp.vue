@@ -437,11 +437,15 @@ async function saveForm() {
   try {
     if (mode.value === 'edit' && selected.value) {
       // Drain queued tag/relation saves first: this PATCH replaces data
-      // wholesale from selected.value, and edit mode queues nothing new.
+      // wholesale, and edit mode queues nothing new. The id is captured
+      // before the await so a selection switch during the drain cannot
+      // redirect the PATCH onto another contact.
+      const id = selected.value.id
       await saveChain
-      const updated = await props.ctx.api.entries.update(selected.value.id, {
+      const base = allContacts.value.find(x => x.id === id)
+      const updated = await props.ctx.api.entries.update(id, {
         title: titleParts.join(' - '),
-        data: { ...selected.value.data, ...data }
+        data: { ...base?.data, ...data }
       })
       allContacts.value = sortContacts(
         allContacts.value.map(c => (c.id === updated.id ? updated : c))
