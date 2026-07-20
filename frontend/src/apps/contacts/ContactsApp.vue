@@ -5,6 +5,7 @@ import { useVirtualList } from '@vueuse/core'
 import { formatDate } from '../../lib/datetime'
 import { contactField, contactName, contactInitials } from '../../lib/contact'
 import { safeUrl } from '../../lib/url'
+import { tagsOf } from './relations'
 
 const props = defineProps<{ ctx: AppContext }>()
 
@@ -15,6 +16,7 @@ interface Labeled {
 
 const allContacts = ref<Entry[]>([])
 const searchQuery = ref('')
+const activeTag = ref<string | null>(null)
 const selectedId = ref<string | null>(
   new URLSearchParams(window.location.search).get('selected')
 )
@@ -60,9 +62,13 @@ function sortContacts(list: Entry[]): Entry[] {
 }
 
 const filtered = computed(() => {
-  if (!searchQuery.value) return allContacts.value
+  let list = allContacts.value
+  if (activeTag.value) {
+    list = list.filter(c => tagsOf(c).includes(activeTag.value!))
+  }
+  if (!searchQuery.value) return list
   const q = searchQuery.value.toLowerCase()
-  return allContacts.value.filter(c => {
+  return list.filter(c => {
     const name = contactName(c).toLowerCase()
     const org = fld(c, 'org').toLowerCase()
     const email = getEmails(c)
@@ -71,14 +77,26 @@ const filtered = computed(() => {
     const phone = getPhones(c)
       .map(p => p.value)
       .join(' ')
+    const tags = tagsOf(c).join(' ')
     return (
       name.includes(q) ||
       org.includes(q) ||
       email.includes(q) ||
-      phone.includes(q)
+      phone.includes(q) ||
+      tags.includes(q)
     )
   })
 })
+
+const allTags = computed(() => {
+  const set = new Set<string>()
+  for (const c of allContacts.value) for (const t of tagsOf(c)) set.add(t)
+  return [...set].sort()
+})
+
+function toggleTagFilter(tag: string) {
+  activeTag.value = activeTag.value === tag ? null : tag
+}
 
 // Virtualize the list so a large address book renders only the visible rows.
 const {
@@ -172,6 +190,39 @@ async function toggleBirthdayOnDashboard() {
   } catch {
     // leave the checkbox as-is
   }
+}
+
+const newTag = ref('')
+
+async function saveTags(next: string[]) {
+  const c = selected.value
+  if (!c) return
+  try {
+    const updated = await props.ctx.api.entries.update(c.id, {
+      data: { ...c.data, tags: next }
+    })
+    allContacts.value = allContacts.value.map(x =>
+      x.id === updated.id ? updated : x
+    )
+  } catch {
+    // chips reflect the server state again on the next load
+  }
+}
+
+function addTag() {
+  const c = selected.value
+  const tag = newTag.value.trim().toLowerCase()
+  newTag.value = ''
+  if (!c || !tag) return
+  const cur = tagsOf(c)
+  if (cur.includes(tag)) return
+  void saveTags([...cur, tag])
+}
+
+function removeTag(tag: string) {
+  const c = selected.value
+  if (!c) return
+  void saveTags(tagsOf(c).filter(t => t !== tag))
 }
 
 function openNote(n: Entry) {
@@ -370,6 +421,17 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           v-model="searchQuery"
           @input="onSearch"
         />
+      </div>
+      <div v-if="allTags.length" class="ct-tag-bar">
+        <button
+          v-for="t in allTags"
+          :key="t"
+          class="ct-tag-chip"
+          :class="{ 'ct-tag-chip--active': t === activeTag }"
+          @click="toggleTagFilter(t)"
+        >
+          {{ t }}
+        </button>
       </div>
       <div v-if="filtered.length === 0" class="ct-list">
         <p v-if="allContacts.length === 0" class="ct-empty">
@@ -607,6 +669,32 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                     .join(' · ')
                 }}</span
               >
+              <div class="ct-header-tags">
+                <button
+                  v-for="t in tagsOf(selected)"
+                  :key="t"
+                  class="ct-tag-chip"
+                  @click="toggleTagFilter(t)"
+                >
+                  {{ t }}
+                  <span
+                    class="ct-tag-x"
+                    title="Remove tag"
+                    @click.stop="removeTag(t)"
+                    >&times;</span
+                  >
+                </button>
+                <form class="ct-tag-add" @submit.prevent="addTag">
+                  <input
+                    v-model="newTag"
+                    list="ct-tag-options"
+                    placeholder="+ tag"
+                  />
+                  <datalist id="ct-tag-options">
+                    <option v-for="t in allTags" :key="t" :value="t" />
+                  </datalist>
+                </form>
+              </div>
             </div>
             <button class="ct-footer-btn ct-header-edit" @click="openEdit">
               Edit
@@ -844,6 +932,34 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .ct-search {
   flex: 1;
 }
+.ct-tag-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.ct-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.ct-tag-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.ct-tag-chip--active {
+  border-color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.12);
+  color: var(--primary);
+}
 .ct-count {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.85rem;
@@ -940,6 +1056,34 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .ct-detail-sub {
   font-size: 0.9rem;
   color: var(--text-muted);
+}
+.ct-header-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 0.4rem;
+}
+.ct-tag-x {
+  color: var(--text-muted);
+  visibility: hidden;
+}
+.ct-tag-chip:hover .ct-tag-x {
+  visibility: visible;
+}
+.ct-tag-x:hover {
+  color: var(--danger);
+}
+.ct-tag-add input {
+  width: 90px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.78rem;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px dashed var(--border);
+}
+.ct-tag-add input:focus {
+  border-style: solid;
 }
 .ct-header-edit {
   margin-left: auto;
