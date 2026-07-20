@@ -82,7 +82,9 @@ export interface AiConfig {
 export interface Agent {
   id: string
   name: string
-  prompt: string
+  prompt: string | null
+  mode: 'prompt' | 'recipe'
+  recipe: Record<string, unknown> | null
   kinds: string[]
   lookback_days: number
   schedule: 'every_hour' | 'every_day' | 'every_week'
@@ -98,7 +100,7 @@ export interface AgentRun {
   agent_id: string | null
   app_id: string | null
   status: 'running' | 'ok' | 'error'
-  model: string
+  model: string | null
   prompt: string | null
   input_tokens: number | null
   output_tokens: number | null

@@ -66,11 +66,20 @@ const fKinds = ref('')
 const fLookback = ref(7)
 const fSchedule = ref('every_day')
 const fSaving = ref(false)
+const fMode = ref<'prompt' | 'recipe'>('prompt')
+const fDescription = ref('')
+const fRecipeJson = ref('')
+const drafting = ref(false)
 
 const SCHEDULE_OPTIONS = [
   { value: 'every_hour', label: 'Every hour' },
   { value: 'every_day', label: 'Every day' },
   { value: 'every_week', label: 'Every week' }
+]
+
+const MODE_OPTIONS = [
+  { value: 'prompt', label: 'Prompt (the model writes the report)' },
+  { value: 'recipe', label: 'Recipe (deterministic, no model at run time)' }
 ]
 
 async function loadAgents() {
@@ -86,11 +95,21 @@ async function loadRecurrentRuns() {
 }
 
 async function loadReports() {
-  const res = await api.get<{ data: Entry[] }>('/api/entries', {
-    kind: 'ai_report',
-    per_page: '200'
-  })
-  reports.value = res.data
+  const [ai, det] = await Promise.all([
+    api.get<{ data: Entry[] }>('/api/entries', {
+      kind: 'ai_report',
+      per_page: '200'
+    }),
+    api.get<{ data: Entry[] }>('/api/entries', {
+      kind: 'report',
+      per_page: '200'
+    })
+  ])
+  reports.value = [...ai.data, ...det.data].sort((a, b) =>
+    (b.occurred_at || b.inserted_at).localeCompare(
+      a.occurred_at || a.inserted_at
+    )
+  )
 }
 
 function reportsOf(agentId: string) {
@@ -129,31 +148,49 @@ function openCreate() {
   fKinds.value = ''
   fLookback.value = 7
   fSchedule.value = 'every_day'
+  fMode.value = 'prompt'
+  fDescription.value = ''
+  fRecipeJson.value = ''
   formOpen.value = true
 }
 
 function openEdit(a: Agent) {
   editingId.value = a.id
   fName.value = a.name
-  fPrompt.value = a.prompt
+  fPrompt.value = a.prompt || ''
   fKinds.value = a.kinds.join(', ')
   fLookback.value = a.lookback_days
   fSchedule.value = a.schedule
+  fMode.value = a.mode
+  fDescription.value = ''
+  fRecipeJson.value =
+    a.mode === 'recipe' && a.recipe ? JSON.stringify(a.recipe, null, 2) : ''
   formOpen.value = true
 }
 
 async function saveAgent() {
   agentError.value = ''
   fSaving.value = true
-  const body = {
+  const body: Record<string, unknown> = {
     name: fName.value.trim(),
-    prompt: fPrompt.value.trim(),
+    mode: fMode.value,
     kinds: fKinds.value
       .split(',')
       .map(k => k.trim())
       .filter(Boolean),
     lookback_days: fLookback.value,
     schedule: fSchedule.value
+  }
+  if (fMode.value === 'recipe') {
+    try {
+      body.recipe = JSON.parse(fRecipeJson.value)
+    } catch {
+      agentError.value = 'Recipe is not valid JSON'
+      fSaving.value = false
+      return
+    }
+  } else {
+    body.prompt = fPrompt.value.trim()
   }
   try {
     if (editingId.value) await api.put(`/api/agents/${editingId.value}`, body)
@@ -164,6 +201,28 @@ async function saveAgent() {
     agentError.value = e instanceof Error ? e.message : 'Save failed'
   } finally {
     fSaving.value = false
+  }
+}
+
+async function draftRecipe() {
+  agentError.value = ''
+  drafting.value = true
+  try {
+    const res = await api.post<{
+      data: { recipe: Record<string, unknown>; run_id: string }
+    }>('/api/agents/draft_recipe', {
+      description: fDescription.value.trim(),
+      kinds: fKinds.value
+        .split(',')
+        .map(k => k.trim())
+        .filter(Boolean)
+    })
+    fRecipeJson.value = JSON.stringify(res.data.recipe, null, 2)
+    await loadRecurrentRuns()
+  } catch (e) {
+    agentError.value = e instanceof Error ? e.message : 'Draft failed'
+  } finally {
+    drafting.value = false
   }
 }
 
@@ -377,7 +436,10 @@ onMounted(() => {
               </thead>
               <tbody>
                 <tr v-for="a in agents" :key="a.id">
-                  <td>{{ a.name }}</td>
+                  <td>
+                    {{ a.name }}
+                    <span class="mode-badge">{{ a.mode }}</span>
+                  </td>
                   <td>{{ a.kinds.join(', ') }}</td>
                   <td>{{ scheduleLabel(a.schedule) }}</td>
                   <td>
@@ -433,11 +495,49 @@ onMounted(() => {
 
             <form v-if="formOpen" class="app-form" @submit.prevent="saveAgent">
               <input v-model="fName" type="text" placeholder="Agent name" />
+              <label class="tk-expiry">
+                <span class="tk-domain-label">Mode</span>
+                <ComboBox
+                  class="tk-domain-select"
+                  :model-value="fMode"
+                  :options="MODE_OPTIONS"
+                  @update:model-value="v => (fMode = v as 'prompt' | 'recipe')"
+                />
+              </label>
               <textarea
+                v-if="fMode === 'prompt'"
                 v-model="fPrompt"
                 rows="3"
                 placeholder="What should the agent look for or summarize?"
               ></textarea>
+              <template v-if="fMode === 'recipe'">
+                <textarea
+                  v-model="fDescription"
+                  rows="2"
+                  placeholder="Describe the script, e.g. sum bank_tx amounts by category each week"
+                ></textarea>
+                <div class="card-actions">
+                  <button
+                    type="button"
+                    :disabled="
+                      drafting || !fDescription.trim() || !fKinds.trim()
+                    "
+                    @click="draftRecipe"
+                  >
+                    {{ drafting ? 'Drafting...' : 'Generate recipe' }}
+                  </button>
+                </div>
+                <textarea
+                  v-model="fRecipeJson"
+                  rows="8"
+                  class="recipe-json"
+                  placeholder='{"aggregate": {"op": "count"}}'
+                ></textarea>
+                <p class="tk-hint">
+                  The recipe runs deterministically on schedule; the model is
+                  only used here, to draft it. Edit it freely before saving.
+                </p>
+              </template>
               <input
                 v-model="fKinds"
                 type="text"
@@ -469,8 +569,8 @@ onMounted(() => {
                   :disabled="
                     fSaving ||
                     !fName.trim() ||
-                    !fPrompt.trim() ||
-                    !fKinds.trim()
+                    !fKinds.trim() ||
+                    (fMode === 'prompt' ? !fPrompt.trim() : !fRecipeJson.trim())
                   "
                 >
                   {{ fSaving ? 'Saving...' : 'Save' }}
@@ -558,7 +658,7 @@ onMounted(() => {
                 <tr v-for="r in recurrentRuns" :key="r.id">
                   <td>{{ formatDate(r.inserted_at) }}</td>
                   <td>{{ agentName(r.agent_id) }}</td>
-                  <td>{{ r.model }}</td>
+                  <td>{{ r.model || '-' }}</td>
                   <td>
                     {{
                       r.input_tokens != null
@@ -717,7 +817,7 @@ onMounted(() => {
                   <td>{{ formatDate(r.inserted_at) }}</td>
                   <td>{{ r.action }}</td>
                   <td>{{ r.app_id || '-' }}</td>
-                  <td>{{ r.model }}</td>
+                  <td>{{ r.model || '-' }}</td>
                   <td>
                     {{
                       r.input_tokens != null
@@ -1008,5 +1108,17 @@ onMounted(() => {
 .report-rendered :deep(td) {
   border: 1px solid var(--border);
   padding: 0.25rem 0.5rem;
+}
+.mode-badge {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.4rem;
+}
+.recipe-json {
+  font-family: monospace;
+  font-size: 0.85rem;
 }
 </style>
