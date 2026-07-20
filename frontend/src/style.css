@@ -708,6 +708,9 @@ dd {
   background: var(--bg-surface) !important;
   border-color: var(--border) !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+  /* Breathing room; width auto lets the fixed-width day grid size the box. */
+  width: auto !important;
+  padding: 0.5rem;
 }
 .flatpickr-months,
 .flatpickr-weekdays {
@@ -760,4 +763,52 @@ span.flatpickr-weekday {
 }
 .numInputWrapper span svg path {
   fill: var(--text-muted) !important;
+}
+/* Remaining light-styled flatpickr pieces: the pointer arrow, the year
+   input, the month dropdown options, disabled days and the time bar. */
+.flatpickr-calendar.arrowTop::before {
+  border-bottom-color: var(--border) !important;
+}
+.flatpickr-calendar.arrowTop::after {
+  border-bottom-color: var(--bg-surface) !important;
+}
+.flatpickr-calendar.arrowBottom::before {
+  border-top-color: var(--border) !important;
+}
+.flatpickr-calendar.arrowBottom::after {
+  border-top-color: var(--bg-surface) !important;
+}
+.flatpickr-current-month input.cur-year {
+  color: var(--text) !important;
+}
+.flatpickr-current-month
+  .flatpickr-monthDropdown-months
+  .flatpickr-monthDropdown-month {
+  background: var(--bg-surface);
+  color: var(--text);
+}
+.flatpickr-day.flatpickr-disabled,
+.flatpickr-day.flatpickr-disabled:hover {
+  color: var(--text-muted) !important;
+  opacity: 0.3;
+}
+.flatpickr-time {
+  border-top-color: var(--border) !important;
+}
+.flatpickr-time input,
+.flatpickr-time .flatpickr-am-pm {
+  background: var(--bg-surface) !important;
+  color: var(--text) !important;
+}
+.flatpickr-time input:hover,
+.flatpickr-time input:focus,
+.flatpickr-time .flatpickr-am-pm:hover,
+.flatpickr-time .flatpickr-am-pm:focus {
+  background: var(--bg-hover) !important;
+}
+.flatpickr-time .numInputWrapper span.arrowUp::after {
+  border-bottom-color: var(--text-muted) !important;
+}
+.flatpickr-time .numInputWrapper span.arrowDown::after {
+  border-top-color: var(--text-muted) !important;
 }
