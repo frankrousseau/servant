@@ -710,7 +710,8 @@ dd {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
   /* Breathing room; width auto lets the fixed-width day grid size the box. */
   width: auto !important;
-  padding: 0.5rem;
+  padding: 0.85rem;
+  border-radius: 12px !important;
 }
 .flatpickr-months,
 .flatpickr-weekdays {
