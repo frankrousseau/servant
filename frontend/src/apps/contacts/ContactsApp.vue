@@ -218,33 +218,44 @@ async function toggleBirthdayOnDashboard() {
 
 const newTag = ref('')
 
-// Tag saves are serialized and re-derive from the freshest entry inside the
-// chain: two quick chip clicks must not both branch off the same stale list.
-let tagChain: Promise<void> = Promise.resolve()
+// All immediate saves (tags, relations) share one serialized chain and
+// re-derive from the freshest entry inside it: the backend replaces data
+// wholesale, so two in-flight updates on one entry would clobber each other.
+let saveChain: Promise<void> = Promise.resolve()
 
-function mutateTags(mutate: (cur: string[]) => string[]) {
-  const c = selected.value
-  if (!c) return
-  const id = c.id
-  tagChain = tagChain
+function queueDataSave(
+  id: string,
+  mutate: (entry: Entry) => Record<string, unknown> | null
+) {
+  saveChain = saveChain
     .then(async () => {
       const entry = allContacts.value.find(x => x.id === id)
       if (!entry) return
-      const cur = tagsOf(entry)
-      const next = mutate(cur)
-      if (next.length === cur.length && next.every((t, i) => t === cur[i])) {
-        return
-      }
-      const updated = await props.ctx.api.entries.update(id, {
-        data: { ...entry.data, tags: next }
-      })
+      const data = mutate(entry)
+      if (!data) return
+      const updated = await props.ctx.api.entries.update(id, { data })
       allContacts.value = allContacts.value.map(x =>
         x.id === updated.id ? updated : x
       )
     })
     .catch(() => {
-      // chips reflect the server state again on the next load
+      // a failed write re-syncs with the server state on the next load; a
+      // failed reciprocal write can leave a one-sided relation, and the x
+      // on either card removes both sides
     })
+}
+
+function mutateTags(mutate: (cur: string[]) => string[]) {
+  const c = selected.value
+  if (!c) return
+  queueDataSave(c.id, entry => {
+    const cur = tagsOf(entry)
+    const next = mutate(cur)
+    if (next.length === cur.length && next.every((t, i) => t === cur[i])) {
+      return null
+    }
+    return { ...entry.data, tags: next }
+  })
 }
 
 function addTag() {
@@ -277,16 +288,17 @@ const visibleRelations = computed(() => {
     .filter((r): r is Relation & { contact: Entry } => r.contact !== null)
 })
 
-async function saveRelations(target: Entry, next: Relation[]) {
-  const updated = await props.ctx.api.entries.update(target.id, {
-    data: { ...target.data, relations: next }
-  })
-  allContacts.value = allContacts.value.map(x =>
-    x.id === updated.id ? updated : x
-  )
+function queueRelationsSave(
+  id: string,
+  mutate: (cur: Relation[]) => Relation[]
+) {
+  queueDataSave(id, entry => ({
+    ...entry.data,
+    relations: mutate(relationsOf(entry))
+  }))
 }
 
-async function addRelation() {
+function addRelation() {
   const c = selected.value
   const name = newRelName.value.trim()
   if (!c || !name) return
@@ -295,32 +307,18 @@ async function addRelation() {
   )
   if (!target) return
   newRelName.value = ''
-  try {
-    await saveRelations(
-      c,
-      withRelation(relationsOf(c), target.id, newRelType.value)
-    )
-    await saveRelations(
-      target,
-      withRelation(relationsOf(target), c.id, inverseType(newRelType.value))
-    )
-  } catch {
-    // a partial write settles on the next load
-  }
+  const type = newRelType.value
+  queueRelationsSave(c.id, cur => withRelation(cur, target.id, type))
+  queueRelationsSave(target.id, cur =>
+    withRelation(cur, c.id, inverseType(type))
+  )
 }
 
-async function removeRelation(contactId: string) {
+function removeRelation(contactId: string) {
   const c = selected.value
   if (!c) return
-  try {
-    await saveRelations(c, withoutRelation(relationsOf(c), contactId))
-    const other = allContacts.value.find(x => x.id === contactId)
-    if (other) {
-      await saveRelations(other, withoutRelation(relationsOf(other), c.id))
-    }
-  } catch {
-    // a partial write settles on the next load
-  }
+  queueRelationsSave(c.id, cur => withoutRelation(cur, contactId))
+  queueRelationsSave(contactId, cur => withoutRelation(cur, c.id))
 }
 
 function openNote(n: Entry) {
@@ -474,9 +472,8 @@ async function deleteContact() {
     await props.ctx.api.entries.delete(c.id)
     allContacts.value = allContacts.value.filter(x => x.id !== c.id)
     for (const o of allContacts.value) {
-      const rels = relationsOf(o)
-      if (rels.some(r => r.contact_id === c.id)) {
-        saveRelations(o, withoutRelation(rels, c.id)).catch(() => {})
+      if (relationsOf(o).some(r => r.contact_id === c.id)) {
+        queueRelationsSave(o.id, cur => withoutRelation(cur, c.id))
       }
     }
     selectedId.value = null
