@@ -13,6 +13,7 @@ All Vue code follows the [official Vue.js style guide](https://fr.vuejs.org/styl
 - **Priority A (essential, always)**: multi-word component names; typed prop definitions (`defineProps<{...}>()`); every `v-for` carries a `:key`; never `v-if` and `v-for` on the same element (filter in a computed instead); component styles are `scoped` (a global block needs a comment justifying it)
 - **Priority B (strongly recommended)**: one component per file, PascalCase filenames and template tags, self-closing tags for empty components, camelCase prop declarations, complex template expressions extracted into computeds, consistent directive shorthands (`:`, `@`, `#`)
 - **Priority C (recommended)**: SFC top-level order is `<script>` then `<template>` then `<style>` in every file
+- **Servant widgets first**: reach for the shared components in `frontend/src/components/` before native controls or ad-hoc markup: `ComboBox` for closed single choices (never a bare `<select>` or a `<datalist>` picker), `AutocompleteInput` for free text with suggestions, `ConfirmModal` through `useConfirm` for confirmations, `DateInput`, `KindIcon`, `MediaViewer`/`VideoPlayer` for media. Fall back to a native control only when no shared widget covers the need
 
 Formatting is Prettier's job (`cd frontend && npm run format`; config in `frontend/.prettierrc.json`: no semicolons, single quotes, no trailing commas, `arrowParens: avoid`). Run it before committing frontend changes.
 
