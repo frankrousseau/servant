@@ -134,8 +134,16 @@ describe('ContactsApp', () => {
     await flushPromises()
     await selectContact(wrapper, 'Alice')
 
-    await wrapper.find('.ct-rel-type').setValue('parent')
-    await wrapper.find('.ct-rel-name').setValue('Bob')
+    await wrapper.find('.ct-rel-type .cb-control').trigger('click')
+    await wrapper
+      .findAll('.ct-rel-type .cb-option')
+      .find(o => o.text() === 'Parent')!
+      .trigger('mousedown')
+    await wrapper.find('.ct-rel-name .cb-control').trigger('click')
+    await wrapper
+      .findAll('.ct-rel-name .cb-option')
+      .find(o => o.text() === 'Bob')!
+      .trigger('mousedown')
     await wrapper.find('.ct-rel-add').trigger('submit')
     await flushPromises()
 
@@ -258,5 +266,25 @@ describe('ContactsApp', () => {
     }
     expect(formBody.data.display_name).toBe('Alice Renamed')
     expect(formBody.data.tags).toEqual(['urgent'])
+  })
+
+  it('marks a contact as me via a singleton prefs entry', async () => {
+    const alice = contact('a', 'Alice')
+    const { ctx, create } = makeCtx([alice])
+    const wrapper = mount(ContactsApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    await selectContact(wrapper, 'Alice')
+
+    await wrapper.find('.ct-dash-toggle input').setValue(true)
+    await flushPromises()
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'prefs',
+        title: 'me',
+        data: { contact_id: 'a' }
+      })
+    )
+    expect(wrapper.find('.ct-me-badge').exists()).toBe(true)
   })
 })

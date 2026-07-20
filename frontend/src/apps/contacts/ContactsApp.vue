@@ -13,6 +13,7 @@ import { useVirtualList } from '@vueuse/core'
 import { formatDate } from '../../lib/datetime'
 import { contactField, contactName, contactInitials } from '../../lib/contact'
 import { safeUrl } from '../../lib/url'
+import ComboBox from '../../components/ComboBox.vue'
 import {
   RELATION_TYPES,
   inverseType,
@@ -141,7 +142,7 @@ function selectContact(id: string) {
   mode.value = 'view'
   formError.value = ''
   newTag.value = ''
-  newRelName.value = ''
+  newRelId.value = ''
   history.replaceState(null, '', '/apps/contacts?selected=' + id)
   void loadLinked()
 }
@@ -217,6 +218,33 @@ async function toggleBirthdayOnDashboard() {
   }
 }
 
+// ----- "this is me" (singleton prefs entry, like the birthday opt-in) -----
+
+const mePrefs = ref<Entry | null>(null)
+const meId = computed(() => (mePrefs.value?.data.contact_id as string) || null)
+
+async function toggleMe() {
+  const id = selectedId.value
+  if (!id) return
+  const next = meId.value === id ? null : id
+  try {
+    if (mePrefs.value) {
+      mePrefs.value = await props.ctx.api.entries.update(mePrefs.value.id, {
+        data: { ...mePrefs.value.data, contact_id: next }
+      })
+    } else {
+      mePrefs.value = await props.ctx.api.entries.create({
+        kind: 'prefs',
+        source: 'manual',
+        title: 'me',
+        data: { contact_id: next }
+      })
+    }
+  } catch {
+    // the checkbox reflects the stored state
+  }
+}
+
 const newTag = ref('')
 
 // All immediate saves (tags, relations) share one serialized chain and
@@ -272,11 +300,23 @@ function removeTag(tag: string) {
 
 // ----- relations (reciprocal, saved immediately on both cards) -----
 
-const newRelType = ref<RelationType>('friend')
-const newRelName = ref('')
+// ComboBox speaks strings; addRelation narrows back to RelationType.
+const newRelType = ref<string>('friend')
+const newRelId = ref('')
+
+const relTypeOptions = RELATION_TYPES.map(t => ({
+  value: t,
+  label: relationLabel(t)
+}))
 
 const relTargets = computed(() =>
   allContacts.value.filter(c => c.id !== selectedId.value)
+)
+
+// Options carry the contact id, so two contacts sharing a display name
+// stay distinct targets.
+const relTargetOptions = computed(() =>
+  relTargets.value.map(c => ({ value: c.id, label: contactName(c) }))
 )
 
 const visibleRelations = computed(() => {
@@ -301,14 +341,10 @@ function queueRelationsSave(
 
 function addRelation() {
   const c = selected.value
-  const name = newRelName.value.trim()
-  if (!c || !name) return
-  const target = relTargets.value.find(
-    t => contactName(t).toLowerCase() === name.toLowerCase()
-  )
-  if (!target) return
-  newRelName.value = ''
-  const type = newRelType.value
+  const target = relTargets.value.find(t => t.id === newRelId.value)
+  if (!c || !target) return
+  newRelId.value = ''
+  const type = newRelType.value as RelationType
   queueRelationsSave(c.id, cur => withRelation(cur, target.id, type))
   queueRelationsSave(target.id, cur =>
     withRelation(cur, c.id, inverseType(type))
@@ -506,6 +542,12 @@ async function reload() {
     loading.value = false
     nextTick(() => searchInput.value?.focus())
   }
+  try {
+    const prefs = await props.ctx.api.entries.list({ kind: 'prefs' })
+    mePrefs.value = prefs.find(p => p.title === 'me') || null
+  } catch {
+    // the ME badge just stays hidden
+  }
 }
 
 onMounted(() => {
@@ -564,7 +606,10 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
               getInitials(contactName(c))
             }}</span>
             <div class="ct-card-body">
-              <span class="ct-name">{{ contactName(c) }}</span>
+              <span class="ct-name"
+                >{{ contactName(c)
+                }}<span v-if="c.id === meId" class="ct-me-badge">ME</span></span
+              >
               <span class="ct-sub">{{
                 fld(c, 'org') || getEmails(c)[0]?.value || ''
               }}</span>
@@ -768,7 +813,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
               getInitials(contactName(selected))
             }}</span>
             <div>
-              <h2 class="ct-detail-name">{{ contactName(selected) }}</h2>
+              <h2 class="ct-detail-name">
+                {{ contactName(selected)
+                }}<span v-if="meId === selected.id" class="ct-me-badge"
+                  >ME</span
+                >
+              </h2>
               <span
                 v-if="fld(selected, 'title') || fld(selected, 'org')"
                 class="ct-detail-sub"
@@ -778,36 +828,37 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                     .join(' · ')
                 }}</span
               >
-              <div class="ct-header-tags">
-                <button
-                  v-for="t in tagsOf(selected)"
-                  :key="t"
-                  class="ct-tag-chip"
-                  @click="toggleTagFilter(t)"
-                >
-                  {{ t }}
-                  <span
-                    class="ct-tag-x"
-                    title="Remove tag"
-                    @click.stop="removeTag(t)"
-                    >&times;</span
-                  >
-                </button>
-                <form class="ct-tag-add" @submit.prevent="addTag">
-                  <input
-                    v-model="newTag"
-                    list="ct-tag-options"
-                    placeholder="+ tag"
-                  />
-                  <datalist id="ct-tag-options">
-                    <option v-for="t in allTags" :key="t" :value="t" />
-                  </datalist>
-                </form>
-              </div>
             </div>
             <button class="ct-footer-btn ct-header-edit" @click="openEdit">
               Edit
             </button>
+          </div>
+
+          <div class="ct-header-tags">
+            <button
+              v-for="t in tagsOf(selected)"
+              :key="t"
+              class="ct-tag-chip"
+              @click="toggleTagFilter(t)"
+            >
+              {{ t }}
+              <span
+                class="ct-tag-x"
+                title="Remove tag"
+                @click.stop="removeTag(t)"
+                >&times;</span
+              >
+            </button>
+            <form class="ct-tag-add" @submit.prevent="addTag">
+              <input
+                v-model="newTag"
+                list="ct-tag-options"
+                placeholder="+ tag"
+              />
+              <datalist id="ct-tag-options">
+                <option v-for="t in allTags" :key="t" :value="t" />
+              </datalist>
+            </form>
           </div>
 
           <div class="ct-section-card">
@@ -909,18 +960,6 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             </div>
           </div>
 
-          <div v-if="fld(selected, 'birthday')" class="ct-section-card">
-            <h3 class="ct-section-title">Parameters</h3>
-            <label class="ct-dash-toggle">
-              <input
-                type="checkbox"
-                :checked="birthdayOnDashboard"
-                @change="toggleBirthdayOnDashboard"
-              />
-              🎂 Show this birthday in the calendar and on the dashboard
-            </label>
-          </div>
-
           <div class="ct-section-card">
             <h3 class="ct-section-title">Relations</h3>
             <div
@@ -942,32 +981,43 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
               >
             </div>
             <form class="ct-rel-add" @submit.prevent="addRelation">
-              <select v-model="newRelType" class="ct-rel-type">
-                <option v-for="t in RELATION_TYPES" :key="t" :value="t">
-                  {{ relationLabel(t) }}
-                </option>
-              </select>
-              <input
-                v-model="newRelName"
-                class="ct-rel-name"
-                list="ct-rel-options"
-                placeholder="Contact name..."
+              <ComboBox
+                v-model="newRelType"
+                class="ct-rel-type"
+                :options="relTypeOptions"
               />
-              <datalist id="ct-rel-options">
-                <option
-                  v-for="t in relTargets"
-                  :key="t.id"
-                  :value="contactName(t)"
-                />
-              </datalist>
-              <button
-                type="submit"
-                class="ct-rel-btn"
-                :disabled="!newRelName.trim()"
-              >
+              <ComboBox
+                v-model="newRelId"
+                class="ct-rel-name"
+                :options="relTargetOptions"
+                placeholder="Contact..."
+              />
+              <button type="submit" class="ct-rel-btn" :disabled="!newRelId">
                 Link
               </button>
             </form>
+          </div>
+
+          <div class="ct-section-card">
+            <h3 class="ct-section-title">Parameters</h3>
+            <div class="ct-param-list">
+              <label class="ct-dash-toggle">
+                <input
+                  type="checkbox"
+                  :checked="meId === selected.id"
+                  @change="toggleMe"
+                />
+                👤 This is me
+              </label>
+              <label v-if="fld(selected, 'birthday')" class="ct-dash-toggle">
+                <input
+                  type="checkbox"
+                  :checked="birthdayOnDashboard"
+                  @change="toggleBirthdayOnDashboard"
+                />
+                🎂 Show this birthday in the calendar and on the dashboard
+              </label>
+            </div>
           </div>
 
           <div v-if="linkedEvents.length" class="ct-section-card">
@@ -1202,7 +1252,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.75rem;
 }
 .ct-detail-name {
   margin: 0;
@@ -1220,7 +1270,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   flex-wrap: wrap;
   align-items: center;
   gap: 0.375rem;
-  margin-top: 0.4rem;
+  margin-bottom: 1.25rem;
 }
 .ct-tag-x {
   color: var(--text-muted);
@@ -1245,6 +1295,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 .ct-header-edit {
   margin-left: auto;
+  align-self: flex-start;
 }
 .ct-avatar--photo {
   padding: 0;
@@ -1414,6 +1465,22 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .ct-rel-btn:disabled {
   opacity: 0.5;
   cursor: default;
+}
+.ct-me-badge {
+  margin-left: 0.4rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  vertical-align: middle;
+}
+.ct-param-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 .ct-dash-toggle {
   display: flex;
