@@ -19,7 +19,9 @@ defmodule ServantWeb.AgentController do
     properties: %{
       id: %Schema{type: :string},
       name: %Schema{type: :string},
-      prompt: %Schema{type: :string},
+      prompt: %Schema{type: :string, nullable: true},
+      mode: %Schema{type: :string, enum: ["prompt", "recipe"]},
+      recipe: %Schema{type: :object, nullable: true},
       kinds: %Schema{type: :array, items: %Schema{type: :string}},
       lookback_days: %Schema{type: :integer},
       schedule: %Schema{type: :string},
@@ -57,12 +59,14 @@ defmodule ServantWeb.AgentController do
          properties: %{
            name: %Schema{type: :string},
            prompt: %Schema{type: :string},
+           mode: %Schema{type: :string, enum: ["prompt", "recipe"]},
+           recipe: %Schema{type: :object},
            kinds: %Schema{type: :array, items: %Schema{type: :string}},
            lookback_days: %Schema{type: :integer},
            schedule: %Schema{type: :string},
            enabled: %Schema{type: :boolean}
          },
-         required: [:name, :prompt, :kinds]
+         required: [:name, :kinds]
        }},
     responses: [
       created: {"Agent", "application/json", @agent_envelope},
@@ -220,6 +224,46 @@ defmodule ServantWeb.AgentController do
     end
   end
 
+  operation(:draft_recipe,
+    summary: "Draft a recipe from a plain-language description",
+    description:
+      "Session-only; requires agents enabled in Settings. Asks the configured model to " <>
+        "translate the description into a recipe (tracked as a draft_recipe run). The " <>
+        "prompt carries entry kinds and data key names, never entry values.",
+    request_body:
+      {"Draft request", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{
+           description: %Schema{type: :string},
+           kinds: %Schema{type: :array, items: %Schema{type: :string}}
+         },
+         required: [:description]
+       }},
+    responses: [
+      ok: {"Recipe", "application/json", %Schema{type: :object}},
+      unprocessable_entity:
+        {"Invalid description or model reply", "application/json", Schemas.Error},
+      forbidden: {"Agents disabled or session required", "application/json", Schemas.Error},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error}
+    ]
+  )
+
+  def draft_recipe(conn, params) do
+    kinds = params["kinds"] |> List.wrap() |> Enum.filter(&is_binary/1)
+
+    case Agents.draft_recipe(conn.assigns.current_user, params["description"], kinds) do
+      {:ok, recipe, run} ->
+        json(conn, %{data: %{recipe: recipe, run_id: run.id}})
+
+      {:error, message, _run} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: message})
+
+      {:error, message} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: message})
+    end
+  end
+
   defp with_agent(conn, id, fun) do
     case Agents.get_agent(conn.assigns.current_user.id, id) do
       nil -> conn |> put_status(:not_found) |> json(%{error: "Agent not found"})
@@ -232,6 +276,8 @@ defmodule ServantWeb.AgentController do
       id: agent.id,
       name: agent.name,
       prompt: agent.prompt,
+      mode: agent.mode,
+      recipe: agent.recipe,
       kinds: agent.kinds,
       lookback_days: agent.lookback_days,
       schedule: agent.schedule,

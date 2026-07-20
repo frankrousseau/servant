@@ -120,4 +120,40 @@ defmodule ServantWeb.AgentControllerTest do
 
     assert length(json_response(get(conn, "/api/agents/runs"), 200)["data"]) == 2
   end
+
+  describe "POST /api/agents/draft_recipe" do
+    test "422 with a blank description", %{conn: conn} do
+      conn = post(conn, ~p"/api/agents/draft_recipe", %{"description" => " ", "kinds" => ["x"]})
+      assert %{"error" => _} = json_response(conn, 422)
+    end
+  end
+
+  describe "recipe agents over the API" do
+    test "creates and returns a recipe agent", %{conn: conn} do
+      params = %{
+        "name" => "Weekly spend",
+        "mode" => "recipe",
+        "kinds" => ["bank_tx"],
+        "recipe" => %{"aggregate" => %{"op" => "count"}}
+      }
+
+      conn = post(conn, ~p"/api/agents", params)
+      body = json_response(conn, 201)
+
+      assert body["data"]["mode"] == "recipe"
+      assert body["data"]["recipe"] == %{"aggregate" => %{"op" => "count"}}
+    end
+
+    test "invalid recipe is a 422", %{conn: conn} do
+      params = %{
+        "name" => "Bad",
+        "mode" => "recipe",
+        "kinds" => ["bank_tx"],
+        "recipe" => %{"nope" => 1}
+      }
+
+      conn = post(conn, ~p"/api/agents", params)
+      assert %{"errors" => %{"recipe" => _}} = json_response(conn, 422)
+    end
+  end
 end

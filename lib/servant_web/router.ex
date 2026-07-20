@@ -91,6 +91,7 @@ defmodule ServantWeb.Router do
         get "/agents/runs", AgentController, :runs
         get "/agents/runs/:id", AgentController, :show_run
         post "/agents/:id/run", AgentController, :run
+        post "/agents/draft_recipe", AgentController, :draft_recipe
         resources "/agents", AgentController, except: [:new, :edit]
         post "/apps/:id/modify", AppController, :modify
         post "/apps/:id/restore", AppController, :restore
