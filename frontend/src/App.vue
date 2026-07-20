@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import { computed, watch } from 'vue'
 import { useAuthStore } from './stores/auth'
 import { useAppsStore } from './stores/apps'
+import { agentsEnabled } from './apps/registry'
 import { useRouter } from 'vue-router'
 import {
   LayoutDashboard,
@@ -47,6 +48,8 @@ const appIcons: Record<string, unknown> = {
 const auth = useAuthStore()
 const apps = useAppsStore()
 const router = useRouter()
+
+const showAgents = computed(() => agentsEnabled(auth.user?.enabled_apps))
 
 // Installed apps come from the API, so they can only load once authenticated;
 // the sidebar shows builtins in the meantime.
@@ -110,7 +113,7 @@ function handleLogout() {
             <Cable :size="18" />Sources
           </router-link>
         </li>
-        <li>
+        <li v-if="showAgents">
           <router-link to="/agents"> <Wrench :size="18" />Agents </router-link>
         </li>
       </ul>

@@ -71,3 +71,10 @@ export function enabledBuiltins(ids: string[] | null | undefined): AppDef[] {
   const enabled = ids ?? DEFAULT_ENABLED_APPS
   return BUILTIN_APPS.filter(a => enabled.includes(a.id))
 }
+
+// Agents is not a mounted app (it keeps its own /agents route) but it is
+// toggled like one: hidden from the sidebar and palette unless enabled.
+// Not in DEFAULT_ENABLED_APPS, so it is off until the user opts in.
+export function agentsEnabled(ids: string[] | null | undefined): boolean {
+  return (ids ?? DEFAULT_ENABLED_APPS).includes('agents')
+}

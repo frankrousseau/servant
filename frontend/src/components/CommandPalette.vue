@@ -3,6 +3,8 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApi } from '../composables/useApi'
 import { useAppsStore } from '../stores/apps'
+import { useAuthStore } from '../stores/auth'
+import { agentsEnabled } from '../apps/registry'
 import type { Entry } from '../types'
 import { kindIcon, kindColor } from '../types'
 import { entryRoute } from '../lib/entryRoute'
@@ -17,6 +19,7 @@ const activeIndex = ref(0)
 const inputRef = ref<HTMLInputElement | null>(null)
 
 const appsStore = useAppsStore()
+const auth = useAuthStore()
 
 // Apps come from the store, so disabled built-ins stay out of the palette.
 const pages = computed(() => [
@@ -24,7 +27,9 @@ const pages = computed(() => [
   ...appsStore.defs.map(a => ({ label: a.name, path: `/apps/${a.id}` })),
   { label: 'Data browser', path: '/data' },
   { label: 'Connectors', path: '/connectors' },
-  { label: 'Agents', path: '/agents' },
+  ...(agentsEnabled(auth.user?.enabled_apps)
+    ? [{ label: 'Agents', path: '/agents' }]
+    : []),
   { label: 'Audit', path: '/audit' },
   { label: 'Settings', path: '/settings' }
 ])

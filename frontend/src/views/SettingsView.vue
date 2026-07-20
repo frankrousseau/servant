@@ -35,6 +35,9 @@ const { ask } = useConfirm()
 // Mirrors the user's preference; null on the account means the default set.
 const enabledApps = ref<string[]>([...DEFAULT_ENABLED_APPS])
 
+// Agents keeps its own /agents route but toggles like a built-in app.
+const toggleableApps = [{ id: 'agents', name: 'Agents' }, ...BUILTIN_APPS]
+
 watch(
   () => auth.user?.enabled_apps,
   ids => {
@@ -451,7 +454,7 @@ onMounted(() => {
           their data stays untouched.
         </p>
         <div class="app-toggles">
-          <label v-for="a in BUILTIN_APPS" :key="a.id" class="toggle">
+          <label v-for="a in toggleableApps" :key="a.id" class="toggle">
             <input
               type="checkbox"
               :checked="enabledApps.includes(a.id)"

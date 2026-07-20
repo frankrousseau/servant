@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { BUILTIN_APPS, DEFAULT_ENABLED_APPS, enabledBuiltins } from './registry'
+import {
+  BUILTIN_APPS,
+  DEFAULT_ENABLED_APPS,
+  enabledBuiltins,
+  agentsEnabled
+} from './registry'
 
 describe('enabledBuiltins', () => {
   it('falls back to the default set when the preference is unset', () => {
@@ -21,5 +26,17 @@ describe('enabledBuiltins', () => {
   it('defaults are valid builtin ids', () => {
     const all = BUILTIN_APPS.map(a => a.id)
     for (const id of DEFAULT_ENABLED_APPS) expect(all).toContain(id)
+  })
+})
+
+describe('agentsEnabled', () => {
+  it('is off by default (unset preference)', () => {
+    expect(agentsEnabled(null)).toBe(false)
+    expect(agentsEnabled(undefined)).toBe(false)
+  })
+
+  it('follows the enabled list', () => {
+    expect(agentsEnabled(['agents'])).toBe(true)
+    expect(agentsEnabled(['notes'])).toBe(false)
   })
 })
