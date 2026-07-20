@@ -1,8 +1,8 @@
 /*
  * Servant as a retro machine, one identity, four monitors. The default is
  * "Night terminal": black-blue CRT glass, electric-violet phosphor, pale
- * glow text. Display face is VT323, a true terminal bitmap face, used
- * sparingly (brand, headings, counters). The other themes swap the panel,
+ * glow text. Display face is Maple Mono, a rounded modern monospace,
+ * used sparingly (brand, headings, counters). The other themes swap the panel,
  * never the identity: Graphite (white phosphor on neutral black), Daylight
  * (violet ink on cool paper), Sepia (amber ink on warm paper). Themes are
  * selected with data-theme on <html> (see lib/theme.ts); no attribute
@@ -27,7 +27,7 @@
   --warning: #ffb454;
   --radius: 6px;
   --sidebar-width: 220px;
-  --font-display: 'VT323', 'Courier New', monospace;
+  --font-display: 'Maple Mono', 'Courier New', monospace;
   color-scheme: dark;
 }
 

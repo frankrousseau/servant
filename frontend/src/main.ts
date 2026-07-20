@@ -6,7 +6,7 @@ import { useAuthStore } from './stores/auth'
 import { applyTheme, storedTheme } from './lib/theme'
 import { reportClientError, messageOf } from './lib/reportError'
 import { vClickKey } from './lib/clickKey'
-import '@fontsource/vt323/index.css'
+import '@fontsource/maple-mono/index.css'
 import './style.css'
 
 // Paint with the last known theme immediately; /auth/me re-syncs it after.
