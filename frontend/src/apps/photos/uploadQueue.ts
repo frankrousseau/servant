@@ -21,41 +21,55 @@ export const isHeic = (f: File) =>
   f.type === 'image/heif'
 
 // The bundled server-side libvips can't decode HEVC, and neither can most
-// browsers: decode HEIC to JPEG in the browser (wasm, lazy-loaded only when
-// a HEIC is actually picked). heic-to bundles a current libheif; the old
-// heic2any choked on iOS 18 files ("ERR_LIBHEIF format not supported").
+// browsers: decode HEIC to JPEG in the browser. heic-to bundles a current
+// libheif; the old heic2any choked on iOS 18 files. The wasm decode costs
+// seconds of CPU per photo, so it runs in a Web Worker (heic-to/next,
+// lazy-created on the first HEIC): a big batch keeps the tab responsive.
 // ponytail: the original HEIC is not kept (the JPEG becomes the archived
 // file); revisit if originals matter.
-async function toUploadable(file: File): Promise<File> {
-  if (!isHeic(file)) return file
-  const { heicTo } = await import('heic-to/csp')
-  const blob = await heicTo({ blob: file, type: 'image/jpeg', quality: 0.9 })
-  return new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
-    type: 'image/jpeg'
-  })
-}
+let heicWorker: Worker | null = null
 
 // A conversion that never settles (heic2any used to do that on iOS 18
 // files) froze the whole batch at "1/N" with no error. Cap it so the item
-// fails visibly and the batch moves on. 60s covers a 48MP decode on slow
+// fails visibly and the batch moves on; the worker is rebuilt so the stale
+// decode can't wedge the next one. 60s covers a 48MP decode on slow
 // hardware.
-function convertWithTimeout(file: File): Promise<File> {
+function convertHeic(file: File): Promise<File> {
+  if (!heicWorker) {
+    heicWorker = new Worker(new URL('./heicWorker.ts', import.meta.url), {
+      type: 'module'
+    })
+  }
+  const worker = heicWorker
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error('HEIC conversion timed out')),
-      60_000
-    )
-    toUploadable(file).then(
-      f => {
-        clearTimeout(timer)
-        resolve(f)
-      },
-      e => {
-        clearTimeout(timer)
-        reject(e)
+    const rebuild = (message: string) => {
+      clearTimeout(timer)
+      worker.terminate()
+      heicWorker = null
+      reject(new Error(message))
+    }
+    const timer = setTimeout(() => rebuild('HEIC conversion timed out'), 60_000)
+    worker.onmessage = (e: MessageEvent<{ blob?: Blob; error?: string }>) => {
+      clearTimeout(timer)
+      if (e.data.error || !e.data.blob) {
+        // Bad file, healthy worker: keep it for the next item.
+        reject(new Error(e.data.error || 'HEIC conversion failed'))
+        return
       }
-    )
+      resolve(
+        new File([e.data.blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
+          type: 'image/jpeg'
+        })
+      )
+    }
+    worker.onerror = () => rebuild('HEIC conversion failed')
+    worker.postMessage({ file })
   })
+}
+
+async function toUploadable(file: File): Promise<File> {
+  if (!isHeic(file)) return file
+  return convertHeic(file)
 }
 
 // Grid thumbnail for videos: decode in the browser (no server-side ffmpeg),
@@ -126,7 +140,7 @@ const queue = createUploadQueue<PhotoUpload>({
 
     let file: File
     try {
-      file = await convertWithTimeout(original)
+      file = await toUploadable(original)
     } finally {
       tools.setConverting(false)
     }

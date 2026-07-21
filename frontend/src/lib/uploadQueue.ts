@@ -104,6 +104,8 @@ export function createUploadQueue<T>(opts: {
       } finally {
         doneBytes += size
       }
+      // Breathe between items so a big batch can't starve rendering.
+      await new Promise(resolve => setTimeout(resolve))
     }
     uploadProgress.value = null
     uploading.value = false
