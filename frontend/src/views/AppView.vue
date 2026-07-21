@@ -17,6 +17,7 @@ const viewerItems = ref<ViewerItem[]>([])
 const viewerIndex = ref(0)
 const viewerOpen = ref(false)
 let viewerDeleteCb: ((id: string) => void) | null = null
+let viewerCloseCb: (() => void) | null = null
 
 const viewerAPI: ViewerAPI = {
   open(items, startIndex = 0) {
@@ -29,6 +30,9 @@ const viewerAPI: ViewerAPI = {
   },
   onDelete(cb) {
     viewerDeleteCb = cb
+  },
+  onClose(cb) {
+    viewerCloseCb = cb
   }
 }
 
@@ -40,6 +44,7 @@ const ctx = createAppContext(viewerAPI)
 
 function handleViewerClose() {
   viewerOpen.value = false
+  if (viewerCloseCb) viewerCloseCb()
 }
 
 function handleViewerDelete(id: string) {
@@ -50,6 +55,7 @@ function handleViewerDelete(id: string) {
     viewerItems.value = viewerItems.value.filter(i => i.id !== id)
     if (viewerItems.value.length === 0) {
       viewerOpen.value = false
+      if (viewerCloseCb) viewerCloseCb()
     } else if (viewerIndex.value >= viewerItems.value.length) {
       viewerIndex.value = viewerItems.value.length - 1
     }
@@ -64,6 +70,7 @@ async function loadApp(appId: string) {
   error.value = ''
   viewerOpen.value = false
   viewerDeleteCb = null
+  viewerCloseCb = null
 
   // Direct navigation to an installed app can land here before the store
   // has fetched the list; load() is a no-op when already fetched.

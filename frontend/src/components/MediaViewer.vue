@@ -118,8 +118,9 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 <template>
   <Teleport to="body">
     <div class="mv-overlay" @click.self="emit('close')">
-      <!-- Main image / video -->
-      <div class="mv-stage">
+      <!-- Main image / video. The stage fills the overlay, so a click beside
+           the media must close too, not only one on the overlay itself. -->
+      <div class="mv-stage" @click.self="emit('close')">
         <VideoPlayer
           v-if="current && current.video && !imgError"
           :key="current.id"

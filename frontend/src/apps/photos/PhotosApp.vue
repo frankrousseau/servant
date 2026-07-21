@@ -139,6 +139,10 @@ function onGroupByChange(v: string) {
 
 const photoDate = (p: Entry) => (p.occurred_at || p.inserted_at) as string
 
+// Thumb chips are tiny: first name only (the full name stays in the title
+// tooltip, the filter bar and the viewer meta).
+const firstName = (name: string) => name.trim().split(/\s+/)[0]
+
 function isoWeek(
   y: number,
   m: number,
@@ -480,12 +484,26 @@ async function reload() {
 }
 
 // Upload state and pipeline live in ./uploadQueue (module scope) so a batch
-// survives navigating to another app mid-upload. While mounted, insert each
-// created photo as it lands and true-up with one reload when the queue drains.
+// survives navigating to another app mid-upload. While mounted, created
+// photos land in the grid in 1s batches (one regroup/re-render per flush,
+// not per upload: a 500-file batch would churn the grid 500 times) and a
+// single reload trues everything up when the queue drains.
+let pendingCreated: Entry[] = []
+let createdFlushTimer: ReturnType<typeof setTimeout> | undefined
+
+function flushCreated() {
+  createdFlushTimer = undefined
+  const fresh = pendingCreated.filter(
+    c => !allPhotos.value.some(p => p.id === c.id)
+  )
+  pendingCreated = []
+  if (fresh.length) allPhotos.value.unshift(...fresh)
+}
+
 watch(lastCreated, created => {
-  if (created && !allPhotos.value.some(p => p.id === created.id)) {
-    allPhotos.value.unshift(created)
-  }
+  if (!created) return
+  pendingCreated.push(created)
+  createdFlushTimer ??= setTimeout(flushCreated, 1000)
 })
 watch(batchesDone, () => void reload())
 
@@ -825,12 +843,19 @@ onMounted(async () => {
     await props.ctx.api.entries.delete(id)
     await reload()
   })
+  // Backdrop/Esc/Close must also drop the ?photo= deep link.
+  props.ctx.viewer.onClose(() => {
+    if (new URLSearchParams(window.location.search).get('photo')) {
+      history.replaceState(null, '', '/apps/photos')
+    }
+  })
   await reload()
   const initial = new URLSearchParams(window.location.search).get('photo')
   if (initial) openViewer(initial, { push: false })
 })
 onUnmounted(() => {
   alive = false
+  clearTimeout(createdFlushTimer)
   window.removeEventListener('popstate', onPopState)
 })
 </script>
@@ -946,6 +971,7 @@ onUnmounted(() => {
     <div v-if="!selectionMode" class="ph-toolbar">
       <div class="ph-filters">
         <ComboBox
+          v-if="albumOptions.length > 1"
           class="ph-album-filter"
           v-model="albumFilter"
           :options="albumOptions"
@@ -1161,7 +1187,8 @@ onUnmounted(() => {
                 v-for="pp in getPeople(p)"
                 :key="'pp' + pp.id"
                 class="ph-thumb-tag ph-thumb-tag--person"
-                >{{ pp.name }}</span
+                :title="pp.name"
+                >{{ firstName(pp.name) }}</span
               >
             </div>
           </div>
