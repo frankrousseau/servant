@@ -1057,8 +1057,9 @@ onUnmounted(() => {
         :key="'p' + p.id"
         class="ph-tag-pill ph-tag-pill--person"
         :class="{ 'ph-tag-pill--active': p.id === peopleFilter }"
+        :title="p.name"
         @click="setFilter({ person: p.id })"
-        >{{ p.name }}</span
+        >{{ firstName(p.name) }}</span
       >
     </div>
 
