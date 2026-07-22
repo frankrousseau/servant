@@ -13,6 +13,7 @@ import { useVirtualList } from '@vueuse/core'
 import { formatDate } from '../../lib/datetime'
 import { contactField, contactName, contactInitials } from '../../lib/contact'
 import { safeUrl } from '../../lib/url'
+import { Cake, User } from 'lucide-vue-next'
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
 import {
@@ -66,6 +67,17 @@ const form = reactive({
 
 const fld = contactField
 const getInitials = contactInitials
+
+// Deterministic tint per contact: hash the name into a hue, keep the
+// avatar's translucent-bg + tinted-text look.
+function avatarStyle(name: string) {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 360
+  return {
+    background: `hsla(${h}, 55%, 60%, 0.16)`,
+    color: `hsl(${h}, 45%, 62%)`
+  }
+}
 const isUnnamed = (c: Entry) => contactName(c) === '(unnamed)'
 const getEmails = (e: Entry) => (e.data.emails as Labeled[]) || []
 const getPhones = (e: Entry) => (e.data.phones as Labeled[]) || []
@@ -610,9 +622,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             <span v-if="fld(c, 'photo')" class="ct-avatar ct-avatar--photo">
               <img :src="fld(c, 'photo')" alt="" loading="lazy" />
             </span>
-            <span v-else class="ct-avatar">{{
-              getInitials(contactName(c))
-            }}</span>
+            <span
+              v-else
+              class="ct-avatar"
+              :style="avatarStyle(contactName(c))"
+              >{{ getInitials(contactName(c)) }}</span
+            >
             <div class="ct-card-body">
               <span class="ct-name"
                 >{{ contactName(c)
@@ -662,9 +677,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           <div class="ct-form-photo">
             <label class="ct-form-avatar">
               <img v-if="form.photo" :src="form.photo" alt="" />
-              <span v-else class="ct-form-avatar-placeholder">{{
-                getInitials(form.display_name || '?')
-              }}</span>
+              <span
+                v-else
+                class="ct-form-avatar-placeholder"
+                :style="avatarStyle(form.display_name || '?')"
+                >{{ getInitials(form.display_name || '?') }}</span
+              >
               <span
                 class="ct-form-avatar-overlay"
                 :class="{ uploading: avatarUploading }"
@@ -817,9 +835,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             >
               <img :src="fld(selected, 'photo')" alt="" loading="lazy" />
             </span>
-            <span v-else class="ct-avatar ct-avatar--lg">{{
-              getInitials(contactName(selected))
-            }}</span>
+            <span
+              v-else
+              class="ct-avatar ct-avatar--lg"
+              :style="avatarStyle(contactName(selected))"
+              >{{ getInitials(contactName(selected)) }}</span
+            >
             <div>
               <h2 class="ct-detail-name">
                 {{ contactName(selected)
@@ -1006,13 +1027,17 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           <div class="ct-section-card">
             <h3 class="ct-section-title">Parameters</h3>
             <div class="ct-param-list">
-              <label class="ct-dash-toggle">
+              <!-- Once a me contact exists, only it shows the toggle (to unset). -->
+              <label
+                v-if="!meId || meId === selected.id"
+                class="ct-dash-toggle"
+              >
                 <input
                   type="checkbox"
                   :checked="meId === selected.id"
                   @change="toggleMe"
                 />
-                👤 This is me
+                <User :size="14" /> This is me
               </label>
               <label v-if="fld(selected, 'birthday')" class="ct-dash-toggle">
                 <input
@@ -1020,7 +1045,8 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                   :checked="birthdayOnDashboard"
                   @change="toggleBirthdayOnDashboard"
                 />
-                🎂 Show this birthday in the calendar and on the dashboard
+                <Cake :size="14" /> Show this birthday in the calendar and on
+                the dashboard
               </label>
             </div>
           </div>
