@@ -21,6 +21,9 @@ export interface Account {
   key: string // entity id, or "bank:<name>" when derived from bank_tx
   entryId: string | null // set when entity-backed
   name: string
+  // Account name carried by imported transactions (data.account); lets an
+  // entity claim transactions when its display name differs from the CSV's.
+  identifier: string | null
   type: AccountType
   currency: string
   universe: Universe
@@ -50,6 +53,19 @@ function txBalance(tx: Entry): number | null {
   return typeof b === 'number' && Number.isFinite(b) ? b : null
 }
 
+function txAmount(tx: Entry): number | null {
+  const a = tx.data.amount
+  return typeof a === 'number' && Number.isFinite(a) ? a : null
+}
+
+// The name an account matches transactions on.
+const accountTxName = (a: Account) => a.identifier || a.name
+
+function accountTxs(account: Account, bankTxs: Entry[]): Entry[] {
+  const key = norm(accountTxName(account))
+  return bankTxs.filter(tx => norm(txAccountName(tx)) === key)
+}
+
 // Entity-backed accounts (kind "account") plus accounts derived from
 // bank_tx data.account (same pattern as synced calendar agendas). An entity
 // whose name matches a CSV account claims it: the entity absorbs the
@@ -63,16 +79,19 @@ export function buildAccounts(
 
   for (const e of accountEntries) {
     const type = (e.data.type as AccountType) || 'bank'
+    const identifier = ((e.data.identifier as string) || '').trim() || null
     out.push({
       key: e.id,
       entryId: e.id,
       name: (e.title || 'Unnamed').trim(),
+      identifier,
       type,
       currency: ((e.data.currency as string) || 'EUR').trim().toUpperCase(),
       universe: universeOf(type),
       derived: false
     })
     claimed.add(norm(e.title || ''))
+    if (identifier) claimed.add(norm(identifier))
   }
 
   const seen = new Set<string>()
@@ -85,6 +104,7 @@ export function buildAccounts(
       key: `bank:${norm(name)}`,
       entryId: null,
       name,
+      identifier: null,
       type: 'bank',
       currency: ((tx.data.currency as string) || 'EUR').trim().toUpperCase(),
       universe: 'tradfi',
@@ -99,17 +119,21 @@ export function buildAccounts(
 
 // Snapshot series for one account, one point per day (the latest observation
 // of the day wins), sorted ascending. Sources: manual balance entries
-// (data.account_id) and, for the matching bank account name, the
-// balance-after-transaction carried by bank_tx imports.
+// (data.account_id) and, for the matching bank account name (the account's
+// identifier, or its name), the balance-after-transaction carried by bank_tx
+// imports. Past the last observation the series is projected forward by
+// applying subsequent transaction amounts, so the current value stays live
+// between snapshots.
 export function snapshotSeries(
   account: Account,
   balanceEntries: Entry[],
   bankTxs: Entry[]
 ): SnapshotPoint[] {
+  const txs = accountTxs(account, bankTxs)
   const observations: { at: string; date: string; amount: number }[] = []
+  let lastObservedAt = ''
 
-  for (const tx of bankTxs) {
-    if (norm(txAccountName(tx)) !== norm(account.name)) continue
+  for (const tx of txs) {
     const balance = txBalance(tx)
     if (balance == null || !tx.occurred_at) continue
     observations.push({
@@ -117,6 +141,7 @@ export function snapshotSeries(
       date: utcToZonedParts(tx.occurred_at).date,
       amount: balance
     })
+    if (tx.occurred_at > lastObservedAt) lastObservedAt = tx.occurred_at
   }
 
   if (account.entryId) {
@@ -130,6 +155,7 @@ export function snapshotSeries(
         date: utcToZonedParts(b.occurred_at).date,
         amount
       })
+      if (b.occurred_at > lastObservedAt) lastObservedAt = b.occurred_at
     }
   }
 
@@ -137,9 +163,35 @@ export function snapshotSeries(
   const byDay = new Map<string, number>()
   for (const o of observations) byDay.set(o.date, o.amount)
 
-  return [...byDay.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([date, amount]) => ({ date, amount }))
+  const materialize = () =>
+    [...byDay.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, amount]) => ({ date, amount }))
+
+  if (!observations.length) return materialize()
+
+  // Project forward: transactions strictly after the last observation, that
+  // don't carry a balance themselves (those already are observations).
+  const pending = txs
+    .filter(
+      tx =>
+        txBalance(tx) == null &&
+        txAmount(tx) != null &&
+        !!tx.occurred_at &&
+        tx.occurred_at > lastObservedAt
+    )
+    .sort((a, b) => a.occurred_at!.localeCompare(b.occurred_at!))
+
+  if (pending.length) {
+    const points = materialize()
+    let value = points[points.length - 1].amount
+    for (const tx of pending) {
+      value += txAmount(tx)!
+      byDay.set(utcToZonedParts(tx.occurred_at!).date, value)
+    }
+  }
+
+  return materialize()
 }
 
 export function rateFor(
@@ -224,6 +276,66 @@ export function freshnessLevel(days: number | null): 'ok' | 'warn' | 'stale' {
   if (days <= 35) return 'ok'
   if (days <= 90) return 'warn'
   return 'stale'
+}
+
+export const UNCATEGORIZED = 'uncategorized'
+
+export interface SpendingRow {
+  category: string
+  byMonth: Record<string, number> // month "YYYY-MM" -> spent, in ref currency
+  total: number
+}
+
+// Monthly spending by category, in the reference currency. Only outgoing
+// amounts count (amount < 0, stored positive here). Transactions in a
+// currency with no known rate are skipped and counted in excludedCount.
+export function monthlySpending(
+  txs: Entry[],
+  rates: Rates,
+  ref: string
+): { months: string[]; rows: SpendingRow[]; excludedCount: number } {
+  const monthSet = new Set<string>()
+  const byCategory = new Map<string, Map<string, number>>()
+  let excludedCount = 0
+
+  for (const tx of txs) {
+    const amount = txAmount(tx)
+    if (amount == null || amount >= 0 || !tx.occurred_at) continue
+    const currency = ((tx.data.currency as string) || ref).trim().toUpperCase()
+    const rate = rateFor(currency, ref, rates)
+    if (rate == null) {
+      excludedCount++
+      continue
+    }
+    const month = utcToZonedParts(tx.occurred_at).date.slice(0, 7)
+    const category =
+      ((tx.data.category as string) || '').trim() || UNCATEGORIZED
+    monthSet.add(month)
+    const row = byCategory.get(category) || new Map<string, number>()
+    row.set(month, (row.get(month) || 0) + -amount * rate)
+    byCategory.set(category, row)
+  }
+
+  const months = [...monthSet].sort()
+  const rows = [...byCategory.entries()]
+    .map(([category, m]) => ({
+      category,
+      byMonth: Object.fromEntries(m),
+      total: [...m.values()].reduce((sum, v) => sum + v, 0)
+    }))
+    .sort((a, b) => b.total - a.total)
+
+  return { months, rows, excludedCount }
+}
+
+// Deterministic tint per category (same trick as contact avatars); the
+// uncategorized bucket stays gray.
+export function categoryColor(category: string): string {
+  if (category === UNCATEGORIZED) return 'hsl(0, 0%, 55%)'
+  let h = 0
+  for (let i = 0; i < category.length; i++)
+    h = (h * 31 + category.charCodeAt(i)) % 360
+  return `hsl(${h}, 55%, 55%)`
 }
 
 // Compact money formatting: big fiat amounts read better without cents,

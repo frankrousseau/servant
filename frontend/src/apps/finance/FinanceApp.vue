@@ -5,6 +5,7 @@ import { todayInUserTz, zonedToUtcISO } from '../../lib/datetime'
 import { addDays } from '../calendar/recurrence'
 import ComboBox from '../../components/ComboBox.vue'
 import BalanceChart from './BalanceChart.vue'
+import SpendingView from './SpendingView.vue'
 import TransactionsSection from './TransactionsSection.vue'
 import {
   ACCOUNT_TYPES,
@@ -28,6 +29,13 @@ const ctx = props.ctx
 const CRYPTO_COLOR = '#6ccec9'
 
 // ----- data -----
+
+type Tab = 'accounts' | 'spending'
+const tab = ref<Tab>('accounts')
+const TABS: Array<{ id: Tab; label: string }> = [
+  { id: 'accounts', label: 'Accounts' },
+  { id: 'spending', label: 'Spending' }
+]
 
 const accountEntries = ref<Entry[]>([])
 const balanceEntries = ref<Entry[]>([])
@@ -225,12 +233,14 @@ const accountModalOpen = ref(false)
 const accountName = ref('')
 const accountType = ref<string>('bank')
 const accountCurrency = ref('EUR')
+const accountIdentifier = ref('')
 const accountSaving = ref(false)
 
 function openAccountModal() {
   accountName.value = ''
   accountType.value = 'bank'
   accountCurrency.value = refCurrency.value
+  accountIdentifier.value = ''
   accountModalOpen.value = true
 }
 
@@ -244,7 +254,11 @@ async function createAccount() {
       kind: 'account',
       source: 'finance_app',
       title: name,
-      data: { type: accountType.value, currency }
+      data: {
+        type: accountType.value,
+        currency,
+        identifier: accountIdentifier.value.trim() || null
+      }
     })
     accountEntries.value = await ctx.api.entries.list({
       kind: 'account',
@@ -353,6 +367,22 @@ function deltaLabel(delta: number): string {
 function onTxUpdated(updated: Entry) {
   bankTxs.value = bankTxs.value.map(t => (t.id === updated.id ? updated : t))
 }
+
+// Saved on change; empty clears it and the account matches by name again.
+async function saveIdentifier(a: Account, raw: string) {
+  const entry = accountEntries.value.find(e => e.id === a.entryId)
+  if (!entry) return
+  try {
+    const updated = await ctx.api.entries.update(entry.id, {
+      data: { ...entry.data, identifier: raw.trim() || null }
+    })
+    accountEntries.value = accountEntries.value.map(e =>
+      e.id === updated.id ? updated : e
+    )
+  } catch {
+    // ignore
+  }
+}
 </script>
 
 <template>
@@ -364,174 +394,226 @@ function onTxUpdated(updated: Entry) {
       Failed to load finance data.
     </p>
     <template v-else>
-      <div class="fin-toolbar">
-        <label class="fin-ref">
-          <span class="fin-ref-label">Reference</span>
-          <ComboBox
-            class="fin-ref-select"
-            :model-value="refCurrency"
-            :options="refCurrencyOptions"
-            @update:model-value="onRefCurrencyChange"
-          />
-        </label>
+      <div class="fin-tabs">
         <button
-          v-if="foreignCurrencies.length"
-          class="fin-btn"
-          title="Manual exchange rates to the reference currency"
-          @click="openRates"
+          v-for="t in TABS"
+          :key="t.id"
+          class="fin-tab"
+          :class="{ 'fin-tab--active': tab === t.id }"
+          @click="tab = t.id"
         >
-          Rates
-        </button>
-        <span class="fin-toolbar-spacer"></span>
-        <button class="fin-btn fin-btn--primary" @click="openAccountModal">
-          + Account
+          {{ t.label }}
         </button>
       </div>
 
-      <p v-if="!accounts.length" class="fin-empty">
-        No accounts yet. Create one (bank, cash, livret, broker or wallet) and
-        record its balance; bank accounts imported through CSV appear here by
-        themselves.
-      </p>
+      <template v-if="tab === 'spending'">
+        <SpendingView
+          :txs="bankTxs"
+          :rates="rates"
+          :ref-currency="refCurrency"
+        />
+        <TransactionsSection
+          v-if="bankTxs.length"
+          :ctx="ctx"
+          :txs="bankTxs"
+          @updated="onTxUpdated"
+        />
+      </template>
 
-      <section
-        v-for="u in universes"
-        v-show="u.accounts.length"
-        :key="u.universe"
-        class="fin-universe"
-      >
-        <div class="fin-universe-head">
-          <h2 class="fin-universe-title" :style="{ color: u.color }">
-            {{ u.label }}
-          </h2>
-          <span class="fin-total">{{
-            formatAmount(u.total, refCurrency)
-          }}</span>
-          <span
-            v-if="u.points.length"
-            class="fin-delta"
-            :class="{ 'fin-delta--down': u.delta30 < 0 }"
-            >{{ deltaLabel(u.delta30) }}</span
+      <template v-else>
+        <div class="fin-toolbar">
+          <label class="fin-ref">
+            <span class="fin-ref-label">Reference</span>
+            <ComboBox
+              class="fin-ref-select"
+              :model-value="refCurrency"
+              :options="refCurrencyOptions"
+              @update:model-value="onRefCurrencyChange"
+            />
+          </label>
+          <button
+            v-if="foreignCurrencies.length"
+            class="fin-btn"
+            title="Manual exchange rates to the reference currency"
+            @click="openRates"
           >
+            Rates
+          </button>
+          <span class="fin-toolbar-spacer"></span>
+          <button class="fin-btn fin-btn--primary" @click="openAccountModal">
+            + Account
+          </button>
         </div>
-        <BalanceChart :points="u.points" :end-date="today" :color="u.color" />
-        <p v-if="u.excluded.length" class="fin-warn">
-          No {{ refCurrency }} rate for: {{ u.excluded.join(', ') }} (excluded
-          from the curve)
+
+        <p v-if="!accounts.length" class="fin-empty">
+          No accounts yet. Create one (bank, cash, livret, broker or wallet) and
+          record its balance; bank accounts imported through CSV appear here by
+          themselves.
         </p>
 
-        <div class="fin-accounts">
-          <div v-for="a in u.accounts" :key="a.key" class="fin-account">
-            <div class="fin-account-row">
-              <span class="fin-account-caret" @click="toggleExpanded(a.key)">
-                {{ expanded.has(a.key) ? '▾' : '▸' }}
-              </span>
-              <span class="fin-account-name" @click="toggleExpanded(a.key)">
-                {{ a.name }}
-                <span
-                  v-if="a.derived"
-                  class="fin-badge"
-                  title="Reconstructed from bank CSV imports"
-                  >csv</span
-                >
-              </span>
-              <span class="fin-account-type">{{ a.type }}</span>
-              <span class="fin-fresh" :class="freshness(a).level">{{
-                freshness(a).label
-              }}</span>
-              <span class="fin-account-amount">
-                <template v-if="lastPoint(a)">
-                  {{ formatAmount(lastPoint(a)!.amount, a.currency) }}
-                  <span v-if="converted(a)" class="fin-account-converted">
-                    {{ converted(a) }}
-                  </span>
-                </template>
-                <template v-else>no data</template>
-              </span>
-              <button
-                v-if="a.entryId"
-                class="fin-mini-btn"
-                title="Record a balance snapshot"
-                @click="openSnapshotForm(a)"
-              >
-                + snapshot
-              </button>
-              <button
-                v-if="a.entryId"
-                class="fin-mini-del"
-                title="Delete account"
-                @click="deleteAccount(a)"
-              >
-                ×
-              </button>
-            </div>
-
-            <form
-              v-if="snapshotFor === a.key"
-              class="fin-snapshot-form"
-              @submit.prevent="addSnapshot(a)"
+        <section
+          v-for="u in universes"
+          v-show="u.accounts.length"
+          :key="u.universe"
+          class="fin-universe"
+        >
+          <div class="fin-universe-head">
+            <h2 class="fin-universe-title" :style="{ color: u.color }">
+              {{ u.label }}
+            </h2>
+            <span class="fin-total">{{
+              formatAmount(u.total, refCurrency)
+            }}</span>
+            <span
+              v-if="u.points.length"
+              class="fin-delta"
+              :class="{ 'fin-delta--down': u.delta30 < 0 }"
+              >{{ deltaLabel(u.delta30) }}</span
             >
-              <input
-                v-model="snapshotAmount"
-                class="fin-snap-amount"
-                :placeholder="`Amount (${a.currency})`"
-                autofocus
-              />
-              <input v-model="snapshotDate" type="date" class="fin-snap-date" />
-              <button
-                type="submit"
-                class="fin-btn fin-btn--primary"
-                :disabled="snapshotSaving"
-              >
-                Save
-              </button>
-              <button type="button" class="fin-btn" @click="snapshotFor = null">
-                Cancel
-              </button>
-            </form>
+          </div>
+          <BalanceChart :points="u.points" :end-date="today" :color="u.color" />
+          <p v-if="u.excluded.length" class="fin-warn">
+            No {{ refCurrency }} rate for: {{ u.excluded.join(', ') }} (excluded
+            from the curve)
+          </p>
 
-            <div v-if="expanded.has(a.key)" class="fin-history">
-              <div
-                v-for="b in manualSnapshots(a)"
-                :key="b.id"
-                class="fin-history-row"
-              >
-                <span class="fin-history-date">{{ snapshotDateLabel(b) }}</span>
-                <span>{{
-                  formatAmount(b.data.amount as number, a.currency)
+          <div class="fin-accounts">
+            <div v-for="a in u.accounts" :key="a.key" class="fin-account">
+              <div class="fin-account-row">
+                <span class="fin-account-caret" @click="toggleExpanded(a.key)">
+                  {{ expanded.has(a.key) ? '▾' : '▸' }}
+                </span>
+                <span class="fin-account-name" @click="toggleExpanded(a.key)">
+                  {{ a.name }}
+                  <span
+                    v-if="a.derived"
+                    class="fin-badge"
+                    title="Reconstructed from bank CSV imports"
+                    >csv</span
+                  >
+                </span>
+                <span class="fin-account-type">{{ a.type }}</span>
+                <span class="fin-fresh" :class="freshness(a).level">{{
+                  freshness(a).label
                 }}</span>
+                <span class="fin-account-amount">
+                  <template v-if="lastPoint(a)">
+                    {{ formatAmount(lastPoint(a)!.amount, a.currency) }}
+                    <span v-if="converted(a)" class="fin-account-converted">
+                      {{ converted(a) }}
+                    </span>
+                  </template>
+                  <template v-else>no data</template>
+                </span>
                 <button
+                  v-if="a.entryId"
+                  class="fin-mini-btn"
+                  title="Record a balance snapshot"
+                  @click="openSnapshotForm(a)"
+                >
+                  + snapshot
+                </button>
+                <button
+                  v-if="a.entryId"
                   class="fin-mini-del"
-                  title="Delete snapshot"
-                  @click="deleteSnapshot(b)"
+                  title="Delete account"
+                  @click="deleteAccount(a)"
                 >
                   ×
                 </button>
               </div>
-              <p v-if="txObservationCount(a)" class="fin-history-note">
-                + {{ txObservationCount(a) }} balance point(s) from bank imports
-              </p>
-              <p
-                v-if="!manualSnapshots(a).length && !txObservationCount(a)"
-                class="fin-history-note"
+
+              <form
+                v-if="snapshotFor === a.key"
+                class="fin-snapshot-form"
+                @submit.prevent="addSnapshot(a)"
               >
-                No snapshots yet.
-              </p>
+                <input
+                  v-model="snapshotAmount"
+                  class="fin-snap-amount"
+                  :placeholder="`Amount (${a.currency})`"
+                  autofocus
+                />
+                <input
+                  v-model="snapshotDate"
+                  type="date"
+                  class="fin-snap-date"
+                />
+                <button
+                  type="submit"
+                  class="fin-btn fin-btn--primary"
+                  :disabled="snapshotSaving"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  class="fin-btn"
+                  @click="snapshotFor = null"
+                >
+                  Cancel
+                </button>
+              </form>
+
+              <div v-if="expanded.has(a.key)" class="fin-history">
+                <div v-if="a.entryId" class="fin-ident-row">
+                  <label class="fin-ident-label" :for="`ident-${a.key}`"
+                    >tx account</label
+                  >
+                  <input
+                    :id="`ident-${a.key}`"
+                    class="fin-ident-input"
+                    :value="a.identifier || ''"
+                    placeholder="name carried by imported transactions"
+                    title="Transactions whose account matches this name feed this account's balance"
+                    @change="
+                      saveIdentifier(
+                        a,
+                        ($event.target as HTMLInputElement).value
+                      )
+                    "
+                  /><span v-if="!a.identifier" class="fin-ident-hint"
+                    >matches by account name when empty</span
+                  >
+                </div>
+                <div
+                  v-for="b in manualSnapshots(a)"
+                  :key="b.id"
+                  class="fin-history-row"
+                >
+                  <span class="fin-history-date">{{
+                    snapshotDateLabel(b)
+                  }}</span>
+                  <span>{{
+                    formatAmount(b.data.amount as number, a.currency)
+                  }}</span>
+                  <button
+                    class="fin-mini-del"
+                    title="Delete snapshot"
+                    @click="deleteSnapshot(b)"
+                  >
+                    ×
+                  </button>
+                </div>
+                <p v-if="txObservationCount(a)" class="fin-history-note">
+                  + {{ txObservationCount(a) }} balance point(s) from bank
+                  imports
+                </p>
+                <p
+                  v-if="!manualSnapshots(a).length && !txObservationCount(a)"
+                  class="fin-history-note"
+                >
+                  No snapshots yet.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <p v-if="bothUniversesLive" class="fin-grand">
-        ALL UNIVERSES: {{ formatAmount(grandTotal, refCurrency) }}
-      </p>
-
-      <TransactionsSection
-        v-if="bankTxs.length"
-        :ctx="ctx"
-        :txs="bankTxs"
-        @updated="onTxUpdated"
-      />
+        <p v-if="bothUniversesLive" class="fin-grand">
+          ALL UNIVERSES: {{ formatAmount(grandTotal, refCurrency) }}
+        </p>
+      </template>
     </template>
   </div>
 
@@ -560,6 +642,13 @@ function onTxUpdated(updated: Entry) {
             <label>Currency / asset</label>
             <input v-model="accountCurrency" placeholder="EUR, USD, ETH…" />
           </div>
+        </div>
+        <div class="fin-modal-field">
+          <label>Transactions account (optional)</label>
+          <input
+            v-model="accountIdentifier"
+            placeholder="account name carried by imported transactions"
+          />
         </div>
         <p class="fin-modal-hint">
           Wallets live in the crypto universe; use the asset as currency (one
@@ -630,6 +719,31 @@ function onTxUpdated(updated: Entry) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.88rem;
   padding: 2rem 0;
+}
+.fin-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1rem;
+}
+.fin-tab {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+  border-radius: 0;
+}
+.fin-tab:hover {
+  color: var(--text);
+}
+.fin-tab--active {
+  color: var(--primary);
+  box-shadow: inset 0 -2px 0 var(--primary);
 }
 .fin-toolbar {
   display: flex;
@@ -837,6 +951,29 @@ function onTxUpdated(updated: Entry) {
 }
 .fin-history {
   padding: 0 0.25rem 0.6rem 1.5rem;
+}
+.fin-ident-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0 0.4rem;
+}
+.fin-ident-label {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.fin-ident-input {
+  width: 260px;
+  font-size: 0.8rem;
+  padding: 0.15rem 0.4rem;
+}
+.fin-ident-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
 }
 .fin-history-row {
   display: flex;

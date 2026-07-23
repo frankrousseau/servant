@@ -3,6 +3,7 @@ import {
   buildAccounts,
   freshnessDays,
   freshnessLevel,
+  monthlySpending,
   rateFor,
   snapshotSeries,
   universeCurve,
@@ -40,6 +41,22 @@ const bankTx = (account: string, occurredAt: string, balance: number | null) =>
   entry('bank_tx', {
     occurred_at: occurredAt,
     data: { account, balance, currency: 'EUR', amount: -10 }
+  })
+
+const spendTx = (
+  account: string,
+  occurredAt: string,
+  amount: number,
+  category?: string
+) =>
+  entry('bank_tx', {
+    occurred_at: occurredAt,
+    data: {
+      account,
+      amount,
+      currency: 'EUR',
+      ...(category ? { category } : {})
+    }
   })
 
 const balanceEntry = (accountId: string, occurredAt: string, amount: number) =>
@@ -133,6 +150,109 @@ describe('snapshotSeries', () => {
     )
     expect(series).toEqual([])
   })
+
+  it('projects past the last snapshot using balance-less transactions', () => {
+    const [account] = buildAccounts(
+      [accountEntry('a1', 'N26', 'bank', 'EUR')],
+      []
+    )
+    const txs = [
+      // Before the snapshot: already reflected in it, ignored.
+      spendTx('N26', '2026-06-05T10:00:00Z', -50),
+      spendTx('N26', '2026-06-12T10:00:00Z', -30),
+      spendTx('N26', '2026-06-12T18:00:00Z', -20),
+      spendTx('N26', '2026-06-15T10:00:00Z', 100)
+    ]
+    const series = snapshotSeries(
+      account,
+      [balanceEntry('a1', '2026-06-10T12:00:00Z', 1000)],
+      txs
+    )
+    expect(series).toEqual([
+      { date: '2026-06-10', amount: 1000 },
+      { date: '2026-06-12', amount: 950 },
+      { date: '2026-06-15', amount: 1050 }
+    ])
+  })
+
+  it('does not project when transactions carry their own balance', () => {
+    const [account] = buildAccounts(
+      [],
+      [bankTx('N26', '2026-06-01T08:00:00Z', 100)]
+    )
+    const series = snapshotSeries(
+      account,
+      [],
+      [bankTx('N26', '2026-06-01T08:00:00Z', 100)]
+    )
+    expect(series).toEqual([{ date: '2026-06-01', amount: 100 }])
+  })
+
+  it('matches transactions through the account identifier', () => {
+    const entity = entry('account', {
+      id: 'a1',
+      title: 'My checking',
+      data: { type: 'bank', currency: 'EUR', identifier: 'COMPTE 0001' }
+    })
+    const txs = [
+      bankTx('compte 0001', '2026-06-01T12:00:00Z', 500),
+      spendTx('COMPTE 0001', '2026-06-02T12:00:00Z', -100)
+    ]
+    const accounts = buildAccounts([entity], txs)
+    // The identifier claims the CSV account: no derived duplicate.
+    expect(accounts).toHaveLength(1)
+    const series = snapshotSeries(accounts[0], [], txs)
+    expect(series).toEqual([
+      { date: '2026-06-01', amount: 500 },
+      { date: '2026-06-02', amount: 400 }
+    ])
+  })
+})
+
+describe('monthlySpending', () => {
+  it('consolidates outgoing amounts by month and category', () => {
+    const { months, rows, excludedCount } = monthlySpending(
+      [
+        spendTx('N26', '2026-05-10T12:00:00Z', -40, 'food'),
+        spendTx('N26', '2026-06-05T12:00:00Z', -60, 'food'),
+        spendTx('N26', '2026-06-20T12:00:00Z', -10),
+        // Income never counts as spending.
+        spendTx('N26', '2026-06-25T12:00:00Z', 2000, 'salary')
+      ],
+      {},
+      'EUR'
+    )
+    expect(excludedCount).toBe(0)
+    expect(months).toEqual(['2026-05', '2026-06'])
+    expect(rows).toEqual([
+      {
+        category: 'food',
+        byMonth: { '2026-05': 40, '2026-06': 60 },
+        total: 100
+      },
+      { category: 'uncategorized', byMonth: { '2026-06': 10 }, total: 10 }
+    ])
+  })
+
+  it('converts currencies and excludes those without a rate', () => {
+    const usd = entry('bank_tx', {
+      occurred_at: '2026-06-01T12:00:00Z',
+      data: { account: 'Broker', amount: -100, currency: 'USD' }
+    })
+    const chf = entry('bank_tx', {
+      occurred_at: '2026-06-01T12:00:00Z',
+      data: { account: 'Swiss', amount: -100, currency: 'CHF' }
+    })
+    const { rows, excludedCount } = monthlySpending(
+      [usd, chf],
+      { USD: 0.9 },
+      'EUR'
+    )
+    expect(excludedCount).toBe(1)
+    expect(rows).toEqual([
+      { category: 'uncategorized', byMonth: { '2026-06': 90 }, total: 90 }
+    ])
+  })
 })
 
 describe('universeCurve', () => {
@@ -140,6 +260,7 @@ describe('universeCurve', () => {
     key: 'a',
     entryId: 'a',
     name: 'Bank',
+    identifier: null,
     type: 'bank',
     currency: 'EUR',
     universe: 'tradfi',
