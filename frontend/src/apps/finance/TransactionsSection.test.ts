@@ -33,6 +33,37 @@ function tx(
   }
 }
 
+const DOCS: Record<string, Entry[]> = {
+  invoice: [
+    {
+      id: 'inv1',
+      kind: 'invoice',
+      source: 'invoice_scraper',
+      external_id: 'inv1',
+      title: 'Free - 19,99 EUR (2026-06)',
+      occurred_at: '2026-06-05T12:00:00Z',
+      data: { url: 'https://free.fr/invoice.pdf' },
+      metadata: {},
+      inserted_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z'
+    }
+  ],
+  file: [
+    {
+      id: 'f1',
+      kind: 'file',
+      source: 'files_app',
+      external_id: null,
+      title: 'warranty.pdf',
+      occurred_at: null,
+      data: { filename: 'warranty.pdf' },
+      metadata: {},
+      inserted_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z'
+    }
+  ]
+}
+
 function makeCtx() {
   const update = vi.fn(
     async (id: string, attrs: Record<string, unknown>) =>
@@ -43,7 +74,15 @@ function makeCtx() {
     confirm: { ask: vi.fn().mockResolvedValue(true) },
     api: {
       entries: {
-        list: vi.fn(async () => []),
+        list: vi.fn(
+          async (filters?: Record<string, string>) =>
+            DOCS[filters?.kind || ''] || []
+        ),
+        get: vi.fn(async (id: string) => {
+          const doc = [...DOCS.invoice, ...DOCS.file].find(d => d.id === id)
+          if (!doc) throw new Error('not found')
+          return doc
+        }),
         update,
         create: vi.fn(),
         delete: vi.fn()
@@ -77,7 +116,7 @@ function mountSection(txs = TXS) {
   const wrapper = mount(TransactionsSection, {
     props: { ctx: ctx as never, txs }
   })
-  return { wrapper, update }
+  return { wrapper, update, ctx }
 }
 
 describe('TransactionsSection', () => {
@@ -119,5 +158,82 @@ describe('TransactionsSection', () => {
     await wrapper.find('.ftx-cat-edit input').trigger('focus')
     const options = wrapper.findAll('.ftx-cat-edit .ac-option')
     expect(options.map(o => o.text())).toEqual(['food'])
+  })
+
+  it('links a transaction to an invoice', async () => {
+    const { wrapper, update } = mountSection()
+    await wrapper.findAll('.ftx-linkbtn')[0].trigger('click')
+    await flushPromises()
+    const picker = wrapper.getComponent('.ftx-doc-pick')
+    expect(picker.props('options')).toEqual([
+      { value: 'inv1', label: 'Free - 19,99 EUR (2026-06) - invoice' },
+      { value: 'f1', label: 'warranty.pdf - file' }
+    ])
+    await picker.vm.$emit('update:modelValue', 'inv1')
+    await flushPromises()
+    expect(update).toHaveBeenCalledWith(
+      't2',
+      expect.objectContaining({
+        data: expect.objectContaining({
+          linked_entry_id: 'inv1',
+          linked_entry_title: 'Free - 19,99 EUR (2026-06)'
+        })
+      })
+    )
+  })
+
+  it('shows the linked document and unlinks it', async () => {
+    const linked = TXS.map(t =>
+      t.id === 't2'
+        ? {
+            ...t,
+            data: {
+              ...t.data,
+              linked_entry_id: 'inv1',
+              linked_entry_title: 'Free - 19,99 EUR (2026-06)'
+            }
+          }
+        : t
+    )
+    const { wrapper, update } = mountSection(linked)
+    expect(wrapper.find('.ftx-doc-name').text()).toBe(
+      'Free - 19,99 EUR (2026-06)'
+    )
+    await wrapper.find('.ftx-doc-clear').trigger('click')
+    await flushPromises()
+    expect(update).toHaveBeenCalledWith(
+      't2',
+      expect.objectContaining({
+        data: expect.objectContaining({
+          linked_entry_id: null,
+          linked_entry_title: null
+        })
+      })
+    )
+  })
+
+  it('opens an invoice link through its provider URL', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    const linked = TXS.map(t =>
+      t.id === 't2'
+        ? {
+            ...t,
+            data: {
+              ...t.data,
+              linked_entry_id: 'inv1',
+              linked_entry_title: 'Free - 19,99 EUR (2026-06)'
+            }
+          }
+        : t
+    )
+    const { wrapper } = mountSection(linked)
+    await wrapper.find('.ftx-doc-name').trigger('click')
+    await flushPromises()
+    expect(open).toHaveBeenCalledWith(
+      'https://free.fr/invoice.pdf',
+      '_blank',
+      'noopener'
+    )
+    open.mockRestore()
   })
 })

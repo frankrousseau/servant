@@ -15,6 +15,8 @@ export function entryRoute(e: Entry): string {
     case 'photo':
       return `/photos/${e.id}`
     case 'file':
+    // Invoices live in the Files app's Invoices virtual folder.
+    case 'invoice':
       return '/apps/files'
     case 'account':
     case 'balance':

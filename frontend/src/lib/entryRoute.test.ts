@@ -25,6 +25,7 @@ describe('entryRoute', () => {
     expect(entryRoute(entry('contact'))).toBe('/contacts/42')
     expect(entryRoute(entry('photo'))).toBe('/photos/42')
     expect(entryRoute(entry('file'))).toBe('/apps/files')
+    expect(entryRoute(entry('invoice'))).toBe('/apps/files')
   })
 
   it('routes finance kinds to the finance app', () => {

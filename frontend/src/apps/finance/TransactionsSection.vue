@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { Paperclip } from 'lucide-vue-next'
 import type { AppContext, Entry } from '../types'
 import { utcToZonedParts } from '../../lib/datetime'
+import { entryRoute } from '../../lib/entryRoute'
+import { safeUrl } from '../../lib/url'
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
 import { formatAmount } from './finance'
@@ -105,6 +108,78 @@ async function saveCategory(t: Entry, value: string) {
     saving.value = false
   }
 }
+
+// ----- linked document (invoice or file) -----
+
+const linkedTitle = (t: Entry) =>
+  ((t.data.linked_entry_title as string) || '').trim()
+
+const linkingId = ref<string | null>(null)
+// Candidates load once, on the first link attempt.
+const docOptions = ref<{ value: string; label: string }[] | null>(null)
+
+async function startLink(t: Entry) {
+  linkingId.value = t.id
+  if (docOptions.value) return
+  try {
+    const [invoices, files] = await Promise.all([
+      props.ctx.api.entries.list({ kind: 'invoice' }),
+      props.ctx.api.entries.list({ kind: 'file' })
+    ])
+    docOptions.value = [
+      ...invoices.map(e => ({
+        value: e.id,
+        label: `${e.title || '(untitled)'} - invoice`
+      })),
+      ...files
+        .filter(e => !e.data.is_folder)
+        .map(e => ({
+          value: e.id,
+          label: `${(e.data.filename as string) || e.title || '(unnamed)'} - file`
+        }))
+    ].sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()))
+  } catch {
+    docOptions.value = []
+  }
+}
+
+async function saveLink(t: Entry, id: string, title: string | null) {
+  try {
+    const updated = await props.ctx.api.entries.update(t.id, {
+      data: {
+        ...t.data,
+        linked_entry_id: id || null,
+        linked_entry_title: title
+      }
+    })
+    emit('updated', updated)
+  } catch {
+    // ignore
+  }
+  linkingId.value = null
+}
+
+function pickDoc(t: Entry, id: string) {
+  const opt = docOptions.value?.find(o => o.value === id)
+  if (!opt) return
+  // Strip the " - invoice" / " - file" disambiguation suffix.
+  void saveLink(t, id, opt.label.replace(/ - (invoice|file)$/, ''))
+}
+
+// Invoices open their provider URL when they have one; everything else
+// lands on its app surface.
+async function openLinked(t: Entry) {
+  const id = t.data.linked_entry_id as string
+  if (!id) return
+  try {
+    const doc = await props.ctx.api.entries.get(id)
+    const url = safeUrl((doc.data.url as string) || '')
+    if (doc.kind === 'invoice' && url) window.open(url, '_blank', 'noopener')
+    else props.ctx.navigate(entryRoute(doc))
+  } catch {
+    // linked document gone; keep the chip, the title still informs
+  }
+}
 </script>
 
 <template>
@@ -133,33 +208,76 @@ async function saveCategory(t: Entry, value: string) {
       <div v-for="t in g.txs" :key="t.id" class="ftx-row">
         <span class="ftx-date">{{ dateOf(t).slice(8) }}</span>
         <span class="ftx-label" :title="labelOf(t)">{{ labelOf(t) }}</span>
-        <span
-          v-if="editingId !== t.id"
-          class="ftx-cat"
-          :class="{ 'ftx-cat--empty': !categoryOf(t) }"
-          role="button"
-          @click="startEdit(t)"
-          >{{ categoryOf(t) || '+ category' }}</span
-        >
-        <AutocompleteInput
-          v-else
-          v-model="draft"
-          class="ftx-cat-edit"
-          :options="categories"
-          placeholder="category"
-          @select="v => saveCategory(t, v)"
-          @keydown.escape="editingId = null"
-        />
-        <span
-          class="ftx-amount"
-          :class="{ 'ftx-amount--in': ((t.data.amount as number) || 0) > 0 }"
-          >{{
-            formatAmount(
-              (t.data.amount as number) || 0,
-              (t.data.currency as string) || 'EUR'
-            )
-          }}</span
-        >
+        <span class="ftx-right">
+          <template v-if="linkingId === t.id">
+            <ComboBox
+              class="ftx-doc-pick"
+              model-value=""
+              :options="docOptions || []"
+              placeholder="Invoice or file..."
+              @update:model-value="v => pickDoc(t, v)"
+            />
+            <button
+              class="ftx-doc-clear"
+              title="Cancel"
+              @click="linkingId = null"
+            >
+              ×
+            </button>
+          </template>
+          <span
+            v-else-if="linkedTitle(t)"
+            class="ftx-doc"
+            :title="linkedTitle(t)"
+          >
+            <Paperclip :size="11" />
+            <span class="ftx-doc-name" role="button" @click="openLinked(t)">{{
+              linkedTitle(t)
+            }}</span>
+            <button
+              class="ftx-doc-clear"
+              title="Unlink"
+              @click="saveLink(t, '', null)"
+            >
+              ×
+            </button>
+          </span>
+          <button
+            v-else
+            class="ftx-linkbtn"
+            title="Link an invoice or file"
+            @click="startLink(t)"
+          >
+            <Paperclip :size="12" />
+          </button>
+          <span
+            v-if="editingId !== t.id"
+            class="ftx-cat"
+            :class="{ 'ftx-cat--empty': !categoryOf(t) }"
+            role="button"
+            @click="startEdit(t)"
+            >{{ categoryOf(t) || '+ category' }}</span
+          >
+          <AutocompleteInput
+            v-else
+            v-model="draft"
+            class="ftx-cat-edit"
+            :options="categories"
+            placeholder="category"
+            @select="v => saveCategory(t, v)"
+            @keydown.escape="editingId = null"
+          />
+          <span
+            class="ftx-amount"
+            :class="{ 'ftx-amount--in': ((t.data.amount as number) || 0) > 0 }"
+            >{{
+              formatAmount(
+                (t.data.amount as number) || 0,
+                (t.data.currency as string) || 'EUR'
+              )
+            }}</span
+          >
+        </span>
       </div>
     </template>
 
@@ -241,8 +359,61 @@ async function saveCategory(t: Entry, value: string) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ftx-cat {
+.ftx-right {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+.ftx-linkbtn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 0.15rem;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+}
+.ftx-row:hover .ftx-linkbtn {
+  opacity: 1;
+}
+.ftx-linkbtn:hover {
+  color: var(--primary);
+}
+.ftx-doc {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  max-width: 220px;
+}
+.ftx-doc-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ftx-doc-name:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+.ftx-doc-clear {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 0.15rem;
+}
+.ftx-doc-clear:hover {
+  color: var(--danger);
+}
+.ftx-doc-pick {
+  width: 240px;
+}
+.ftx-cat {
   flex-shrink: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.72rem;
@@ -261,7 +432,6 @@ async function saveCategory(t: Entry, value: string) {
   color: var(--primary);
 }
 .ftx-cat-edit {
-  margin-left: auto;
   width: 150px;
   flex-shrink: 0;
 }
