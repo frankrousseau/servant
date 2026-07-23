@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import TransactionsSection from './TransactionsSection.vue'
+import ComboBox from '../../components/ComboBox.vue'
 import type { Entry } from '../types'
 
 function tx(
@@ -164,7 +165,9 @@ describe('TransactionsSection', () => {
     const { wrapper, update } = mountSection()
     await wrapper.findAll('.ftx-linkbtn')[0].trigger('click')
     await flushPromises()
-    const picker = wrapper.getComponent('.ftx-doc-pick')
+    const picker = wrapper
+      .findAllComponents(ComboBox)
+      .find(c => c.classes().includes('ftx-doc-pick'))!
     expect(picker.props('options')).toEqual([
       { value: 'inv1', label: 'Free - 19,99 EUR (2026-06) - invoice' },
       { value: 'f1', label: 'warranty.pdf - file' }
