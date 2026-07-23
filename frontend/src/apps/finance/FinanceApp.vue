@@ -5,6 +5,7 @@ import { todayInUserTz, zonedToUtcISO } from '../../lib/datetime'
 import { addDays } from '../calendar/recurrence'
 import ComboBox from '../../components/ComboBox.vue'
 import BalanceChart from './BalanceChart.vue'
+import TransactionsSection from './TransactionsSection.vue'
 import {
   ACCOUNT_TYPES,
   buildAccounts,
@@ -348,6 +349,10 @@ function deltaLabel(delta: number): string {
   const sign = delta > 0 ? '+' : ''
   return `${sign}${formatAmount(delta, refCurrency.value)} / 30d`
 }
+
+function onTxUpdated(updated: Entry) {
+  bankTxs.value = bankTxs.value.map(t => (t.id === updated.id ? updated : t))
+}
 </script>
 
 <template>
@@ -520,6 +525,13 @@ function deltaLabel(delta: number): string {
       <p v-if="bothUniversesLive" class="fin-grand">
         ALL UNIVERSES: {{ formatAmount(grandTotal, refCurrency) }}
       </p>
+
+      <TransactionsSection
+        v-if="bankTxs.length"
+        :ctx="ctx"
+        :txs="bankTxs"
+        @updated="onTxUpdated"
+      />
     </template>
   </div>
 
