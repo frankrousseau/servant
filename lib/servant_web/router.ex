@@ -63,6 +63,7 @@ defmodule ServantWeb.Router do
       resources "/notes", NotesController, except: [:new, :edit]
 
       get "/apps", AppController, :index
+      get "/version", VersionController, :show
 
       post "/uploads", UploadController, :create
       post "/client_errors", ClientErrorController, :create

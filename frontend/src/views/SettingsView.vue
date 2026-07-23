@@ -32,6 +32,17 @@ const { ask } = useConfirm()
 
 const buildCommit = __BUILD_COMMIT__
 const buildDate = __BUILD_DATE__
+const apiVersion = ref<{ commit: string; built_at: string } | null>(null)
+
+async function loadApiVersion() {
+  try {
+    apiVersion.value = await api.get<{ commit: string; built_at: string }>(
+      '/api/version'
+    )
+  } catch {
+    // old backend without the endpoint: show the UI build alone
+  }
+}
 
 // ----- Built-in app toggles -----
 
@@ -299,6 +310,7 @@ function downloadEntries() {
 onMounted(() => {
   loadTokens()
   loadAiConfig()
+  loadApiVersion()
   apps.load().catch(() => {})
 })
 </script>
@@ -613,7 +625,11 @@ onMounted(() => {
       </div>
     </section>
 
-    <p class="build-info">build {{ buildCommit }} ({{ buildDate }})</p>
+    <p class="build-info">
+      ui {{ buildCommit }} ({{ buildDate }})<template v-if="apiVersion">
+        - api {{ apiVersion.commit }} ({{ apiVersion.built_at }})</template
+      >
+    </p>
   </div>
 </template>
 
