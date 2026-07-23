@@ -30,6 +30,9 @@ const apps = useAppsStore()
 const api = useApi()
 const { ask } = useConfirm()
 
+const buildCommit = __BUILD_COMMIT__
+const buildDate = __BUILD_DATE__
+
 // ----- Built-in app toggles -----
 
 // Mirrors the user's preference; null on the account means the default set.
@@ -609,6 +612,8 @@ onMounted(() => {
         </div>
       </div>
     </section>
+
+    <p class="build-info">build {{ buildCommit }} ({{ buildDate }})</p>
   </div>
 </template>
 
@@ -783,6 +788,14 @@ onMounted(() => {
 .export-actions {
   display: flex;
   gap: 0.5rem;
+}
+
+.build-info {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-align: right;
+  margin: 0.5rem 0 1rem;
 }
 
 /* Installed apps */
