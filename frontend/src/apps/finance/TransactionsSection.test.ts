@@ -215,6 +215,14 @@ describe('TransactionsSection', () => {
     )
   })
 
+  it('deletes a transaction after confirmation', async () => {
+    const { wrapper, ctx } = mountSection()
+    await wrapper.findAll('.ftx-del')[0].trigger('click')
+    await flushPromises()
+    expect(ctx.api.entries.delete).toHaveBeenCalledWith('t2')
+    expect(wrapper.emitted('deleted')).toEqual([['t2']])
+  })
+
   it('opens an invoice link through its provider URL', async () => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null)
     const linked = TXS.map(t =>

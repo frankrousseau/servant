@@ -10,7 +10,7 @@ import ComboBox from '../../components/ComboBox.vue'
 import { formatAmount } from './finance'
 
 const props = defineProps<{ ctx: AppContext; txs: Entry[] }>()
-const emit = defineEmits<{ updated: [tx: Entry] }>()
+const emit = defineEmits<{ updated: [tx: Entry]; deleted: [id: string] }>()
 
 const PAGE = 50
 const shown = ref(PAGE)
@@ -166,6 +166,20 @@ function pickDoc(t: Entry, id: string) {
   void saveLink(t, id, opt.label.replace(/ - (invoice|file)$/, ''))
 }
 
+async function deleteTx(t: Entry) {
+  const ok = await props.ctx.confirm.ask({
+    message: `Delete "${labelOf(t)}"?`,
+    danger: true
+  })
+  if (!ok) return
+  try {
+    await props.ctx.api.entries.delete(t.id)
+    emit('deleted', t.id)
+  } catch {
+    // ignore
+  }
+}
+
 // Invoices open their provider URL when they have one; everything else
 // lands on its app surface.
 async function openLinked(t: Entry) {
@@ -277,6 +291,13 @@ async function openLinked(t: Entry) {
               )
             }}</span
           >
+          <button
+            class="ftx-del"
+            title="Delete transaction"
+            @click="deleteTx(t)"
+          >
+            ×
+          </button>
         </span>
       </div>
     </template>
@@ -449,6 +470,20 @@ async function openLinked(t: Entry) {
 }
 .ftx-amount--in {
   color: var(--success, #4fd674);
+}
+.ftx-del {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 0.15rem;
+  opacity: 0;
+}
+.ftx-row:hover .ftx-del {
+  opacity: 1;
+}
+.ftx-del:hover {
+  color: var(--danger);
 }
 .ftx-more {
   margin-top: 0.75rem;

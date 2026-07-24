@@ -5,6 +5,7 @@ import {
   freshnessLevel,
   monthlySpending,
   rateFor,
+  sharedTxNames,
   snapshotSeries,
   universeCurve,
   valueAt
@@ -234,6 +235,28 @@ describe('monthlySpending', () => {
     ])
   })
 
+  it('counts transactions of a shared account half', () => {
+    const entity = entry('account', {
+      id: 'a1',
+      title: 'Joint',
+      data: { type: 'bank', currency: 'EUR', shared: true }
+    })
+    const accounts = buildAccounts([entity], [])
+    expect(accounts[0].shared).toBe(true)
+    const { rows } = monthlySpending(
+      [
+        spendTx('Joint', '2026-06-10T12:00:00Z', -80, 'food'),
+        spendTx('Solo', '2026-06-11T12:00:00Z', -10, 'food')
+      ],
+      {},
+      'EUR',
+      sharedTxNames(accounts)
+    )
+    expect(rows).toEqual([
+      { category: 'food', byMonth: { '2026-06': 50 }, total: 50 }
+    ])
+  })
+
   it('converts currencies and excludes those without a rate', () => {
     const usd = entry('bank_tx', {
       occurred_at: '2026-06-01T12:00:00Z',
@@ -261,6 +284,7 @@ describe('universeCurve', () => {
     entryId: 'a',
     name: 'Bank',
     identifier: null,
+    shared: false,
     type: 'bank',
     currency: 'EUR',
     universe: 'tradfi',

@@ -24,6 +24,9 @@ export interface Account {
   // Account name carried by imported transactions (data.account); lets an
   // entity claim transactions when its display name differs from the CSV's.
   identifier: string | null
+  // Shared with someone else: spending counts half. Balances stay whole,
+  // they are real observations of the real account.
+  shared: boolean
   type: AccountType
   currency: string
   universe: Universe
@@ -85,6 +88,7 @@ export function buildAccounts(
       entryId: e.id,
       name: (e.title || 'Unnamed').trim(),
       identifier,
+      shared: e.data.shared === true,
       type,
       currency: ((e.data.currency as string) || 'EUR').trim().toUpperCase(),
       universe: universeOf(type),
@@ -105,6 +109,7 @@ export function buildAccounts(
       entryId: null,
       name,
       identifier: null,
+      shared: false,
       type: 'bank',
       currency: ((tx.data.currency as string) || 'EUR').trim().toUpperCase(),
       universe: 'tradfi',
@@ -286,13 +291,22 @@ export interface SpendingRow {
   total: number
 }
 
+// Normalized tx-account names of shared accounts, for monthlySpending.
+export function sharedTxNames(accounts: Account[]): Set<string> {
+  const out = new Set<string>()
+  for (const a of accounts) if (a.shared) out.add(norm(accountTxName(a)))
+  return out
+}
+
 // Monthly spending by category, in the reference currency. Only outgoing
 // amounts count (amount < 0, stored positive here). Transactions in a
 // currency with no known rate are skipped and counted in excludedCount.
+// Transactions of a shared account count half.
 export function monthlySpending(
   txs: Entry[],
   rates: Rates,
-  ref: string
+  ref: string,
+  shared: Set<string> = new Set()
 ): { months: string[]; rows: SpendingRow[]; excludedCount: number } {
   const monthSet = new Set<string>()
   const byCategory = new Map<string, Map<string, number>>()
@@ -310,9 +324,10 @@ export function monthlySpending(
     const month = utcToZonedParts(tx.occurred_at).date.slice(0, 7)
     const category =
       ((tx.data.category as string) || '').trim() || UNCATEGORIZED
+    const factor = shared.has(norm(txAccountName(tx))) ? 0.5 : 1
     monthSet.add(month)
     const row = byCategory.get(category) || new Map<string, number>()
-    row.set(month, (row.get(month) || 0) + -amount * rate)
+    row.set(month, (row.get(month) || 0) + -amount * rate * factor)
     byCategory.set(category, row)
   }
 

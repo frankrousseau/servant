@@ -234,6 +234,7 @@ const accountName = ref('')
 const accountType = ref<string>('bank')
 const accountCurrency = ref('EUR')
 const accountIdentifier = ref('')
+const accountShared = ref(false)
 const accountSaving = ref(false)
 
 function openAccountModal() {
@@ -241,6 +242,7 @@ function openAccountModal() {
   accountType.value = 'bank'
   accountCurrency.value = refCurrency.value
   accountIdentifier.value = ''
+  accountShared.value = false
   accountModalOpen.value = true
 }
 
@@ -257,7 +259,8 @@ async function createAccount() {
       data: {
         type: accountType.value,
         currency,
-        identifier: accountIdentifier.value.trim() || null
+        identifier: accountIdentifier.value.trim() || null,
+        shared: accountShared.value
       }
     })
     accountEntries.value = await ctx.api.entries.list({
@@ -368,13 +371,16 @@ function onTxUpdated(updated: Entry) {
   bankTxs.value = bankTxs.value.map(t => (t.id === updated.id ? updated : t))
 }
 
-// Saved on change; empty clears it and the account matches by name again.
-async function saveIdentifier(a: Account, raw: string) {
+function onTxDeleted(id: string) {
+  bankTxs.value = bankTxs.value.filter(t => t.id !== id)
+}
+
+async function patchAccount(a: Account, patch: Record<string, unknown>) {
   const entry = accountEntries.value.find(e => e.id === a.entryId)
   if (!entry) return
   try {
     const updated = await ctx.api.entries.update(entry.id, {
-      data: { ...entry.data, identifier: raw.trim() || null }
+      data: { ...entry.data, ...patch }
     })
     accountEntries.value = accountEntries.value.map(e =>
       e.id === updated.id ? updated : e
@@ -383,10 +389,19 @@ async function saveIdentifier(a: Account, raw: string) {
     // ignore
   }
 }
+
+// Saved on change; empty clears it and the account matches by name again.
+function saveIdentifier(a: Account, raw: string) {
+  void patchAccount(a, { identifier: raw.trim() || null })
+}
+
+function saveShared(a: Account, shared: boolean) {
+  void patchAccount(a, { shared })
+}
 </script>
 
 <template>
-  <div class="fin-layout">
+  <div class="fin-layout" :class="{ 'fin-layout--wide': tab === 'spending' }">
     <p v-if="loadState === 'loading'" class="fin-placeholder">
       Loading finance data…
     </p>
@@ -409,6 +424,7 @@ async function saveIdentifier(a: Account, raw: string) {
       <template v-if="tab === 'spending'">
         <SpendingView
           :txs="bankTxs"
+          :accounts="accounts"
           :rates="rates"
           :ref-currency="refCurrency"
         />
@@ -417,6 +433,7 @@ async function saveIdentifier(a: Account, raw: string) {
           :ctx="ctx"
           :txs="bankTxs"
           @updated="onTxUpdated"
+          @deleted="onTxDeleted"
         />
       </template>
 
@@ -575,6 +592,19 @@ async function saveIdentifier(a: Account, raw: string) {
                   /><span v-if="!a.identifier" class="fin-ident-hint"
                     >matches by account name when empty</span
                   >
+                  <label class="fin-shared-toggle">
+                    <input
+                      type="checkbox"
+                      :checked="a.shared"
+                      @change="
+                        saveShared(
+                          a,
+                          ($event.target as HTMLInputElement).checked
+                        )
+                      "
+                    />
+                    shared (spending counts half)
+                  </label>
                 </div>
                 <div
                   v-for="b in manualSnapshots(a)"
@@ -650,6 +680,10 @@ async function saveIdentifier(a: Account, raw: string) {
             placeholder="account name carried by imported transactions"
           />
         </div>
+        <label class="fin-shared-toggle fin-modal-shared">
+          <input v-model="accountShared" type="checkbox" />
+          Shared account (spending counts half)
+        </label>
         <p class="fin-modal-hint">
           Wallets live in the crypto universe; use the asset as currency (one
           account per asset) and set its rate to value it.
@@ -712,6 +746,10 @@ async function saveIdentifier(a: Account, raw: string) {
   max-width: 860px;
   height: calc(100vh - 4rem);
   overflow-y: auto;
+}
+/* Spending wants the full width for its chart and table. */
+.fin-layout--wide {
+  max-width: none;
 }
 .fin-placeholder,
 .fin-empty {
@@ -974,6 +1012,24 @@ async function saveIdentifier(a: Account, raw: string) {
 .fin-ident-hint {
   font-size: 0.72rem;
   color: var(--text-muted);
+}
+.fin-shared-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.fin-shared-toggle input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--primary);
+}
+.fin-modal-shared {
+  margin-bottom: 0.75rem;
 }
 .fin-history-row {
   display: flex;
