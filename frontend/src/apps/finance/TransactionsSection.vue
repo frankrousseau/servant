@@ -18,9 +18,12 @@ const shown = ref(PAGE)
 const ALL_ACCOUNTS = 'All accounts'
 const ALL_CATEGORIES = 'All categories'
 const UNCATEGORIZED = 'Uncategorized'
+const ALL_FLOWS = 'In and out'
+const FLOW_OPTIONS = [ALL_FLOWS, 'Incoming', 'Outgoing']
 
 const accountFilter = ref(ALL_ACCOUNTS)
 const categoryFilter = ref(ALL_CATEGORIES)
+const flowFilter = ref(ALL_FLOWS)
 
 const categoryOf = (t: Entry) => ((t.data.category as string) || '').trim()
 const accountOf = (t: Entry) => ((t.data.account as string) || '').trim()
@@ -51,12 +54,16 @@ const filtered = computed(() => {
     list = list.filter(t => !categoryOf(t))
   else if (categoryFilter.value !== ALL_CATEGORIES)
     list = list.filter(t => categoryOf(t) === categoryFilter.value)
+  if (flowFilter.value === 'Incoming')
+    list = list.filter(t => ((t.data.amount as number) || 0) > 0)
+  else if (flowFilter.value === 'Outgoing')
+    list = list.filter(t => ((t.data.amount as number) || 0) < 0)
   return [...list].sort((a, b) =>
     (b.occurred_at || '').localeCompare(a.occurred_at || '')
   )
 })
 
-watch([accountFilter, categoryFilter], () => {
+watch([accountFilter, categoryFilter, flowFilter], () => {
   shown.value = PAGE
 })
 
@@ -203,6 +210,11 @@ async function openLinked(t: Entry) {
       <span class="ftx-count">{{ filtered.length }}</span>
       <span class="ftx-spacer"></span>
       <ComboBox
+        v-model="flowFilter"
+        class="ftx-filter ftx-filter--flow"
+        :options="FLOW_OPTIONS"
+      />
+      <ComboBox
         v-if="accountOptions.length > 2"
         v-model="accountFilter"
         class="ftx-filter"
@@ -345,6 +357,9 @@ async function openLinked(t: Entry) {
 }
 .ftx-filter {
   width: 160px;
+}
+.ftx-filter--flow {
+  width: 130px;
 }
 .ftx-empty {
   color: var(--text-muted);

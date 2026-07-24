@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { Entry } from '../types'
+import ComboBox from '../../components/ComboBox.vue'
 import {
   categoryColor,
   formatAmount,
@@ -17,8 +18,6 @@ const props = defineProps<{
   refCurrency: string
 }>()
 
-// ponytail: last 12 months only; older data is still in the transactions
-// list, revisit with a range picker if a longer horizon matters.
 const MAX_MONTHS = 12
 
 const spending = computed(() =>
@@ -30,8 +29,58 @@ const spending = computed(() =>
   )
 )
 
-const months = computed(() => spending.value.months.slice(-MAX_MONTHS))
-const capped = computed(() => spending.value.months.length > MAX_MONTHS)
+// ----- range: rolling 12 months, one year, or all years by year -----
+
+const RANGE_LAST12 = 'Last 12 months'
+const RANGE_ALL_YEARS = 'All years'
+
+const range = ref(RANGE_LAST12)
+
+const years = computed(() =>
+  [...new Set(spending.value.months.map(m => m.slice(0, 4)))].sort().reverse()
+)
+const rangeOptions = computed(() => [
+  RANGE_LAST12,
+  ...years.value,
+  RANGE_ALL_YEARS
+])
+
+// Table columns and chart bars: months, or years when aggregating.
+const periods = computed<string[]>(() => {
+  if (range.value === RANGE_ALL_YEARS) return [...years.value].reverse()
+  if (range.value === RANGE_LAST12)
+    return spending.value.months.slice(-MAX_MONTHS)
+  return spending.value.months.filter(m => m.startsWith(range.value))
+})
+
+const byYears = computed(() => range.value === RANGE_ALL_YEARS)
+
+function rowByPeriod(byMonth: Record<string, number>): Record<string, number> {
+  if (!byYears.value) return byMonth
+  const out: Record<string, number> = {}
+  for (const [m, v] of Object.entries(byMonth)) {
+    const y = m.slice(0, 4)
+    out[y] = (out[y] || 0) + v
+  }
+  return out
+}
+
+const periodLabel = (p: string) => (byYears.value ? p : p.slice(5))
+
+// ----- chart type: stacked bars over the range, or a pie for one period -----
+
+const CHART_TYPES = ['Bars', 'Pie']
+const chartType = ref('Bars')
+
+// The pie reads one period of the current range: a month, or a year when
+// the range aggregates by year. Defaults to the most recent.
+const piePeriod = ref('')
+const piePeriodOptions = computed(() => [...periods.value].reverse())
+
+watch([periods, chartType], () => {
+  if (!periods.value.includes(piePeriod.value))
+    piePeriod.value = periods.value[periods.value.length - 1] || ''
+})
 
 // ----- category visibility (persisted) -----
 
@@ -75,14 +124,18 @@ function showAll() {
   persistHidden()
 }
 
-// Every category with spending, largest first: the legend shows them all,
-// hidden included, so they can be brought back.
+// Every category with spending in range, largest first: the legend shows
+// them all, hidden included, so they can be brought back.
 const allRows = computed(() =>
   spending.value.rows
-    .map(r => ({
-      ...r,
-      total: months.value.reduce((sum, m) => sum + (r.byMonth[m] || 0), 0)
-    }))
+    .map(r => {
+      const byPeriod = rowByPeriod(r.byMonth)
+      return {
+        category: r.category,
+        byPeriod,
+        total: periods.value.reduce((sum, p) => sum + (byPeriod[p] || 0), 0)
+      }
+    })
     .filter(r => r.total > 0)
     .sort((a, b) => b.total - a.total)
 )
@@ -92,12 +145,12 @@ const rows = computed(() =>
   allRows.value.filter(r => !hidden.value.has(r.category))
 )
 
-const monthTotal = (month: string) =>
-  rows.value.reduce((sum, r) => sum + (r.byMonth[month] || 0), 0)
+const periodTotal = (period: string) =>
+  rows.value.reduce((sum, r) => sum + (r.byPeriod[period] || 0), 0)
 
 const fmt = (v: number) => formatAmount(v, props.refCurrency)
-const cell = (r: { byMonth: Record<string, number> }, m: string) =>
-  r.byMonth[m] ? fmt(r.byMonth[m]) : '-'
+const cell = (r: { byPeriod: Record<string, number> }, p: string) =>
+  r.byPeriod[p] ? fmt(r.byPeriod[p]) : '-'
 
 // ----- stacked bar chart -----
 
@@ -126,13 +179,13 @@ function tickStep(max: number): number {
 }
 
 const chart = computed(() => {
-  const ms = months.value
-  if (!ms.length || !rows.value.length) return null
-  const maxTotal = Math.max(...ms.map(monthTotal), 1)
+  const ps = periods.value
+  if (!ps.length || !rows.value.length) return null
+  const maxTotal = Math.max(...ps.map(periodTotal), 1)
   const step = tickStep(maxTotal)
   const top = Math.ceil(maxTotal / step) * step
   const innerW = W - PAD_LEFT - PAD_RIGHT
-  const slot = innerW / ms.length
+  const slot = innerW / ps.length
   const barWidth = Math.min(slot * 0.66, 72)
   const scale = (H - PAD_TOP - PAD_BOTTOM) / top
 
@@ -145,14 +198,14 @@ const chart = computed(() => {
   }
 
   const segments: Segment[] = []
-  const labels = ms.map((m, i) => ({
+  const labels = ps.map((p, i) => ({
     x: PAD_LEFT + i * slot + slot / 2,
-    text: m.slice(5)
+    text: periodLabel(p)
   }))
-  ms.forEach((m, i) => {
+  ps.forEach((p, i) => {
     let y = H - PAD_BOTTOM
     for (const r of rows.value) {
-      const v = r.byMonth[m] || 0
+      const v = r.byPeriod[p] || 0
       if (!v) continue
       const height = v * scale
       y -= height
@@ -162,16 +215,70 @@ const chart = computed(() => {
         width: barWidth,
         height,
         color: categoryColor(r.category),
-        title: `${m} ${r.category}: ${fmt(v)}`
+        title: `${p} ${r.category}: ${fmt(v)}`
       })
     }
   })
-  const totals = ms.map((m, i) => ({
+  const totals = ps.map((p, i) => ({
     x: PAD_LEFT + i * slot + slot / 2,
-    y: H - PAD_BOTTOM - monthTotal(m) * scale - 5,
-    text: fmt(monthTotal(m))
+    y: H - PAD_BOTTOM - periodTotal(p) * scale - 5,
+    text: fmt(periodTotal(p))
   }))
   return { segments, labels, totals, gridlines }
+})
+
+// ----- pie geometry -----
+
+const PIE_R = 90
+const PIE_R0 = 46
+const PIE_CX = 100
+const PIE_CY = 100
+
+function polar(r: number, a: number): [number, number] {
+  return [PIE_CX + r * Math.cos(a), PIE_CY + r * Math.sin(a)]
+}
+
+function slicePath(r0: number, r1: number, a0: number, a1: number): string {
+  const large = a1 - a0 > Math.PI ? 1 : 0
+  const [x0, y0] = polar(r1, a0)
+  const [x1, y1] = polar(r1, a1)
+  const [x2, y2] = polar(r0, a1)
+  const [x3, y3] = polar(r0, a0)
+  return (
+    `M ${x0.toFixed(2)} ${y0.toFixed(2)} ` +
+    `A ${r1} ${r1} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} ` +
+    `L ${x2.toFixed(2)} ${y2.toFixed(2)} ` +
+    `A ${r0} ${r0} 0 ${large} 0 ${x3.toFixed(2)} ${y3.toFixed(2)} Z`
+  )
+}
+
+const pie = computed(() => {
+  const p = piePeriod.value
+  if (!p) return null
+  const parts = rows.value
+    .map(r => ({ category: r.category, value: r.byPeriod[p] || 0 }))
+    .filter(x => x.value > 0)
+  const total = parts.reduce((sum, x) => sum + x.value, 0)
+  if (!total) return null
+
+  let angle = -Math.PI / 2
+  const slices = parts.map(x => {
+    const sweep = Math.min((x.value / total) * 2 * Math.PI, 2 * Math.PI - 1e-4)
+    const d = slicePath(PIE_R0, PIE_R, angle, angle + sweep)
+    angle += sweep
+    return {
+      d,
+      color: categoryColor(x.category),
+      title: `${x.category}: ${fmt(x.value)}`
+    }
+  })
+  const breakdown = parts.map(x => ({
+    category: x.category,
+    color: categoryColor(x.category),
+    amount: fmt(x.value),
+    pct: Math.round((x.value / total) * 100)
+  }))
+  return { slices, breakdown, total: fmt(total) }
 })
 </script>
 
@@ -179,11 +286,23 @@ const chart = computed(() => {
   <section class="sp">
     <div class="sp-head">
       <h2 class="sp-title">Spending</h2>
-      <span v-if="capped" class="sp-note">last {{ MAX_MONTHS }} months</span>
       <span v-if="spending.excludedCount" class="sp-warn">
         {{ spending.excludedCount }} tx without a {{ refCurrency }} rate
         excluded
       </span>
+      <span class="sp-head-spacer"></span>
+      <ComboBox
+        v-model="chartType"
+        class="sp-chart-type"
+        :options="CHART_TYPES"
+      />
+      <ComboBox
+        v-if="chartType === 'Pie'"
+        v-model="piePeriod"
+        class="sp-range"
+        :options="piePeriodOptions"
+      />
+      <ComboBox v-model="range" class="sp-range" :options="rangeOptions" />
     </div>
 
     <div v-if="allRows.length" class="sp-legend">
@@ -215,8 +334,45 @@ const chart = computed(() => {
     </p>
 
     <template v-else>
+      <div v-if="chartType === 'Pie' && pie" class="sp-pie-wrap">
+        <svg
+          class="sp-pie"
+          viewBox="0 0 200 200"
+          role="img"
+          :aria-label="`Spending by category, ${piePeriod}`"
+        >
+          <path
+            v-for="(s, i) in pie.slices"
+            :key="i"
+            class="sp-seg"
+            :d="s.d"
+            :fill="s.color"
+          >
+            <title>{{ s.title }}</title>
+          </path>
+          <text class="sp-pie-total" x="100" y="97" text-anchor="middle">
+            {{ pie.total }}
+          </text>
+          <text class="sp-pie-period" x="100" y="112" text-anchor="middle">
+            {{ piePeriod }}
+          </text>
+        </svg>
+        <div class="sp-breakdown">
+          <div
+            v-for="b in pie.breakdown"
+            :key="b.category"
+            class="sp-breakdown-row"
+          >
+            <span class="sp-dot" :style="{ background: b.color }"></span>
+            <span class="sp-breakdown-cat">{{ b.category }}</span>
+            <span class="sp-breakdown-amount">{{ b.amount }}</span>
+            <span class="sp-breakdown-pct">{{ b.pct }}%</span>
+          </div>
+        </div>
+      </div>
+
       <svg
-        v-if="chart"
+        v-else-if="chart"
         class="sp-chart"
         :viewBox="`0 0 ${W} ${H}`"
         role="img"
@@ -274,7 +430,7 @@ const chart = computed(() => {
           <thead>
             <tr>
               <th class="sp-cat-col">Category</th>
-              <th v-for="m in months" :key="m">{{ m }}</th>
+              <th v-for="p in periods" :key="p">{{ p }}</th>
               <th>Total</th>
             </tr>
           </thead>
@@ -287,16 +443,16 @@ const chart = computed(() => {
                 ></span>
                 {{ r.category }}
               </td>
-              <td v-for="m in months" :key="m">{{ cell(r, m) }}</td>
+              <td v-for="p in periods" :key="p">{{ cell(r, p) }}</td>
               <td class="sp-total">{{ fmt(r.total) }}</td>
             </tr>
           </tbody>
           <tfoot>
             <tr>
               <td class="sp-cat-col">Total</td>
-              <td v-for="m in months" :key="m">{{ fmt(monthTotal(m)) }}</td>
+              <td v-for="p in periods" :key="p">{{ fmt(periodTotal(p)) }}</td>
               <td class="sp-total">
-                {{ fmt(months.reduce((s, m) => s + monthTotal(m), 0)) }}
+                {{ fmt(periods.reduce((s, p) => s + periodTotal(p), 0)) }}
               </td>
             </tr>
           </tfoot>
@@ -316,7 +472,7 @@ const chart = computed(() => {
 }
 .sp-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.75rem;
   margin-bottom: 0.5rem;
 }
@@ -328,10 +484,65 @@ const chart = computed(() => {
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
-.sp-note {
+.sp-head-spacer {
+  flex: 1;
+}
+.sp-range {
+  width: 160px;
+}
+.sp-chart-type {
+  width: 100px;
+}
+.sp-pie-wrap {
+  display: flex;
+  align-items: center;
+  gap: 2.5rem;
+  margin: 0.5rem 0 1.25rem;
+  flex-wrap: wrap;
+}
+.sp-pie {
+  width: 260px;
+  max-width: 100%;
+  flex-shrink: 0;
+}
+.sp-pie-total {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.72rem;
+  font-size: 13px;
+  font-weight: 600;
+  fill: var(--text);
+}
+.sp-pie-period {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 9px;
+  fill: var(--text-muted);
+}
+.sp-breakdown {
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.sp-breakdown-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  padding: 0.12rem 0;
+}
+.sp-breakdown-cat {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-breakdown-amount {
+  margin-left: auto;
+}
+.sp-breakdown-pct {
   color: var(--text-muted);
+  width: 3em;
+  text-align: right;
 }
 .sp-warn {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

@@ -138,6 +138,20 @@ describe('TransactionsSection', () => {
     expect(labels).toEqual(['Salary', 'Restaurant'])
   })
 
+  it('filters on flow direction', async () => {
+    const { wrapper } = mountSection()
+    const flow = wrapper.findAllComponents({ name: 'ComboBox' }).at(0)!
+    await flow.vm.$emit('update:modelValue', 'Outgoing')
+    await flushPromises()
+    expect(wrapper.findAll('.ftx-label').map(n => n.text())).toEqual([
+      'Grocery store',
+      'Restaurant'
+    ])
+    await flow.vm.$emit('update:modelValue', 'Incoming')
+    await flushPromises()
+    expect(wrapper.findAll('.ftx-label').map(n => n.text())).toEqual(['Salary'])
+  })
+
   it('saves a category typed in the inline editor', async () => {
     const { wrapper, update } = mountSection()
     await wrapper.findAll('.ftx-cat')[0].trigger('click')
