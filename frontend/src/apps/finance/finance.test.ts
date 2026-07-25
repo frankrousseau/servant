@@ -212,7 +212,7 @@ describe('snapshotSeries', () => {
 
 describe('monthlySpending', () => {
   it('consolidates outgoing amounts by month and category', () => {
-    const { months, rows, excludedCount } = monthlySpending(
+    const { months, rows, excluded } = monthlySpending(
       [
         spendTx('N26', '2026-05-10T12:00:00Z', -40, 'food'),
         spendTx('N26', '2026-06-05T12:00:00Z', -60, 'food'),
@@ -223,7 +223,7 @@ describe('monthlySpending', () => {
       {},
       'EUR'
     )
-    expect(excludedCount).toBe(0)
+    expect(excluded).toEqual([])
     expect(months).toEqual(['2026-05', '2026-06'])
     expect(rows).toEqual([
       {
@@ -266,12 +266,8 @@ describe('monthlySpending', () => {
       occurred_at: '2026-06-01T12:00:00Z',
       data: { account: 'Swiss', amount: -100, currency: 'CHF' }
     })
-    const { rows, excludedCount } = monthlySpending(
-      [usd, chf],
-      { USD: 0.9 },
-      'EUR'
-    )
-    expect(excludedCount).toBe(1)
+    const { rows, excluded } = monthlySpending([usd, chf], { USD: 0.9 }, 'EUR')
+    expect(excluded).toEqual([chf])
     expect(rows).toEqual([
       { category: 'uncategorized', byMonth: { '2026-06': 90 }, total: 90 }
     ])

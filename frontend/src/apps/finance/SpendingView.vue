@@ -53,6 +53,7 @@ const RANGE_LAST12 = 'Last 12 months'
 const RANGE_ALL_YEARS = 'All years'
 
 const range = ref(RANGE_LAST12)
+const excludedOpen = ref(false)
 
 const years = computed(() =>
   [...new Set(spending.value.months.map(m => m.slice(0, 4)))].sort().reverse()
@@ -310,11 +311,16 @@ const pie = computed(() => {
 <template>
   <section class="sp">
     <div class="sp-head">
-      <h2 class="sp-title">Spending</h2>
-      <span v-if="spending.excludedCount" class="sp-warn">
-        {{ spending.excludedCount }} tx without a {{ refCurrency }} rate
+      <button
+        v-if="spending.excluded.length"
+        class="sp-warn"
+        :class="{ 'sp-warn--open': excludedOpen }"
+        title="Show the excluded transactions"
+        @click="excludedOpen = !excludedOpen"
+      >
+        {{ spending.excluded.length }} tx without a {{ refCurrency }} rate
         excluded
-      </span>
+      </button>
       <span class="sp-head-spacer"></span>
       <ComboBox
         v-if="bankOptions.length > 2"
@@ -334,6 +340,32 @@ const pie = computed(() => {
         :options="piePeriodOptions"
       />
       <ComboBox v-model="range" class="sp-range" :options="rangeOptions" />
+    </div>
+
+    <div v-if="excludedOpen && spending.excluded.length" class="sp-excluded">
+      <p class="sp-excluded-hint">
+        These outgoing transactions are not consolidated: their currency has no
+        {{ refCurrency }} rate. Set one via Accounts, Rates.
+      </p>
+      <div v-for="t in spending.excluded" :key="t.id" class="sp-excluded-row">
+        <span class="sp-excluded-date">{{
+          (t.occurred_at || '').slice(0, 10)
+        }}</span>
+        <span class="sp-excluded-label">{{
+          (t.data.description as string) || t.title || ''
+        }}</span>
+        <span class="sp-excluded-account">{{
+          (t.data.account as string) || ''
+        }}</span>
+        <span class="sp-excluded-amount">
+          {{
+            formatAmount(
+              (t.data.amount as number) || 0,
+              (t.data.currency as string) || ''
+            )
+          }}
+        </span>
+      </div>
     </div>
 
     <div v-if="allRows.length" class="sp-legend">
@@ -525,14 +557,6 @@ const pie = computed(() => {
   gap: 0.75rem;
   margin-bottom: 0.5rem;
 }
-.sp-title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: 1.3rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
 .sp-head-spacer {
   flex: 1;
 }
@@ -597,6 +621,58 @@ const pie = computed(() => {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.72rem;
   color: var(--danger);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.sp-warn--open,
+.sp-warn:hover {
+  text-decoration: underline;
+}
+.sp-excluded {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 1rem;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.sp-excluded-hint {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  margin: 0 0 0.5rem;
+}
+.sp-excluded-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.83rem;
+  padding: 0.12rem 0;
+}
+.sp-excluded-date {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.sp-excluded-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-excluded-account {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.sp-excluded-amount {
+  margin-left: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  flex-shrink: 0;
 }
 .sp-empty {
   color: var(--text-muted);

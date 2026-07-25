@@ -119,6 +119,19 @@ describe('SpendingView', () => {
     expect(rows[1]).toContain('21%')
   })
 
+  it('lists the transactions excluded for a missing rate', async () => {
+    const chf = tx('2026-06-12', -80, 'travel')
+    chf.data.currency = 'CHF'
+    const wrapper = mountView([...TXS, chf])
+    const warn = wrapper.find('.sp-warn')
+    expect(warn.text()).toContain('1 tx without a EUR rate excluded')
+    expect(wrapper.find('.sp-excluded').exists()).toBe(false)
+    await warn.trigger('click')
+    const row = wrapper.find('.sp-excluded-row')
+    expect(row.text()).toContain('2026-06-12')
+    expect(row.text()).toContain('80 CHF')
+  })
+
   it('scopes the consolidation to one bank', async () => {
     const wrapper = mountView([
       ...TXS,

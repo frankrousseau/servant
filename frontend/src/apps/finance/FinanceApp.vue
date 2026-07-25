@@ -212,7 +212,7 @@ function converted(a: Account): string | null {
 function freshness(a: Account): { label: string; level: string } {
   const days = freshnessDays(seriesByKey.value.get(a.key) || [], today.value)
   const level = freshnessLevel(days)
-  const label = days == null ? 'never' : days === 0 ? 'today' : `${days} d`
+  const label = days == null ? 'never' : days === 0 ? 'today' : `${days} d ago`
   return { label, level: `fin-fresh--${level}` }
 }
 
@@ -618,6 +618,11 @@ function saveShared(a: Account, shared: boolean) {
           record its balance; bank accounts imported through CSV appear here by
           themselves.
         </p>
+        <p v-else class="fin-model-hint">
+          One row per account, the curve is their sum. A balance is whatever was
+          last observed: bank imports carry theirs, the others you record with
+          "record balance".
+        </p>
 
         <section
           v-for="u in universes"
@@ -634,6 +639,7 @@ function saveShared(a: Account, shared: boolean) {
             >
               {{ u.label }}
             </h2>
+            <span class="fin-total-caption">total balance</span>
             <span class="fin-total">{{
               formatAmount(u.total, refCurrency)
             }}</span>
@@ -641,6 +647,7 @@ function saveShared(a: Account, shared: boolean) {
               v-if="u.points.length"
               class="fin-delta"
               :class="{ 'fin-delta--down': u.delta30 < 0 }"
+              title="Change over the last 30 days"
               >{{ deltaLabel(u.delta30) }}</span
             >
           </div>
@@ -651,6 +658,18 @@ function saveShared(a: Account, shared: boolean) {
           </p>
 
           <div class="fin-accounts">
+            <div class="fin-account-row fin-account-row--head">
+              <span class="fin-account-caret"></span>
+              <span class="fin-account-name fin-col-label">account</span>
+              <span class="fin-account-type fin-col-label">type</span>
+              <span
+                class="fin-fresh fin-col-label"
+                title="Age of the last observation"
+                >updated</span
+              >
+              <span class="fin-account-amount fin-col-label">last balance</span>
+              <span class="fin-account-actions"></span>
+            </div>
             <div v-for="a in u.accounts" :key="a.key" class="fin-account">
               <div class="fin-account-row">
                 <span class="fin-account-caret" @click="toggleExpanded(a.key)">
@@ -661,14 +680,17 @@ function saveShared(a: Account, shared: boolean) {
                   <span
                     v-if="a.derived"
                     class="fin-badge"
-                    title="Reconstructed from bank CSV imports"
-                    >csv</span
+                    title="Reconstructed from bank imports; create an account with this name to claim it"
+                    >imported</span
                   >
                 </span>
                 <span class="fin-account-type">{{ a.type }}</span>
-                <span class="fin-fresh" :class="freshness(a).level">{{
-                  freshness(a).label
-                }}</span>
+                <span
+                  class="fin-fresh"
+                  :class="freshness(a).level"
+                  title="Age of the last observation"
+                  >{{ freshness(a).label }}</span
+                >
                 <span class="fin-account-amount">
                   <template v-if="lastPoint(a)">
                     {{ formatAmount(lastPoint(a)!.amount, a.currency) }}
@@ -678,22 +700,24 @@ function saveShared(a: Account, shared: boolean) {
                   </template>
                   <template v-else>no data</template>
                 </span>
-                <button
-                  v-if="a.entryId"
-                  class="fin-mini-btn"
-                  title="Record a balance snapshot"
-                  @click="openSnapshotForm(a)"
-                >
-                  + snapshot
-                </button>
-                <button
-                  v-if="a.entryId"
-                  class="fin-mini-del"
-                  title="Delete account"
-                  @click="deleteAccount(a)"
-                >
-                  ×
-                </button>
+                <span class="fin-account-actions">
+                  <button
+                    v-if="a.entryId"
+                    class="fin-mini-btn"
+                    title="Record the balance you see at the bank today"
+                    @click="openSnapshotForm(a)"
+                  >
+                    record balance
+                  </button>
+                  <button
+                    v-if="a.entryId"
+                    class="fin-mini-del"
+                    title="Delete account"
+                    @click="deleteAccount(a)"
+                  >
+                    ×
+                  </button>
+                </span>
               </div>
 
               <form
@@ -1078,11 +1102,15 @@ function saveShared(a: Account, shared: boolean) {
   width: 0.9em;
 }
 .fin-account-name {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+}
+.fin-account-row--head .fin-account-name {
+  cursor: default;
 }
 .fin-badge {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -1101,11 +1129,43 @@ function saveShared(a: Account, shared: boolean) {
   letter-spacing: 0.06em;
   color: var(--text-muted);
   flex-shrink: 0;
+  width: 60px;
+}
+.fin-model-hint {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin: -0.5rem 0 1rem;
+}
+.fin-total-caption {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+.fin-account-row--head {
+  padding-bottom: 0.15rem;
+}
+.fin-col-label {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.fin-account-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  width: 150px;
+  flex-shrink: 0;
 }
 .fin-fresh {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.72rem;
   flex-shrink: 0;
+  width: 68px;
 }
 .fin-fresh--ok {
   color: var(--success, #4fd674);

@@ -300,17 +300,17 @@ export function sharedTxNames(accounts: Account[]): Set<string> {
 
 // Monthly spending by category, in the reference currency. Only outgoing
 // amounts count (amount < 0, stored positive here). Transactions in a
-// currency with no known rate are skipped and counted in excludedCount.
+// currency with no known rate are skipped and returned in `excluded`.
 // Transactions of a shared account count half.
 export function monthlySpending(
   txs: Entry[],
   rates: Rates,
   ref: string,
   shared: Set<string> = new Set()
-): { months: string[]; rows: SpendingRow[]; excludedCount: number } {
+): { months: string[]; rows: SpendingRow[]; excluded: Entry[] } {
   const monthSet = new Set<string>()
   const byCategory = new Map<string, Map<string, number>>()
-  let excludedCount = 0
+  const excluded: Entry[] = []
 
   for (const tx of txs) {
     const amount = txAmount(tx)
@@ -318,7 +318,7 @@ export function monthlySpending(
     const currency = ((tx.data.currency as string) || ref).trim().toUpperCase()
     const rate = rateFor(currency, ref, rates)
     if (rate == null) {
-      excludedCount++
+      excluded.push(tx)
       continue
     }
     const month = utcToZonedParts(tx.occurred_at).date.slice(0, 7)
@@ -340,7 +340,7 @@ export function monthlySpending(
     }))
     .sort((a, b) => b.total - a.total)
 
-  return { months, rows, excludedCount }
+  return { months, rows, excluded }
 }
 
 // Deterministic tint per category (same trick as contact avatars); the
