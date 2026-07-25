@@ -53,6 +53,15 @@ const STORE: Record<string, Entry[]> = {
 }
 
 function makeCtx() {
+  let nextId = 0
+  const create = vi.fn(
+    async (attrs: Record<string, unknown>) =>
+      ({
+        ...entry((attrs.kind as string) || 'entry'),
+        ...attrs,
+        id: `new${++nextId}`
+      }) as Entry
+  )
   return {
     navigate: vi.fn(),
     confirm: { ask: vi.fn().mockResolvedValue(true) },
@@ -64,7 +73,7 @@ function makeCtx() {
         ),
         get: vi.fn(),
         update: vi.fn(),
-        create: vi.fn(),
+        create,
         delete: vi.fn()
       },
       upload: vi.fn(),
@@ -82,11 +91,52 @@ describe('FinanceApp tabs', () => {
     await flushPromises()
 
     const tabs = wrapper.findAll('.fin-tab')
-    expect(tabs.map(t => t.text())).toEqual(['Accounts', 'Spending'])
+    expect(tabs.map(t => t.text())).toEqual(['Accounts', 'Spending', 'Cryptos'])
+    // The default universe goes untitled.
+    expect(wrapper.text()).not.toContain('Tradfi')
 
     await tabs[1].trigger('click')
     expect(wrapper.find('.sp-chart').exists()).toBe(true)
     expect(wrapper.find('.sp-table').exists()).toBe(true)
     expect(wrapper.findAll('.ftx-row').length).toBe(2)
+  })
+
+  it('cryptos tab records a token and its quantity', async () => {
+    const ctx = makeCtx()
+    const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    await wrapper.findAll('.fin-tab')[2].trigger('click')
+
+    await wrapper.find('.fin-crypto-token').setValue('eth')
+    await wrapper.find('.fin-crypto-qty').setValue('1,5')
+    await wrapper.find('.fin-crypto-add').trigger('submit')
+    await flushPromises()
+
+    expect(ctx.api.entries.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'account',
+        title: 'ETH',
+        data: { type: 'wallet', currency: 'ETH' }
+      })
+    )
+    expect(ctx.api.entries.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'balance',
+        data: expect.objectContaining({ amount: 1.5, currency: 'ETH' })
+      })
+    )
+    const qty = wrapper.find('.fin-crypto-qty-input')
+      .element as HTMLInputElement
+    expect(qty.value).toBe('1.5')
+
+    // Same token again: records a quantity, no duplicate account.
+    await wrapper.find('.fin-crypto-token').setValue('ETH')
+    await wrapper.find('.fin-crypto-qty').setValue('2')
+    await wrapper.find('.fin-crypto-add').trigger('submit')
+    await flushPromises()
+    const accountCreates = ctx.api.entries.create.mock.calls.filter(
+      c => (c[0] as { kind: string }).kind === 'account'
+    )
+    expect(accountCreates.length).toBe(1)
   })
 })

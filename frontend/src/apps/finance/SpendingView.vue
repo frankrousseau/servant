@@ -20,9 +20,27 @@ const props = defineProps<{
 
 const MAX_MONTHS = 12
 
+// ----- bank filter -----
+
+const ALL_BANKS = 'All banks'
+const bankFilter = ref(ALL_BANKS)
+
+const txAccountOf = (t: Entry) => ((t.data.account as string) || '').trim()
+
+const bankOptions = computed(() => [
+  ALL_BANKS,
+  ...[...new Set(props.txs.map(txAccountOf))].filter(Boolean).sort()
+])
+
+const scopedTxs = computed(() =>
+  bankFilter.value === ALL_BANKS
+    ? props.txs
+    : props.txs.filter(t => txAccountOf(t) === bankFilter.value)
+)
+
 const spending = computed(() =>
   monthlySpending(
-    props.txs,
+    scopedTxs.value,
     props.rates,
     props.refCurrency,
     sharedTxNames(props.accounts)
@@ -298,6 +316,12 @@ const pie = computed(() => {
         excluded
       </span>
       <span class="sp-head-spacer"></span>
+      <ComboBox
+        v-if="bankOptions.length > 2"
+        v-model="bankFilter"
+        class="sp-range"
+        :options="bankOptions"
+      />
       <ComboBox
         v-model="chartType"
         class="sp-chart-type"

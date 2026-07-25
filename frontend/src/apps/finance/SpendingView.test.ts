@@ -3,7 +3,12 @@ import { mount } from '@vue/test-utils'
 import SpendingView from './SpendingView.vue'
 import type { Entry } from '../types'
 
-function tx(date: string, amount: number, category?: string): Entry {
+function tx(
+  date: string,
+  amount: number,
+  category?: string,
+  account = 'N26'
+): Entry {
   return {
     id: Math.random().toString(36).slice(2),
     kind: 'bank_tx',
@@ -12,7 +17,7 @@ function tx(date: string, amount: number, category?: string): Entry {
     title: null,
     occurred_at: `${date}T12:00:00Z`,
     data: {
-      account: 'N26',
+      account,
       amount,
       currency: 'EUR',
       ...(category ? { category } : {})
@@ -112,6 +117,19 @@ describe('SpendingView', () => {
     expect(rows[0]).toContain('79%')
     expect(rows[1]).toContain('food')
     expect(rows[1]).toContain('21%')
+  })
+
+  it('scopes the consolidation to one bank', async () => {
+    const wrapper = mountView([
+      ...TXS,
+      tx('2026-06-20', -70, 'travel', 'Revolut')
+    ])
+    const bank = wrapper.findAllComponents({ name: 'ComboBox' }).at(0)!
+    expect(bank.props('options')).toEqual(['All banks', 'N26', 'Revolut'])
+    await bank.vm.$emit('update:modelValue', 'Revolut')
+    expect(wrapper.findAll('tbody .sp-cat-col').map(c => c.text())).toEqual([
+      'travel'
+    ])
   })
 
   it('sorts categories alphabetically or by total cost', async () => {

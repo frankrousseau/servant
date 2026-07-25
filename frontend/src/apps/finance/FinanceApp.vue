@@ -30,11 +30,12 @@ const CRYPTO_COLOR = '#6ccec9'
 
 // ----- data -----
 
-type Tab = 'accounts' | 'spending'
+type Tab = 'accounts' | 'spending' | 'cryptos'
 const tab = ref<Tab>('accounts')
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'accounts', label: 'Accounts' },
-  { id: 'spending', label: 'Spending' }
+  { id: 'spending', label: 'Spending' },
+  { id: 'cryptos', label: 'Cryptos' }
 ]
 
 const accountEntries = ref<Entry[]>([])
@@ -375,6 +376,96 @@ function onTxDeleted(id: string) {
   bankTxs.value = bankTxs.value.filter(t => t.id !== id)
 }
 
+// ----- cryptos tab: token + quantity over wallet accounts and snapshots -----
+
+const cryptoToken = ref('')
+const cryptoQty = ref('')
+const cryptoSaving = ref(false)
+
+const cryptoAccounts = computed(() =>
+  accounts.value.filter(a => a.universe === 'crypto')
+)
+
+const parseQty = (raw: string) => {
+  const qty = parseFloat(raw.replace(',', '.'))
+  return Number.isFinite(qty) ? qty : null
+}
+
+async function recordQty(entryId: string, token: string, qty: number) {
+  const created = await ctx.api.entries.create({
+    kind: 'balance',
+    source: 'finance_app',
+    title: `${token}: ${qty}`,
+    occurred_at: zonedToUtcISO(today.value, '12:00'),
+    data: { account_id: entryId, amount: qty, currency: token }
+  })
+  balanceEntries.value = [...balanceEntries.value, created]
+}
+
+async function addCrypto() {
+  const token = cryptoToken.value.trim().toUpperCase()
+  const qty = parseQty(cryptoQty.value)
+  if (!token || qty == null || cryptoSaving.value) return
+  cryptoSaving.value = true
+  try {
+    // One wallet account per asset; adding an existing token records a
+    // new quantity instead of duplicating the account.
+    const existing = cryptoAccounts.value.find(
+      a => a.entryId && a.currency === token
+    )
+    let entryId = existing?.entryId
+    if (!entryId) {
+      const created = await ctx.api.entries.create({
+        kind: 'account',
+        source: 'finance_app',
+        title: token,
+        data: { type: 'wallet', currency: token }
+      })
+      accountEntries.value = [...accountEntries.value, created]
+      entryId = created.id
+    }
+    await recordQty(entryId, token, qty)
+    cryptoToken.value = ''
+    cryptoQty.value = ''
+  } catch {
+    // keep the form values
+  } finally {
+    cryptoSaving.value = false
+  }
+}
+
+async function setCryptoQty(a: Account, raw: string) {
+  const qty = parseQty(raw)
+  if (!a.entryId || qty == null || qty === lastPoint(a)?.amount) return
+  try {
+    await recordQty(a.entryId, a.currency, qty)
+  } catch {
+    // ignore
+  }
+}
+
+// Unlike deleteAccount, deleting a token takes its history along: the
+// cryptos tab is a quantity sheet, not an archive.
+async function deleteCrypto(a: Account) {
+  if (!a.entryId) return
+  const snapshots = manualSnapshots(a)
+  const ok = await ctx.confirm.ask({
+    message: `Delete ${a.name} and its ${snapshots.length} record(s)?`,
+    danger: true
+  })
+  if (!ok) return
+  try {
+    for (const s of snapshots) await ctx.api.entries.delete(s.id)
+    await ctx.api.entries.delete(a.entryId)
+    balanceEntries.value = balanceEntries.value.filter(
+      b => b.data.account_id !== a.entryId
+    )
+    accountEntries.value = accountEntries.value.filter(e => e.id !== a.entryId)
+  } catch {
+    // partial deletes surface on reload
+  }
+}
+
 async function patchAccount(a: Account, patch: Record<string, unknown>) {
   const entry = accountEntries.value.find(e => e.id === a.entryId)
   if (!entry) return
@@ -437,6 +528,66 @@ function saveShared(a: Account, shared: boolean) {
         />
       </template>
 
+      <template v-else-if="tab === 'cryptos'">
+        <form class="fin-crypto-add" @submit.prevent="addCrypto">
+          <input
+            v-model="cryptoToken"
+            class="fin-crypto-token"
+            placeholder="Token (BTC, ETH...)"
+          />
+          <input
+            v-model="cryptoQty"
+            class="fin-crypto-qty"
+            placeholder="Quantity"
+          />
+          <button
+            type="submit"
+            class="fin-btn fin-btn--primary"
+            :disabled="
+              cryptoSaving || !cryptoToken.trim() || parseQty(cryptoQty) == null
+            "
+          >
+            Add
+          </button>
+        </form>
+
+        <p v-if="!cryptoAccounts.length" class="fin-empty">
+          No tokens yet. Enter a token and the quantity you hold; set its rate
+          (Accounts tab) to value it.
+        </p>
+
+        <div v-else class="fin-accounts">
+          <div v-for="a in cryptoAccounts" :key="a.key" class="fin-account">
+            <div class="fin-account-row">
+              <span class="fin-crypto-name">{{ a.name }}</span>
+              <span class="fin-account-amount">
+                <input
+                  :key="`${a.key}-${lastPoint(a)?.amount ?? ''}`"
+                  class="fin-crypto-qty-input"
+                  :value="lastPoint(a)?.amount ?? ''"
+                  placeholder="quantity"
+                  title="Type a new quantity to record it"
+                  @change="
+                    setCryptoQty(a, ($event.target as HTMLInputElement).value)
+                  "
+                />
+                <span v-if="converted(a)" class="fin-account-converted">
+                  {{ converted(a) }}
+                </span>
+              </span>
+              <button
+                v-if="a.entryId"
+                class="fin-mini-del"
+                title="Delete token"
+                @click="deleteCrypto(a)"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        </div>
+      </template>
+
       <template v-else>
         <div class="fin-toolbar">
           <label class="fin-ref">
@@ -475,7 +626,12 @@ function saveShared(a: Account, shared: boolean) {
           class="fin-universe"
         >
           <div class="fin-universe-head">
-            <h2 class="fin-universe-title" :style="{ color: u.color }">
+            <!-- Tradfi is the default universe: its name adds nothing. -->
+            <h2
+              v-if="u.universe !== 'tradfi'"
+              class="fin-universe-title"
+              :style="{ color: u.color }"
+            >
               {{ u.label }}
             </h2>
             <span class="fin-total">{{
@@ -750,6 +906,28 @@ function saveShared(a: Account, shared: boolean) {
 /* Spending wants the full width for its chart and table. */
 .fin-layout--wide {
   max-width: none;
+}
+.fin-crypto-add {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+.fin-crypto-token {
+  width: 180px;
+}
+.fin-crypto-qty {
+  width: 160px;
+}
+.fin-crypto-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 600;
+}
+.fin-crypto-qty-input {
+  width: 140px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  text-align: right;
+  padding: 0.15rem 0.4rem;
 }
 .fin-placeholder,
 .fin-empty {
