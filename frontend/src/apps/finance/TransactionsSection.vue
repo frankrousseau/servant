@@ -7,7 +7,7 @@ import { entryRoute } from '../../lib/entryRoute'
 import { safeUrl } from '../../lib/url'
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
-import { formatAmount } from './finance'
+import { categoryColor, formatAmount } from './finance'
 
 const props = defineProps<{ ctx: AppContext; txs: Entry[] }>()
 const emit = defineEmits<{ updated: [tx: Entry]; deleted: [id: string] }>()
@@ -173,6 +173,182 @@ function pickDoc(t: Entry, id: string) {
   void saveLink(t, id, opt.label.replace(/ - (invoice|file)$/, ''))
 }
 
+// ----- bulk selection -----
+
+const selected = ref<Set<string>>(new Set())
+
+function toggleSelect(id: string) {
+  if (selected.value.has(id)) selected.value.delete(id)
+  else selected.value.add(id)
+  selected.value = new Set(selected.value)
+}
+
+function selectAllFiltered() {
+  selected.value = new Set(filtered.value.map(t => t.id))
+}
+
+const bulkDraft = ref('')
+const bulkApplying = ref(false)
+
+async function applyBulkCategory(value: string) {
+  const category = value.trim()
+  if (!category || bulkApplying.value) return
+  bulkApplying.value = true
+  try {
+    for (const id of selected.value) {
+      const t = props.txs.find(x => x.id === id)
+      if (!t || categoryOf(t) === category) continue
+      try {
+        const updated = await props.ctx.api.entries.update(t.id, {
+          data: { ...t.data, category }
+        })
+        emit('updated', updated)
+      } catch {
+        // keep going
+      }
+    }
+    selected.value = new Set()
+    bulkDraft.value = ''
+  } finally {
+    bulkApplying.value = false
+  }
+}
+
+// ----- auto-categorize: guess from already-categorized labels -----
+
+// Digits and punctuation vary between occurrences of the same merchant
+// ("CB CARREFOUR 12/07"); the letters are the stable part.
+function guessKey(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/[^\p{L}]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+const autoOpen = ref(false)
+const autoGroups = ref<{ category: string; txs: Entry[]; checked: boolean }[]>(
+  []
+)
+const autoApplying = ref(false)
+
+function openAutoCat() {
+  // Most frequent category per label key, learned from categorized txs.
+  const counts = new Map<string, Map<string, number>>()
+  for (const t of props.txs) {
+    const category = categoryOf(t)
+    const key = guessKey(labelOf(t))
+    if (!category || !key) continue
+    const c = counts.get(key) || new Map<string, number>()
+    c.set(category, (c.get(category) || 0) + 1)
+    counts.set(key, c)
+  }
+  const best = new Map<string, string>()
+  for (const [key, c] of counts) {
+    best.set(key, [...c.entries()].sort((a, b) => b[1] - a[1])[0][0])
+  }
+
+  const byCat = new Map<string, Entry[]>()
+  for (const t of props.txs) {
+    if (categoryOf(t)) continue
+    const category = best.get(guessKey(labelOf(t)))
+    if (!category) continue
+    byCat.set(category, [...(byCat.get(category) || []), t])
+  }
+  autoGroups.value = [...byCat.entries()]
+    .map(([category, txs]) => ({ category, txs, checked: true }))
+    .sort((a, b) => b.txs.length - a.txs.length)
+  autoOpen.value = true
+}
+
+function autoExamples(txs: Entry[]): string {
+  const labels = [...new Set(txs.map(labelOf))]
+  const shownLabels = labels.slice(0, 3).join(', ')
+  return labels.length > 3 ? `${shownLabels}, ...` : shownLabels
+}
+
+async function applyAutoCat() {
+  if (autoApplying.value) return
+  autoApplying.value = true
+  try {
+    for (const g of autoGroups.value) {
+      if (!g.checked) continue
+      for (const t of g.txs) {
+        try {
+          const updated = await props.ctx.api.entries.update(t.id, {
+            data: { ...t.data, category: g.category }
+          })
+          emit('updated', updated)
+        } catch {
+          // keep going
+        }
+      }
+    }
+    autoOpen.value = false
+  } finally {
+    autoApplying.value = false
+  }
+}
+
+// ----- duplicates -----
+
+// Same civil date, same amount, same normalized label: likely the same
+// movement imported twice (overlapping CSVs, CSV + bank API). The account
+// is shown but not part of the key, the labels can differ between sources.
+const dedupOpen = ref(false)
+const dupSelected = ref<Set<string>>(new Set())
+
+const dupGroups = computed(() => {
+  const byKey = new Map<string, Entry[]>()
+  for (const t of props.txs) {
+    const amount = t.data.amount
+    if (typeof amount !== 'number' || !t.occurred_at) continue
+    const label = labelOf(t).toLowerCase().replace(/\s+/g, ' ')
+    const key = `${dateOf(t)}|${amount}|${label}`
+    byKey.set(key, [...(byKey.get(key) || []), t])
+  }
+  return [...byKey.values()]
+    .filter(g => g.length > 1)
+    .map(g => [...g].sort((a, b) => a.inserted_at.localeCompare(b.inserted_at)))
+})
+
+// Keep one per group: prefer a tx carrying a balance (it feeds the curve),
+// else the oldest import; preselect the others for deletion.
+function openDedup() {
+  const selected = new Set<string>()
+  for (const g of dupGroups.value) {
+    const keep = g.find(t => typeof t.data.balance === 'number') || g[0]
+    for (const t of g) if (t.id !== keep.id) selected.add(t.id)
+  }
+  dupSelected.value = selected
+  dedupOpen.value = true
+}
+
+function toggleDup(id: string) {
+  if (dupSelected.value.has(id)) dupSelected.value.delete(id)
+  else dupSelected.value.add(id)
+  dupSelected.value = new Set(dupSelected.value)
+}
+
+async function deleteDuplicates() {
+  const ids = [...dupSelected.value]
+  if (!ids.length) return
+  const ok = await props.ctx.confirm.ask({
+    message: `Delete ${ids.length} duplicate transaction(s)?`,
+    danger: true
+  })
+  if (!ok) return
+  for (const id of ids) {
+    try {
+      await props.ctx.api.entries.delete(id)
+      emit('deleted', id)
+    } catch {
+      // keep going; a leftover shows up on the next scan
+    }
+  }
+  dedupOpen.value = false
+}
+
 async function deleteTx(t: Entry) {
   const ok = await props.ctx.confirm.ask({
     message: `Delete "${labelOf(t)}"?`,
@@ -225,6 +401,109 @@ async function openLinked(t: Entry) {
         class="ftx-filter"
         :options="categoryOptions"
       />
+      <button
+        class="ftx-dedup-btn"
+        :class="{ 'ftx-dedup-btn--active': autoOpen }"
+        @click="autoOpen ? (autoOpen = false) : openAutoCat()"
+      >
+        Auto-categorize
+      </button>
+      <button
+        class="ftx-dedup-btn"
+        :class="{ 'ftx-dedup-btn--active': dedupOpen }"
+        @click="dedupOpen ? (dedupOpen = false) : openDedup()"
+      >
+        Duplicates
+      </button>
+    </div>
+
+    <div v-if="autoOpen" class="ftx-dedup">
+      <p v-if="!autoGroups.length" class="ftx-empty">
+        No suggestions: categorize a few transactions by hand first, similar
+        labels then follow.
+      </p>
+      <template v-else>
+        <p class="ftx-dedup-hint">
+          Uncategorized transactions whose label matches one you already
+          categorized.
+        </p>
+        <label v-for="g in autoGroups" :key="g.category" class="ftx-auto-row">
+          <input v-model="g.checked" type="checkbox" />
+          <span
+            class="ftx-auto-dot"
+            :style="{ background: categoryColor(g.category) }"
+          ></span>
+          <span class="ftx-auto-cat">{{ g.category }}</span>
+          <span class="ftx-auto-count">{{ g.txs.length }} tx</span>
+          <span class="ftx-auto-examples">{{ autoExamples(g.txs) }}</span>
+        </label>
+        <button
+          class="ftx-dedup-btn ftx-auto-apply"
+          :disabled="autoApplying || autoGroups.every(g => !g.checked)"
+          @click="applyAutoCat"
+        >
+          {{ autoApplying ? 'Applying...' : 'Apply' }}
+        </button>
+      </template>
+    </div>
+
+    <div v-if="selected.size" class="ftx-bulk">
+      <span class="ftx-bulk-count">{{ selected.size }} selected</span>
+      <button
+        v-if="selected.size < filtered.length"
+        class="ftx-dedup-btn"
+        @click="selectAllFiltered"
+      >
+        Select all {{ filtered.length }} filtered
+      </button>
+      <AutocompleteInput
+        v-model="bulkDraft"
+        class="ftx-bulk-cat"
+        :options="categories"
+        placeholder="Set category..."
+        @select="applyBulkCategory"
+      />
+      <button class="ftx-dedup-btn" @click="selected = new Set()">Clear</button>
+    </div>
+
+    <div v-if="dedupOpen" class="ftx-dedup">
+      <p v-if="!dupGroups.length" class="ftx-empty">No duplicates found.</p>
+      <template v-else>
+        <p class="ftx-dedup-hint">
+          Same date, amount and label. Checked rows will be deleted; one per
+          group is kept (the one carrying a balance when possible).
+        </p>
+        <div v-for="(g, gi) in dupGroups" :key="gi" class="ftx-dedup-group">
+          <label v-for="t in g" :key="t.id" class="ftx-dedup-row">
+            <input
+              type="checkbox"
+              :checked="dupSelected.has(t.id)"
+              @change="toggleDup(t.id)"
+            />
+            <span class="ftx-date">{{ dateOf(t) }}</span>
+            <span class="ftx-label">{{ labelOf(t) }}</span>
+            <span class="ftx-dedup-meta"
+              >{{ accountOf(t) }} - {{ t.source
+              }}{{
+                typeof t.data.balance === 'number' ? ' - balance' : ''
+              }}</span
+            >
+            <span class="ftx-amount">{{
+              formatAmount(
+                (t.data.amount as number) || 0,
+                (t.data.currency as string) || 'EUR'
+              )
+            }}</span>
+          </label>
+        </div>
+        <button
+          class="ftx-dedup-delete"
+          :disabled="!dupSelected.size"
+          @click="deleteDuplicates"
+        >
+          Delete {{ dupSelected.size }} selected
+        </button>
+      </template>
     </div>
 
     <p v-if="!filtered.length" class="ftx-empty">No matching transactions.</p>
@@ -232,6 +511,12 @@ async function openLinked(t: Entry) {
     <template v-for="g in groups" :key="g.month">
       <div class="ftx-month">{{ g.month }}</div>
       <div v-for="t in g.txs" :key="t.id" class="ftx-row">
+        <input
+          type="checkbox"
+          class="ftx-check"
+          :checked="selected.has(t.id)"
+          @change="toggleSelect(t.id)"
+        />
         <span class="ftx-date">{{ dateOf(t).slice(8) }}</span>
         <span class="ftx-label" :title="labelOf(t)">{{ labelOf(t) }}</span>
         <span class="ftx-right">
@@ -485,6 +770,152 @@ async function openLinked(t: Entry) {
 }
 .ftx-amount--in {
   color: var(--success, #4fd674);
+}
+.ftx-check {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--primary);
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+.ftx-check:checked,
+.ftx-row:hover .ftx-check {
+  opacity: 1;
+}
+.ftx-bulk {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 0.45rem 0.8rem;
+  margin-top: 0.75rem;
+}
+.ftx-bulk-count {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.ftx-bulk-cat {
+  width: 200px;
+}
+.ftx-bulk-cat :deep(input) {
+  width: 100%;
+  font-size: 0.82rem;
+  padding: 0.25rem 0.5rem;
+}
+.ftx-auto-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border-top: 1px solid var(--border);
+}
+.ftx-auto-row input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--primary);
+  flex-shrink: 0;
+}
+.ftx-auto-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ftx-auto-cat {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+}
+.ftx-auto-count {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+.ftx-auto-examples {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ftx-auto-apply {
+  margin-top: 0.6rem;
+}
+.ftx-dedup-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 8px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ftx-dedup-btn:hover,
+.ftx-dedup-btn--active {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.ftx-dedup {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  margin-top: 0.75rem;
+}
+.ftx-dedup-hint {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  margin: 0 0 0.5rem;
+}
+.ftx-dedup-group {
+  border-top: 1px solid var(--border);
+  padding: 0.3rem 0;
+}
+.ftx-dedup-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.15rem 0;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.ftx-dedup-row input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--danger);
+  flex-shrink: 0;
+}
+.ftx-dedup-row .ftx-date {
+  width: auto;
+}
+.ftx-dedup-meta {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.ftx-dedup-row .ftx-amount {
+  margin-left: auto;
+}
+.ftx-dedup-delete {
+  margin-top: 0.6rem;
+  border: 1px solid var(--danger);
+  background: transparent;
+  color: var(--danger);
+  border-radius: 8px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.ftx-dedup-delete:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 .ftx-del {
   border: none;

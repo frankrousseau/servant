@@ -124,8 +124,11 @@ function showAll() {
   persistHidden()
 }
 
-// Every category with spending in range, largest first: the legend shows
-// them all, hidden included, so they can be brought back.
+// Table and legend ordering: by cost (default) or alphabetical.
+const sortMode = ref<'total' | 'alpha'>('total')
+
+// Every category with spending in range: the legend shows them all,
+// hidden included, so they can be brought back.
 const allRows = computed(() =>
   spending.value.rows
     .map(r => {
@@ -137,7 +140,11 @@ const allRows = computed(() =>
       }
     })
     .filter(r => r.total > 0)
-    .sort((a, b) => b.total - a.total)
+    .sort((a, b) =>
+      sortMode.value === 'alpha'
+        ? a.category.localeCompare(b.category)
+        : b.total - a.total
+    )
 )
 
 // What the chart and table consolidate.
@@ -429,9 +436,27 @@ const pie = computed(() => {
         <table class="sp-table">
           <thead>
             <tr>
-              <th class="sp-cat-col">Category</th>
+              <th class="sp-cat-col">
+                <button
+                  class="sp-sort"
+                  :class="{ 'sp-sort--active': sortMode === 'alpha' }"
+                  title="Sort categories alphabetically"
+                  @click="sortMode = 'alpha'"
+                >
+                  Category{{ sortMode === 'alpha' ? ' ▲' : '' }}
+                </button>
+              </th>
               <th v-for="p in periods" :key="p">{{ p }}</th>
-              <th>Total</th>
+              <th>
+                <button
+                  class="sp-sort"
+                  :class="{ 'sp-sort--active': sortMode === 'total' }"
+                  title="Sort categories by total cost"
+                  @click="sortMode = 'total'"
+                >
+                  Total{{ sortMode === 'total' ? ' ▼' : '' }}
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -635,6 +660,20 @@ const pie = computed(() => {
   color: var(--text-muted);
   font-weight: 500;
   border-bottom: 1px solid var(--border);
+}
+.sp-sort {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+.sp-sort:hover,
+.sp-sort--active {
+  color: var(--primary);
 }
 .sp-table tbody tr {
   border-bottom: 1px solid var(--border);

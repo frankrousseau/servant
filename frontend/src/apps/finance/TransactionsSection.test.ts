@@ -229,6 +229,107 @@ describe('TransactionsSection', () => {
     )
   })
 
+  it('finds duplicates, keeps the balance-bearing one, deletes the rest', async () => {
+    const dupA = tx('d1', {
+      date: '2026-07-05',
+      description: 'EDF  Facture',
+      amount: -55
+    })
+    dupA.data.balance = 900
+    const dupB = {
+      ...tx('d2', {
+        date: '2026-07-05',
+        description: 'edf facture',
+        amount: -55,
+        account: 'Joint'
+      }),
+      inserted_at: '2025-12-01T00:00:00Z'
+    }
+    const { wrapper, ctx } = mountSection([...TXS, dupA, dupB])
+    await wrapper
+      .findAll('.ftx-dedup-btn')
+      .find(b => b.text() === 'Duplicates')!
+      .trigger('click')
+
+    const rows = wrapper.findAll('.ftx-dedup-row')
+    expect(rows.length).toBe(2)
+    // dupA carries the balance: kept despite being the newer import.
+    const checked = rows.map(
+      r => (r.find('input').element as HTMLInputElement).checked
+    )
+    expect(checked.filter(Boolean).length).toBe(1)
+
+    await wrapper.find('.ftx-dedup-delete').trigger('click')
+    await flushPromises()
+    expect(ctx.api.entries.delete).toHaveBeenCalledTimes(1)
+    expect(ctx.api.entries.delete).toHaveBeenCalledWith('d2')
+    expect(wrapper.emitted('deleted')).toEqual([['d2']])
+  })
+
+  it('reports when there is nothing to deduplicate', async () => {
+    const { wrapper } = mountSection()
+    await wrapper
+      .findAll('.ftx-dedup-btn')
+      .find(b => b.text() === 'Duplicates')!
+      .trigger('click')
+    expect(wrapper.find('.ftx-dedup').text()).toContain('No duplicates found.')
+  })
+
+  it('applies a category to the multi-selection', async () => {
+    const { wrapper, update } = mountSection()
+    const checks = wrapper.findAll('.ftx-check')
+    await checks[0].setValue(true)
+    await checks[1].setValue(true)
+    const bulk = wrapper.find('.ftx-bulk-cat input')
+    await bulk.setValue('perso')
+    await bulk.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(update).toHaveBeenCalledTimes(2)
+    expect(update).toHaveBeenCalledWith(
+      't2',
+      expect.objectContaining({
+        data: expect.objectContaining({ category: 'perso' })
+      })
+    )
+    expect(wrapper.find('.ftx-bulk').exists()).toBe(false)
+  })
+
+  it('suggests categories from similar labels and applies them', async () => {
+    const txs = [
+      tx('c1', {
+        date: '2026-07-01',
+        description: 'CB CARREFOUR 12/07',
+        amount: -20,
+        category: 'food'
+      }),
+      tx('c2', {
+        date: '2026-07-08',
+        description: 'CB CARREFOUR 15/07',
+        amount: -30
+      }),
+      tx('c3', { date: '2026-07-09', description: 'Mystery shop', amount: -5 })
+    ]
+    const { wrapper, update } = mountSection(txs)
+    await wrapper
+      .findAll('.ftx-dedup-btn')
+      .find(b => b.text() === 'Auto-categorize')!
+      .trigger('click')
+    const rows = wrapper.findAll('.ftx-auto-row')
+    expect(rows.length).toBe(1)
+    expect(rows[0].text()).toContain('food')
+    expect(rows[0].text()).toContain('1 tx')
+
+    await wrapper.find('.ftx-auto-apply').trigger('click')
+    await flushPromises()
+    expect(update).toHaveBeenCalledTimes(1)
+    expect(update).toHaveBeenCalledWith(
+      'c2',
+      expect.objectContaining({
+        data: expect.objectContaining({ category: 'food' })
+      })
+    )
+  })
+
   it('deletes a transaction after confirmation', async () => {
     const { wrapper, ctx } = mountSection()
     await wrapper.findAll('.ftx-del')[0].trigger('click')

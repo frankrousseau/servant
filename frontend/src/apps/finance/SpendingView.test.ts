@@ -83,7 +83,7 @@ describe('SpendingView', () => {
 
     await range.vm.$emit('update:modelValue', 'All years')
     let headers = wrapper.findAll('thead th').map(h => h.text())
-    expect(headers).toEqual(['Category', '2025', '2026', 'Total'])
+    expect(headers).toEqual(['Category', '2025', '2026', 'Total ▼'])
     const rentCells = wrapper
       .findAll('tbody tr')
       .find(r => r.text().includes('rent'))!
@@ -93,7 +93,7 @@ describe('SpendingView', () => {
 
     await range.vm.$emit('update:modelValue', '2025')
     headers = wrapper.findAll('thead th').map(h => h.text())
-    expect(headers).toEqual(['Category', '2025-03', 'Total'])
+    expect(headers).toEqual(['Category', '2025-03', 'Total ▼'])
   })
 
   it('shows a pie for the chosen period', async () => {
@@ -112,6 +112,21 @@ describe('SpendingView', () => {
     expect(rows[0]).toContain('79%')
     expect(rows[1]).toContain('food')
     expect(rows[1]).toContain('21%')
+  })
+
+  it('sorts categories alphabetically or by total cost', async () => {
+    const wrapper = mountView()
+    const catHeader = wrapper.find('thead .sp-sort')
+    await catHeader.trigger('click')
+    expect(wrapper.findAll('tbody .sp-cat-col').map(c => c.text())).toEqual([
+      'food',
+      'rent'
+    ])
+    await wrapper.findAll('thead .sp-sort').at(-1)!.trigger('click')
+    expect(wrapper.findAll('tbody .sp-cat-col').map(c => c.text())).toEqual([
+      'rent',
+      'food'
+    ])
   })
 
   it('offers show all when something is hidden', async () => {
