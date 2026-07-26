@@ -8,6 +8,7 @@ import {
   nextTick,
   watch
 } from 'vue'
+import { Star } from 'lucide-vue-next'
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import type { AppContext, Entry } from '../types'
 import { todayInUserTz, formatDate } from '../../lib/datetime'
@@ -32,6 +33,7 @@ interface Mentionable {
 const noteFolder = (n: Note) => ((n.data.folder as string) || '').trim()
 const noteBody = (n: Note) => (n.data.body as string) || ''
 const noteTags = (n: Note) => (n.data.tags as string[]) || []
+const noteFavorite = (n: Note) => n.data.favorite === true
 const fullPath = (folder: string, title: string) =>
   folder ? `${folder}/${title}` : title
 
@@ -62,6 +64,8 @@ function dedupeByName(list: Mentionable[]): Mentionable[] {
 }
 
 // ----- reactive state -----
+
+const LAST_OPEN_KEY = 'servant_notes_last_open'
 
 const notes = ref<Note[]>([])
 const mentionables = ref<Mentionable[]>([])
@@ -158,6 +162,11 @@ function sortNotes(list: Note[]): Note[] {
   )
 }
 
+// Pinned above the folder tree; the notes also keep their place in it.
+const favoriteNotes = computed(() =>
+  sortNotes(filteredNotes.value.filter(noteFavorite))
+)
+
 interface TreeNode {
   name: string
   path: string
@@ -200,6 +209,7 @@ interface TreeRow {
   id?: string
   collapsed?: boolean
   folder?: string // containing folder path, for note rows
+  favorite?: boolean
 }
 
 // Flatten the folder tree into rows honouring the collapsed set (everything is
@@ -228,7 +238,8 @@ const treeRows = computed<TreeRow[]>(() => {
         depth,
         name: n.title || 'Untitled',
         id: n.id,
-        folder: node.path
+        folder: node.path,
+        favorite: noteFavorite(n)
       })
     }
   }
@@ -555,6 +566,19 @@ async function openTodayNote() {
   }
 }
 
+async function toggleFavorite() {
+  const note = selected.value
+  if (!note) return
+  // Flush first so a pending rename is not applied out of order.
+  await flushSave()
+  try {
+    const updated = await apiUpdate(note.id, { favorite: !noteFavorite(note) })
+    notes.value = notes.value.map(n => (n.id === updated.id ? updated : n))
+  } catch {
+    // ignore
+  }
+}
+
 async function deleteSelected() {
   const note = selected.value
   if (!note) return
@@ -813,6 +837,11 @@ watch(selected, note => {
   if (note && note.id !== undefined) syncEditorFrom(note)
 })
 
+// Remembered per device, so reopening the app lands on the last note.
+watch(selectedId, id => {
+  if (id) localStorage.setItem(LAST_OPEN_KEY, id)
+})
+
 // ----- bootstrap -----
 
 onMounted(async () => {
@@ -825,10 +854,13 @@ onMounted(async () => {
     loadState.value = 'error'
   }
 
+  // URL selection wins; otherwise reopen the last note used on this device.
   const initial = new URLSearchParams(window.location.search).get('selected')
-  if (initial && notes.value.some(n => n.id === initial)) {
-    void selectNote(initial, { push: false })
-  }
+  const lastOpen = localStorage.getItem(LAST_OPEN_KEY)
+  const target = [initial, lastOpen].find(
+    id => id && notes.value.some(n => n.id === id)
+  )
+  if (target) void selectNote(target, { push: false })
 
   // Contacts and events feed @[[mention]] autocomplete/chips; degrade gracefully.
   try {
@@ -885,6 +917,19 @@ onBeforeUnmount(() => {
         />
       </div>
       <div class="nt-tree" @dragover.prevent @drop.prevent="onTreeDrop('')">
+        <template v-if="favoriteNotes.length">
+          <div class="nt-fav-head">Favorites</div>
+          <div
+            v-for="n in favoriteNotes"
+            :key="'fav:' + n.id"
+            class="nt-note nt-note--fav"
+            :class="{ 'nt-note--active': n.id === selectedId }"
+            @click="selectNote(n.id)"
+          >
+            <Star :size="11" class="nt-star" fill="currentColor" />
+            <span class="nt-note-title">{{ n.title || 'Untitled' }}</span>
+          </div>
+        </template>
         <template v-if="treeRows.length">
           <div
             v-for="row in treeRows"
@@ -938,6 +983,12 @@ onBeforeUnmount(() => {
               @drop.prevent.stop="onTreeDrop(row.folder ?? '')"
               @click="selectNote(row.id!)"
             >
+              <Star
+                v-if="row.favorite"
+                :size="10"
+                class="nt-star"
+                fill="currentColor"
+              />
               <span class="nt-note-title">{{ row.name }}</span>
             </div>
           </div>
@@ -1004,6 +1055,21 @@ onBeforeUnmount(() => {
               :title="saveState === 'error' ? saveError : ''"
               >{{ saveStatusLabel }}</span
             >
+            <button
+              class="nt-fav-btn"
+              :class="{ 'nt-fav-btn--active': noteFavorite(selected) }"
+              :title="
+                noteFavorite(selected)
+                  ? 'Remove from favorites'
+                  : 'Add to favorites'
+              "
+              @click="toggleFavorite"
+            >
+              <Star
+                :size="15"
+                :fill="noteFavorite(selected) ? 'currentColor' : 'none'"
+              />
+            </button>
             <button
               class="nt-delete"
               title="Delete note"
@@ -1249,6 +1315,28 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
   font-size: 0.92rem;
 }
+.nt-fav-head {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: 0.4rem 0.5rem 0.15rem;
+}
+.nt-note--fav {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.nt-note--fav .nt-note-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nt-star {
+  color: #ffb454;
+  flex-shrink: 0;
+  vertical-align: -1px;
+}
 .nt-note:hover {
   background: var(--bg-hover);
 }
@@ -1341,6 +1429,21 @@ onBeforeUnmount(() => {
 .nt-vb--active {
   background: var(--primary);
   color: #05070f;
+}
+.nt-fav-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 8px;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+.nt-fav-btn:hover,
+.nt-fav-btn--active {
+  border-color: #ffb454;
+  color: #ffb454;
 }
 .nt-delete {
   background: transparent;

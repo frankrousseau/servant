@@ -55,7 +55,12 @@ defmodule Servant.Notes do
       title: title,
       external_id: canon(full_path(folder, title)),
       occurred_at: now,
-      data: %{"body" => body, "folder" => folder, "tags" => parse_tags(body)}
+      data: %{
+        "body" => body,
+        "folder" => folder,
+        "tags" => parse_tags(body),
+        "favorite" => favorite(attrs, nil)
+      }
     }
 
     result =
@@ -78,7 +83,12 @@ defmodule Servant.Notes do
     entry_attrs = %{
       title: title,
       external_id: canon(full_path(folder, title)),
-      data: %{"body" => body, "folder" => folder, "tags" => parse_tags(body)}
+      data: %{
+        "body" => body,
+        "folder" => folder,
+        "tags" => parse_tags(body),
+        "favorite" => favorite(attrs, note)
+      }
     }
 
     result =
@@ -484,6 +494,15 @@ defmodule Servant.Notes do
 
   defp get(attrs, key, default),
     do: Map.get(attrs, Atom.to_string(key)) || Map.get(attrs, key) || default
+
+  # Boolean-safe (the `get` helper above would swallow an explicit `false`):
+  # absent keeps the note's current flag, present coerces to a strict boolean.
+  defp favorite(attrs, note) do
+    case Map.get(attrs, "favorite", Map.get(attrs, :favorite)) do
+      nil -> (note && note.data["favorite"]) == true
+      value -> value == true
+    end
+  end
 
   defp full_path("", title), do: title
   defp full_path(folder, title), do: folder <> "/" <> title

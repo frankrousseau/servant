@@ -37,6 +37,22 @@ defmodule Servant.NotesTest do
       assert Enum.sort(note.data["tags"]) == ["idea", "servant"]
     end
 
+    test "favorite flag round-trips and survives partial updates", %{user: user} do
+      {:ok, note} = Notes.create_note(user.id, %{"title" => "Fav", "body" => ""})
+      assert note.data["favorite"] == false
+
+      {:ok, note} = Notes.update_note(user.id, note.id, %{"favorite" => true})
+      assert note.data["favorite"] == true
+      assert note.title == "Fav"
+
+      # A body-only save (the editor autosave) keeps the flag.
+      {:ok, note} = Notes.update_note(user.id, note.id, %{"body" => "hello"})
+      assert note.data["favorite"] == true
+
+      {:ok, note} = Notes.update_note(user.id, note.id, %{"favorite" => false})
+      assert note.data["favorite"] == false
+    end
+
     test "rejects a duplicate title in the same folder with a title error", %{user: user} do
       {:ok, _} = Notes.create_note(user.id, %{"title" => "Dup", "body" => ""})
 

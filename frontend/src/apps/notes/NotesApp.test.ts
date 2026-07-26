@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import NotesApp from './NotesApp.vue'
 import type { Entry } from '../types'
@@ -33,7 +33,16 @@ function makeCtx(notes: Entry[]) {
       const id = path.split('/').pop()!
       const attrs = JSON.parse(opts.body as string)
       await update(id, attrs)
-      return jsonRes({ ...notes.find(n => n.id === id), title: attrs.title })
+      // Mirror the backend: absent fields keep their current value.
+      const found = notes.find(n => n.id === id)!
+      return jsonRes({
+        ...found,
+        title: attrs.title ?? found.title,
+        data: {
+          ...found.data,
+          ...(attrs.favorite === undefined ? {} : { favorite: attrs.favorite })
+        }
+      })
     }
     return jsonRes([])
   })
@@ -52,6 +61,12 @@ function makeCtx(notes: Entry[]) {
 }
 
 describe('NotesApp', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    // Selection pushes ?selected=<id>; keep tests URL-independent.
+    history.replaceState(null, '', '/apps/notes')
+  })
+
   it('loads the note tree (folders + notes)', async () => {
     const { ctx } = makeCtx([
       note('1', 'Alpha', '', 'hello'),
@@ -141,6 +156,52 @@ describe('NotesApp', () => {
       expect.objectContaining({ folder: 'Projects/Sub' })
     )
     expect(update).not.toHaveBeenCalledWith('3', expect.anything())
+  })
+
+  it('pins favorite notes above the tree', async () => {
+    const fav = note('1', 'Alpha', 'Proj', '')
+    fav.data.favorite = true
+    const { ctx } = makeCtx([fav, note('2', 'Beta', '', '')])
+    const wrapper = mount(NotesApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+
+    expect(wrapper.find('.nt-fav-head').text()).toBe('Favorites')
+    const favRow = wrapper.find('.nt-note--fav')
+    expect(favRow.text()).toContain('Alpha')
+    // The note keeps its place in the folder tree too.
+    expect(
+      wrapper.findAll('.nt-note').filter(n => n.text().includes('Alpha')).length
+    ).toBe(2)
+  })
+
+  it('toggles favorite from the editor toolbar', async () => {
+    const { ctx, update } = makeCtx([note('1', 'Alpha', '', '')])
+    const wrapper = mount(NotesApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+
+    await wrapper.find('.nt-note').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.nt-fav-head').exists()).toBe(false)
+
+    await wrapper.find('.nt-fav-btn').trigger('click')
+    await flushPromises()
+
+    expect(update).toHaveBeenCalledWith('1', { favorite: true })
+    expect(wrapper.find('.nt-fav-head').exists()).toBe(true)
+  })
+
+  it('reopens the last open note on mount', async () => {
+    localStorage.setItem('servant_notes_last_open', '2')
+    const { ctx } = makeCtx([
+      note('1', 'Alpha', '', ''),
+      note('2', 'Beta', '', '')
+    ])
+    const wrapper = mount(NotesApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+
+    expect(
+      (wrapper.find('input.nt-title').element as HTMLInputElement).value
+    ).toBe('Beta')
   })
 
   it('moves a note into a folder via drag & drop', async () => {
