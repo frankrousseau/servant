@@ -18,7 +18,8 @@ defmodule ServantWeb.SpaController do
            "style-src 'self' 'unsafe-inline'",
            "img-src 'self' data:",
            "font-src 'self'",
-           "connect-src 'self'",
+           # CoinGecko: the finance app fetches crypto spot prices client-side.
+           "connect-src 'self' https://api.coingecko.com",
            "object-src 'none'",
            "base-uri 'self'",
            "frame-ancestors 'self'"

@@ -7,7 +7,7 @@ import { entryRoute } from '../../lib/entryRoute'
 import { safeUrl } from '../../lib/url'
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
-import { categoryColor, formatAmount } from './finance'
+import { categoryColor, daysBetween, formatAmount } from './finance'
 
 const props = defineProps<{ ctx: AppContext; txs: Entry[] }>()
 const emit = defineEmits<{ updated: [tx: Entry]; deleted: [id: string] }>()
@@ -292,33 +292,64 @@ async function applyAutoCat() {
 
 // ----- duplicates -----
 
-// Same civil date, same amount, same normalized label: likely the same
-// movement imported twice (overlapping CSVs, CSV + bank API). The account
-// is shown but not part of the key, the labels can differ between sources.
+// The same movement imported twice (overlapping CSVs, CSV + bank API)
+// rarely matches exactly: each source words the label its own way and the
+// booking date can shift by a day or two. Candidates: same amount, civil
+// dates at most 2 days apart. The account is shown but not part of the
+// key, the same real account is named differently per source.
+const DUP_DAYS = 2
 const dedupOpen = ref(false)
 const dupSelected = ref<Set<string>>(new Set())
 
 const dupGroups = computed(() => {
-  const byKey = new Map<string, Entry[]>()
+  const byAmount = new Map<number, Entry[]>()
   for (const t of props.txs) {
     const amount = t.data.amount
     if (typeof amount !== 'number' || !t.occurred_at) continue
-    const label = labelOf(t).toLowerCase().replace(/\s+/g, ' ')
-    const key = `${dateOf(t)}|${amount}|${label}`
-    byKey.set(key, [...(byKey.get(key) || []), t])
+    byAmount.set(amount, [...(byAmount.get(amount) || []), t])
   }
-  return [...byKey.values()]
-    .filter(g => g.length > 1)
-    .map(g => [...g].sort((a, b) => a.inserted_at.localeCompare(b.inserted_at)))
+  const groups: Entry[][] = []
+  for (const list of byAmount.values()) {
+    if (list.length < 2) continue
+    list.sort((a, b) => dateOf(a).localeCompare(dateOf(b)))
+    let cluster = [list[0]]
+    for (const t of list.slice(1)) {
+      if (
+        daysBetween(dateOf(cluster[cluster.length - 1]), dateOf(t)) <= DUP_DAYS
+      ) {
+        cluster.push(t)
+      } else {
+        if (cluster.length > 1) groups.push(cluster)
+        cluster = [t]
+      }
+    }
+    if (cluster.length > 1) groups.push(cluster)
+  }
+  return groups.map(g =>
+    [...g].sort((a, b) => a.inserted_at.localeCompare(b.inserted_at))
+  )
 })
 
+// Twins worth preselecting: labels sharing a word, or two different sources
+// reporting the same movement. Same-source rows with unrelated labels stay
+// unchecked, those are probably two real purchases.
+function likelyDup(a: Entry, b: Entry): boolean {
+  if (a.source !== b.source) return true
+  const words = new Set(guessKey(labelOf(a)).split(' ').filter(Boolean))
+  return guessKey(labelOf(b))
+    .split(' ')
+    .filter(Boolean)
+    .some(w => words.has(w))
+}
+
 // Keep one per group: prefer a tx carrying a balance (it feeds the curve),
-// else the oldest import; preselect the others for deletion.
+// else the oldest import; preselect the likely twins for deletion.
 function openDedup() {
   const selected = new Set<string>()
   for (const g of dupGroups.value) {
     const keep = g.find(t => typeof t.data.balance === 'number') || g[0]
-    for (const t of g) if (t.id !== keep.id) selected.add(t.id)
+    for (const t of g)
+      if (t.id !== keep.id && likelyDup(t, keep)) selected.add(t.id)
   }
   dupSelected.value = selected
   dedupOpen.value = true
@@ -470,8 +501,9 @@ async function openLinked(t: Entry) {
       <p v-if="!dupGroups.length" class="ftx-empty">No duplicates found.</p>
       <template v-else>
         <p class="ftx-dedup-hint">
-          Same date, amount and label. Checked rows will be deleted; one per
-          group is kept (the one carrying a balance when possible).
+          Same amount, dates at most 2 days apart; labels can differ between
+          imports. Checked rows will be deleted; one per group is kept (the one
+          carrying a balance when possible).
         </p>
         <div v-for="(g, gi) in dupGroups" :key="gi" class="ftx-dedup-group">
           <label v-for="t in g" :key="t.id" class="ftx-dedup-row">

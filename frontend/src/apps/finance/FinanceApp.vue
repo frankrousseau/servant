@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted, watch } from 'vue'
 import type { AppContext, Entry } from '../types'
 import { todayInUserTz, zonedToUtcISO } from '../../lib/datetime'
 import { addDays } from '../calendar/recurrence'
 import ComboBox from '../../components/ComboBox.vue'
 import BalanceChart from './BalanceChart.vue'
+import { fetchCryptoPrices } from './cryptoPrices'
 import SpendingView from './SpendingView.vue'
 import TransactionsSection from './TransactionsSection.vue'
 import {
@@ -413,8 +414,9 @@ async function addCrypto() {
     const existing = cryptoAccounts.value.find(
       a => a.entryId && a.currency === token
     )
-    let entryId = existing?.entryId
-    if (!entryId) {
+    if (existing?.entryId) {
+      await upsertQty(existing, qty)
+    } else {
       const created = await ctx.api.entries.create({
         kind: 'account',
         source: 'finance_app',
@@ -422,11 +424,11 @@ async function addCrypto() {
         data: { type: 'wallet', currency: token }
       })
       accountEntries.value = [...accountEntries.value, created]
-      entryId = created.id
+      await recordQty(created.id, token, qty)
     }
-    await recordQty(entryId, token, qty)
     cryptoToken.value = ''
     cryptoQty.value = ''
+    void loadCryptoPrices()
   } catch {
     // keep the form values
   } finally {
@@ -434,14 +436,81 @@ async function addCrypto() {
   }
 }
 
+async function updateQtyRecord(b: Entry, a: Account, qty: number) {
+  try {
+    const updated = await ctx.api.entries.update(b.id, {
+      title: `${a.name}: ${qty}`,
+      data: { ...b.data, amount: qty }
+    })
+    balanceEntries.value = balanceEntries.value.map(x =>
+      x.id === updated.id ? updated : x
+    )
+  } catch {
+    // ignore
+  }
+}
+
+// New record, or correction of the same day's figure (no stacking).
+async function upsertQty(a: Account, qty: number) {
+  const todays = manualSnapshots(a).find(
+    b => snapshotDateLabel(b) === today.value
+  )
+  if (todays) await updateQtyRecord(todays, a, qty)
+  else await recordQty(a.entryId!, a.currency, qty)
+}
+
 async function setCryptoQty(a: Account, raw: string) {
   const qty = parseQty(raw)
   if (!a.entryId || qty == null || qty === lastPoint(a)?.amount) return
   try {
-    await recordQty(a.entryId, a.currency, qty)
+    await upsertQty(a, qty)
   } catch {
     // ignore
   }
+}
+
+function editQtyRecord(b: Entry, a: Account, raw: string) {
+  const qty = parseQty(raw)
+  if (qty == null || qty === b.data.amount) return
+  void updateQtyRecord(b, a, qty)
+}
+
+// ----- spot prices (display only; valuation stays on manual rates) -----
+
+const cryptoPrices = ref<Record<string, number>>({})
+
+async function loadCryptoPrices() {
+  try {
+    cryptoPrices.value = await fetchCryptoPrices(
+      cryptoAccounts.value.map(a => a.currency),
+      refCurrency.value
+    )
+  } catch {
+    // offline or blocked: quantities alone still work
+  }
+}
+
+watch(tab, t => {
+  if (t === 'cryptos') void loadCryptoPrices()
+})
+
+// Manual rate first (it feeds the curve); spot price as a fallback hint.
+function cryptoValue(a: Account): { text: string; spot: boolean } | null {
+  const point = lastPoint(a)
+  if (!point) return null
+  const rate = rateFor(a.currency, refCurrency.value, rates.value)
+  if (rate != null)
+    return {
+      text: formatAmount(point.amount * rate, refCurrency.value),
+      spot: false
+    }
+  const price = cryptoPrices.value[a.currency]
+  if (price != null)
+    return {
+      text: `≈ ${formatAmount(point.amount * price, refCurrency.value)}`,
+      spot: true
+    }
+  return { text: 'no rate', spot: false }
 }
 
 // Unlike deleteAccount, deleting a token takes its history along: the
@@ -559,7 +628,17 @@ function saveShared(a: Account, shared: boolean) {
         <div v-else class="fin-accounts">
           <div v-for="a in cryptoAccounts" :key="a.key" class="fin-account">
             <div class="fin-account-row">
+              <span class="fin-account-caret" @click="toggleExpanded(a.key)">
+                {{ expanded.has(a.key) ? '▾' : '▸' }}
+              </span>
               <span class="fin-crypto-name">{{ a.name }}</span>
+              <span
+                v-if="cryptoPrices[a.currency] != null"
+                class="fin-crypto-price"
+                title="Spot price (CoinGecko)"
+              >
+                {{ formatAmount(cryptoPrices[a.currency], refCurrency) }}
+              </span>
               <span class="fin-account-amount">
                 <input
                   :key="`${a.key}-${lastPoint(a)?.amount ?? ''}`"
@@ -571,8 +650,16 @@ function saveShared(a: Account, shared: boolean) {
                     setCryptoQty(a, ($event.target as HTMLInputElement).value)
                   "
                 />
-                <span v-if="converted(a)" class="fin-account-converted">
-                  {{ converted(a) }}
+                <span
+                  v-if="cryptoValue(a)"
+                  class="fin-account-converted"
+                  :title="
+                    cryptoValue(a)!.spot
+                      ? 'Spot estimate; set a rate (Accounts tab) to count it in the curve'
+                      : ''
+                  "
+                >
+                  {{ cryptoValue(a)!.text }}
                 </span>
               </span>
               <button
@@ -583,6 +670,39 @@ function saveShared(a: Account, shared: boolean) {
               >
                 ×
               </button>
+            </div>
+
+            <div v-if="expanded.has(a.key)" class="fin-history">
+              <div
+                v-for="b in manualSnapshots(a)"
+                :key="b.id"
+                class="fin-history-row"
+              >
+                <span class="fin-history-date">{{ snapshotDateLabel(b) }}</span>
+                <input
+                  :key="`${b.id}-${b.data.amount}`"
+                  class="fin-crypto-qty-input"
+                  :value="b.data.amount"
+                  title="Edit this record's quantity"
+                  @change="
+                    editQtyRecord(
+                      b,
+                      a,
+                      ($event.target as HTMLInputElement).value
+                    )
+                  "
+                />
+                <button
+                  class="fin-mini-del"
+                  title="Delete record"
+                  @click="deleteSnapshot(b)"
+                >
+                  ×
+                </button>
+              </div>
+              <p v-if="!manualSnapshots(a).length" class="fin-history-note">
+                No records yet.
+              </p>
             </div>
           </div>
         </div>
@@ -945,6 +1065,11 @@ function saveShared(a: Account, shared: boolean) {
 .fin-crypto-name {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-weight: 600;
+}
+.fin-crypto-price {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  color: var(--text-muted);
 }
 .fin-crypto-qty-input {
   width: 140px;

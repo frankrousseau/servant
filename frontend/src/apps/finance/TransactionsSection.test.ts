@@ -266,6 +266,46 @@ describe('TransactionsSection', () => {
     expect(wrapper.emitted('deleted')).toEqual([['d2']])
   })
 
+  it('groups near-date duplicates and preselects only likely twins', async () => {
+    // CSV and bank-API imports of the same movement: label worded
+    // differently by each source, booking date shifted by a day.
+    const csvTx = tx('n1', {
+      date: '2026-07-05',
+      description: 'VIR SEPA ACME CORP',
+      amount: -120
+    })
+    const apiTx = {
+      ...tx('n2', {
+        date: '2026-07-06',
+        description: 'Acme salary',
+        amount: -120
+      }),
+      source: 'enable_banking',
+      inserted_at: '2026-02-01T00:00:00Z'
+    }
+    // Same source, same amount, unrelated label: shown but not preselected.
+    const other = {
+      ...tx('n3', { date: '2026-07-06', description: 'Fnac', amount: -120 }),
+      inserted_at: '2026-03-01T00:00:00Z'
+    }
+    const { wrapper } = mountSection([...TXS, csvTx, apiTx, other])
+    await wrapper
+      .findAll('.ftx-dedup-btn')
+      .find(b => b.text() === 'Duplicates')!
+      .trigger('click')
+
+    const rows = wrapper.findAll('.ftx-dedup-row')
+    const state = rows.map(r => [
+      r.find('.ftx-label').text(),
+      (r.find('input').element as HTMLInputElement).checked
+    ])
+    expect(state).toEqual([
+      ['VIR SEPA ACME CORP', false],
+      ['Acme salary', true],
+      ['Fnac', false]
+    ])
+  })
+
   it('reports when there is nothing to deduplicate', async () => {
     const { wrapper } = mountSection()
     await wrapper

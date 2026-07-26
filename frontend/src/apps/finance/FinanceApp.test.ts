@@ -3,6 +3,10 @@ import { mount, flushPromises } from '@vue/test-utils'
 import FinanceApp from './FinanceApp.vue'
 import type { Entry } from '../types'
 
+vi.mock('./cryptoPrices', () => ({
+  fetchCryptoPrices: vi.fn(async () => ({ ETH: 3000 }))
+}))
+
 function entry(
   kind: string,
   attrs: Partial<Entry> & { data?: Record<string, unknown> } = {}
@@ -54,14 +58,21 @@ const STORE: Record<string, Entry[]> = {
 
 function makeCtx() {
   let nextId = 0
-  const create = vi.fn(
-    async (attrs: Record<string, unknown>) =>
-      ({
-        ...entry((attrs.kind as string) || 'entry'),
-        ...attrs,
-        id: `new${++nextId}`
-      }) as Entry
-  )
+  const created = new Map<string, Entry>()
+  const create = vi.fn(async (attrs: Record<string, unknown>) => {
+    const e = {
+      ...entry((attrs.kind as string) || 'entry'),
+      ...attrs,
+      id: `new${++nextId}`
+    } as Entry
+    created.set(e.id, e)
+    return e
+  })
+  const update = vi.fn(async (id: string, attrs: Record<string, unknown>) => {
+    const e = { ...(created.get(id) || entry('entry')), ...attrs, id } as Entry
+    created.set(id, e)
+    return e
+  })
   return {
     navigate: vi.fn(),
     confirm: { ask: vi.fn().mockResolvedValue(true) },
@@ -72,7 +83,7 @@ function makeCtx() {
             STORE[filters?.kind || ''] || []
         ),
         get: vi.fn(),
-        update: vi.fn(),
+        update,
         create,
         delete: vi.fn()
       },
@@ -138,5 +149,78 @@ describe('FinanceApp tabs', () => {
       c => (c[0] as { kind: string }).kind === 'account'
     )
     expect(accountCreates.length).toBe(1)
+  })
+
+  it('corrects the same day quantity instead of stacking records', async () => {
+    const ctx = makeCtx()
+    const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    await wrapper.findAll('.fin-tab')[2].trigger('click')
+    await wrapper.find('.fin-crypto-token').setValue('eth')
+    await wrapper.find('.fin-crypto-qty').setValue('1.5')
+    await wrapper.find('.fin-crypto-add').trigger('submit')
+    await flushPromises()
+
+    const input = wrapper.find('.fin-crypto-qty-input')
+    await input.setValue('2')
+    await input.trigger('change')
+    await flushPromises()
+
+    // new1 is the account, new2 the day's balance record: updated in place.
+    expect(ctx.api.entries.update).toHaveBeenCalledWith(
+      'new2',
+      expect.objectContaining({
+        data: expect.objectContaining({ amount: 2, currency: 'ETH' })
+      })
+    )
+    const balanceCreates = ctx.api.entries.create.mock.calls.filter(
+      c => (c[0] as { kind: string }).kind === 'balance'
+    )
+    expect(balanceCreates.length).toBe(1)
+  })
+
+  it('exposes an editable history per token', async () => {
+    const ctx = makeCtx()
+    const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    await wrapper.findAll('.fin-tab')[2].trigger('click')
+    await wrapper.find('.fin-crypto-token').setValue('eth')
+    await wrapper.find('.fin-crypto-qty').setValue('1.5')
+    await wrapper.find('.fin-crypto-add').trigger('submit')
+    await flushPromises()
+
+    await wrapper.find('.fin-account-caret').trigger('click')
+    const row = wrapper.find('.fin-history-row')
+    const recordInput = row.find('input')
+    expect((recordInput.element as HTMLInputElement).value).toBe('1.5')
+    await recordInput.setValue('3')
+    await recordInput.trigger('change')
+    await flushPromises()
+
+    expect(ctx.api.entries.update).toHaveBeenCalledWith(
+      'new2',
+      expect.objectContaining({
+        title: 'ETH: 3',
+        data: expect.objectContaining({ amount: 3 })
+      })
+    )
+  })
+
+  it('shows the spot price and value estimate for identifiable tokens', async () => {
+    const ctx = makeCtx()
+    const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    await wrapper.findAll('.fin-tab')[2].trigger('click')
+    await wrapper.find('.fin-crypto-token').setValue('eth')
+    await wrapper.find('.fin-crypto-qty').setValue('1.5')
+    await wrapper.find('.fin-crypto-add').trigger('submit')
+    await flushPromises()
+
+    // The thousands separator depends on the host locale.
+    expect(wrapper.find('.fin-crypto-price').text()).toMatch(/^3.000 EUR$/)
+    // No manual rate: the spot estimate steps in, marked approximate.
+    expect(wrapper.find('.fin-account-converted').text()).toMatch(
+      /^≈ 4.500 EUR$/
+    )
   })
 })
