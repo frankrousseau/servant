@@ -62,9 +62,9 @@ function txAmount(tx: Entry): number | null {
 }
 
 // The name an account matches transactions on.
-const accountTxName = (a: Account) => a.identifier || a.name
+export const accountTxName = (a: Account) => a.identifier || a.name
 
-function accountTxs(account: Account, bankTxs: Entry[]): Entry[] {
+export function accountTxs(account: Account, bankTxs: Entry[]): Entry[] {
   const key = norm(accountTxName(account))
   return bankTxs.filter(tx => norm(txAccountName(tx)) === key)
 }

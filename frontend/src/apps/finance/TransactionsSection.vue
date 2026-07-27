@@ -9,7 +9,12 @@ import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
 import { categoryColor, daysBetween, formatAmount } from './finance'
 
-const props = defineProps<{ ctx: AppContext; txs: Entry[] }>()
+const props = defineProps<{
+  ctx: AppContext
+  txs: Entry[]
+  // Set by the Accounts tab to land here filtered on one account.
+  focusAccount?: string | null
+}>()
 const emit = defineEmits<{ updated: [tx: Entry]; deleted: [id: string] }>()
 
 const PAGE = 50
@@ -66,6 +71,21 @@ const filtered = computed(() => {
 watch([accountFilter, categoryFilter, flowFilter], () => {
   shown.value = PAGE
 })
+
+// Case-insensitive: an account's identifier may not match the imported
+// casing exactly.
+watch(
+  () => props.focusAccount,
+  v => {
+    if (!v) return
+    const key = v.trim().toLowerCase()
+    const match = accountOptions.value.find(
+      o => o !== ALL_ACCOUNTS && o.trim().toLowerCase() === key
+    )
+    accountFilter.value = match || ALL_ACCOUNTS
+  },
+  { immediate: true }
+)
 
 const visible = computed(() => filtered.value.slice(0, shown.value))
 

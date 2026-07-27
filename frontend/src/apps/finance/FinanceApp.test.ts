@@ -112,6 +112,22 @@ describe('FinanceApp tabs', () => {
     expect(wrapper.findAll('.ftx-row').length).toBe(2)
   })
 
+  it('jumps from an account row to its transactions', async () => {
+    const wrapper = mount(FinanceApp, {
+      props: { ctx: makeCtx() as never }
+    })
+    await flushPromises()
+
+    const chip = wrapper.find('.fin-tx-btn')
+    expect(chip.text()).toBe('2')
+    await chip.trigger('click')
+    await flushPromises()
+
+    // Landed on the Spending tab, transactions list shown.
+    expect(wrapper.find('.ftx').exists()).toBe(true)
+    expect(wrapper.findAll('.ftx-row').length).toBe(2)
+  })
+
   it('cryptos tab records a token and its quantity', async () => {
     const ctx = makeCtx()
     const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })

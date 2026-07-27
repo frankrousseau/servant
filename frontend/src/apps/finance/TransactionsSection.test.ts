@@ -152,6 +152,16 @@ describe('TransactionsSection', () => {
     expect(wrapper.findAll('.ftx-label').map(n => n.text())).toEqual(['Salary'])
   })
 
+  it('presets the account filter from focusAccount, case-insensitive', () => {
+    const { ctx } = makeCtx()
+    const wrapper = mount(TransactionsSection, {
+      props: { ctx: ctx as never, txs: TXS, focusAccount: 'joint' }
+    })
+    expect(wrapper.findAll('.ftx-label').map(n => n.text())).toEqual([
+      'Restaurant'
+    ])
+  })
+
   it('saves a category typed in the inline editor', async () => {
     const { wrapper, update } = mountSection()
     await wrapper.findAll('.ftx-cat')[0].trigger('click')

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted, watch } from 'vue'
+import { ref, computed, reactive, nextTick, onMounted, watch } from 'vue'
 import type { AppContext, Entry } from '../types'
 import { todayInUserTz, zonedToUtcISO } from '../../lib/datetime'
 import { addDays } from '../calendar/recurrence'
@@ -10,6 +10,8 @@ import SpendingView from './SpendingView.vue'
 import TransactionsSection from './TransactionsSection.vue'
 import {
   ACCOUNT_TYPES,
+  accountTxName,
+  accountTxs,
   buildAccounts,
   formatAmount,
   freshnessDays,
@@ -227,6 +229,23 @@ function manualSnapshots(a: Account): Entry[] {
 function txObservationCount(a: Account): number {
   const total = (seriesByKey.value.get(a.key) || []).length
   return Math.max(0, total - manualSnapshots(a).length)
+}
+
+function txCount(a: Account): number {
+  return accountTxs(a, bankTxs.value).length
+}
+
+// The accounts <-> transactions bridge: jump to the Spending tab with the
+// transactions list filtered on this account.
+const txFocus = ref<string | null>(null)
+
+async function showTransactions(a: Account) {
+  txFocus.value = null
+  tab.value = 'spending'
+  await nextTick()
+  txFocus.value = accountTxName(a)
+  await nextTick()
+  document.querySelector('.ftx')?.scrollIntoView?.({ behavior: 'smooth' })
 }
 
 // ----- account CRUD -----
@@ -592,6 +611,7 @@ function saveShared(a: Account, shared: boolean) {
           v-if="bankTxs.length"
           :ctx="ctx"
           :txs="bankTxs"
+          :focus-account="txFocus"
           @updated="onTxUpdated"
           @deleted="onTxDeleted"
         />
@@ -740,8 +760,9 @@ function saveShared(a: Account, shared: boolean) {
         </p>
         <p v-else class="fin-model-hint">
           One row per account, the curve is their sum. A balance is whatever was
-          last observed: bank imports carry theirs, the others you record with
-          "record balance".
+          last observed: imported transactions carry one (the tx column opens an
+          account's transactions), the other accounts you record with "record
+          balance".
         </p>
 
         <section
@@ -783,6 +804,11 @@ function saveShared(a: Account, shared: boolean) {
               <span class="fin-account-name fin-col-label">account</span>
               <span class="fin-account-type fin-col-label">type</span>
               <span
+                class="fin-tx-col fin-col-label"
+                title="Imported transactions matched to this account"
+                >tx</span
+              >
+              <span
                 class="fin-fresh fin-col-label"
                 title="Age of the last observation"
                 >updated</span
@@ -805,6 +831,17 @@ function saveShared(a: Account, shared: boolean) {
                   >
                 </span>
                 <span class="fin-account-type">{{ a.type }}</span>
+                <span class="fin-tx-col">
+                  <button
+                    v-if="txCount(a)"
+                    class="fin-tx-btn"
+                    title="Show this account's transactions"
+                    @click="showTransactions(a)"
+                  >
+                    {{ txCount(a) }}
+                  </button>
+                  <template v-else>-</template>
+                </span>
                 <span
                   class="fin-fresh"
                   :class="freshness(a).level"
@@ -1285,6 +1322,26 @@ function saveShared(a: Account, shared: boolean) {
   gap: 0.35rem;
   width: 150px;
   flex-shrink: 0;
+}
+.fin-tx-col {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  width: 52px;
+}
+.fin-tx-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+.fin-tx-btn:hover {
+  color: var(--primary);
 }
 .fin-fresh {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
