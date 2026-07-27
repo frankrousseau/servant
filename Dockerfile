@@ -78,10 +78,11 @@ RUN chmod +x /app/docker-entrypoint.sh
 # Node 22 + scraper deps + Chromium add roughly 1 GB to the image; delete
 # this block (and the ENV line) if you do not use that connector.
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
-RUN apt-get update -y && apt-get install -y curl \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y nodejs \
-    && mkdir -p /opt/playwright \
+COPY --from=frontend /usr/local/bin/node /usr/local/bin/node
+COPY --from=frontend /usr/local/bin/npm /usr/local/bin/npm
+COPY --from=frontend /usr/local/bin/npx /usr/local/bin/npx
+COPY --from=frontend /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN mkdir -p /opt/playwright \
     && cd /app/lib/servant-*/priv/scrapers \
     && npm ci --omit=dev \
     && npx playwright install --with-deps chromium \
