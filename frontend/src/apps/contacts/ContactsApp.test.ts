@@ -310,5 +310,8 @@ describe('ContactsApp', () => {
       })
     )
     expect(wrapper.find('.ct-me-badge').exists()).toBe(true)
+    // The whole address book relates to me: the section would only be noise.
+    const sections = wrapper.findAll('.ct-section-title').map(t => t.text())
+    expect(sections).not.toContain('Relations')
   })
 })

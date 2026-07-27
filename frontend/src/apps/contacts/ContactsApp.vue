@@ -1014,7 +1014,8 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             </div>
           </div>
 
-          <div class="ct-section-card">
+          <!-- The whole address book relates to me: that list says nothing. -->
+          <div v-if="selected.id !== meId" class="ct-section-card">
             <h3 class="ct-section-title">Relations</h3>
             <div
               v-for="r in visibleRelations"
