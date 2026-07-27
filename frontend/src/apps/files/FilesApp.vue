@@ -46,6 +46,8 @@ const isFolder = (e: Entry) => !!field(e, 'is_folder')
 const fileSize = (e: Entry) => field<number>(e, 'size') || 0
 const parentId = (e: Entry) => field<string>(e, 'parent_id') || null
 const filePath = (e: Entry) => field<string>(e, 'path') || null
+const isImage = (e: Entry) =>
+  (field<string>(e, 'mime_type') || '').startsWith('image/')
 
 // ----- virtual read-only mounts (Notes, Photos, Invoices) -----
 // Other apps' entries surfaced as browse-only folders: notes keep their
@@ -780,7 +782,14 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
     </div>
     <div class="fs-detail-col">
       <div v-if="selected" class="fs-detail">
+        <img
+          v-if="filePath(selected) && isImage(selected)"
+          class="fs-detail-preview"
+          :src="filePath(selected)!"
+          :alt="fileName(selected)"
+        />
         <span
+          v-else
           class="fs-detail-icon"
           :class="{ 'fs-row-icon--folder': isFolder(selected) }"
         >
@@ -807,7 +816,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
             class="fs-download"
             :href="filePath(selected)!"
             target="_blank"
-            download
+            :download="fileName(selected)"
             >Download</a
           >
           <a
@@ -1147,6 +1156,13 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 }
 .fs-detail-icon {
   color: var(--text-muted);
+}
+.fs-detail-preview {
+  max-width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: 6px;
+  border: 1px solid var(--border);
 }
 .fs-detail-name {
   margin: 0;
