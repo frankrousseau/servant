@@ -137,12 +137,12 @@ RUN chmod +x /app/docker-entrypoint.sh
 # Invoice Collector: its Playwright scraper runs via node at sync time.
 # Node 22 + scraper deps + Chromium add roughly 1 GB to the image; delete
 # this block (and the ENV line) if you do not use that connector.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
 RUN apt-get update -y && apt-get install -y curl \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
-ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
-RUN cd /app/lib/servant-*/priv/scrapers \
+    && mkdir -p /opt/playwright \
+    && cd /app/lib/servant-*/priv/scrapers \
     && npm ci --omit=dev \
     && npx playwright install --with-deps chromium \
     && rm -rf /var/lib/apt/lists/* /root/.npm \
