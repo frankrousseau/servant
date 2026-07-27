@@ -16,6 +16,7 @@ import { safeUrl } from '../../lib/url'
 import { Cake, User } from 'lucide-vue-next'
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
+import RelationsGraph from './RelationsGraph.vue'
 import {
   RELATION_TYPES,
   inverseType,
@@ -235,6 +236,15 @@ async function toggleBirthdayOnDashboard() {
 
 const mePrefs = ref<Entry | null>(null)
 const meId = computed(() => (mePrefs.value?.data.contact_id as string) || null)
+
+// ----- relations graph view -----
+
+const graphOpen = ref(false)
+
+function onGraphSelect(id: string) {
+  graphOpen.value = false
+  selectContact(id)
+}
 
 async function toggleMe() {
   const id = selectedId.value
@@ -650,6 +660,14 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             filtered.length === 1 ? 'CONTACT' : 'CONTACTS'
           }}</span></span
         >
+        <button
+          class="ct-graph-btn"
+          :class="{ 'ct-graph-btn--active': graphOpen }"
+          title="Relations between contacts (links to you left out)"
+          @click="graphOpen = !graphOpen"
+        >
+          Graph
+        </button>
         <button class="ct-add-contact-btn" @click="openCreate">
           <svg
             width="16"
@@ -668,8 +686,18 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
         </button>
       </div>
       <div class="ct-detail-body">
+        <RelationsGraph
+          v-if="graphOpen"
+          :contacts="allContacts"
+          :me-id="meId"
+          @select="onGraphSelect"
+        />
         <!-- Create / edit -->
-        <form v-if="mode !== 'view'" class="ct-form" @submit.prevent="saveForm">
+        <form
+          v-else-if="mode !== 'view'"
+          class="ct-form"
+          @submit.prevent="saveForm"
+        >
           <h2 class="ct-form-title">
             {{ mode === 'create' ? 'New contact' : 'Edit contact' }}
           </h2>
@@ -1559,6 +1587,21 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   color: var(--danger);
   border-color: var(--danger);
   background: rgba(240, 108, 108, 0.08);
+}
+.ct-graph-btn {
+  height: 32px;
+  padding: 0 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.ct-graph-btn:hover,
+.ct-graph-btn--active {
+  border-color: var(--primary);
+  color: var(--primary);
 }
 .ct-add-contact-btn {
   display: inline-flex;
