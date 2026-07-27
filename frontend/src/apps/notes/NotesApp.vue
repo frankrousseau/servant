@@ -1428,7 +1428,7 @@ onBeforeUnmount(() => {
 }
 .nt-vb--active {
   background: var(--primary);
-  color: #05070f;
+  color: var(--primary-contrast);
 }
 .nt-fav-btn {
   background: transparent;

@@ -1013,7 +1013,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 }
 .fs-upload-dismiss:hover {
   background: var(--danger);
-  color: #05070f;
+  color: var(--primary-contrast);
 }
 
 /* Directory listing, ls style */

@@ -1434,7 +1434,7 @@ onUnmounted(() => {
 .ph-btn--primary {
   background: var(--primary);
   border-color: var(--primary);
-  color: #05070f;
+  color: var(--primary-contrast);
 }
 .ph-btn--primary:hover {
   background: var(--primary-hover);
@@ -1609,7 +1609,7 @@ onUnmounted(() => {
 }
 .ph-upload-dismiss:hover {
   background: var(--danger);
-  color: #05070f;
+  color: var(--primary-contrast);
 }
 .ph-scroll {
   flex: 1;

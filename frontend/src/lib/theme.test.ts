@@ -15,11 +15,12 @@ describe('applyTheme', () => {
     expect(document.documentElement.dataset.theme).toBe('night')
   })
 
-  it('exposes five themes with night first', () => {
+  it('exposes six themes with night first', () => {
     expect(THEMES.map(t => t.id)).toEqual([
       'night',
       'graphite',
       'day',
+      'cyanotype',
       'sepia',
       'rosewood'
     ])

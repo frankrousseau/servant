@@ -1,7 +1,7 @@
 defmodule Servant.Accounts.User do
   @moduledoc "User schema: credentials, profile, timezone and theme preferences."
 
-  @themes ~w(night graphite day sepia rosewood)
+  @themes ~w(night graphite day cyanotype sepia rosewood)
 
   use Ecto.Schema
   import Ecto.Changeset

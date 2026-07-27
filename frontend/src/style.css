@@ -85,6 +85,26 @@
   color-scheme: light;
 }
 
+/* Cyanotype: the blueprint print. Prussian blue ink on cold blue-white
+   paper; every gray in the page leans toward the blue of the process. */
+[data-theme='cyanotype'] {
+  --bg: #e9eff7;
+  --bg-surface: #f5f8fc;
+  --bg-hover: #dbe5f2;
+  --border: #c3d2e6;
+  --text: #16283e;
+  --text-muted: #58718f;
+  --primary: #1f4e96;
+  --primary-hover: #163c77;
+  --primary-rgb: 31, 78, 150;
+  --primary-contrast: #f5f8fc;
+  --danger: #bd3a55;
+  --danger-hover: #a02b44;
+  --success: #1d7d55;
+  --warning: #8f6a12;
+  color-scheme: light;
+}
+
 /* Dusty indigo rosewood: knit blankets and quiet mornings. Beige panels,
    indigo text and navigation, rosewood as the accent; no pure black. */
 [data-theme='rosewood'] {

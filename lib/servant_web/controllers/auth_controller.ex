@@ -470,7 +470,7 @@ defmodule ServantWeb.AuthController do
            timezone: %Schema{type: :string},
            theme: %Schema{
              type: :string,
-             enum: ["night", "graphite", "day", "sepia", "rosewood"]
+             enum: ["night", "graphite", "day", "cyanotype", "sepia", "rosewood"]
            },
            enabled_apps: %Schema{
              type: :array,

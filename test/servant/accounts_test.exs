@@ -51,7 +51,7 @@ defmodule Servant.AccountsTest do
     end
 
     test "accepts each known theme", %{user: user} do
-      for theme <- ~w(night graphite day sepia rosewood) do
+      for theme <- ~w(night graphite day cyanotype sepia rosewood) do
         assert {:ok, updated} = Accounts.update_profile(user, %{"theme" => theme})
         assert updated.theme == theme
       end

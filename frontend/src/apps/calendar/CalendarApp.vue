@@ -1034,7 +1034,7 @@ onUnmounted(destroyPickers)
 }
 .cal-toggle-btn--active {
   background: var(--primary);
-  color: #05070f;
+  color: var(--primary-contrast);
 }
 .cal-grid {
   display: grid;

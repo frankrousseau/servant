@@ -6,6 +6,11 @@ export const THEMES = [
   { id: 'night', name: 'Night', hint: 'CRT violet on black-blue glass' },
   { id: 'graphite', name: 'Graphite', hint: 'White phosphor, pure grays' },
   { id: 'day', name: 'Daylight', hint: 'Violet ink on cool paper' },
+  {
+    id: 'cyanotype',
+    name: 'Cyanotype',
+    hint: 'Prussian blue on blueprint paper'
+  },
   { id: 'sepia', name: 'Sepia', hint: 'Amber ink on warm paper' },
   {
     id: 'rosewood',
