@@ -53,14 +53,14 @@ defmodule Servant.DataTest do
       assert Data.get_entry!(b1.user_id, b1.id).id == b1.id
     end
 
-    test "delete_entries_by_kind removes only that kind for that user",
+    test "delete_entries_matching removes only that kind for that user",
          %{user_a: a, user_b: b, a2: a2, b1: b1} do
-      assert Data.delete_entries_by_kind(a.id, "task") == 1
+      assert Data.delete_entries_matching(a.id, %{"kind" => "task"}) == 1
       # A keeps the photo, B keeps their task.
       assert a.id |> Data.list_entries() |> Enum.map(& &1.id) == [a2.id]
       assert Data.get_entry!(b.id, b1.id).id == b1.id
       # Nothing left to delete: returns 0.
-      assert Data.delete_entries_by_kind(a.id, "task") == 0
+      assert Data.delete_entries_matching(a.id, %{"kind" => "task"}) == 0
     end
 
     test "filters never cross the user boundary", %{user_a: a, a1: a1, b1: b1} do

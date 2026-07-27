@@ -528,32 +528,52 @@ defmodule ServantWeb.EntryController do
     end
   end
 
-  operation(:delete_by_kind,
-    summary: "Delete all entries of a kind",
-    description: "Requires write scope on the kind's domain for an API token.",
-    parameters: [kind: [in: :query, type: :string, required: true]],
+  operation(:delete_matching,
+    summary: "Delete all entries matching the filters",
+    description:
+      "Deletes every entry matching the kind/source/from/to filters; kind or source is required. For an API token: write scope on the kind's domain, or data:write when no kind narrows the sweep.",
+    parameters: [
+      kind: [in: :query, type: :string, required: false],
+      source: [in: :query, type: :string, required: false],
+      from: [in: :query, type: :string, required: false],
+      to: [in: :query, type: :string, required: false]
+    ],
     responses: [
       ok: {"Deleted count", "application/json", Schemas.DeletedCount},
+      bad_request: {"Missing filter", "application/json", Schemas.Error},
       unauthorized: {"Unauthorized", "application/json", Schemas.Error},
       forbidden: {"Insufficient scope", "application/json", Schemas.Error}
     ]
   )
 
-  def delete_by_kind(conn, %{"kind" => kind}) when is_binary(kind) and kind != "" do
+  def delete_matching(conn, params) do
     user_id = conn.assigns.current_user.id
+    scopes = conn.assigns[:api_scopes]
 
-    if Scopes.can_kind?(conn.assigns[:api_scopes], kind, :write) do
-      count = Data.delete_entries_by_kind(user_id, kind)
-      json(conn, %{deleted: count})
-    else
-      forbidden(conn, required_for(kind, :write))
+    filters =
+      params
+      |> Map.take(["kind", "source", "from", "to"])
+      |> Map.reject(fn {_k, v} -> !is_binary(v) or String.trim(v) == "" end)
+
+    kind = filters["kind"]
+
+    cond do
+      filters["kind"] == nil and filters["source"] == nil ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: "kind or source query parameter is required"})
+
+      kind != nil and not Scopes.can_kind?(scopes, kind, :write) ->
+        forbidden(conn, required_for(kind, :write))
+
+      # Without a kind the sweep can span domains: full data:write only.
+      kind == nil and not Scopes.can?(scopes, "data", :write) ->
+        forbidden(conn, "data:write")
+
+      true ->
+        count = Data.delete_entries_matching(user_id, filters)
+        json(conn, %{deleted: count})
     end
-  end
-
-  def delete_by_kind(conn, _params) do
-    conn
-    |> put_status(:bad_request)
-    |> json(%{error: "kind query parameter is required"})
   end
 
   # Session tokens see everything. An explicit kind filter outside the token's

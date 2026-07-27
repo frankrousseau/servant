@@ -55,7 +55,7 @@ defmodule ServantWeb.Router do
       get "/entries/stats", EntryController, :stats
       get "/entries/stats/daily", EntryController, :daily_stats
       get "/entries/aggregate", EntryController, :aggregate
-      delete "/entries", EntryController, :delete_by_kind
+      delete "/entries", EntryController, :delete_matching
       resources "/entries", EntryController, except: [:new, :edit]
 
       get "/notes/mentioning/:entry_id", NotesController, :mentioning

@@ -180,16 +180,33 @@ async function saveEntry() {
 
 const { ask } = useConfirm()
 
-async function deleteAllOfKind() {
-  const kind = filterKind.value
-  if (!kind) return
+// Human description of the active filter, for the confirm message.
+const activeFilterLabel = computed(() => {
+  const parts: string[] = []
+  if (filterKind.value) parts.push(`kind "${filterKind.value}"`)
+  if (filterSource.value) parts.push(`source "${filterSource.value}"`)
+  if (filterDateFrom.value || filterDateTo.value) parts.push('the date range')
+  return parts.join(' and ')
+})
+
+async function deleteAllFiltered() {
+  if (!filterKind.value && !filterSource.value) return
   const ok = await ask({
-    message: `Delete all ${meta.value.total} "${kind}" entries? This cannot be undone.`
+    message: `Delete all ${meta.value.total} entries matching ${activeFilterLabel.value}? This cannot be undone.`,
+    danger: true
   })
   if (!ok) return
   try {
-    await api.del(`/api/entries?kind=${encodeURIComponent(kind)}`)
+    // Mirror fetchEntries exactly: what you see is what gets deleted.
+    const params = new URLSearchParams()
+    if (filterKind.value) params.set('kind', filterKind.value)
+    if (filterSource.value) params.set('source', filterSource.value)
+    if (filterDateFrom.value)
+      params.set('from', filterDateFrom.value + 'T00:00:00Z')
+    if (filterDateTo.value) params.set('to', filterDateTo.value + 'T23:59:59Z')
+    await api.del(`/api/entries?${params.toString()}`)
     filterKind.value = ''
+    filterSource.value = ''
     await fetchFilters()
   } catch (e) {
     pageError.value = errMessage(e, 'Failed to delete entries')
@@ -312,11 +329,41 @@ onMounted(() => {
           >{{ meta.total }} entries</span
         >
         <button
-          v-if="filterKind && meta.total > 0 && !loading"
+          v-if="(filterKind || filterSource) && meta.total > 0 && !loading"
           class="small danger"
-          @click="deleteAllOfKind"
+          @click="deleteAllFiltered"
         >
           Delete all
+        </button>
+      </div>
+
+      <!-- Same pagination as below the list, within reach of the filters. -->
+      <div
+        v-if="meta.total_pages > 1 && !loading"
+        class="pagination pagination--top"
+      >
+        <button
+          class="small"
+          :disabled="meta.page <= 1"
+          @click.stop="goToPage(meta.page - 1)"
+        >
+          &lsaquo;
+        </button>
+        <button
+          v-for="p in pageRange"
+          :key="p"
+          class="small"
+          :class="{ 'page-active': p === meta.page }"
+          @click.stop="goToPage(p)"
+        >
+          {{ p }}
+        </button>
+        <button
+          class="small"
+          :disabled="meta.page >= meta.total_pages"
+          @click.stop="goToPage(meta.page + 1)"
+        >
+          &rsaquo;
         </button>
       </div>
     </div>
@@ -626,6 +673,11 @@ onMounted(() => {
   gap: 0.35rem;
   justify-content: center;
   padding: 1rem 0;
+}
+
+.pagination--top {
+  justify-content: flex-start;
+  padding: 0.5rem 0 0;
 }
 
 .page-active {

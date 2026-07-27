@@ -46,7 +46,7 @@ defmodule ServantWeb.EntryControllerTest do
     end
   end
 
-  describe "delete_by_kind" do
+  describe "delete_matching" do
     test "deletes all entries of the kind and returns the count", %{conn: conn, user: user} do
       entry_fixture(user.id, %{"kind" => "bookmark"})
       entry_fixture(user.id, %{"kind" => "bookmark"})
@@ -58,7 +58,28 @@ defmodule ServantWeb.EntryControllerTest do
       assert remaining_ids == [keep.id]
     end
 
-    test "400 without a kind param", %{conn: conn} do
+    test "deletes by source across kinds", %{conn: conn, user: user} do
+      entry_fixture(user.id, %{"kind" => "commit", "source" => "github"})
+      entry_fixture(user.id, %{"kind" => "issue", "source" => "github"})
+      keep = entry_fixture(user.id, %{"kind" => "commit", "source" => "gitlab"})
+
+      conn = delete(conn, "/api/entries?source=github")
+      assert json_response(conn, 200) == %{"deleted" => 2}
+      remaining_ids = user.id |> Servant.Data.list_entries() |> Enum.map(& &1.id)
+      assert remaining_ids == [keep.id]
+    end
+
+    test "combines kind and source filters", %{conn: conn, user: user} do
+      entry_fixture(user.id, %{"kind" => "commit", "source" => "github"})
+      keep = entry_fixture(user.id, %{"kind" => "issue", "source" => "github"})
+
+      conn = delete(conn, "/api/entries?kind=commit&source=github")
+      assert json_response(conn, 200) == %{"deleted" => 1}
+      remaining_ids = user.id |> Servant.Data.list_entries() |> Enum.map(& &1.id)
+      assert remaining_ids == [keep.id]
+    end
+
+    test "400 without a kind or source param", %{conn: conn} do
       conn = delete(conn, "/api/entries?kind=")
       assert %{"error" => _} = json_response(conn, 400)
     end
