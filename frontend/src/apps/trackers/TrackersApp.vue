@@ -128,11 +128,15 @@ watch([windowEnd, weeksVisible], () => {
 
 const today = computed(() => todayInUserTz())
 
-const trackers = computed<Tracker[]>(() =>
-  trackerEntries.value
+const searchQuery = ref('')
+
+const trackers = computed<Tracker[]>(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  return trackerEntries.value
     .map(trackerFromEntry)
+    .filter(t => !q || t.name.toLowerCase().includes(q))
     .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
-)
+})
 
 const mapsById = computed(() => {
   const m = new Map<string, Map<string, number>>()
@@ -346,12 +350,21 @@ async function removeTracker(tracker: Tracker) {
           back to today
         </button>
         <span class="tk-spacer"></span>
+        <input
+          v-model="searchQuery"
+          class="tk-search"
+          type="text"
+          placeholder="Find a tracker..."
+        />
         <button class="tk-new" @click="openModal">+ Tracker</button>
       </div>
 
       <p v-if="!trackers.length" class="tk-placeholder">
-        Nothing tracked yet. A tracker can be anything: did I play guitar today,
-        how many drinks, this morning's weight…
+        {{
+          searchQuery
+            ? 'No tracker matches.'
+            : "Nothing tracked yet. A tracker can be anything: did I play guitar today, how many drinks, this morning's weight…"
+        }}
       </p>
 
       <div class="tk-grid">
@@ -453,6 +466,11 @@ async function removeTracker(tracker: Tracker) {
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 1rem;
+}
+.tk-search {
+  width: 190px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.85rem;
 }
 .tk-date {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
