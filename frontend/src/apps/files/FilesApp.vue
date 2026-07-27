@@ -920,7 +920,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   width: 180px;
   padding: 0.4rem 0.65rem;
   font-size: 0.85rem;
-  border-radius: 8px;
+  border-radius: 0 8px 8px 0;
 }
 .fs-type-filter {
   width: 150px;

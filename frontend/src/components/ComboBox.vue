@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 // Styled replacement for native <select>: the OS dropdown can't be themed,
 // this one speaks the night-terminal language (violet rail on the active
@@ -48,6 +48,37 @@ watch(query, () => {
   activeIndex.value = filtered.value.length ? 0 : -1
 })
 
+// The panel teleports to <body> (overflow ancestors would clip an inline
+// dropdown) and is fixed-positioned from the control's rect; scrolling any
+// ancestor repositions it. Flips above when the viewport bottom is close.
+const panelStyle = ref<Record<string, string>>({})
+
+function reposition() {
+  const rect = root.value?.getBoundingClientRect()
+  if (!rect) return
+  const spaceBelow = window.innerHeight - rect.bottom
+  const openUp = spaceBelow < 280 && rect.top > spaceBelow
+  panelStyle.value = {
+    left: `${rect.left}px`,
+    minWidth: `${rect.width}px`,
+    ...(openUp
+      ? { bottom: `${window.innerHeight - rect.top + 4}px` }
+      : { top: `${rect.bottom + 4}px` })
+  }
+}
+
+function watchViewport(on: boolean) {
+  if (on) {
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+  } else {
+    window.removeEventListener('scroll', reposition, true)
+    window.removeEventListener('resize', reposition)
+  }
+}
+
+onBeforeUnmount(() => watchViewport(false))
+
 // On searchable combos the control itself becomes the filter input while
 // open; swapping focused elements fires a focusout with no related target,
 // which must not close the panel we just opened.
@@ -57,6 +88,8 @@ function openPanel() {
   open.value = true
   query.value = ''
   activeIndex.value = opts.value.findIndex(o => o.value === props.modelValue)
+  reposition()
+  watchViewport(true)
   swapping = true
   void nextTick(() => {
     searchEl.value?.focus()
@@ -69,6 +102,7 @@ function close() {
   open.value = false
   activeIndex.value = -1
   query.value = ''
+  watchViewport(false)
 }
 
 function toggle() {
@@ -187,26 +221,28 @@ function onFocusout(e: FocusEvent) {
       </span>
       <span class="cb-caret" aria-hidden="true">▾</span>
     </button>
-    <div v-if="open" class="cb-panel">
-      <div ref="listEl" class="cb-list" role="listbox">
-        <div
-          v-for="(option, i) in filtered"
-          :key="option.value"
-          class="cb-option"
-          :class="{
-            'cb-option--active': i === activeIndex,
-            'cb-option--selected': option.value === modelValue
-          }"
-          role="option"
-          :aria-selected="option.value === modelValue"
-          @mousedown.prevent="select(option)"
-          @mousemove="activeIndex = i"
-        >
-          {{ option.label }}
+    <Teleport to="body">
+      <div v-if="open" class="cb-panel" :style="panelStyle">
+        <div ref="listEl" class="cb-list" role="listbox">
+          <div
+            v-for="(option, i) in filtered"
+            :key="option.value"
+            class="cb-option"
+            :class="{
+              'cb-option--active': i === activeIndex,
+              'cb-option--selected': option.value === modelValue
+            }"
+            role="option"
+            :aria-selected="option.value === modelValue"
+            @mousedown.prevent="select(option)"
+            @mousemove="activeIndex = i"
+          >
+            {{ option.label }}
+          </div>
+          <p v-if="!filtered.length" class="cb-empty">No match.</p>
         </div>
-        <p v-if="!filtered.length" class="cb-empty">No match.</p>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
@@ -222,7 +258,8 @@ function onFocusout(e: FocusEvent) {
   gap: 0.5rem;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  /* Flat left edge, the house input signature. */
+  border-radius: 0 8px 8px 0;
   color: var(--text);
   padding: 0.45rem 0.65rem;
   font-size: 0.9rem;
@@ -259,11 +296,9 @@ function onFocusout(e: FocusEvent) {
   color: var(--text-muted);
 }
 .cb-panel {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 40;
-  min-width: 100%;
+  /* Teleported to <body>; sits above modal overlays (z 100). */
+  position: fixed;
+  z-index: 200;
   width: max-content;
   max-width: 320px;
   background: var(--bg-surface);
