@@ -42,12 +42,16 @@ if config_env() == :prod do
   # want to use a different value for prod and you most likely don't want
   # to check this value into version control, so we use an environment
   # variable instead.
-  secret_key_base =
-    System.get_env("SECRET_KEY_BASE") ||
-      raise """
-      environment variable SECRET_KEY_BASE is missing.
-      You can generate one by calling: mix phx.gen.secret
-      """
+  # Empty counts as missing: docker-compose interpolates an unset variable
+  # to "" rather than leaving it undefined.
+  secret_key_base = String.trim(System.get_env("SECRET_KEY_BASE") || "")
+
+  if secret_key_base == "" do
+    raise """
+    environment variable SECRET_KEY_BASE is missing.
+    You can generate one by calling: mix phx.gen.secret
+    """
+  end
 
   host = System.get_env("PHX_HOST") || "example.com"
 

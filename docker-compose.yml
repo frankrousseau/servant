@@ -6,7 +6,9 @@ services:
     ports:
       - "4000:4000"
     environment:
-      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?run mix phx.gen.secret and put it in .env}
+      # Required at container start (the release refuses to boot without it);
+      # optional here so `docker compose build` works without a .env.
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-}
       PHX_HOST: ${PHX_HOST:-localhost}
       DATABASE_PATH: /data/servant.db
       PHX_SERVER: "true"
