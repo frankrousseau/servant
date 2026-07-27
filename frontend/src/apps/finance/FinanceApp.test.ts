@@ -95,18 +95,26 @@ function makeCtx() {
 }
 
 describe('FinanceApp tabs', () => {
-  it('shows the Spending tab with chart and table', async () => {
+  it('lands on the overview, then shows the Spending tab', async () => {
     const wrapper = mount(FinanceApp, {
       props: { ctx: makeCtx() as never }
     })
     await flushPromises()
 
     const tabs = wrapper.findAll('.fin-tab')
-    expect(tabs.map(t => t.text())).toEqual(['Accounts', 'Spending', 'Cryptos'])
-    // The default universe goes untitled.
-    expect(wrapper.text()).not.toContain('Tradfi')
+    expect(tabs.map(t => t.text())).toEqual([
+      'Overview',
+      'Accounts',
+      'Spending',
+      'Cryptos'
+    ])
+    // The landing tab answers "where am I", management waits in Accounts.
+    expect(wrapper.find('.ov-hero').exists()).toBe(true)
 
     await tabs[1].trigger('click')
+    expect(wrapper.text()).not.toContain('Tradfi')
+
+    await tabs[2].trigger('click')
     expect(wrapper.find('.sp-chart').exists()).toBe(true)
     expect(wrapper.find('.sp-table').exists()).toBe(true)
     expect(wrapper.findAll('.ftx-row').length).toBe(2)
@@ -117,6 +125,7 @@ describe('FinanceApp tabs', () => {
       props: { ctx: makeCtx() as never }
     })
     await flushPromises()
+    await wrapper.findAll('.fin-tab')[1].trigger('click')
 
     const chip = wrapper.find('.fin-tx-btn')
     expect(chip.text()).toBe('2')
@@ -132,7 +141,7 @@ describe('FinanceApp tabs', () => {
     const ctx = makeCtx()
     const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
     await flushPromises()
-    await wrapper.findAll('.fin-tab')[2].trigger('click')
+    await wrapper.findAll('.fin-tab')[3].trigger('click')
 
     await wrapper.find('.fin-crypto-token').setValue('eth')
     await wrapper.find('.fin-crypto-qty').setValue('1,5')
@@ -171,7 +180,7 @@ describe('FinanceApp tabs', () => {
     const ctx = makeCtx()
     const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
     await flushPromises()
-    await wrapper.findAll('.fin-tab')[2].trigger('click')
+    await wrapper.findAll('.fin-tab')[3].trigger('click')
     await wrapper.find('.fin-crypto-token').setValue('eth')
     await wrapper.find('.fin-crypto-qty').setValue('1.5')
     await wrapper.find('.fin-crypto-add').trigger('submit')
@@ -199,7 +208,7 @@ describe('FinanceApp tabs', () => {
     const ctx = makeCtx()
     const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
     await flushPromises()
-    await wrapper.findAll('.fin-tab')[2].trigger('click')
+    await wrapper.findAll('.fin-tab')[3].trigger('click')
     await wrapper.find('.fin-crypto-token').setValue('eth')
     await wrapper.find('.fin-crypto-qty').setValue('1.5')
     await wrapper.find('.fin-crypto-add').trigger('submit')
@@ -226,7 +235,7 @@ describe('FinanceApp tabs', () => {
     const ctx = makeCtx()
     const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
     await flushPromises()
-    await wrapper.findAll('.fin-tab')[2].trigger('click')
+    await wrapper.findAll('.fin-tab')[3].trigger('click')
     await wrapper.find('.fin-crypto-token').setValue('eth')
     await wrapper.find('.fin-crypto-qty').setValue('1.5')
     await wrapper.find('.fin-crypto-add').trigger('submit')

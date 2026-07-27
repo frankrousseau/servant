@@ -5,6 +5,7 @@ import { todayInUserTz, zonedToUtcISO } from '../../lib/datetime'
 import { addDays } from '../calendar/recurrence'
 import ComboBox from '../../components/ComboBox.vue'
 import BalanceChart from './BalanceChart.vue'
+import OverviewView from './OverviewView.vue'
 import { fetchCryptoPrices } from './cryptoPrices'
 import SpendingView from './SpendingView.vue'
 import TransactionsSection from './TransactionsSection.vue'
@@ -33,9 +34,10 @@ const CRYPTO_COLOR = '#6ccec9'
 
 // ----- data -----
 
-type Tab = 'accounts' | 'spending' | 'cryptos'
-const tab = ref<Tab>('accounts')
+type Tab = 'overview' | 'accounts' | 'spending' | 'cryptos'
+const tab = ref<Tab>('overview')
 const TABS: Array<{ id: Tab; label: string }> = [
+  { id: 'overview', label: 'Overview' },
   { id: 'accounts', label: 'Accounts' },
   { id: 'spending', label: 'Spending' },
   { id: 'cryptos', label: 'Cryptos' }
@@ -600,7 +602,18 @@ function saveShared(a: Account, shared: boolean) {
         </button>
       </div>
 
-      <template v-if="tab === 'spending'">
+      <OverviewView
+        v-if="tab === 'overview'"
+        :accounts="accounts"
+        :series-by-key="seriesByKey"
+        :txs="bankTxs"
+        :rates="rates"
+        :ref-currency="refCurrency"
+        :today="today"
+        @go="tab = $event"
+      />
+
+      <template v-else-if="tab === 'spending'">
         <SpendingView
           :txs="bankTxs"
           :accounts="accounts"
