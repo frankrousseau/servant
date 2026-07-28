@@ -5,7 +5,6 @@ import { useAppsStore } from './stores/apps'
 import { agentsEnabled } from './apps/registry'
 import { useRouter } from 'vue-router'
 import {
-  LayoutDashboard,
   Database,
   Cable,
   Settings,
@@ -92,29 +91,15 @@ function handleLogout() {
         </svg>
         Servant
       </router-link>
+      <!-- The brand logo already lands on the dashboard; apps only here,
+           the config-flavored surfaces (Data, Sources, Agents) live below. -->
       <ul class="sidebar-nav">
-        <li>
-          <router-link to="/">
-            <LayoutDashboard :size="18" />Dashboard
-          </router-link>
-        </li>
         <li v-for="app in apps.defs" :key="app.id">
           <router-link :to="`/apps/${app.id}`">
             <component :is="appIcons[app.icon] ?? Puzzle" :size="18" />{{
               app.name
             }}
           </router-link>
-        </li>
-        <li>
-          <router-link to="/data"> <Database :size="18" />Data </router-link>
-        </li>
-        <li>
-          <router-link to="/connectors">
-            <Cable :size="18" />Sources
-          </router-link>
-        </li>
-        <li v-if="showAgents">
-          <router-link to="/agents"> <Wrench :size="18" />Agents </router-link>
         </li>
       </ul>
       <router-link
@@ -140,6 +125,15 @@ function handleLogout() {
         {{
           filesProgress ? `${filesProgress.index}/${filesProgress.total}` : ''
         }}
+      </router-link>
+      <router-link to="/data" class="sidebar-settings-link">
+        <Database :size="18" />Data
+      </router-link>
+      <router-link to="/connectors" class="sidebar-settings-link">
+        <Cable :size="18" />Sources
+      </router-link>
+      <router-link v-if="showAgents" to="/agents" class="sidebar-settings-link">
+        <Wrench :size="18" />Agents
       </router-link>
       <router-link
         v-if="auth.user?.admin"
