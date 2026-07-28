@@ -337,11 +337,7 @@ onMounted(() => {
         </button>
       </div>
 
-      <!-- Same pagination as below the list, within reach of the filters. -->
-      <div
-        v-if="meta.total_pages > 1 && !loading"
-        class="pagination pagination--top"
-      >
+      <div v-if="meta.total_pages > 1 && !loading" class="pagination">
         <button
           class="small"
           :disabled="meta.page <= 1"
@@ -394,33 +390,6 @@ onMounted(() => {
           </span>
         </div>
         <span class="entry-kind-badge">{{ entry.kind }}</span>
-      </div>
-
-      <!-- Pagination -->
-      <div v-if="meta.total_pages > 1" class="pagination">
-        <button
-          class="small"
-          :disabled="meta.page <= 1"
-          @click.stop="goToPage(meta.page - 1)"
-        >
-          &lsaquo;
-        </button>
-        <button
-          v-for="p in pageRange"
-          :key="p"
-          class="small"
-          :class="{ 'page-active': p === meta.page }"
-          @click.stop="goToPage(p)"
-        >
-          {{ p }}
-        </button>
-        <button
-          class="small"
-          :disabled="meta.page >= meta.total_pages"
-          @click.stop="goToPage(meta.page + 1)"
-        >
-          &rsaquo;
-        </button>
       </div>
     </div>
 
@@ -672,11 +641,6 @@ onMounted(() => {
   display: flex;
   gap: 0.35rem;
   justify-content: center;
-  padding: 1rem 0;
-}
-
-.pagination--top {
-  justify-content: flex-start;
   padding: 0.5rem 0 0;
 }
 
