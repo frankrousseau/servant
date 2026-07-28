@@ -1590,6 +1590,9 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   background: rgba(240, 108, 108, 0.08);
 }
 .ct-graph-btn {
+  /* The topbar is space-between: push the button into the right group. */
+  margin-left: auto;
+  margin-right: 0.5rem;
   height: 32px;
   padding: 0 0.75rem;
   border-radius: 8px;

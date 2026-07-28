@@ -117,6 +117,26 @@ const graph = computed(() => {
 
   return { nodes: arr, byId: nodes, edges }
 })
+
+const NODE_R = 14
+
+// Edge endpoints pulled back to the circle borders, so lines never run
+// under the nodes they connect.
+function edgeEnds(e: Edge) {
+  const a = graph.value.byId.get(e.a)!
+  const b = graph.value.byId.get(e.b)!
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const d = Math.sqrt(dx * dx + dy * dy) || 1
+  const off = NODE_R + 3
+  if (d <= off * 2) return { x1: a.x, y1: a.y, x2: a.x, y2: a.y }
+  return {
+    x1: a.x + (dx / d) * off,
+    y1: a.y + (dy / d) * off,
+    x2: b.x - (dx / d) * off,
+    y2: b.y - (dy / d) * off
+  }
+}
 </script>
 
 <template>
@@ -136,10 +156,7 @@ const graph = computed(() => {
         v-for="e in graph.edges"
         :key="`${e.a}|${e.b}`"
         class="rg-edge"
-        :x1="graph.byId.get(e.a)!.x"
-        :y1="graph.byId.get(e.a)!.y"
-        :x2="graph.byId.get(e.b)!.x"
-        :y2="graph.byId.get(e.b)!.y"
+        v-bind="edgeEnds(e)"
       >
         <title>{{ relationLabel(e.type) }}</title>
       </line>
@@ -152,10 +169,12 @@ const graph = computed(() => {
         @click="emit('select', n.id)"
         @keydown.enter="emit('select', n.id)"
       >
+        <!-- Opaque underlay: edges passing by never show through the disc. -->
+        <circle :cx="n.x" :cy="n.y" :r="NODE_R" class="rg-node-bg" />
         <circle
           :cx="n.x"
           :cy="n.y"
-          r="14"
+          :r="NODE_R"
           :fill="`hsla(${n.hue}, 55%, 60%, 0.22)`"
           :stroke="`hsl(${n.hue}, 45%, 55%)`"
         />
@@ -186,6 +205,9 @@ const graph = computed(() => {
 .rg-edge {
   stroke: var(--border);
   stroke-width: 1.2;
+}
+.rg-node-bg {
+  fill: var(--bg-surface);
 }
 .rg-node {
   cursor: pointer;
