@@ -260,8 +260,10 @@ function onFocusout(e: FocusEvent) {
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
-  padding: 0.45rem 0.65rem;
-  font-size: 0.9rem;
+  /* Same vertical metrics as the global input rule, so a combo sitting
+     next to a text input lines up. */
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
   cursor: pointer;
   text-align: left;
 }
