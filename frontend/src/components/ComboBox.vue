@@ -258,8 +258,7 @@ function onFocusout(e: FocusEvent) {
   gap: 0.5rem;
   background: var(--bg);
   border: 1px solid var(--border);
-  /* Flat left edge, the house input signature. */
-  border-radius: 0 8px 8px 0;
+  border-radius: 8px;
   color: var(--text);
   padding: 0.45rem 0.65rem;
   font-size: 0.9rem;
@@ -314,7 +313,8 @@ function onFocusout(e: FocusEvent) {
 }
 .cb-option {
   padding: 0.42rem 0.65rem;
-  border-radius: 6px;
+  /* Flat left edge, flush with the active rail (same as palette rows). */
+  border-radius: 0 6px 6px 0;
   font-size: 0.85rem;
   cursor: pointer;
   white-space: nowrap;

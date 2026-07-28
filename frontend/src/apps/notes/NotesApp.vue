@@ -1304,7 +1304,7 @@ onBeforeUnmount(() => {
   min-width: 0;
   padding: 0.3rem 0.5rem;
   font-size: 0.85rem;
-  border-radius: 0 6px 6px 0;
+  border-radius: 6px;
 }
 .nt-note {
   padding: 0.45rem 0.5rem;

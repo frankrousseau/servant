@@ -447,8 +447,7 @@ select {
   padding: 0.75rem 1rem;
   background: var(--bg);
   border: 1px solid var(--border);
-  /* Flat left edge: the same language as the violet rail on active rows. */
-  border-radius: 0 10px 10px 0;
+  border-radius: 10px;
   color: var(--text);
   font-size: 1rem;
   font-family: inherit;
