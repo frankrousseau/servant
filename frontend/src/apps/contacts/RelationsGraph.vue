@@ -42,6 +42,35 @@ interface Edge {
   type: string
 }
 
+// Connected components, largest first (BFS over the edge adjacency).
+function componentsOf(ids: string[], edges: Edge[]): string[][] {
+  const adj = new Map<string, string[]>()
+  for (const e of edges) {
+    adj.set(e.a, [...(adj.get(e.a) || []), e.b])
+    adj.set(e.b, [...(adj.get(e.b) || []), e.a])
+  }
+  const seen = new Set<string>()
+  const out: string[][] = []
+  for (const id of ids) {
+    if (seen.has(id)) continue
+    const comp: string[] = []
+    const queue = [id]
+    seen.add(id)
+    while (queue.length) {
+      const cur = queue.shift()!
+      comp.push(cur)
+      for (const next of adj.get(cur) || []) {
+        if (!seen.has(next)) {
+          seen.add(next)
+          queue.push(next)
+        }
+      }
+    }
+    out.push(comp)
+  }
+  return out.sort((a, b) => b.length - a.length)
+}
+
 const graph = computed(() => {
   const byId = new Map(props.contacts.map(c => [c.id, c]))
   const edges: Edge[] = []
@@ -61,21 +90,36 @@ const graph = computed(() => {
   }
 
   const ids = [...new Set(edges.flatMap(e => [e.a, e.b]))]
+
+  // Disconnected groups each get their own patch of canvas (grid cell) and
+  // gravitate toward its center, so unrelated families never pile up.
+  const comps = componentsOf(ids, edges)
+  const cols = Math.ceil(Math.sqrt(comps.length))
+  const rows = Math.ceil(comps.length / cols)
+  const cellW = W / cols
+  const cellH = H / rows
+  const centers = new Map<string, { x: number; y: number }>()
   const nodes = new Map<string, Node>()
-  ids.forEach((id, i) => {
-    const name = nameOf(byId.get(id)!)
-    const angle = i * 2.399963
-    const radius = 90 + 200 * Math.sqrt(i / Math.max(ids.length - 1, 1))
-    nodes.set(id, {
-      id,
-      name,
-      hue: hueOf(name),
-      x: W / 2 + radius * Math.cos(angle),
-      y: H / 2 + radius * Math.sin(angle) * 0.72
+  comps.forEach((comp, ci) => {
+    const cx = (ci % cols) * cellW + cellW / 2
+    const cy = Math.floor(ci / cols) * cellH + cellH / 2
+    const rmax = Math.max(40, Math.min(cellW, cellH) / 2 - 50)
+    comp.forEach((id, i) => {
+      const name = nameOf(byId.get(id)!)
+      const angle = i * 2.399963
+      const radius = rmax * Math.sqrt((i + 1) / comp.length)
+      centers.set(id, { x: cx, y: cy })
+      nodes.set(id, {
+        id,
+        name,
+        hue: hueOf(name),
+        x: cx + radius * Math.cos(angle),
+        y: cy + radius * Math.sin(angle) * 0.85
+      })
     })
   })
 
-  // Fixed-step relaxation: pair repulsion, edge springs, light centering.
+  // Fixed-step relaxation: pair repulsion, edge springs, per-group gravity.
   const arr = [...nodes.values()]
   for (let iter = 0; iter < 150; iter++) {
     for (let i = 0; i < arr.length; i++) {
@@ -106,8 +150,9 @@ const graph = computed(() => {
       b.y -= (dy / d) * f
     }
     for (const n of arr) {
-      n.x += (W / 2 - n.x) * 0.01
-      n.y += (H / 2 - n.y) * 0.01
+      const c = centers.get(n.id)!
+      n.x += (c.x - n.x) * 0.02
+      n.y += (c.y - n.y) * 0.02
     }
   }
   for (const n of arr) {

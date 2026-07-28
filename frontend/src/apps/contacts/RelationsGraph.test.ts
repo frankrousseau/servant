@@ -48,6 +48,27 @@ describe('RelationsGraph', () => {
     ])
   })
 
+  it('keeps disconnected groups in separate regions', () => {
+    const contacts = [
+      contact('a', 'Alice', [{ contact_id: 'b', type: 'sibling' }]),
+      contact('b', 'Bob', [{ contact_id: 'a', type: 'sibling' }]),
+      contact('c', 'Carol', [{ contact_id: 'd', type: 'friend' }]),
+      contact('d', 'Dave', [{ contact_id: 'c', type: 'friend' }])
+    ]
+    const wrapper = mount(RelationsGraph, { props: { contacts, meId: null } })
+
+    const xs = new Map(
+      wrapper.findAll('.rg-node').map(g => [
+        g.find('.rg-label').text(),
+        // circle 0 is the opaque underlay; both share cx.
+        parseFloat(g.find('circle').attributes('cx')!)
+      ])
+    )
+    const left = Math.max(xs.get('Alice')!, xs.get('Bob')!)
+    const right = Math.min(xs.get('Carol')!, xs.get('Dave')!)
+    expect(left).toBeLessThan(right)
+  })
+
   it('explains itself when no inter-contact relation exists', () => {
     const wrapper = mount(RelationsGraph, {
       props: {
