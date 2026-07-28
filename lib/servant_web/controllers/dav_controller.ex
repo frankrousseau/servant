@@ -24,10 +24,14 @@ defmodule ServantWeb.DavController do
   alias Servant.CardDAV
   alias Servant.CardDAV.VCard
   alias Servant.Dav
+  alias Servant.FilesDav
+  alias Servant.Storage
 
   @dav_compliance "1, 3, calendar-access, addressbook"
-  @allow "OPTIONS, GET, HEAD, PUT, DELETE, PROPFIND, REPORT"
+  @allow "OPTIONS, GET, HEAD, PUT, DELETE, PROPFIND, REPORT, MKCOL"
   @addressbook "contacts"
+  # Same ceiling as the upload endpoint.
+  @max_put_bytes 1_073_741_824
 
   def well_known(conn, _params) do
     conn
@@ -41,8 +45,10 @@ defmodule ServantWeb.DavController do
       "PROPFIND" -> authorized(conn, segments, :read, &propfind/2)
       "REPORT" -> authorized(conn, segments, :read, &report/2)
       "GET" -> authorized(conn, segments, :read, &get_resource/2)
+      "HEAD" -> authorized(conn, segments, :read, &get_resource/2)
       "PUT" -> authorized(conn, segments, :write, &put_resource/2)
       "DELETE" -> authorized(conn, segments, :write, &delete_resource/2)
+      "MKCOL" -> authorized(conn, segments, :write, &mkcol/2)
       "PROPPATCH" -> send_resp(conn, 403, "")
       _ -> conn |> put_resp_header("allow", @allow) |> send_resp(405, "")
     end
@@ -65,6 +71,9 @@ defmodule ServantWeb.DavController do
 
         ["addressbooks" | _] ->
           Scopes.can?(scopes, "contacts", action)
+
+        ["files" | _] ->
+          Scopes.can?(scopes, "files", action)
 
         # Root and principal serve the discovery of both trees.
         _ ->
@@ -195,6 +204,37 @@ defmodule ServantWeb.DavController do
     end)
   end
 
+  defp propfind(conn, ["files" | rest]) do
+    u = user(conn)
+    entries = FilesDav.tree(u.id)
+
+    case FilesDav.resolve(entries, rest) do
+      {:folder, folder} ->
+        self_name = if folder, do: FilesDav.name(folder), else: "files"
+        self_resp = [response_xml(files_href(rest, true), folder_props(self_name))]
+
+        children =
+          if depth(conn) > 0 do
+            for child <- FilesDav.children(entries, folder && folder.id) do
+              child_href =
+                files_href(rest ++ [FilesDav.name(child)], FilesDav.folder?(child))
+
+              response_xml(child_href, file_props(child))
+            end
+          else
+            []
+          end
+
+        multistatus(conn, self_resp ++ children)
+
+      {:file, entry} ->
+        multistatus(conn, [response_xml(files_href(rest, false), file_props(entry))])
+
+      :not_found ->
+        send_resp(conn, 404, "")
+    end
+  end
+
   defp propfind(conn, _), do: send_resp(conn, 404, "")
 
   # ----- REPORT (multiget / query) -----
@@ -282,7 +322,31 @@ defmodule ServantWeb.DavController do
     end)
   end
 
+  defp get_resource(conn, ["files" | rest]) do
+    u = user(conn)
+
+    case FilesDav.resolve(FilesDav.tree(u.id), rest) do
+      {:file, entry} -> send_stored_file(conn, u.id, entry)
+      {:folder, _} -> conn |> put_resp_header("allow", @allow) |> send_resp(405, "")
+      :not_found -> send_resp(conn, 404, "")
+    end
+  end
+
   defp get_resource(conn, _), do: send_resp(conn, 404, "")
+
+  defp send_stored_file(conn, user_id, entry) do
+    with path when is_binary(path) <- entry.data["path"],
+         relative when is_binary(relative) <- Storage.relative_from_public(path),
+         {:ok, absolute} <- Storage.resolve_owned_path(user_id, relative),
+         {:ok, _stat} <- File.stat(absolute) do
+      conn
+      |> put_resp_header("etag", Dav.etag(entry))
+      |> put_resp_content_type(entry.data["mime_type"] || "application/octet-stream")
+      |> send_file(200, absolute)
+    else
+      _ -> send_resp(conn, 404, "")
+    end
+  end
 
   defp send_payload(conn, entry, content_type, payload) do
     conn
@@ -309,7 +373,75 @@ defmodule ServantWeb.DavController do
     end)
   end
 
+  defp put_resource(conn, ["files" | rest]) when rest != [] do
+    u = user(conn)
+
+    case stream_body_to_tmp(conn, u.id) do
+      {:ok, tmp, conn} ->
+        result = FilesDav.put_file(u.id, FilesDav.tree(u.id), rest, tmp)
+        Storage.cleanup_tmp(Path.dirname(tmp))
+
+        case result do
+          {:ok, :created, entry} ->
+            conn |> put_resp_header("etag", Dav.etag(entry)) |> send_resp(201, "")
+
+          {:ok, :updated, entry} ->
+            conn |> put_resp_header("etag", Dav.etag(entry)) |> send_resp(204, "")
+
+          {:error, :conflict} ->
+            send_resp(conn, 409, "")
+
+          {:error, _} ->
+            send_resp(conn, 400, "")
+        end
+
+      {:too_large, tmp, conn} ->
+        Storage.cleanup_tmp(Path.dirname(tmp))
+        send_resp(conn, 413, "")
+
+      {:read_error, tmp, conn} ->
+        Storage.cleanup_tmp(Path.dirname(tmp))
+        send_resp(conn, 400, "")
+    end
+  end
+
   defp put_resource(conn, _), do: send_resp(conn, 404, "")
+
+  # Bodies can be large (photos, videos): stream chunks to a tmp file
+  # instead of the single 8MB read the ICS/vCard paths get away with.
+  defp stream_body_to_tmp(conn, user_id) do
+    dir = Storage.tmp_workspace(user_id)
+    path = Path.join(dir, "dav-body")
+    file = File.open!(path, [:write, :binary])
+
+    try do
+      stream_chunks(conn, file, path, 0)
+    after
+      File.close(file)
+    end
+  end
+
+  defp stream_chunks(conn, file, path, total) do
+    case read_body(conn, length: 8_000_000) do
+      {:ok, chunk, conn} ->
+        IO.binwrite(file, chunk)
+
+        if total + byte_size(chunk) > @max_put_bytes,
+          do: {:too_large, path, conn},
+          else: {:ok, path, conn}
+
+      {:more, chunk, conn} ->
+        IO.binwrite(file, chunk)
+        new_total = total + byte_size(chunk)
+
+        if new_total > @max_put_bytes,
+          do: {:too_large, path, conn},
+          else: stream_chunks(conn, file, path, new_total)
+
+      {:error, _reason} ->
+        {:read_error, path, conn}
+    end
+  end
 
   defp upsert(conn, existing, put_fun) do
     with_body(conn, fn body, conn ->
@@ -351,7 +483,32 @@ defmodule ServantWeb.DavController do
     end)
   end
 
+  defp delete_resource(conn, ["files" | rest]) when rest != [] do
+    u = user(conn)
+    entries = FilesDav.tree(u.id)
+
+    case FilesDav.resolve(entries, rest) do
+      :not_found ->
+        send_resp(conn, 404, "")
+
+      {_kind, entry} ->
+        FilesDav.delete(u.id, entries, entry)
+        send_resp(conn, 204, "")
+    end
+  end
+
   defp delete_resource(conn, _), do: send_resp(conn, 404, "")
+
+  defp mkcol(conn, ["files" | rest]) when rest != [] do
+    case FilesDav.mkcol(user(conn).id, FilesDav.tree(user(conn).id), rest) do
+      {:ok, _} -> send_resp(conn, 201, "")
+      {:error, :exists} -> send_resp(conn, 405, "")
+      {:error, :conflict} -> send_resp(conn, 409, "")
+      {:error, _} -> send_resp(conn, 400, "")
+    end
+  end
+
+  defp mkcol(conn, _), do: send_resp(conn, 405, "")
 
   defp remove(conn, existing, delete_fun) do
     case existing do
@@ -415,6 +572,50 @@ defmodule ServantWeb.DavController do
   end
 
   # ----- hrefs -----
+
+  defp files_href(segments, collection?) do
+    base = "/dav/files/" <> Enum.map_join(segments, "/", &encode_segment/1)
+    if collection? and segments != [], do: base <> "/", else: base
+  end
+
+  defp folder_props(name) do
+    [
+      "<d:displayname>",
+      xml_escape(name),
+      "</d:displayname><d:resourcetype><d:collection/></d:resourcetype>"
+    ]
+  end
+
+  defp file_props(entry) do
+    if FilesDav.folder?(entry) do
+      folder_props(FilesDav.name(entry))
+    else
+      [
+        "<d:displayname>",
+        xml_escape(FilesDav.name(entry)),
+        "</d:displayname><d:resourcetype/>",
+        "<d:getcontentlength>",
+        to_string(entry.data["size"] || 0),
+        "</d:getcontentlength>",
+        "<d:getcontenttype>",
+        xml_escape(entry.data["mime_type"] || "application/octet-stream"),
+        "</d:getcontenttype>",
+        "<d:getlastmodified>",
+        http_date(entry.updated_at),
+        "</d:getlastmodified>",
+        "<d:getetag>",
+        xml_escape(Dav.etag(entry)),
+        "</d:getetag>"
+      ]
+    end
+  end
+
+  defp http_date(%DateTime{} = dt), do: Calendar.strftime(dt, "%a, %d %b %Y %H:%M:%S GMT")
+
+  defp http_date(%NaiveDateTime{} = ndt),
+    do: ndt |> DateTime.from_naive!("Etc/UTC") |> http_date()
+
+  defp http_date(_), do: ""
 
   defp principal_href(u), do: "/dav/principals/#{u.id}/"
   defp cal_home_href(u), do: "/dav/calendars/#{u.id}/"

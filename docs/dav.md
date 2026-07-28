@@ -1,9 +1,11 @@
-# CalDAV / CardDAV endpoint
+# CalDAV / CardDAV / WebDAV endpoint
 
 Servant exposes a minimal DAV server at `/dav` so a phone can sync the
 Calendar app (CalDAV, RFC 4791 subset) and the Contacts app (CardDAV,
 RFC 6352 subset) two ways, tested against the discovery and sync flows
-used by iOS and DAVx5 on Android.
+used by iOS and DAVx5 on Android. The Files app is also reachable over
+plain WebDAV at `/dav/files` (see below), which is the recommended way
+to auto-upload a phone's camera roll.
 
 ## Client setup
 
@@ -39,6 +41,24 @@ them.
   round-trips even though the apps only understand their simple fields.
   Editing an item in Servant regenerates the payload from those fields
   (and drops the extras).
+
+## Files over WebDAV (`/dav/files`)
+
+The Files app tree is served as a WebDAV class 1 subset: `PROPFIND`
+(depth 0/1), `GET`, `PUT`, `MKCOL` and `DELETE` (recursive on folders).
+Folders map to Files-app folders, names resolve on the file name, and
+anything uploaded here appears in the Files app (source `webdav`) and
+vice versa.
+
+- Token scope: `app:files:read` / `app:files:write` (or the transversal
+  `data:*`).
+- Auto-upload apps (PhotoSync, FolderSync, rclone…) pointed at
+  `https://<your-host>/dav/files/<folder>` with the `srv_` token as Basic
+  password can back up a camera roll unattended. Re-uploading an existing
+  name replaces the file rather than duplicating it.
+- No locks (class 2), no `MOVE`/`COPY`: fine for sync apps; mounting as a
+  network drive in Windows Explorer (which demands `LOCK`) is out of
+  scope.
 
 ## Protocol notes (implementation)
 
