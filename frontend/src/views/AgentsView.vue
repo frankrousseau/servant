@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import MarkdownIt from 'markdown-it'
 import ComboBox from '../components/ComboBox.vue'
 import { useApi } from '../composables/useApi'
 import { useConfirm } from '../composables/useConfirm'
 import { useAppsStore } from '../stores/apps'
 import { formatDate } from '../lib/datetime'
+import { renderMarkdown } from '../lib/markdown'
 import { Wrench, Play, Pencil, Trash2, Undo2, Plus } from 'lucide-vue-next'
 import type { Agent, AgentRun, AiConfig, Entry } from '../types'
 
@@ -144,13 +144,12 @@ function reportContent(r: Entry): string {
   return typeof r.data.content === 'string' ? r.data.content : ''
 }
 
-// html: false (the default) escapes any HTML the model emits, so v-html below
-// only ever injects markup produced by markdown-it itself.
-const md = new MarkdownIt({ breaks: true, linkify: true })
 const rawReport = ref(false)
 
+// The renderer escapes the model's HTML, so v-html below only injects markup
+// markdown-it produced itself (see lib/markdown.ts).
 function reportHtml(r: Entry): string {
-  return md.render(reportContent(r))
+  return renderMarkdown(reportContent(r))
 }
 
 function lastRunOf(agentId: string) {
@@ -1187,14 +1186,63 @@ onMounted(() => {
 .report-rendered :deep(ol) {
   padding-left: 1.25rem;
 }
+.report-rendered :deep(.md-table-wrap) {
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
 .report-rendered :deep(table) {
   border-collapse: collapse;
-  margin: 0.5rem 0;
 }
 .report-rendered :deep(th),
 .report-rendered :deep(td) {
   border: 1px solid var(--border);
   padding: 0.25rem 0.5rem;
+  white-space: nowrap;
+}
+.report-rendered :deep(th) {
+  background: var(--bg);
+  text-align: left;
+}
+.report-rendered :deep(code) {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.85em;
+  padding: 0.05em 0.3em;
+}
+.report-rendered :deep(pre) {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow-x: auto;
+  padding: 0.6rem 0.8rem;
+}
+/* A block already has the frame: the inner code tag shouldn't add a second. */
+.report-rendered :deep(pre code) {
+  background: none;
+  border: none;
+  padding: 0;
+}
+.report-rendered :deep(blockquote) {
+  border-left: 3px solid var(--border);
+  color: var(--text-muted);
+  margin: 0.5rem 0;
+  padding: 0.1rem 0 0.1rem 0.75rem;
+}
+.report-rendered :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.75rem 0;
+}
+.report-rendered :deep(li.md-task) {
+  list-style: none;
+  margin-left: -1rem;
+}
+.report-rendered :deep(li.md-task input) {
+  margin-right: 0.4rem;
+}
+.report-rendered :deep(a) {
+  color: var(--primary);
 }
 .mode-badge {
   border: 1px solid var(--border);
