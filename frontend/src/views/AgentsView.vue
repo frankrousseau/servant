@@ -96,22 +96,44 @@ async function loadRecurrentRuns() {
   ).data
 }
 
-async function loadReports() {
-  const [ai, det] = await Promise.all([
-    api.get<{ data: Entry[] }>('/api/entries', {
-      kind: 'ai_report',
-      per_page: '200'
-    }),
-    api.get<{ data: Entry[] }>('/api/entries', {
-      kind: 'report',
-      per_page: '200'
-    })
-  ])
-  reports.value = [...ai.data, ...det.data].sort((a, b) =>
-    (b.occurred_at || b.inserted_at).localeCompare(
-      a.occurred_at || a.inserted_at
-    )
+const REPORTS_PER_PAGE = 20
+const reportQuery = ref('')
+const reportPage = ref(1)
+const reportTotal = ref(0)
+let reportSearchTimer: ReturnType<typeof setTimeout> | undefined
+
+// Both report kinds (ai_report from a prompt agent, report from a recipe one)
+// carry source "agent", so one paginated query covers them, newest first.
+async function loadReports(opts: { append?: boolean } = {}) {
+  // A plain reload (after a run, on mount) starts over at the first page, so
+  // the list can't end up showing page 3 alone.
+  if (!opts.append) reportPage.value = 1
+
+  const params: Record<string, string> = {
+    source: 'agent',
+    page: String(reportPage.value),
+    per_page: String(REPORTS_PER_PAGE)
+  }
+  const q = reportQuery.value.trim()
+  if (q) params.q = q
+
+  const res = await api.get<{ data: Entry[]; meta: { total: number } }>(
+    '/api/entries',
+    params
   )
+  reportTotal.value = res.meta.total
+  reports.value = opts.append ? [...reports.value, ...res.data] : res.data
+}
+
+// Searching restarts at the first page; typing shouldn't fire a request per key.
+function onReportSearch() {
+  clearTimeout(reportSearchTimer)
+  reportSearchTimer = setTimeout(() => void loadReports(), 300)
+}
+
+async function loadMoreReports() {
+  reportPage.value += 1
+  await loadReports({ append: true })
 }
 
 function reportsOf(agentId: string) {
@@ -629,6 +651,13 @@ onMounted(() => {
         <section v-if="agents.length" class="card">
           <div class="card-body">
             <h3 class="app-subhead">Reports</h3>
+            <input
+              v-model="reportQuery"
+              class="report-search"
+              type="search"
+              placeholder="Search reports..."
+              @input="onReportSearch"
+            />
             <template v-for="a in agents" :key="a.id">
               <template v-if="reportsOf(a.id).length">
                 <p class="report-agent-name">{{ a.name }}</p>
@@ -680,8 +709,13 @@ onMounted(() => {
               v-if="!agents.some(a => reportsOf(a.id).length)"
               class="tk-empty"
             >
-              No reports yet.
+              {{ reportQuery ? 'No report matches.' : 'No reports yet.' }}
             </p>
+            <div v-if="reports.length < reportTotal" class="report-more">
+              <button type="button" @click="loadMoreReports">
+                Load more ({{ reports.length }} of {{ reportTotal }})
+              </button>
+            </div>
           </div>
         </section>
 
@@ -1052,6 +1086,14 @@ onMounted(() => {
   overflow: hidden;
 }
 
+.report-search {
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+.report-more {
+  margin-top: 0.75rem;
+  text-align: center;
+}
 .report-agent-name {
   font-size: 0.85rem;
   color: var(--text);

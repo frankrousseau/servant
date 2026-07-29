@@ -23,6 +23,47 @@ defmodule ServantWeb.EntryControllerTest do
       conn = get(build_conn(), "/api/entries")
       assert json_response(conn, 401)
     end
+
+    # What the Agents page reports list relies on: both report kinds share
+    # source "agent", so one paged, searchable query covers them.
+    test "pages and searches a source, across kinds", %{conn: conn, user: user} do
+      for i <- 1..3 do
+        entry_fixture(user.id, %{
+          "kind" => "ai_report",
+          "source" => "agent",
+          "title" => "Spend #{i}",
+          "data" => %{"content" => "body #{i}"}
+        })
+      end
+
+      entry_fixture(user.id, %{
+        "kind" => "report",
+        "source" => "agent",
+        "title" => "Recipe digest",
+        "data" => %{"content" => "counted"}
+      })
+
+      entry_fixture(user.id, %{
+        "kind" => "bookmark",
+        "source" => "ui",
+        "title" => "Spend elsewhere"
+      })
+
+      page = get(conn, "/api/entries", %{"source" => "agent", "per_page" => "2"})
+      assert %{"data" => data, "meta" => meta} = json_response(page, 200)
+      assert length(data) == 2
+      assert meta["total"] == 4
+
+      second = get(conn, "/api/entries", %{"source" => "agent", "per_page" => "2", "page" => "2"})
+      assert length(json_response(second, 200)["data"]) == 2
+
+      # Search hits the stored content too, and stays inside the source.
+      found = get(conn, "/api/entries", %{"source" => "agent", "q" => "counted"})
+      assert [%{"title" => "Recipe digest"}] = json_response(found, 200)["data"]
+
+      scoped = get(conn, "/api/entries", %{"source" => "agent", "q" => "Spend"})
+      assert length(json_response(scoped, 200)["data"]) == 3
+    end
   end
 
   describe "create" do
