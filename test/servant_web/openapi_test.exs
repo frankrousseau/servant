@@ -10,9 +10,15 @@ defmodule ServantWeb.OpenApiTest do
     assert spec["components"]["securitySchemes"]["bearerAuth"]["scheme"] == "bearer"
   end
 
-  test "serves SwaggerUI", %{conn: conn} do
-    conn = get(conn, "/api/docs")
-    assert response(conn, 200) =~ "swagger"
+  test "serves SwaggerUI with same-origin assets only", %{conn: conn} do
+    body = response(get(conn, "/api/docs"), 200)
+
+    assert body =~ "swagger-ui"
+    assert body =~ ~s(href="/swagger/swagger-ui.css")
+    assert body =~ ~s(src="/swagger/swagger-ui-bundle.js")
+    # The page must work on an instance with no internet access.
+    refute body =~ "//unpkg.com"
+    refute body =~ "//cdn."
   end
 
   # Known limitation: the check is path-keyed, so a second /api route reusing

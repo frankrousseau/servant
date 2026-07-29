@@ -35,7 +35,7 @@ defmodule ServantWeb.Router do
     pipe_through :openapi
 
     get "/openapi.json", OpenApiSpex.Plug.RenderSpec, []
-    get "/docs", OpenApiSpex.Plug.SwaggerUI, path: "/api/openapi.json"
+    get "/docs", ServantWeb.DocsController, :index
   end
 
   scope "/api", ServantWeb do

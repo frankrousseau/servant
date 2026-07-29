@@ -18,7 +18,10 @@ defmodule ServantWeb do
   """
 
   # `models` holds the face-detection weights (frontend/public/models).
-  def static_paths, do: ~w(assets fonts images models favicon.ico robots.txt index.html)
+  # "swagger" holds the SwaggerUI assets the frontend build copies in, served
+  # to the /api/docs page (ServantWeb.DocsController).
+  def static_paths,
+    do: ~w(assets fonts images models swagger favicon.ico robots.txt index.html)
 
   def router do
     quote do
