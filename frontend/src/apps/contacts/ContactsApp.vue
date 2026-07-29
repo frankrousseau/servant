@@ -362,6 +362,42 @@ function removeTag(tag: string) {
   mutateTags(cur => cur.filter(t => t !== tag))
 }
 
+// ----- renaming a tag everywhere (double-click a chip in the filter bar) -----
+
+const renamingTag = ref<string | null>(null)
+const renameTagValue = ref('')
+const renameTagInput = ref<HTMLInputElement | null>(null)
+
+async function startRenameTag(tag: string) {
+  renamingTag.value = tag
+  renameTagValue.value = tag
+  await nextTick()
+  renameTagInput.value?.select()
+}
+
+function commitRenameTag() {
+  const from = renamingTag.value
+  const to = renameTagValue.value.trim().toLowerCase()
+  renamingTag.value = null
+  if (!from || !to || to === from) return
+  // Every carrier is rewritten through the same serialized chain as a single
+  // tag edit, so a rename can't clobber a queued write; a contact that already
+  // carries the target tag just ends up with one instead of two.
+  for (const c of allContacts.value) {
+    if (!tagsOf(c).includes(from)) continue
+    queueDataSave(c.id, entry => {
+      const cur = tagsOf(entry)
+      if (!cur.includes(from)) return null
+      return {
+        ...entry.data,
+        tags: [...new Set(cur.map(t => (t === from ? to : t)))]
+      }
+    })
+  }
+  // The filter follows the tag it was pointing at.
+  activeTags.value = activeTags.value.map(t => (t === from ? to : t))
+}
+
 // ----- relations (reciprocal, saved immediately on both cards) -----
 
 // ComboBox speaks strings; addRelation narrows back to RelationType.
@@ -638,15 +674,27 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
         />
       </div>
       <div v-if="allTags.length" class="ct-tag-bar">
-        <button
-          v-for="t in allTags"
-          :key="t"
-          class="ct-tag-chip"
-          :class="{ 'ct-tag-chip--active': activeTags.includes(t) }"
-          @click="toggleTagFilter(t)"
-        >
-          {{ t }}
-        </button>
+        <template v-for="t in allTags" :key="t">
+          <input
+            v-if="renamingTag === t"
+            :ref="el => (renameTagInput = el as HTMLInputElement | null)"
+            class="ct-tag-rename"
+            v-model="renameTagValue"
+            @keyup.enter="commitRenameTag"
+            @keyup.esc="renamingTag = null"
+            @blur="commitRenameTag"
+          />
+          <button
+            v-else
+            class="ct-tag-chip"
+            :class="{ 'ct-tag-chip--active': activeTags.includes(t) }"
+            title="Double-click to rename everywhere"
+            @click="toggleTagFilter(t)"
+            @dblclick="startRenameTag(t)"
+          >
+            {{ t }}
+          </button>
+        </template>
         <button
           v-if="activeTags.length > 1"
           class="ct-tag-chip ct-tag-clear"
@@ -1302,6 +1350,15 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .ct-tag-clear {
   color: var(--text-muted);
   border-style: dashed;
+}
+.ct-tag-rename {
+  width: 7rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--primary);
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--text);
+  font-size: 0.78rem;
 }
 .ct-count {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

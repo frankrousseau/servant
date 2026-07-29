@@ -320,6 +320,35 @@ describe('ContactsApp', () => {
     expect(wrapper.findAll('.ct-card')).toHaveLength(2)
   })
 
+  it('renames a tag on every contact carrying it', async () => {
+    const contacts = [
+      contact('a', 'Alice', { tags: ['famly', 'paris'] }),
+      contact('b', 'Bob', { tags: ['famly'] }),
+      contact('c', 'Carol', { tags: ['paris'] })
+    ]
+    const { ctx, update } = makeCtx(contacts)
+    const wrapper = mount(ContactsApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+
+    const chip = wrapper
+      .findAll('.ct-tag-chip')
+      .find(c => c.text() === 'famly')!
+    await chip.trigger('dblclick')
+    const input = wrapper.find('.ct-tag-rename')
+    await input.setValue('  Family  ')
+    await input.trigger('keyup.enter')
+    await flushPromises()
+
+    expect(update).toHaveBeenCalledWith('a', {
+      data: expect.objectContaining({ tags: ['family', 'paris'] })
+    })
+    expect(update).toHaveBeenCalledWith('b', {
+      data: expect.objectContaining({ tags: ['family'] })
+    })
+    // Carol never carried it.
+    expect(update).not.toHaveBeenCalledWith('c', expect.anything())
+  })
+
   it('previews the photos where the contact has a named face', async () => {
     const alice = contact('a', 'Alice')
     const photo = (id: string, thumb: string, personId: string): Entry => ({
