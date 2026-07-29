@@ -75,6 +75,54 @@ defmodule Servant.CardDAV.VCardTest do
       assert vcf =~ "ADR;TYPE=HOME:;;12 rue du Bac\\, Paris;;;;"
     end
 
+    test "exports tags as CATEGORIES and relations as RELATED" do
+      entry = %Entry{
+        id: "11111111-2222-3333-4444-555555555555",
+        title: "Jeanne Dupont",
+        occurred_at: nil,
+        updated_at: ~U[2026-07-13 10:00:00Z],
+        external_id: nil,
+        data: %{
+          "display_name" => "Jeanne Dupont",
+          "tags" => ["family", "pa,ris", "", 42],
+          "relations" => [
+            %{"contact_id" => "c-bob", "type" => "sibling"},
+            %{"contact_id" => "c-zoe", "type" => "climbing partner"},
+            %{"contact_id" => "c-gone", "type" => "friend"},
+            %{"type" => "friend"}
+          ]
+        }
+      }
+
+      names = %{"c-bob" => "Bob", "c-zoe" => "Zoé Martin"}
+      vcf = VCard.to_vcf(entry, names: names)
+
+      # Empty and non-string tags dropped; a comma inside a tag escaped so it
+      # can't split the list.
+      assert vcf =~ "CATEGORIES:family,pa\\,ris"
+      assert vcf =~ "RELATED;TYPE=SIBLING;VALUE=text:Bob"
+      # A type with a space can't be a bare param value.
+      assert vcf =~ ~s(RELATED;TYPE="climbing partner";VALUE=text:Zoé Martin)
+      # Unknown target and malformed relation are skipped.
+      refute vcf =~ "c-gone"
+      assert length(String.split(vcf, "RELATED")) == 3
+    end
+
+    test "carries no CATEGORIES or RELATED when there is nothing to export" do
+      entry = %Entry{
+        id: "id",
+        title: "T",
+        occurred_at: nil,
+        updated_at: ~U[2026-07-13 10:00:00Z],
+        external_id: nil,
+        data: %{"display_name" => "T", "tags" => [], "relations" => []}
+      }
+
+      vcf = VCard.to_vcf(entry)
+      refute vcf =~ "CATEGORIES"
+      refute vcf =~ "RELATED"
+    end
+
     test "returns the stored raw vCard while the entry is untouched" do
       raw = "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Raw\r\nEND:VCARD\r\n"
 

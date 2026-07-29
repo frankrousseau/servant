@@ -28,6 +28,18 @@ defmodule Servant.CardDAV do
   def resource_name(entry), do: entry.data["carddav_filename"] || "#{entry.id}.vcf"
 
   @doc """
+  Display name of every contact of the user, by entry id. Relations point at
+  entry ids while a vCard points at people, so rendering one contact's RELATED
+  lines needs the others' names. Connector-synced contacts are included even
+  though they are not exposed as resources: a relation may well point at one.
+  """
+  def contact_names(user_id) do
+    user_id
+    |> Data.all_entries(%{"kind" => "contact"})
+    |> Map.new(&{&1.id, &1.data["display_name"] || &1.title || "Unnamed"})
+  end
+
+  @doc """
   Creates or updates a contact from a vCard payload.
   Returns `{:ok, entry, :created | :updated}` or `{:error, reason}`.
   """

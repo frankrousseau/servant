@@ -269,7 +269,11 @@ defmodule ServantWeb.DavController do
     with_owner(conn, uid, fn ->
       with_body(conn, fn body, conn ->
         u = user(conn)
-        props = fn contact -> data_props(contact, VCard.to_vcf(contact), "card:address-data") end
+        names = CardDAV.contact_names(u.id)
+
+        props = fn contact ->
+          data_props(contact, VCard.to_vcf(contact, names: names), "card:address-data")
+        end
 
         responses =
           if String.contains?(body, "multiget") do
@@ -315,9 +319,15 @@ defmodule ServantWeb.DavController do
 
   defp get_resource(conn, ["addressbooks", uid, @addressbook, name]) do
     with_owner(conn, uid, fn ->
-      case CardDAV.get_contact(user(conn).id, name) do
-        nil -> send_resp(conn, 404, "")
-        contact -> send_payload(conn, contact, "text/vcard", VCard.to_vcf(contact))
+      u = user(conn)
+
+      case CardDAV.get_contact(u.id, name) do
+        nil ->
+          send_resp(conn, 404, "")
+
+        contact ->
+          vcf = VCard.to_vcf(contact, names: CardDAV.contact_names(u.id))
+          send_payload(conn, contact, "text/vcard", vcf)
       end
     end)
   end

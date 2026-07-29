@@ -89,9 +89,13 @@ defmodule Servant.CardDAV.VCard do
   Renders a contact entry as a vCard 3.0. Returns the raw vCard a client
   stored if the entry was not touched since, otherwise synthesizes one
   from the entry fields.
+
+  `:names` maps contact ids to display names (see `Servant.CardDAV.contact_names/1`)
+  and is what turns stored relations into RELATED lines; without it the
+  synthesized card simply carries none.
   """
-  def to_vcf(entry) do
-    fresh_raw(entry) || synthesize(entry)
+  def to_vcf(entry, opts \\ []) do
+    fresh_raw(entry) || synthesize(entry, Keyword.get(opts, :names, %{}))
   end
 
   defp fresh_raw(entry) do
@@ -107,7 +111,7 @@ defmodule Servant.CardDAV.VCard do
   @doc "UID exposed over CardDAV; client-supplied when available."
   def uid(entry), do: entry.external_id || "#{entry.id}@servant"
 
-  defp synthesize(entry) do
+  defp synthesize(entry, names) do
     d = entry.data
     name = d["display_name"] || entry.title || "Unnamed"
 
@@ -128,6 +132,8 @@ defmodule Servant.CardDAV.VCard do
         optional_line("NOTE", d["note"]) ++
         optional_line("BDAY", d["birthday"]) ++
         address_line(d["address"]) ++
+        categories_line(d["tags"]) ++
+        related_lines(d["relations"], names) ++
         ["END:VCARD", ""]
 
     Enum.join(lines, "\r\n")
@@ -153,6 +159,46 @@ defmodule Servant.CardDAV.VCard do
 
   defp address_line(value) when value in [nil, ""], do: []
   defp address_line(value), do: ["ADR;TYPE=HOME:;;#{escape(value)};;;;"]
+
+  # Tags become CATEGORIES, the property clients surface as groups. The value
+  # is a comma-separated list, and escape/1 already escapes a comma inside a
+  # tag, so joining after escaping is safe.
+  defp categories_line(tags) when is_list(tags) do
+    case Enum.filter(tags, &(is_binary(&1) and &1 != "")) do
+      [] -> []
+      list -> ["CATEGORIES:" <> Enum.map_join(list, ",", &escape/1)]
+    end
+  end
+
+  defp categories_line(_tags), do: []
+
+  # Relations point at entry ids while a vCard points at people, so RELATED
+  # carries the target's name as text: the one form every client renders, and
+  # the only one that still works when the target is not exposed as a resource
+  # (connector-synced contacts). A target we can't name is skipped.
+  defp related_lines(relations, names) when is_list(relations) do
+    Enum.flat_map(relations, fn
+      %{"contact_id" => id, "type" => type} when is_binary(id) and is_binary(type) ->
+        case Map.get(names, id) do
+          nil -> []
+          name -> ["RELATED;TYPE=#{type_param(type)};VALUE=text:#{escape(name)}"]
+        end
+
+      _ ->
+        []
+    end)
+  end
+
+  defp related_lines(_relations, _names), do: []
+
+  # A custom relation type can hold spaces, which a bare param value can't.
+  defp type_param(type) do
+    if String.match?(type, ~r/\A[A-Za-z0-9-]+\z/) do
+      String.upcase(type)
+    else
+      ~s("#{String.replace(type, ~s("), "")}")
+    end
+  end
 
   defp escape(text) do
     text
