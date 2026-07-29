@@ -23,13 +23,13 @@ import { facesOf } from '../photos/faces'
 import {
   RELATION_TYPES,
   inverseType,
+  normalizeRelationType,
   relationLabel,
   relationsOf,
   tagsOf,
   withRelation,
   withoutRelation,
-  type Relation,
-  type RelationType
+  type Relation
 } from './relations'
 
 const props = defineProps<{ ctx: AppContext }>()
@@ -400,14 +400,19 @@ function commitRenameTag() {
 
 // ----- relations (reciprocal, saved immediately on both cards) -----
 
-// ComboBox speaks strings; addRelation narrows back to RelationType.
 const newRelType = ref<string>('friend')
 const newRelId = ref('')
 
-const relTypeOptions = RELATION_TYPES.map(t => ({
-  value: t,
-  label: relationLabel(t)
-}))
+// Free text with suggestions, not a closed list: the six built-in types plus
+// whatever custom ones the address book already uses.
+const relTypeOptions = computed(() => {
+  const used = new Set<string>()
+  for (const c of allContacts.value) {
+    for (const r of relationsOf(c)) used.add(r.type)
+  }
+  for (const t of RELATION_TYPES) used.delete(t)
+  return [...RELATION_TYPES, ...[...used].sort()]
+})
 
 const relTargets = computed(() =>
   allContacts.value.filter(c => c.id !== selectedId.value)
@@ -442,9 +447,9 @@ function queueRelationsSave(
 function addRelation() {
   const c = selected.value
   const target = relTargets.value.find(t => t.id === newRelId.value)
-  if (!c || !target) return
+  const type = normalizeRelationType(newRelType.value)
+  if (!c || !target || !type) return
   newRelId.value = ''
-  const type = newRelType.value as RelationType
   queueRelationsSave(c.id, cur => withRelation(cur, target.id, type))
   queueRelationsSave(target.id, cur =>
     withRelation(cur, c.id, inverseType(type))
@@ -1125,10 +1130,11 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
               >
             </div>
             <form class="ct-rel-add" @submit.prevent="addRelation">
-              <ComboBox
+              <AutocompleteInput
                 v-model="newRelType"
                 class="ct-rel-type"
                 :options="relTypeOptions"
+                placeholder="Relation..."
               />
               <ComboBox
                 v-model="newRelId"

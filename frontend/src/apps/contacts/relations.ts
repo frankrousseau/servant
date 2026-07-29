@@ -12,11 +12,19 @@ export const RELATION_TYPES = [
   'colleague'
 ] as const
 
-export type RelationType = (typeof RELATION_TYPES)[number]
+// The six above are only the suggested ones: any normalized label can be
+// stored ("mentor", "landlord", ...), so the type is a plain string.
+export type RelationType = string
 
 export interface Relation {
   contact_id: string
   type: RelationType
+}
+
+const MAX_TYPE_LENGTH = 30
+
+export function normalizeRelationType(raw: string): RelationType {
+  return raw.trim().toLowerCase().replace(/\s+/g, ' ').slice(0, MAX_TYPE_LENGTH)
 }
 
 export function relationLabel(type: string): string {
@@ -25,7 +33,8 @@ export function relationLabel(type: string): string {
 
 // The stored type describes the linked contact relative to the entry that
 // holds it ("parent" on Alice pointing at Bob = Bob is Alice's parent), so
-// the reciprocal entry carries the inverse.
+// the reciprocal entry carries the inverse. Only parent/child are
+// directional; everything else, custom types included, is symmetric.
 export function inverseType(type: RelationType): RelationType {
   if (type === 'parent') return 'child'
   if (type === 'child') return 'parent'
@@ -55,7 +64,8 @@ export function relationsOf(entry: Entry): Relation[] {
       !!r &&
       typeof r === 'object' &&
       typeof (r as Relation).contact_id === 'string' &&
-      (RELATION_TYPES as readonly string[]).includes((r as Relation).type)
+      typeof (r as Relation).type === 'string' &&
+      (r as Relation).type.trim() !== ''
   )
   // A well-formed but duplicated contact_id (writable by other API clients)
   // would otherwise render with a duplicate :key; last one wins.

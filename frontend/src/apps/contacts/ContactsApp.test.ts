@@ -156,11 +156,7 @@ describe('ContactsApp', () => {
     await flushPromises()
     await selectContact(wrapper, 'Alice')
 
-    await wrapper.find('.ct-rel-type .cb-control').trigger('click')
-    await wrapper
-      .findAll('.ct-rel-type .cb-option')
-      .find(o => o.text() === 'Parent')!
-      .trigger('mousedown')
+    await wrapper.find('.ct-rel-type input').setValue('parent')
     await wrapper.find('.ct-rel-name .cb-control').trigger('click')
     await wrapper
       .findAll('.ct-rel-name .cb-option')
@@ -177,6 +173,36 @@ describe('ContactsApp', () => {
     expect(update).toHaveBeenCalledWith('b', {
       data: expect.objectContaining({
         relations: [{ contact_id: 'a', type: 'child' }]
+      })
+    })
+  })
+
+  it('accepts a custom relation type, normalized and symmetric', async () => {
+    const alice = contact('a', 'Alice')
+    const bob = contact('b', 'Bob')
+    const { ctx, update } = makeCtx([alice, bob])
+    const wrapper = mount(ContactsApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    await selectContact(wrapper, 'Alice')
+
+    await wrapper.find('.ct-rel-type input').setValue('  Climbing   Partner ')
+    await wrapper.find('.ct-rel-name .cb-control').trigger('click')
+    await wrapper
+      .findAll('.ct-rel-name .cb-option')
+      .find(o => o.text() === 'Bob')!
+      .trigger('mousedown')
+    await wrapper.find('.ct-rel-add').trigger('submit')
+    await flushPromises()
+
+    // Not a built-in type: stored as typed (normalized) on both sides.
+    expect(update).toHaveBeenCalledWith('a', {
+      data: expect.objectContaining({
+        relations: [{ contact_id: 'b', type: 'climbing partner' }]
+      })
+    })
+    expect(update).toHaveBeenCalledWith('b', {
+      data: expect.objectContaining({
+        relations: [{ contact_id: 'a', type: 'climbing partner' }]
       })
     })
   })

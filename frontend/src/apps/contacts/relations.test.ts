@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   RELATION_TYPES,
   inverseType,
+  normalizeRelationType,
   relationLabel,
   normalizeTags,
   tagsOf,
@@ -21,11 +22,25 @@ describe('inverseType', () => {
     expect(inverseType('child')).toBe('parent')
   })
 
-  it('is identity for symmetric types', () => {
+  it('is identity for symmetric types, custom ones included', () => {
     expect(inverseType('partner')).toBe('partner')
     expect(inverseType('sibling')).toBe('sibling')
     expect(inverseType('friend')).toBe('friend')
     expect(inverseType('colleague')).toBe('colleague')
+    expect(inverseType('climbing partner')).toBe('climbing partner')
+  })
+})
+
+describe('normalizeRelationType', () => {
+  it('trims, lowercases and collapses whitespace', () => {
+    expect(normalizeRelationType('  Climbing   Partner ')).toBe(
+      'climbing partner'
+    )
+    expect(normalizeRelationType('   ')).toBe('')
+  })
+
+  it('caps the length so a pasted paragraph cannot become a type', () => {
+    expect(normalizeRelationType('x'.repeat(50))).toHaveLength(30)
   })
 })
 
@@ -58,18 +73,23 @@ describe('tagsOf / relationsOf', () => {
     expect(relationsOf(entry({ relations: 'x' }))).toEqual([])
   })
 
-  it('keeps only well-formed relations with known types', () => {
+  it('keeps well-formed relations, custom types included', () => {
     const rels = relationsOf(
       entry({
         relations: [
           { contact_id: 'a', type: 'friend' },
           { contact_id: 42, type: 'friend' },
           { contact_id: 'b', type: 'boss' },
+          { contact_id: 'c', type: '  ' },
+          { contact_id: 'd', type: 7 },
           null
         ]
       })
     )
-    expect(rels).toEqual([{ contact_id: 'a', type: 'friend' }])
+    expect(rels).toEqual([
+      { contact_id: 'a', type: 'friend' },
+      { contact_id: 'b', type: 'boss' }
+    ])
   })
 
   it('dedupes duplicate contact_ids, last wins', () => {
