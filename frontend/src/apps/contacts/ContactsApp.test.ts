@@ -292,6 +292,34 @@ describe('ContactsApp', () => {
     expect(formBody.data.tags).toEqual(['urgent'])
   })
 
+  it('narrows the list with several tags at once', async () => {
+    const contacts = [
+      contact('a', 'Alice', { tags: ['family', 'paris'] }),
+      contact('b', 'Bob', { tags: ['family'] }),
+      contact('c', 'Carol', { tags: ['paris'] })
+    ]
+    const { ctx } = makeCtx(contacts)
+    const wrapper = mount(ContactsApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+
+    const chip = (name: string) =>
+      wrapper.findAll('.ct-tag-chip').find(c => c.text() === name)!
+
+    await chip('family').trigger('click')
+    expect(wrapper.text()).toContain('Bob')
+
+    // Both tags active: only the contact carrying the two survives.
+    await chip('paris').trigger('click')
+    const names = wrapper.findAll('.ct-card').map(c => c.text())
+    expect(names.some(n => n.includes('Alice'))).toBe(true)
+    expect(names.some(n => n.includes('Bob'))).toBe(false)
+    expect(names.some(n => n.includes('Carol'))).toBe(false)
+
+    // Clicking an active chip releases just that tag.
+    await chip('paris').trigger('click')
+    expect(wrapper.findAll('.ct-card')).toHaveLength(2)
+  })
+
   it('previews the photos where the contact has a named face', async () => {
     const alice = contact('a', 'Alice')
     const photo = (id: string, thumb: string, personId: string): Entry => ({

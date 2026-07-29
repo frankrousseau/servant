@@ -41,7 +41,9 @@ interface Labeled {
 
 const allContacts = ref<Entry[]>([])
 const searchQuery = ref('')
-const activeTag = ref<string | null>(null)
+// Several tags can be active at once, and they narrow: a contact must carry
+// all of them. Clicking an active chip drops it again.
+const activeTags = ref<string[]>([])
 const selectedId = ref<string | null>(
   new URLSearchParams(window.location.search).get('selected')
 )
@@ -99,8 +101,11 @@ function sortContacts(list: Entry[]): Entry[] {
 
 const filtered = computed(() => {
   let list = allContacts.value
-  if (activeTag.value) {
-    list = list.filter(c => tagsOf(c).includes(activeTag.value!))
+  if (activeTags.value.length) {
+    list = list.filter(c => {
+      const tags = tagsOf(c)
+      return activeTags.value.every(t => tags.includes(t))
+    })
   }
   if (!searchQuery.value) return list
   const q = searchQuery.value.toLowerCase()
@@ -131,12 +136,15 @@ const allTags = computed(() => {
 })
 
 function toggleTagFilter(tag: string) {
-  activeTag.value = activeTag.value === tag ? null : tag
+  activeTags.value = activeTags.value.includes(tag)
+    ? activeTags.value.filter(t => t !== tag)
+    : [...activeTags.value, tag]
 }
 
 // A removed tag must release the filter, or the list locks on "No match."
 watch(allTags, tags => {
-  if (activeTag.value && !tags.includes(activeTag.value)) activeTag.value = null
+  const kept = activeTags.value.filter(t => tags.includes(t))
+  if (kept.length !== activeTags.value.length) activeTags.value = kept
 })
 
 // Virtualize the list so a large address book renders only the visible rows.
@@ -634,10 +642,17 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           v-for="t in allTags"
           :key="t"
           class="ct-tag-chip"
-          :class="{ 'ct-tag-chip--active': t === activeTag }"
+          :class="{ 'ct-tag-chip--active': activeTags.includes(t) }"
           @click="toggleTagFilter(t)"
         >
           {{ t }}
+        </button>
+        <button
+          v-if="activeTags.length > 1"
+          class="ct-tag-chip ct-tag-clear"
+          @click="activeTags = []"
+        >
+          Clear
         </button>
       </div>
       <div v-if="filtered.length === 0" class="ct-list">
@@ -1283,6 +1298,10 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   border-color: var(--primary);
   background: rgba(var(--primary-rgb), 0.12);
   color: var(--primary);
+}
+.ct-tag-clear {
+  color: var(--text-muted);
+  border-style: dashed;
 }
 .ct-count {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
