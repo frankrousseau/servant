@@ -345,6 +345,47 @@ defmodule Servant.AgentsTest do
       assert entry2.metadata["model"] == "test-model"
     end
 
+    test "an agent pinned to an hour fires in that hour, once per interval" do
+      user = user_with_ai()
+      {:ok, user} = Accounts.update_profile(user, %{"timezone" => "Europe/Paris"})
+      agent = report_agent(user.id, %{"schedule" => "every_day", "run_at_hour" => 7})
+      tz = user.timezone
+
+      # 06:30 in Paris: too early, whatever the UTC hour is.
+      before = DateTime.new!(~D[2026-03-10], ~T[05:30:00], "Etc/UTC")
+      refute Agents.due?(agent, before, tz)
+
+      # 07:10 local, never run: fires.
+      at_slot = DateTime.new!(~D[2026-03-10], ~T[06:10:00], "Etc/UTC")
+      assert Agents.due?(agent, at_slot, tz)
+
+      # Ran at 07:00 local: not again in the same hour, nor later that day.
+      ran = %{agent | last_run_at: DateTime.new!(~D[2026-03-10], ~T[06:00:00], "Etc/UTC")}
+      refute Agents.due?(ran, at_slot, tz)
+      refute Agents.due?(ran, DateTime.new!(~D[2026-03-10], ~T[20:00:00], "Etc/UTC"), tz)
+
+      # Next day, same hour: fires again.
+      assert Agents.due?(ran, DateTime.new!(~D[2026-03-11], ~T[06:05:00], "Etc/UTC"), tz)
+    end
+
+    test "a weekly agent pinned to an hour does not fire the next day" do
+      user = user_with_ai()
+      agent = report_agent(user.id, %{"schedule" => "every_week", "run_at_hour" => 9})
+      ran = %{agent | last_run_at: DateTime.new!(~D[2026-03-10], ~T[09:00:00], "Etc/UTC")}
+
+      refute Agents.due?(ran, DateTime.new!(~D[2026-03-11], ~T[09:05:00], "Etc/UTC"), "Etc/UTC")
+      assert Agents.due?(ran, DateTime.new!(~D[2026-03-17], ~T[09:05:00], "Etc/UTC"), "Etc/UTC")
+    end
+
+    test "without an hour the agent keeps the elapsed-interval rule" do
+      user = user_with_ai()
+      agent = report_agent(user.id, %{"schedule" => "every_day"})
+      ran = %{agent | last_run_at: DateTime.new!(~D[2026-03-10], ~T[03:00:00], "Etc/UTC")}
+
+      refute Agents.due?(ran, DateTime.new!(~D[2026-03-10], ~T[23:00:00], "Etc/UTC"), "Etc/UTC")
+      assert Agents.due?(ran, DateTime.new!(~D[2026-03-11], ~T[03:30:00], "Etc/UTC"), "Etc/UTC")
+    end
+
     test "an emptied agent model falls back to the Settings one" do
       user = user_with_ai()
       agent = report_agent(user.id, %{"model" => "big-model"})

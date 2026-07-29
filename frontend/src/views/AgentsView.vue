@@ -66,6 +66,7 @@ const fKinds = ref('')
 const fLookback = ref(7)
 const fSchedule = ref('every_day')
 const fModel = ref('')
+const fHour = ref<number | ''>('')
 const fSaving = ref(false)
 const fMode = ref<'prompt' | 'recipe'>('prompt')
 const fDescription = ref('')
@@ -150,6 +151,7 @@ function openCreate() {
   fLookback.value = 7
   fSchedule.value = 'every_day'
   fModel.value = ''
+  fHour.value = ''
   fMode.value = 'prompt'
   fDescription.value = ''
   fRecipeJson.value = ''
@@ -164,6 +166,7 @@ function openEdit(a: Agent) {
   fLookback.value = a.lookback_days
   fSchedule.value = a.schedule
   fModel.value = a.model || ''
+  fHour.value = a.run_at_hour ?? ''
   fMode.value = a.mode
   fDescription.value = ''
   fRecipeJson.value =
@@ -182,7 +185,13 @@ async function saveAgent() {
       .map(k => k.trim())
       .filter(Boolean),
     lookback_days: fLookback.value,
-    schedule: fSchedule.value
+    schedule: fSchedule.value,
+    // Empty (or hourly, where it means nothing) leaves the agent on the
+    // interval-since-last-run rule.
+    run_at_hour:
+      fHour.value === '' || fSchedule.value === 'every_hour'
+        ? null
+        : Number(fHour.value)
   }
   if (fMode.value === 'recipe') {
     try {
@@ -567,6 +576,22 @@ onMounted(() => {
                   @update:model-value="v => (fSchedule = v)"
                 />
               </label>
+              <template v-if="fSchedule !== 'every_hour'">
+                <label class="tk-expiry">
+                  <span class="tk-domain-label">At hour</span>
+                  <input
+                    v-model="fHour"
+                    type="number"
+                    min="0"
+                    max="23"
+                    placeholder="any"
+                  />
+                </label>
+                <p class="tk-hint">
+                  Hour of the day in your timezone. Leave empty to run once the
+                  interval has elapsed, wherever the previous run landed.
+                </p>
+              </template>
               <template v-if="fMode === 'prompt'">
                 <label class="tk-expiry">
                   <span class="tk-domain-label">Model</span>

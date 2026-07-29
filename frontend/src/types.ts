@@ -90,6 +90,8 @@ export interface Agent {
   kinds: string[]
   lookback_days: number
   schedule: 'every_hour' | 'every_day' | 'every_week'
+  // null = interval counted from the last run, not a fixed hour
+  run_at_hour: number | null
   enabled: boolean
   last_run_at: string | null
   inserted_at: string

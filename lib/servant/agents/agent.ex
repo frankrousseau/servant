@@ -27,6 +27,9 @@ defmodule Servant.Agents.Agent do
     field :kinds, {:array, :string}
     field :lookback_days, :integer, default: 7
     field :schedule, :string, default: "every_day"
+    # Hour of the day (user's timezone) a daily/weekly agent fires at; null
+    # keeps the interval counted from the previous run.
+    field :run_at_hour, :integer
     field :enabled, :boolean, default: true
     field :last_run_at, :utc_datetime
 
@@ -46,6 +49,7 @@ defmodule Servant.Agents.Agent do
       :kinds,
       :lookback_days,
       :schedule,
+      :run_at_hour,
       :enabled
     ])
     |> validate_required([:name, :kinds])
@@ -58,6 +62,7 @@ defmodule Servant.Agents.Agent do
     |> validate_kinds()
     |> validate_number(:lookback_days, greater_than: 0, less_than_or_equal_to: 365)
     |> validate_inclusion(:schedule, @schedules)
+    |> validate_number(:run_at_hour, greater_than_or_equal_to: 0, less_than_or_equal_to: 23)
     |> validate_by_mode()
   end
 

@@ -31,6 +31,11 @@ defmodule ServantWeb.AgentController do
       kinds: %Schema{type: :array, items: %Schema{type: :string}},
       lookback_days: %Schema{type: :integer},
       schedule: %Schema{type: :string},
+      run_at_hour: %Schema{
+        type: :integer,
+        nullable: true,
+        description: "hour of the day (user's timezone) a daily/weekly agent fires at"
+      },
       enabled: %Schema{type: :boolean},
       last_run_at: %Schema{type: :string, format: :"date-time", nullable: true},
       inserted_at: %Schema{type: :string, format: :"date-time"}
@@ -71,6 +76,7 @@ defmodule ServantWeb.AgentController do
            kinds: %Schema{type: :array, items: %Schema{type: :string}},
            lookback_days: %Schema{type: :integer},
            schedule: %Schema{type: :string},
+           run_at_hour: %Schema{type: :integer, nullable: true, minimum: 0, maximum: 23},
            enabled: %Schema{type: :boolean}
          },
          required: [:name, :kinds]
@@ -289,6 +295,7 @@ defmodule ServantWeb.AgentController do
       kinds: agent.kinds,
       lookback_days: agent.lookback_days,
       schedule: agent.schedule,
+      run_at_hour: agent.run_at_hour,
       enabled: agent.enabled,
       last_run_at: agent.last_run_at,
       inserted_at: agent.inserted_at

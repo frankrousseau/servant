@@ -87,19 +87,60 @@ defmodule Servant.Agents do
     |> Repo.update()
   end
 
-  def due?(%Agent{enabled: false}, _now), do: false
-  def due?(%Agent{last_run_at: nil}, _now), do: true
+  @doc """
+  Whether an agent should run at `now`. `tz` is the owner's timezone, used
+  only by agents pinned to an hour of the day.
 
-  def due?(%Agent{} = agent, now) do
+  Without `run_at_hour`, an agent runs once the interval has elapsed since its
+  last run, so a daily agent drifts later every day by however long the run
+  took. Pinned to an hour, it fires in that local hour instead, at most once
+  per interval, which also keeps the daily one at the same time year round.
+  """
+  def due?(agent, now, tz \\ "Etc/UTC")
+
+  def due?(%Agent{enabled: false}, _now, _tz), do: false
+
+  def due?(%Agent{run_at_hour: hour, schedule: schedule} = agent, now, tz)
+      when is_integer(hour) and schedule != "every_hour" do
+    with {:ok, local} <- DateTime.shift_zone(now, tz),
+         {:ok, slot} <- slot_at(local, hour) do
+      # Half an interval of slack: a run yesterday at the same hour is far
+      # enough, a weekly agent can't fire again the next day.
+      spacing = div(@intervals[schedule], 2)
+
+      DateTime.compare(local, slot) != :lt and
+        (agent.last_run_at == nil or
+           (DateTime.compare(agent.last_run_at, slot) == :lt and
+              DateTime.diff(now, agent.last_run_at) >= spacing))
+    else
+      # An unknown timezone shouldn't freeze the agent: fall back to the
+      # interval rule.
+      _ -> elapsed_due?(agent, now)
+    end
+  end
+
+  def due?(%Agent{} = agent, now, _tz), do: elapsed_due?(agent, now)
+
+  defp elapsed_due?(%Agent{last_run_at: nil}, _now), do: true
+
+  defp elapsed_due?(%Agent{} = agent, now) do
     next = DateTime.add(agent.last_run_at, @intervals[agent.schedule], :second)
     DateTime.compare(next, now) != :gt
+  end
+
+  # Today's occurrence of `hour` in the local zone, back in UTC-comparable form.
+  defp slot_at(local, hour) do
+    with {:ok, naive} <- NaiveDateTime.new(DateTime.to_date(local), Time.new!(hour, 0, 0)) do
+      DateTime.from_naive(naive, local.time_zone)
+    end
   end
 
   def due_agents(now \\ DateTime.utc_now()) do
     Agent
     |> where(enabled: true)
+    |> preload(:user)
     |> Repo.all()
-    |> Enum.filter(&due?(&1, now))
+    |> Enum.filter(&due?(&1, now, &1.user.timezone))
   end
 
   def create_run(user_id, attrs) do
