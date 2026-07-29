@@ -73,10 +73,14 @@ function inTextNodes(html: string, fn: (text: string) => string): string {
  * markdown-it left as literal brackets/hashes is rewritten without corrupting
  * attributes. Mentions are replaced first so the wikilink pass only sees
  * plain `[[...]]`.
+ *
+ * `resolve` returns the id of the note a wikilink points at (null when there
+ * is none yet). A resolved link gets a real `href`, so ctrl/middle-click opens
+ * the note in a new tab; the app still intercepts plain clicks.
  */
 export function renderMarkdown(
   body: string,
-  resolved: (target: string) => boolean,
+  resolve: (target: string) => string | null,
   mentionKind: (target: string) => MentionKind = () => null
 ): string {
   let html = md.render(body || '')
@@ -94,10 +98,12 @@ export function renderMarkdown(
   html = inTextNodes(html, text =>
     text.replace(/\[\[([^\][]+)\]\]/g, (_m, raw: string) => {
       const target = raw.trim()
-      const cls = resolved(target)
-        ? 'nt-wikilink'
-        : 'nt-wikilink nt-wikilink--new'
-      return `<a class="${cls}" data-target="${escapeHtml(target)}">${escapeHtml(target)}</a>`
+      const id = resolve(target)
+      const cls = id ? 'nt-wikilink' : 'nt-wikilink nt-wikilink--new'
+      const href = id
+        ? ` href="/apps/notes?selected=${encodeURIComponent(id)}"`
+        : ''
+      return `<a class="${cls}"${href} data-target="${escapeHtml(target)}">${escapeHtml(target)}</a>`
     })
   )
 

@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { renderMarkdown, canon, continueListEdit } from './render'
 
-const noneResolved = () => false
+const noneResolved = () => null
+const resolvesTo = (id: string) => () => id
 
 describe('renderMarkdown', () => {
   it('escapes raw HTML in the note body (no XSS)', () => {
@@ -19,15 +20,21 @@ describe('renderMarkdown', () => {
   })
 
   it('renders a wikilink as an anchor with an escaped data-target', () => {
-    const html = renderMarkdown('see [[My Note]]', () => true)
+    const html = renderMarkdown('see [[My Note]]', resolvesTo('n1'))
     expect(html).toContain('class="nt-wikilink"')
     expect(html).toContain('data-target="My Note"')
     expect(html).toContain('>My Note</a>')
   })
 
-  it('flags an unresolved wikilink as new', () => {
+  it('gives a resolved wikilink an href so it opens in a new tab', () => {
+    const html = renderMarkdown('see [[My Note]]', resolvesTo('a b/c'))
+    expect(html).toContain('href="/apps/notes?selected=a%20b%2Fc"')
+  })
+
+  it('flags an unresolved wikilink as new and leaves it without an href', () => {
     const html = renderMarkdown('[[Ghost]]', noneResolved)
     expect(html).toContain('nt-wikilink--new')
+    expect(html).not.toContain('href="/apps/notes')
   })
 
   it('does not emit raw HTML from a wikilink target', () => {
@@ -45,13 +52,16 @@ describe('renderMarkdown', () => {
   it('does not rewrite wikilink syntax sitting inside an attribute', () => {
     // The [[y]] lives in the link's title="…"; rewriting it there would break
     // out of the attribute. It must be left untouched inside the tag.
-    const html = renderMarkdown('[a](http://e.com "x [[y]] q")', () => true)
+    const html = renderMarkdown(
+      '[a](http://e.com "x [[y]] q")',
+      resolvesTo('n1')
+    )
     expect(html).toContain('title="x [[y]] q"')
     expect(html).not.toContain('class="nt-wikilink"')
   })
 
   it('rewrites a wikilink in text even next to an inline tag', () => {
-    const html = renderMarkdown('**bold** then [[My Note]]', () => true)
+    const html = renderMarkdown('**bold** then [[My Note]]', resolvesTo('n1'))
     expect(html).toContain('<strong>bold</strong>')
     expect(html).toContain('class="nt-wikilink"')
     expect(html).toContain('>My Note</a>')

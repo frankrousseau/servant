@@ -130,12 +130,6 @@ async function apiBacklinks(id: string): Promise<Note[]> {
 
 // ----- derived: tree, search, resolution -----
 
-const keySet = computed(() => {
-  const s = new Set<string>()
-  for (const n of notes.value) for (const k of noteKeys(n)) s.add(k)
-  return s
-})
-
 function resolveTargetNote(target: string): Note | null {
   const c = canon(target)
   return notes.value.find(n => noteKeys(n).includes(c)) || null
@@ -250,7 +244,7 @@ const treeRows = computed<TreeRow[]>(() => {
 const previewHtml = computed(() =>
   renderMarkdown(
     editBody.value,
-    t => keySet.value.has(canon(t)),
+    t => resolveTargetNote(t)?.id ?? null,
     t => resolveMention(t)?.kind ?? null
   )
 )
@@ -474,6 +468,26 @@ function syncEditorFrom(note: Note | null) {
   editBody.value = note ? noteBody(note) : ''
 }
 
+// A note is addressable: `/apps/notes?selected=<id>` is the URL the app pushes
+// on selection, so every place that points at a note is a real anchor with an
+// href. Middle-click and "open in a new tab" then work like any link, while a
+// plain left click stays in-app (no reload).
+function noteHref(id: string): string {
+  return `/apps/notes?selected=${encodeURIComponent(id)}`
+}
+
+// True when the browser should handle the click itself (new tab or window).
+function opensNewTab(e: MouseEvent): boolean {
+  // `> 0` and not `!== 0`: a synthetic click may leave `button` undefined.
+  return e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button > 0
+}
+
+function onNoteLinkClick(id: string, e: MouseEvent) {
+  if (opensNewTab(e)) return
+  e.preventDefault()
+  void selectNote(id)
+}
+
 async function selectNote(id: string, opts: { push?: boolean } = {}) {
   await flushSave()
   saveState.value = 'idle'
@@ -615,6 +629,8 @@ function onPreviewClick(e: MouseEvent) {
   }
   const link = target.closest('.nt-wikilink') as HTMLElement | null
   if (!link) return
+  // A resolved wikilink carries an href: let the browser open the new tab.
+  if (opensNewTab(e) && link.getAttribute('href')) return
   e.preventDefault()
   const t = link.dataset.target || ''
   const existing = resolveTargetNote(t)
@@ -919,16 +935,17 @@ onBeforeUnmount(() => {
       <div class="nt-tree" @dragover.prevent @drop.prevent="onTreeDrop('')">
         <template v-if="favoriteNotes.length">
           <div class="nt-fav-head">Favorites</div>
-          <div
+          <a
             v-for="n in favoriteNotes"
             :key="'fav:' + n.id"
             class="nt-note nt-note--fav"
             :class="{ 'nt-note--active': n.id === selectedId }"
-            @click="selectNote(n.id)"
+            :href="noteHref(n.id)"
+            @click="onNoteLinkClick(n.id, $event)"
           >
             <Star :size="11" class="nt-star" fill="currentColor" />
             <span class="nt-note-title">{{ n.title || 'Untitled' }}</span>
-          </div>
+          </a>
         </template>
         <template v-if="treeRows.length">
           <div
@@ -971,17 +988,18 @@ onBeforeUnmount(() => {
                 </button>
               </template>
             </div>
-            <div
+            <a
               v-else
               class="nt-note"
               :class="{ 'nt-note--active': row.id === selectedId }"
               :style="{ paddingLeft: row.depth * 12 + 22 + 'px' }"
+              :href="noteHref(row.id!)"
               draggable="true"
               @dragstart="onNoteDragStart(row.id!, $event)"
               @dragend="draggingNoteId = null"
               @dragover.prevent
               @drop.prevent.stop="onTreeDrop(row.folder ?? '')"
-              @click="selectNote(row.id!)"
+              @click="onNoteLinkClick(row.id!, $event)"
             >
               <Star
                 v-if="row.favorite"
@@ -990,7 +1008,7 @@ onBeforeUnmount(() => {
                 fill="currentColor"
               />
               <span class="nt-note-title">{{ row.name }}</span>
-            </div>
+            </a>
           </div>
         </template>
         <p v-else class="nt-empty">
@@ -1130,7 +1148,8 @@ onBeforeUnmount(() => {
             v-for="n in backlinks"
             :key="n.id"
             class="nt-bl-item"
-            @click="selectNote(n.id)"
+            :href="noteHref(n.id)"
+            @click="onNoteLinkClick(n.id, $event)"
             >{{ n.title || 'Untitled' }}</a
           >
         </div>
@@ -1307,6 +1326,7 @@ onBeforeUnmount(() => {
   border-radius: 6px;
 }
 .nt-note {
+  display: block;
   padding: 0.45rem 0.5rem;
   border-radius: 6px;
   cursor: pointer;
@@ -1314,6 +1334,8 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 0.92rem;
+  color: inherit;
+  text-decoration: none;
 }
 .nt-fav-head {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

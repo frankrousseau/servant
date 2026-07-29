@@ -107,6 +107,21 @@ describe('NotesApp', () => {
     expect(preview.html()).not.toContain('nt-wikilink--new')
   })
 
+  it('renders note rows as links so they open in a new tab', async () => {
+    const { ctx } = makeCtx([note('1', 'Alpha', '', '')])
+    const wrapper = mount(NotesApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+
+    const row = wrapper.find('.nt-note')
+    expect(row.element.tagName).toBe('A')
+    expect(row.attributes('href')).toBe('/apps/notes?selected=1')
+
+    // A modified click is left to the browser: no in-app selection.
+    await row.trigger('click', { ctrlKey: true })
+    await flushPromises()
+    expect(wrapper.find('input.nt-title').exists()).toBe(false)
+  })
+
   it('editing the body triggers a debounced save', async () => {
     vi.useFakeTimers()
     const { ctx, update } = makeCtx([note('1', 'Alpha', '', 'x')])
