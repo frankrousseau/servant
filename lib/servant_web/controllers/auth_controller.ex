@@ -3,6 +3,7 @@ defmodule ServantWeb.AuthController do
 
   use ServantWeb, :controller
   use OpenApiSpex.ControllerSpecs
+  use ServantWeb.Api.Validated
 
   alias OpenApiSpex.Schema
   alias Servant.Accounts

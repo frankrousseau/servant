@@ -3,6 +3,7 @@ defmodule ServantWeb.NotesController do
 
   use ServantWeb, :controller
   use OpenApiSpex.ControllerSpecs
+  use ServantWeb.Api.Validated
 
   alias OpenApiSpex.Schema
   alias Servant.Data.Entry

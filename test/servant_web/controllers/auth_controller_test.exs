@@ -104,7 +104,7 @@ defmodule ServantWeb.AuthControllerTest do
       Servant.Auth.Throttle.reset("login:brutus")
 
       for _ <- 1..10 do
-        post(build_conn(), "/api/auth/login", %{
+        post(json_client(build_conn()), "/api/auth/login", %{
           "username" => "brutus",
           "password" => "wrongpass1"
         })
@@ -228,7 +228,7 @@ defmodule ServantWeb.AuthControllerTest do
       put_totp_secret(user, secret)
 
       conn =
-        post(build_conn(), "/api/auth/login", %{
+        post(json_client(build_conn()), "/api/auth/login", %{
           "username" => "totpuser",
           "password" => @password
         })
@@ -237,7 +237,13 @@ defmodule ServantWeb.AuthControllerTest do
       refute Map.has_key?(json_response(conn, 200), "token")
 
       code = NimbleTOTP.verification_code(secret)
-      conn = post(build_conn(), "/api/auth/totp/verify", %{"ticket" => ticket, "code" => code})
+
+      conn =
+        post(json_client(build_conn()), "/api/auth/totp/verify", %{
+          "ticket" => ticket,
+          "code" => code
+        })
+
       assert %{"token" => token} = json_response(conn, 200)
       assert is_binary(token)
     end
@@ -249,7 +255,7 @@ defmodule ServantWeb.AuthControllerTest do
 
       login = fn ->
         conn =
-          post(build_conn(), "/api/auth/login", %{
+          post(json_client(build_conn()), "/api/auth/login", %{
             "username" => "replayuser",
             "password" => @password
           })
@@ -259,21 +265,35 @@ defmodule ServantWeb.AuthControllerTest do
 
       code = NimbleTOTP.verification_code(secret)
 
-      first = post(build_conn(), "/api/auth/totp/verify", %{"ticket" => login.(), "code" => code})
+      first =
+        post(json_client(build_conn()), "/api/auth/totp/verify", %{
+          "ticket" => login.(),
+          "code" => code
+        })
+
       assert json_response(first, 200)
 
       replay =
-        post(build_conn(), "/api/auth/totp/verify", %{"ticket" => login.(), "code" => code})
+        post(json_client(build_conn()), "/api/auth/totp/verify", %{
+          "ticket" => login.(),
+          "code" => code
+        })
 
       assert json_response(replay, 401)
 
       wrong =
-        post(build_conn(), "/api/auth/totp/verify", %{"ticket" => login.(), "code" => "000000"})
+        post(json_client(build_conn()), "/api/auth/totp/verify", %{
+          "ticket" => login.(),
+          "code" => "000000"
+        })
 
       assert json_response(wrong, 401)
 
       bad_ticket =
-        post(build_conn(), "/api/auth/totp/verify", %{"ticket" => "garbage", "code" => code})
+        post(json_client(build_conn()), "/api/auth/totp/verify", %{
+          "ticket" => "garbage",
+          "code" => code
+        })
 
       assert json_response(bad_ticket, 401)
     end

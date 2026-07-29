@@ -8,6 +8,7 @@ defmodule ServantWeb.ClientErrorController do
 
   use ServantWeb, :controller
   use OpenApiSpex.ControllerSpecs
+  use ServantWeb.Api.Validated
 
   require Logger
 

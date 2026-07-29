@@ -3,6 +3,7 @@ defmodule ServantWeb.AgentController do
 
   use ServantWeb, :controller
   use OpenApiSpex.ControllerSpecs
+  use ServantWeb.Api.Validated
 
   import ServantWeb.AgentRunJSON
 

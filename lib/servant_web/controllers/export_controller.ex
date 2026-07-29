@@ -3,6 +3,7 @@ defmodule ServantWeb.ExportController do
 
   use ServantWeb, :controller
   use OpenApiSpex.ControllerSpecs
+  use ServantWeb.Api.Validated
 
   alias OpenApiSpex.Schema
   alias ServantWeb.Schemas

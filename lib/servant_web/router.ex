@@ -5,6 +5,9 @@ defmodule ServantWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    # Documented operations validate their own request against the spec
+    # (see ServantWeb.Api.Validated); the spec has to be in the conn for that.
+    plug OpenApiSpex.Plug.PutApiSpec, module: ServantWeb.ApiSpec
   end
 
   pipeline :auth do

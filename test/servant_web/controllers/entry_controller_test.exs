@@ -42,7 +42,10 @@ defmodule ServantWeb.EntryControllerTest do
 
     test "422 when required fields are missing", %{conn: conn} do
       conn = post(conn, "/api/entries", %{"title" => "no kind/source"})
-      assert %{"errors" => _} = json_response(conn, 422)
+      # Rejected by the spec before the action runs, so it names the fields.
+      assert %{"error" => message} = json_response(conn, 422)
+      assert message =~ "kind"
+      assert message =~ "source"
     end
   end
 
@@ -113,9 +116,10 @@ defmodule ServantWeb.EntryControllerTest do
       assert data["bookmark"] == %{today => 1}
     end
 
-    test "falls back to 30 days on invalid input", %{conn: conn} do
+    test "rejects a non-integer days instead of guessing", %{conn: conn} do
       conn = get(conn, "/api/entries/stats/daily", %{"days" => "nope"})
-      assert %{"days" => 30} = json_response(conn, 200)
+      assert %{"error" => message} = json_response(conn, 422)
+      assert message =~ "days"
     end
   end
 

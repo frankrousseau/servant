@@ -3,6 +3,7 @@ defmodule ServantWeb.ApiTokenController do
 
   use ServantWeb, :controller
   use OpenApiSpex.ControllerSpecs
+  use ServantWeb.Api.Validated
 
   alias OpenApiSpex.Schema
   alias Servant.ApiTokens

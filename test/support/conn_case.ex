@@ -34,7 +34,16 @@ defmodule ServantWeb.ConnCase do
 
   setup tags do
     Servant.DataCase.setup_sandbox(tags)
-    {:ok, conn: Phoenix.ConnTest.build_conn()}
+
+    # ConnTest hands params straight to the controller, so it never sets the
+    # content-type a real JSON client must send for Plug.Parsers to read the
+    # body at all. Spec validation checks that header, so set it here rather
+    # than in every write test (multipart tests override it).
+    conn =
+      Phoenix.ConnTest.build_conn()
+      |> Plug.Conn.put_req_header("content-type", "application/json")
+
+    {:ok, conn: conn}
   end
 
   @doc """
@@ -46,7 +55,7 @@ defmodule ServantWeb.ConnCase do
     # Sign against the Endpoint directly, since a bare build_conn/0 has no
     # :phoenix_endpoint until a request is dispatched.
     token = ServantWeb.Auth.sign_token(ServantWeb.Endpoint, user)
-    {Plug.Conn.put_req_header(conn, "authorization", "Bearer #{token}"), user}
+    {conn |> json_client() |> Plug.Conn.put_req_header("authorization", "Bearer #{token}"), user}
   end
 
   @doc """
@@ -59,6 +68,19 @@ defmodule ServantWeb.ConnCase do
     {:ok, _token, plaintext} =
       Servant.ApiTokens.create_token(user.id, %{"name" => "test token", "scopes" => scopes})
 
-    {Plug.Conn.put_req_header(conn, "authorization", "Bearer #{plaintext}"), user}
+    {conn |> json_client() |> Plug.Conn.put_req_header("authorization", "Bearer #{plaintext}"),
+     user}
+  end
+
+  @doc """
+  Marks the connection as a JSON client, the way any real caller reaches the
+  API. Applied by the helpers above so a test starting from a bare
+  `build_conn/0` isn't rejected by spec validation over a missing content-type.
+  """
+  def json_client(conn) do
+    case Plug.Conn.get_req_header(conn, "content-type") do
+      [] -> Plug.Conn.put_req_header(conn, "content-type", "application/json")
+      _ -> conn
+    end
   end
 end
