@@ -1,237 +1,33 @@
-# Docker Deployment
+# Deployment
 
-This guide describes how to deploy Servant as a single Docker image: an Elixir
-release that serves both the JSON API and the pre-built Vue SPA on one port,
-backed by a SQLite database on a mounted volume.
+Servant ships as a single Elixir release that serves both the JSON API and the pre-built SPA on
+one port, backed by a SQLite database file. Two supported ways to run it:
 
-> Servant is API-only Phoenix + a Vue SPA. The SPA is built into `priv/static/`
-> at image-build time and served by Phoenix, so the release itself needs no
-> Node.js at runtime. The image does ship Node + Chromium, but only for the
-> optional Invoice Collector connector; see
-> [Invoice Collector](#invoice-collector-optional) to drop them.
+- **[Docker](#docker-recommended)** (recommended): everything is in the repo (`Dockerfile`,
+  `docker-compose.yml`, `docker-entrypoint.sh`), migrations run at container start.
+- **[Bare metal](#bare-metal-release)**: build a `mix release` yourself and run it under systemd.
 
-## Overview
+Either way, read [Environment variables](#environment-variables) first: two paths
+(`DATABASE_PATH` and `FILES_DIR`) decide whether your data survives a redeploy.
+
+## Docker (recommended)
 
 The image is built in three stages:
 
-1. **`frontend`** (`node:22`): builds the Vue SPA into `priv/static/`.
+1. **`frontend`** (`node:22`): builds the SPA into `priv/static/`.
 2. **`build`** (`hexpm/elixir`): compiles deps, digests assets, builds a `mix release`.
 3. **runtime** (`debian:bookworm-slim`): runs the release only.
 
-At container start, an entrypoint runs pending Ecto migrations, then boots the
-Phoenix server.
+At container start, `docker-entrypoint.sh` runs pending Ecto migrations
+(`Servant.Release.migrate/0`), then boots the Phoenix server. The image already sets
+`DATABASE_PATH=/data/servant.db`, `FILES_DIR=/data/files` and `TMP_DIR=/data/tmp`, all on the
+mounted volume, so only `SECRET_KEY_BASE` and `PHX_HOST` are left to you.
 
-## Required files
+> The release itself needs no Node.js at runtime. The image does ship Node + Chromium, but only
+> for the optional Invoice Collector connector; see
+> [Invoice Collector](#invoice-collector-optional) to drop them.
 
-Create the four files below at the repository root (plus one Elixir module).
-
-### 1. `lib/servant/release.ex`
-
-The release has no Mix available, so migrations run through a small module.
-**This file is required**: the entrypoint calls `Servant.Release.migrate/0`.
-
-```elixir
-defmodule Servant.Release do
-  @moduledoc "Release tasks (migrations) runnable without Mix."
-  @app :servant
-
-  def migrate do
-    load_app()
-
-    for repo <- repos() do
-      {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))
-    end
-  end
-
-  def rollback(repo, version) do
-    load_app()
-    {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :down, to: version))
-  end
-
-  defp repos do
-    Application.fetch_env!(@app, :ecto_repos)
-  end
-
-  defp load_app do
-    Application.load(@app)
-  end
-end
-```
-
-### 2. `Dockerfile`
-
-```dockerfile
-# syntax=docker/dockerfile:1
-
-###############################################################################
-# Stage 1: build the Vue SPA into priv/static
-###############################################################################
-FROM node:22-bookworm-slim AS frontend
-
-WORKDIR /app/frontend
-COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
-
-# vite.config.ts writes the build to ../priv/static
-COPY frontend/ ./
-RUN mkdir -p /app/priv/static
-RUN npm run build
-
-###############################################################################
-# Stage 2: build the Elixir release
-###############################################################################
-FROM hexpm/elixir:1.20.2-erlang-29.0.3-debian-bookworm-20260623-slim AS build
-
-# Build tools for the exqlite NIF (SQLite is compiled in, no system sqlite needed)
-RUN apt-get update -y \
-    && apt-get install -y build-essential git \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-RUN mix local.hex --force && mix local.rebar --force
-
-ENV MIX_ENV=prod
-
-# Dependencies first for better layer caching
-COPY mix.exs mix.lock ./
-RUN mix deps.get --only prod
-RUN mix deps.compile
-
-# Application source
-COPY config config
-COPY priv priv
-COPY lib lib
-
-# SPA produced by the frontend stage (already in priv/static, digest it here)
-COPY --from=frontend /app/priv/static ./priv/static
-
-RUN mix compile
-RUN mix phx.digest
-RUN mix release
-
-###############################################################################
-# Stage 3: minimal runtime
-###############################################################################
-FROM debian:bookworm-slim AS app
-
-RUN apt-get update -y \
-    && apt-get install -y libstdc++6 openssl libncurses6 locales ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
-
-ENV LANG=en_US.UTF-8 LANGUAGE=en_US:en LC_ALL=en_US.UTF-8
-
-WORKDIR /app
-
-# Database and user files live on a mounted volume
-RUN mkdir -p /data/files /data/tmp && chown -R nobody:nogroup /data
-ENV DATABASE_PATH=/data/servant.db
-ENV FILES_DIR=/data/files
-ENV TMP_DIR=/data/tmp
-
-COPY --from=build --chown=nobody:nogroup /app/_build/prod/rel/servant ./
-COPY --chown=nobody:nogroup docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh
-
-# Invoice Collector: its Playwright scraper runs via node at sync time.
-# Node 22 + scraper deps + Chromium add roughly 1 GB to the image; delete
-# this block (and the ENV line) if you do not use that connector.
-ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
-COPY --from=frontend /usr/local/ /usr/local/
-RUN mkdir -p /opt/playwright \
-    && cd /app/lib/servant-*/priv/scrapers \
-    && npm ci --omit=dev \
-    && npx playwright install --with-deps chromium \
-    && rm -rf /var/lib/apt/lists/* /root/.npm \
-    && chmod -R a+rX /opt/playwright
-
-USER nobody
-
-ENV PHX_SERVER=true
-ENV PORT=4000
-EXPOSE 4000
-
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
-CMD ["bin/servant", "start"]
-```
-
-### 3. `docker-entrypoint.sh`
-
-Runs migrations before every boot, then executes whatever `CMD` was given.
-
-```sh
-#!/bin/sh
-set -e
-
-# Apply any pending database migrations
-/app/bin/servant eval "Servant.Release.migrate"
-
-# Hand off to the release (CMD), e.g. `bin/servant start`
-exec /app/"$@"
-```
-
-### 4. `.dockerignore`
-
-Keeps the build context small and avoids leaking local artifacts.
-
-```gitignore
-_build/
-deps/
-.elixir_ls/
-priv/static/assets/
-frontend/node_modules/
-frontend/dist/
-*.db
-*.db-*
-.git/
-.env
-```
-
-> Note: `priv/static/` is intentionally **not** ignored if you commit a built
-> SPA, but here the `frontend` stage rebuilds it. The line above only ignores
-> the digested `assets/` subfolder so a stale local digest isn't copied in.
-
-### 5. `docker-compose.yml` (recommended)
-
-```yaml
-services:
-  servant:
-    build: .
-    image: servant:latest
-    restart: unless-stopped
-    ports:
-      - "4000:4000"
-    environment:
-      # Required at container start (the release refuses to boot without it);
-      # optional here so `docker compose build` works without a .env.
-      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-}
-      PHX_HOST: ${PHX_HOST:-localhost}
-      DATABASE_PATH: /data/servant.db
-      PHX_SERVER: "true"
-      PORT: "4000"
-      # POOL_SIZE: "5"   # optional
-    volumes:
-      - servant_data:/data
-
-volumes:
-  servant_data:
-```
-
-## Environment variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `SECRET_KEY_BASE` | ✅ | _(none)_ | Signs tokens/cookies. Generate with `mix phx.gen.secret`. |
-| `PHX_HOST` | ✅ | `example.com` | Public hostname (used to build URLs). |
-| `DATABASE_PATH` | ✅ | `/data/servant.db` (set in image) | Absolute path to the SQLite file; must be on the volume. |
-| `FILES_DIR` | image | `/data/files` (set in image) | Persistent user files (`apps/`, `connectors/`, `account/`). The image sets it to the volume; only override it if you change the layout. |
-| `TMP_DIR` | image | `/data/tmp` (set in image) | Scratch space for imports and processing (safe to purge). Set by the image. |
-| `PHX_SERVER` | ✅ | `true` (set in image) | Must be truthy or the HTTP server won't start. |
-| `PORT` | | `4000` | HTTP listen port inside the container. |
-| `POOL_SIZE` | | `5` | SQLite connection pool size. |
-
-## Deploy with docker-compose
+### With docker-compose
 
 ```bash
 # 1. Generate a secret and store it (compose reads .env automatically)
@@ -245,18 +41,16 @@ docker compose up -d --build
 docker compose logs -f servant
 ```
 
-Servant is now on `http://localhost:4000`. On first launch, open it, register
-the first account, and add connectors.
+Servant is now on `http://localhost:4000`. On first launch, open it, register the first account,
+and add connectors.
 
-## Deploy with plain Docker
-
-If you don't want compose:
+### With plain Docker
 
 ```bash
 # Build
 docker build -t servant:latest .
 
-# Create a named volume for the database
+# Create a named volume for the database and files
 docker volume create servant_data
 
 # Run
@@ -269,10 +63,110 @@ docker run -d --name servant \
   servant:latest
 ```
 
+## Bare metal (release)
+
+### Prerequisites
+
+- Erlang 29+ and Elixir 1.20+ (pinned versions in `.tool-versions`)
+- Node.js 22+: required to build the frontend. Also required **at runtime** if you use the
+  **Invoice Collector** connector, which runs Playwright scripts via `node` (run `npm install`
+  in `priv/scrapers/`). Not needed at runtime otherwise.
+- `libvips`: required at runtime for photo thumbnail generation (`vix`).
+
+### Build
+
+```bash
+# Install dependencies
+mix deps.get --only prod
+
+# Build the frontend (vite writes into priv/static/)
+cd frontend && npm ci && npm run build && cd ..
+
+# Compile and build the release
+MIX_ENV=prod mix compile
+MIX_ENV=prod mix phx.digest
+MIX_ENV=prod mix release
+```
+
+The release is built to `_build/prod/rel/servant/`.
+
+### Run
+
+```bash
+SECRET_KEY_BASE=$(mix phx.gen.secret) \
+DATABASE_PATH=/var/lib/servant/servant.db \
+FILES_DIR=/var/lib/servant/files \
+PHX_HOST=servant.local \
+PHX_SERVER=true \
+_build/prod/rel/servant/bin/servant start
+```
+
+The application is available at `http://<PHX_HOST>:<PORT>`. Migrations do not run on their own
+here; apply them after each upgrade:
+
+```bash
+_build/prod/rel/servant/bin/servant eval "Servant.Release.migrate"
+```
+
+### Systemd service
+
+Create `/etc/systemd/system/servant.service`:
+
+```ini
+[Unit]
+Description=Servant
+After=network.target
+
+[Service]
+Type=exec
+User=servant
+Group=servant
+WorkingDirectory=/opt/servant
+ExecStart=/opt/servant/bin/servant start
+ExecStop=/opt/servant/bin/servant stop
+Restart=on-failure
+RestartSec=5
+
+Environment=PHX_SERVER=true
+Environment=PORT=4000
+Environment=PHX_HOST=servant.local
+Environment=DATABASE_PATH=/var/lib/servant/servant.db
+Environment=FILES_DIR=/var/lib/servant/files
+Environment=TMP_DIR=/var/lib/servant/tmp
+Environment=SECRET_KEY_BASE=<your-secret-key>
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl enable --now servant
+```
+
+## Environment variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SECRET_KEY_BASE` | ✅ | _(none)_ | Signs tokens and cookies. Generate with `mix phx.gen.secret`. |
+| `PHX_HOST` | ✅ | `example.com` | Public hostname (used to build URLs and check socket origins). |
+| `PHX_SERVER` | ✅ | `true` in the Docker image | Must be truthy or the HTTP server won't start. |
+| `DATABASE_PATH` | ✅ | `/data/servant.db` in the Docker image | Absolute path to the SQLite file. Must live on persistent storage. |
+| `FILES_DIR` | ✅ in practice | `/data/files` in the Docker image, else `priv/files` | Uploaded files, photos and connector archives. **Set this outside the release**; the default lives inside the release directory and is **wiped on every redeploy**. |
+| `TMP_DIR` | | `/data/tmp` in the Docker image, else `priv/tmp` | Scratch space used while importing connector files (safe to purge). |
+| `PORT` | | `4000` | HTTP listen port. |
+| `POOL_SIZE` | | `5` | SQLite connection pool size. |
+| `REGISTRATION_ENABLED` | | `true` | Set to `false` to close self-registration (e.g. after creating your accounts). Existing users can still log in. |
+| `CONNECTOR_ENCRYPTION_KEY` | | _(derived from `SECRET_KEY_BASE`)_ | Key used to encrypt connector secrets at rest (AES-256-GCM). Set a dedicated value to rotate it independently of `SECRET_KEY_BASE`. **Changing this key (or `SECRET_KEY_BASE` when it's unset) makes stored connector secrets undecryptable; you must re-enter them.** |
+| `UPLOADS_DIR` | | `priv/uploads` | Legacy uploads directory (only read, for files created before `FILES_DIR`). |
+
+> ⚠️ **Persist your data.** Both `DATABASE_PATH` **and** `FILES_DIR` must point outside the
+> release directory (a Docker volume, or e.g. `/var/lib/servant/`), or you lose user files and
+> the database on each redeploy.
+
 ## Operations
 
-**Migrations** run automatically on every container start (via the entrypoint).
-To run them manually:
+**Migrations** run automatically on every container start (via the entrypoint). To run them
+manually:
 
 ```bash
 docker compose exec servant bin/servant eval "Servant.Release.migrate"
@@ -299,6 +193,8 @@ docker compose exec servant sh -c \
   || echo "sqlite3 CLI not in image; use the file copy above when idle"
 ```
 
+Back up `FILES_DIR` (`/data/files`) too: the database alone does not contain uploaded files.
+
 **Update to a new version:**
 
 ```bash
@@ -308,8 +204,8 @@ docker compose up -d --build   # rebuilds, restarts, runs new migrations
 
 ## HTTPS / reverse proxy
 
-The container speaks plain HTTP on `PORT`. For TLS, put it behind a reverse
-proxy. Example Caddy (`Caddyfile`):
+Servant speaks plain HTTP on `PORT`. For TLS, put it behind a reverse proxy. Example Caddy
+(`Caddyfile`):
 
 ```
 servant.local {
@@ -317,34 +213,37 @@ servant.local {
 }
 ```
 
-Add Caddy as a second compose service, or terminate TLS at an existing nginx/
-Traefik in front of the `servant` service.
+Add Caddy as a second compose service, or terminate TLS at an existing nginx/Traefik in front of
+the `servant` service.
 
 ## Invoice Collector (optional)
 
-The Invoice Collector connector runs Playwright scripts via `node` at sync
-time, so stage 3 of the Dockerfile installs Node.js 22, the scraper
-dependencies (`npm ci` in the release's `priv/scrapers/`) and Playwright's
-Chromium (under `/opt/playwright`, readable by the `nobody` user). Playwright
-launches Chromium with its sandbox disabled by default, so it runs fine as an
+The Invoice Collector connector runs Playwright scripts via `node` at sync time, so stage 3 of
+the Dockerfile installs Node.js 22, the scraper dependencies (`npm ci` in the release's
+`priv/scrapers/`) and Playwright's Chromium (under `/opt/playwright`, readable by the `nobody`
+user). Playwright launches Chromium with its sandbox disabled by default, so it runs fine as an
 unprivileged user.
 
-This block is the only reason the runtime image contains Node.js, and it
-accounts for roughly 1 GB. If you do not use the connector, delete it (and
-the `PLAYWRIGHT_BROWSERS_PATH` line) for a slim image; Invoice Collector
-syncs then fail with an explicit "Node.js is not installed on the server"
-error instead of running.
+This block is the only reason the runtime image contains Node.js, and it accounts for roughly
+1 GB. If you do not use the connector, delete it (and the `PLAYWRIGHT_BROWSERS_PATH` line) for a
+slim image; Invoice Collector syncs then fail with an explicit "Node.js is not installed on the
+server" error instead of running.
 
 ## Notes & gotchas
 
-- **ARM / Raspberry Pi:** the base images (`node`, `hexpm/elixir`, `debian`)
-  are multi-arch and build natively on `arm64`. To build on x86 for a Pi, use
+- **File access:** uploaded files are served under `/files/…` (and legacy `/uploads/…`) **only to
+  their owner**. Access is authenticated by an HttpOnly `_servant_auth` cookie set at login and
+  scoped to `FILES_DIR/<user_id>/`, so `<img src="/files/…">` works without exposing a token to
+  JavaScript.
+- **First account is the operator:** it alone can open the Audit page (system health, cross-user
+  access and error logs). Data itself stays scoped per user, operator included: there is no way
+  to read another account's entries through the API.
+- **ARM / Raspberry Pi:** the base images (`node`, `hexpm/elixir`, `debian`) are multi-arch and
+  build natively on `arm64`. To build on x86 for a Pi, use
   `docker buildx build --platform linux/arm64 -t servant:latest .`.
-- **WebSockets:** Phoenix Channels use `/socket`. If you front Servant with a
-  proxy, make sure it forwards `Upgrade`/`Connection` headers (Caddy does this
-  automatically).
-- **`check_origin`:** if browsers fail to connect over the socket behind a
-  proxy, set `PHX_HOST` to the exact public hostname so origin checks pass.
-- **The SPA is baked into the image.** Frontend changes require an image
-  rebuild; there is no live Vite server in production.
-```
+- **WebSockets:** Phoenix Channels use `/socket`. If you front Servant with a proxy, make sure it
+  forwards `Upgrade`/`Connection` headers (Caddy does this automatically).
+- **`check_origin`:** if browsers fail to connect over the socket behind a proxy, set `PHX_HOST`
+  to the exact public hostname so origin checks pass.
+- **The SPA is baked into the image.** Frontend changes require an image rebuild; there is no
+  live Vite server in production.

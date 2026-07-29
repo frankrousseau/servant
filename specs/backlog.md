@@ -42,6 +42,23 @@ Rien ici n'est engagé : c'est une liste d'idées, pas une roadmap.
   remontent pas sur le téléphone.
 - Filtre multi-tags (un seul tag actif aujourd'hui), renommage global d'un tag,
   types de relation personnalisés.
+- **Fiche contact : afficher les événements liés** (agenda) et un **aperçu des
+  photos** où le contact apparaît, pour que la fiche agrège tout ce qui le
+  concerne au lieu des seuls champs vCard.
+- **Graphe de relations : les arêtes se chevauchent** et deviennent illisibles
+  dès qu'un contact a plusieurs relations. Revoir le placement (répulsion des
+  arêtes, courbure, ou layout radial).
+
+## Notes
+
+- **Ouvrir une note dans un nouvel onglet** : une note doit être un vrai lien
+  (URL propre, clic milieu et "ouvrir dans un nouvel onglet" fonctionnels), pas
+  seulement une sélection dans l'app.
+
+## Files
+
+- **Statistiques de dossier dans le panneau de droite** : nombre de fichiers,
+  nombre de sous-dossiers, taille totale.
 
 ## Checklists
 
