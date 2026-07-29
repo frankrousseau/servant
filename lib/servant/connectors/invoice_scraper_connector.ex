@@ -88,7 +88,7 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
 
   # Preflight the runtime requirements so a missing piece yields an actionable
   # error instead of a raw :enoent (the default Docker image ships without
-  # Node.js; see docs/deployment.md).
+  # Node.js; see docs/deploy.md).
   defp do_run_scraper(state) do
     script = script_path()
     node = System.find_executable("node")
@@ -97,7 +97,7 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
       is_nil(node) ->
         {:error,
          "Node.js is not installed on the server. The Invoice Collector runs " <>
-           "Playwright scripts via node; see 'Invoice Collector' in docs/deployment.md."}
+           "Playwright scripts via node; see 'Invoice Collector' in docs/deploy.md."}
 
       not File.exists?(script) ->
         {:error, "Scraper script not found at #{script}."}

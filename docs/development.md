@@ -1,5 +1,8 @@
 # Development Setup
 
+Coding rules and conventions live in [AGENTS.md](../AGENTS.md); production deployment is covered
+in [deploy.md](deploy.md).
+
 ## Prerequisites
 
 Install [asdf](https://asdf-vm.com/) and the required plugins:
