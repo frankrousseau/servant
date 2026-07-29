@@ -25,6 +25,11 @@ end
 config :servant,
   registration_enabled: System.get_env("REGISTRATION_ENABLED", "true") not in ~w(false 0 no off)
 
+# How many due agents may run at once. 1 (the default) suits a local model
+# server; a hosted API can take more.
+config :servant, Servant.Agents,
+  max_concurrency: String.to_integer(System.get_env("AGENT_CONCURRENCY") || "1")
+
 if config_env() == :prod do
   database_path =
     System.get_env("DATABASE_PATH") ||

@@ -156,6 +156,7 @@ sudo systemctl enable --now servant
 | `PORT` | | `4000` | HTTP listen port. |
 | `POOL_SIZE` | | `5` | SQLite connection pool size. |
 | `REGISTRATION_ENABLED` | | `true` | Set to `false` to close self-registration (e.g. after creating your accounts). Existing users can still log in. |
+| `AGENT_CONCURRENCY` | | `1` | How many due agents may run at once. One suits a self-hosted model server (they usually serve a single request at a time); raise it when the endpoint is a hosted API. |
 | `CONNECTOR_ENCRYPTION_KEY` | | _(derived from `SECRET_KEY_BASE`)_ | Key used to encrypt connector secrets at rest (AES-256-GCM). Set a dedicated value to rotate it independently of `SECRET_KEY_BASE`. **Changing this key (or `SECRET_KEY_BASE` when it's unset) makes stored connector secrets undecryptable; you must re-enter them.** |
 | `UPLOADS_DIR` | | `priv/uploads` | Legacy uploads directory (only read, for files created before `FILES_DIR`). |
 

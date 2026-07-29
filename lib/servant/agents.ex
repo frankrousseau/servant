@@ -241,22 +241,47 @@ defmodule Servant.Agents do
     end
   end
 
-  @doc "Runs every due enabled agent sequentially; each agent is rescued individually."
-  def run_due(now \\ DateTime.utc_now()) do
-    for agent <- due_agents(now) do
-      user = Accounts.get_user(agent.user_id)
+  @doc """
+  Runs every due enabled agent; each agent is rescued individually.
 
-      if user && Accounts.ai_enabled?(user) do
-        try do
-          run_now(user, agent)
-        rescue
-          # the run row was already failed by the execute rescue (report or recipe)
-          _exception -> :error
-        end
-      end
-    end
+  Sequential by default: a self-hosted model server usually serves one request
+  at a time, so firing a batch at it would just queue at the far end while
+  holding connections open. An instance pointed at a hosted API can raise
+  `AGENT_CONCURRENCY` to overlap runs.
+  """
+  def run_due(now \\ DateTime.utc_now()) do
+    now
+    |> due_agents()
+    |> Task.async_stream(&run_due_agent/1,
+      max_concurrency: max_concurrency(),
+      # A local model on CPU can take minutes; the run's own failure path is
+      # what bounds a hung request, not this.
+      timeout: :infinity,
+      ordered: false
+    )
+    |> Stream.run()
 
     :ok
+  end
+
+  defp run_due_agent(agent) do
+    user = Accounts.get_user(agent.user_id)
+
+    if user && Accounts.ai_enabled?(user) do
+      try do
+        run_now(user, agent)
+      rescue
+        # the run row was already failed by the execute rescue (report or recipe)
+        _exception -> :error
+      end
+    end
+  end
+
+  defp max_concurrency do
+    :servant
+    |> Application.get_env(__MODULE__, [])
+    |> Keyword.get(:max_concurrency, 1)
+    |> max(1)
   end
 
   @doc """

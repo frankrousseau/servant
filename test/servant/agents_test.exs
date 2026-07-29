@@ -473,7 +473,7 @@ defmodule Servant.AgentsTest do
   end
 
   describe "run_due/1" do
-    test "runs due agents sequentially and skips users with AI disabled" do
+    test "runs due agents and skips users with AI disabled" do
       user = user_with_ai()
       agent = report_agent(user.id)
 
@@ -495,6 +495,22 @@ defmodule Servant.AgentsTest do
       # covered structurally: run_due wraps each agent in try/rescue; the
       # AI-failure path above already proves an erroring agent yields :ok
       assert Agents.run_due(DateTime.utc_now()) == :ok
+    end
+
+    test "runs the whole batch whatever the configured concurrency" do
+      previous = Application.get_env(:servant, Agents, [])
+      Application.put_env(:servant, Agents, Keyword.put(previous, :max_concurrency, 4))
+      on_exit(fn -> Application.put_env(:servant, Agents, previous) end)
+
+      user = user_with_ai()
+      agents = for i <- 1..3, do: report_agent(user.id, %{"name" => "Agent #{i}"})
+
+      assert Agents.run_due(DateTime.utc_now()) == :ok
+
+      # Each agent got its own run, none lost to the overlap (they fail on the
+      # unreachable endpoint, which is what makes them fast here).
+      run_agent_ids = user.id |> Agents.list_runs(type: "recurrent") |> Enum.map(& &1.agent_id)
+      assert Enum.sort(run_agent_ids) == agents |> Enum.map(& &1.id) |> Enum.sort()
     end
   end
 

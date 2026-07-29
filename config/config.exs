@@ -14,6 +14,11 @@ config :servant,
   # (see config/runtime.exs) once your accounts are created.
   registration_enabled: true
 
+# Agent runs are sequential by default: a self-hosted model server usually
+# serves one request at a time. Raise AGENT_CONCURRENCY (see runtime.exs) when
+# the endpoint is a hosted API that handles parallel requests.
+config :servant, Servant.Agents, max_concurrency: 1
+
 # Configure the endpoint
 config :servant, ServantWeb.Endpoint,
   url: [host: "localhost"],
