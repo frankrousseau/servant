@@ -69,6 +69,24 @@ describe('RelationsGraph', () => {
     expect(left).toBeLessThan(right)
   })
 
+  it('bows edges apart instead of stacking straight lines', () => {
+    const contacts = [
+      contact('a', 'Alice', [
+        { contact_id: 'b', type: 'sibling' },
+        { contact_id: 'c', type: 'friend' }
+      ]),
+      contact('b', 'Bob', [{ contact_id: 'a', type: 'sibling' }]),
+      contact('c', 'Carol', [{ contact_id: 'a', type: 'friend' }])
+    ]
+    const wrapper = mount(RelationsGraph, { props: { contacts, meId: null } })
+
+    const ds = wrapper.findAll('.rg-edge').map(e => e.attributes('d')!)
+    expect(ds).toHaveLength(2)
+    // Quadratic arcs, and the two edges leaving Alice are not the same stroke.
+    expect(ds.every(d => d.includes('Q'))).toBe(true)
+    expect(ds[0]).not.toBe(ds[1])
+  })
+
   it('explains itself when no inter-contact relation exists', () => {
     const wrapper = mount(RelationsGraph, {
       props: {

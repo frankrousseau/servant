@@ -127,10 +127,13 @@ const graph = computed(() => {
         const a = arr[i]
         const b = arr[j]
         const dx = a.x - b.x
-        const dy = a.y - b.y
+        // The name sits under the disc, so a node is taller than it is wide
+        // and vertical crowding is what actually collides: distance is
+        // measured on a squashed axis, which spreads neighbours more in y.
+        const dy = (a.y - b.y) * 1.6
         const d2 = dx * dx + dy * dy || 1
         const d = Math.sqrt(d2)
-        const f = 2600 / d2
+        const f = 3600 / d2
         a.x += (dx / d) * f
         a.y += (dy / d) * f
         b.x -= (dx / d) * f
@@ -143,7 +146,7 @@ const graph = computed(() => {
       const dx = b.x - a.x
       const dy = b.y - a.y
       const d = Math.sqrt(dx * dx + dy * dy) || 1
-      const f = (d - 110) * 0.02
+      const f = (d - 130) * 0.02
       a.x += (dx / d) * f
       a.y += (dy / d) * f
       b.x -= (dx / d) * f
@@ -165,22 +168,33 @@ const graph = computed(() => {
 
 const NODE_R = 14
 
-// Edge endpoints pulled back to the circle borders, so lines never run
-// under the nodes they connect.
-function edgeEnds(e: Edge) {
+// Endpoint moved off a node's border along the tangent at that end, which for
+// a quadratic curve points at the control point. Keeps the arc clear of the
+// discs it connects.
+function pullBack(n: Node, cx: number, cy: number, off: number) {
+  const dx = cx - n.x
+  const dy = cy - n.y
+  const d = Math.sqrt(dx * dx + dy * dy) || 1
+  return { x: n.x + (dx / d) * off, y: n.y + (dy / d) * off }
+}
+
+// Edges are shallow arcs, not straight lines: two relations leaving the same
+// contact at a close angle would lie on top of each other, and a straight edge
+// passing behind an unrelated node reads as attached to it. The bow side comes
+// from the pair key, so it is stable across renders and neighbours bow apart.
+function edgePath(e: Edge): string {
   const a = graph.value.byId.get(e.a)!
   const b = graph.value.byId.get(e.b)!
   const dx = b.x - a.x
   const dy = b.y - a.y
   const d = Math.sqrt(dx * dx + dy * dy) || 1
+  const bow = Math.min(24, d * 0.12) * (hueOf(e.a + e.b) % 2 ? 1 : -1)
+  const cx = (a.x + b.x) / 2 - (dy / d) * bow
+  const cy = (a.y + b.y) / 2 + (dx / d) * bow
   const off = NODE_R + 3
-  if (d <= off * 2) return { x1: a.x, y1: a.y, x2: a.x, y2: a.y }
-  return {
-    x1: a.x + (dx / d) * off,
-    y1: a.y + (dy / d) * off,
-    x2: b.x - (dx / d) * off,
-    y2: b.y - (dy / d) * off
-  }
+  const start = pullBack(a, cx, cy, off)
+  const end = pullBack(b, cx, cy, off)
+  return `M ${start.x} ${start.y} Q ${cx} ${cy} ${end.x} ${end.y}`
 }
 </script>
 
@@ -197,14 +211,14 @@ function edgeEnds(e: Edge) {
       role="img"
       aria-label="Contact relations graph"
     >
-      <line
+      <path
         v-for="e in graph.edges"
         :key="`${e.a}|${e.b}`"
         class="rg-edge"
-        v-bind="edgeEnds(e)"
+        :d="edgePath(e)"
       >
         <title>{{ relationLabel(e.type) }}</title>
-      </line>
+      </path>
       <g
         v-for="n in graph.nodes"
         :key="n.id"
@@ -248,6 +262,7 @@ function edgeEnds(e: Edge) {
   min-height: 0;
 }
 .rg-edge {
+  fill: none;
   stroke: var(--border);
   stroke-width: 1.2;
 }
@@ -269,5 +284,10 @@ function edgeEnds(e: Edge) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
   text-anchor: middle;
+  /* Halo: an edge running behind a name stays readable. */
+  paint-order: stroke;
+  stroke: var(--bg-surface);
+  stroke-width: 3px;
+  stroke-linejoin: round;
 }
 </style>
