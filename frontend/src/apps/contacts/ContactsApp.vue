@@ -17,6 +17,9 @@ import { Cake, User } from 'lucide-vue-next'
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
 import RelationsGraph from './RelationsGraph.vue'
+// Photos owns the shape of a stored face; read it through its helper rather
+// than re-deriving `data.faces` here.
+import { facesOf } from '../photos/faces'
 import {
   RELATION_TYPES,
   inverseType,
@@ -171,6 +174,8 @@ function onSearch() {
 
 const linkedEvents = ref<Entry[]>([])
 const mentioningNotes = ref<Entry[]>([])
+const linkedPhotos = ref<Entry[]>([])
+const PHOTO_PREVIEW = 8
 // The opt-in list (whose birthdays show in the calendar and on the dashboard)
 // lives in its own entry (kind prefs, title birthdays) rather than on the
 // contact: vCard connector re-syncs replace contact data wholesale.
@@ -180,19 +185,30 @@ async function loadLinked() {
   const id = selectedId.value
   linkedEvents.value = []
   mentioningNotes.value = []
+  linkedPhotos.value = []
   if (!id) return
   try {
-    const [events, notesRes, prefs] = await Promise.all([
+    const [events, notesRes, prefs, photos] = await Promise.all([
       // q narrows server-side (the id appears in data.contact_id); the
       // filter below makes the match exact.
       props.ctx.api.entries.list({ kind: 'event', q: id }),
       props.ctx.api.fetch(`/api/notes/mentioning/${id}`),
-      props.ctx.api.entries.list({ kind: 'prefs' })
+      props.ctx.api.entries.list({ kind: 'prefs' }),
+      // Same trick: the id appears in data.faces[].person_id once a face has
+      // been named in Photos.
+      props.ctx.api.entries.list({ kind: 'photo', q: id })
     ])
     if (id !== selectedId.value) return
     linkedEvents.value = events
       .filter(e => e.data.contact_id === id)
       .sort((a, b) => (b.occurred_at || '').localeCompare(a.occurred_at || ''))
+    linkedPhotos.value = photos
+      .filter(p => facesOf(p).some(f => f.person_id === id))
+      .sort((a, b) =>
+        (b.occurred_at || b.inserted_at).localeCompare(
+          a.occurred_at || a.inserted_at
+        )
+      )
     if (notesRes.ok) {
       mentioningNotes.value = (
         (await notesRes.json()) as { data: Entry[] }
@@ -202,6 +218,16 @@ async function loadLinked() {
   } catch {
     // linked sections simply stay empty
   }
+}
+
+const photoThumb = (p: Entry) => (p.data.thumb_path || p.data.path) as string
+
+// Linked rows are anchors: ctrl/middle-click opens the target in a new tab,
+// a plain click stays in the SPA.
+function onLinkClick(to: string, e: MouseEvent) {
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button > 0) return
+  e.preventDefault()
+  props.ctx.navigate(to)
 }
 
 const birthdayOnDashboard = computed(() => {
@@ -1101,6 +1127,36 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             </div>
           </div>
 
+          <div v-if="linkedPhotos.length" class="ct-section-card">
+            <h3 class="ct-section-title">Photos</h3>
+            <div class="ct-photo-grid">
+              <a
+                v-for="p in linkedPhotos.slice(0, PHOTO_PREVIEW)"
+                :key="p.id"
+                class="ct-photo"
+                :href="`/photos/${p.id}`"
+                @click="onLinkClick(`/photos/${p.id}`, $event)"
+              >
+                <img
+                  :src="photoThumb(p)"
+                  :alt="p.title || 'Photo'"
+                  loading="lazy"
+                />
+              </a>
+            </div>
+            <a
+              class="ct-photo-all"
+              :href="`/apps/photos?person=${selectedId}`"
+              @click="onLinkClick(`/apps/photos?person=${selectedId}`, $event)"
+            >
+              {{
+                linkedPhotos.length > PHOTO_PREVIEW
+                  ? `See all ${linkedPhotos.length} photos`
+                  : 'Open in Photos'
+              }}
+            </a>
+          </div>
+
           <div v-if="mentioningNotes.length" class="ct-section-card">
             <h3 class="ct-section-title">Mentioned in</h3>
             <div
@@ -1460,6 +1516,38 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .ct-mono {
   font-family: monospace;
   font-size: 0.85rem;
+}
+.ct-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 0.4rem;
+}
+.ct-photo {
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-hover);
+}
+.ct-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ct-photo:hover {
+  outline: 2px solid var(--primary);
+}
+.ct-photo-all {
+  display: inline-block;
+  margin-top: 0.55rem;
+  color: var(--primary);
+  font-size: 0.85rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+.ct-photo-all:hover {
+  text-decoration: underline;
 }
 .ct-linked-row {
   display: flex;

@@ -292,6 +292,47 @@ describe('ContactsApp', () => {
     expect(formBody.data.tags).toEqual(['urgent'])
   })
 
+  it('previews the photos where the contact has a named face', async () => {
+    const alice = contact('a', 'Alice')
+    const photo = (id: string, thumb: string, personId: string): Entry => ({
+      id,
+      kind: 'photo',
+      source: 'upload',
+      external_id: null,
+      title: id,
+      occurred_at: null,
+      data: {
+        thumb_path: thumb,
+        faces: [{ box: [0, 0, 1, 1], emb: [], person_id: personId }]
+      },
+      metadata: {},
+      inserted_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z'
+    })
+    const { ctx } = makeCtx([alice])
+    ctx.api.entries.list = vi.fn(async (filters?: Record<string, string>) => {
+      if (filters?.kind === 'contact') return [alice]
+      // The server-side q match is loose; the app filters on the exact id.
+      if (filters?.kind === 'photo')
+        return [
+          photo('p1', '/files/t1.jpg', 'a'),
+          photo('p2', '/f/t2.jpg', 'z')
+        ]
+      return []
+    })
+    const wrapper = mount(ContactsApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    await selectContact(wrapper, 'Alice')
+
+    const thumbs = wrapper.findAll('.ct-photo')
+    expect(thumbs).toHaveLength(1)
+    expect(thumbs[0].attributes('href')).toBe('/photos/p1')
+    expect(thumbs[0].find('img').attributes('src')).toBe('/files/t1.jpg')
+    expect(wrapper.find('.ct-photo-all').attributes('href')).toBe(
+      '/apps/photos?person=a'
+    )
+  })
+
   it('marks a contact as me via a singleton prefs entry', async () => {
     const alice = contact('a', 'Alice')
     const { ctx, create } = makeCtx([alice])

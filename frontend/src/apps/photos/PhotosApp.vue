@@ -850,7 +850,11 @@ onMounted(async () => {
     }
   })
   await reload()
-  const initial = new URLSearchParams(window.location.search).get('photo')
+  const params = new URLSearchParams(window.location.search)
+  // ?person=<contact id> lands here from a contact card ("all photos of X").
+  const person = params.get('person')
+  if (person) setFilter({ person })
+  const initial = params.get('photo')
   if (initial) openViewer(initial, { push: false })
 })
 onUnmounted(() => {
