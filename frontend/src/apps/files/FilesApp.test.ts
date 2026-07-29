@@ -141,6 +141,30 @@ describe('FilesApp folder creation', () => {
     expect(del).toHaveBeenCalledWith('new')
   })
 
+  it('shows recursive contents and total size of a selected folder', async () => {
+    // Docs/ holds one file and a Sub/ folder holding another file.
+    const { ctx } = makeCtx([
+      fileEntry('f1', 'Docs', { is_folder: true }),
+      fileEntry('f2', 'Sub', { is_folder: true, parent_id: 'f1' }),
+      fileEntry('a.pdf', 'a.pdf', { parent_id: 'f1', size: 1000 }),
+      fileEntry('b.pdf', 'b.pdf', { parent_id: 'f2', size: 2000 }),
+      fileEntry('out.pdf', 'out.pdf', { size: 9000 })
+    ])
+    const wrapper = mount(FilesApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+
+    const docs = wrapper
+      .findAll('.fs-row')
+      .find(r => r.text().includes('Docs'))!
+    await docs.trigger('click')
+    await flushPromises()
+
+    const meta = wrapper.find('.fs-detail-meta').text()
+    // Nested file and folder counted, the sibling outside Docs left out.
+    expect(meta).toContain('2 files, 1 folder')
+    expect(meta).toContain('2.9 KB')
+  })
+
   it('an empty rename of an existing folder does not delete it', async () => {
     const folder = fileEntry('f1', 'Docs', { is_folder: true })
     const { ctx, del, update } = makeCtx([folder])

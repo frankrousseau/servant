@@ -327,6 +327,66 @@ function folderPathOf(e: Entry): string {
   return '~/' + parts.map(p => p + '/').join('')
 }
 
+// ----- folder stats (detail panel) -----
+
+const childrenByParent = computed(() => {
+  const m = new Map<string, Entry[]>()
+  for (const f of allItems.value) {
+    const p = parentId(f)
+    if (!p) continue
+    const list = m.get(p)
+    if (list) list.push(f)
+    else m.set(p, [f])
+  }
+  return m
+})
+
+interface FolderStats {
+  files: number
+  folders: number
+  size: number
+}
+
+// Whole subtree, not just direct children: a folder's weight is what it holds
+// at any depth. `seen` caps a corrupt parent_id cycle, like chainTo's guard.
+function folderStats(id: string): FolderStats {
+  const stats: FolderStats = { files: 0, folders: 0, size: 0 }
+  const seen = new Set<string>()
+  const stack = [id]
+  while (stack.length) {
+    for (const child of childrenByParent.value.get(stack.pop()!) || []) {
+      if (seen.has(child.id)) continue
+      seen.add(child.id)
+      if (isFolder(child)) {
+        stats.folders++
+        stack.push(child.id)
+      } else {
+        stats.files++
+        stats.size += fileSize(child)
+      }
+    }
+  }
+  return stats
+}
+
+const selectedStats = computed(() => {
+  const f = selected.value
+  if (!f || !isFolder(f)) return null
+  // A virtual mount only lists its children once opened: don't call it empty
+  // before that.
+  if (isVirtual(f) && !childrenByParent.value.has(f.id)) return null
+  return folderStats(f.id)
+})
+
+const contentsLabel = computed(() => {
+  const s = selectedStats.value
+  if (!s) return ''
+  const parts = []
+  if (s.files) parts.push(`${s.files} file${s.files > 1 ? 's' : ''}`)
+  if (s.folders) parts.push(`${s.folders} folder${s.folders > 1 ? 's' : ''}`)
+  return parts.length ? parts.join(', ') : 'Empty'
+})
+
 // Searching looks across the whole tree (flat results, files only);
 // otherwise we list the current folder.
 const displayed = computed(() => {
@@ -840,6 +900,16 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
             <span class="fs-meta-label">Type</span>
             <span>Folder</span>
           </div>
+          <template v-if="selectedStats">
+            <div class="fs-meta-row">
+              <span class="fs-meta-label">Contents</span>
+              <span>{{ contentsLabel }}</span>
+            </div>
+            <div class="fs-meta-row">
+              <span class="fs-meta-label">Size</span>
+              <span>{{ formatFileSize(selectedStats.size) }}</span>
+            </div>
+          </template>
           <div class="fs-meta-row">
             <span class="fs-meta-label">Created</span>
             <span>{{
