@@ -22,6 +22,8 @@ defmodule Servant.Agents.Agent do
     field :prompt, :string
     field :mode, :string, default: "prompt"
     field :recipe, :map
+    # Null falls back to the model configured in Settings > Agents.
+    field :model, :string
     field :kinds, {:array, :string}
     field :lookback_days, :integer, default: 7
     field :schedule, :string, default: "every_day"
@@ -35,11 +37,23 @@ defmodule Servant.Agents.Agent do
 
   def changeset(agent, attrs) do
     agent
-    |> cast(attrs, [:name, :prompt, :mode, :recipe, :kinds, :lookback_days, :schedule, :enabled])
+    |> cast(attrs, [
+      :name,
+      :prompt,
+      :mode,
+      :recipe,
+      :model,
+      :kinds,
+      :lookback_days,
+      :schedule,
+      :enabled
+    ])
     |> validate_required([:name, :kinds])
     |> validate_inclusion(:mode, @modes)
     |> validate_length(:name, max: 60)
     |> validate_length(:prompt, max: 4000)
+    |> update_change(:model, &blank_to_nil/1)
+    |> validate_length(:model, max: 120)
     |> update_change(:kinds, &Enum.uniq/1)
     |> validate_kinds()
     |> validate_number(:lookback_days, greater_than: 0, less_than_or_equal_to: 365)
@@ -82,6 +96,16 @@ defmodule Servant.Agents.Agent do
         end
     end
   end
+
+  # An emptied model field means "back to the Settings model", not "".
+  defp blank_to_nil(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp blank_to_nil(value), do: value
 
   defp clear_field_unless_nil(changeset, field) do
     if get_field(changeset, field) == nil do

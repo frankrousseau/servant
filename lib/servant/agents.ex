@@ -394,7 +394,7 @@ defmodule Servant.Agents do
   end
 
   defp execute_report(run, user, agent, ai_opts) do
-    config = Accounts.ai_config(user)
+    config = agent_config(user, agent)
     started = System.monotonic_time(:millisecond)
 
     try do
@@ -417,6 +417,18 @@ defmodule Servant.Agents do
       exception ->
         {:ok, _run} = fail_run(run, Exception.message(exception), nil, elapsed(started))
         reraise exception, __STACKTRACE__
+    end
+  end
+
+  # One AI config per user (base URL, key, model); an agent may override the
+  # model alone, e.g. a cheap local model for a daily digest and a stronger
+  # one for a weekly analysis, without a second endpoint to configure.
+  defp agent_config(user, agent) do
+    config = Accounts.ai_config(user)
+
+    case agent.model do
+      nil -> config
+      model -> Map.put(config, "model", model)
     end
   end
 

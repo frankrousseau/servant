@@ -85,6 +85,8 @@ export interface Agent {
   prompt: string | null
   mode: 'prompt' | 'recipe'
   recipe: Record<string, unknown> | null
+  // null = the model configured in Settings > Agents
+  model: string | null
   kinds: string[]
   lookback_days: number
   schedule: 'every_hour' | 'every_day' | 'every_week'

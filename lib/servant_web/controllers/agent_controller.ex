@@ -23,6 +23,11 @@ defmodule ServantWeb.AgentController do
       prompt: %Schema{type: :string, nullable: true},
       mode: %Schema{type: :string, enum: ["prompt", "recipe"]},
       recipe: %Schema{type: :object, nullable: true},
+      model: %Schema{
+        type: :string,
+        nullable: true,
+        description: "overrides the model from Settings for this agent"
+      },
       kinds: %Schema{type: :array, items: %Schema{type: :string}},
       lookback_days: %Schema{type: :integer},
       schedule: %Schema{type: :string},
@@ -62,6 +67,7 @@ defmodule ServantWeb.AgentController do
            prompt: %Schema{type: :string},
            mode: %Schema{type: :string, enum: ["prompt", "recipe"]},
            recipe: %Schema{type: :object},
+           model: %Schema{type: :string, nullable: true},
            kinds: %Schema{type: :array, items: %Schema{type: :string}},
            lookback_days: %Schema{type: :integer},
            schedule: %Schema{type: :string},
@@ -279,6 +285,7 @@ defmodule ServantWeb.AgentController do
       prompt: agent.prompt,
       mode: agent.mode,
       recipe: agent.recipe,
+      model: agent.model,
       kinds: agent.kinds,
       lookback_days: agent.lookback_days,
       schedule: agent.schedule,

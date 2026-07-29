@@ -320,6 +320,42 @@ defmodule Servant.AgentsTest do
       assert user_msg =~ "Carrefour"
     end
 
+    test "an agent model overrides the one from Settings, for that agent only" do
+      user = user_with_ai()
+      agent = report_agent(user.id, %{"model" => "  big-model  "})
+      plain = report_agent(user.id, %{"name" => "Plain"})
+
+      # Trimmed on the way in, so the stored value is what gets requested.
+      assert Agents.get_agent(user.id, agent.id).model == "big-model"
+
+      capture = self()
+
+      plug = fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        send(capture, {:model, Jason.decode!(body)["model"]})
+        ai_reply("ok").(conn)
+      end
+
+      assert {:ok, entry, _run} = Agents.run_now(user, agent, plug: plug)
+      assert_receive {:model, "big-model"}
+      assert entry.metadata["model"] == "big-model"
+
+      assert {:ok, entry2, _run} = Agents.run_now(user, plain, plug: plug)
+      assert_receive {:model, "test-model"}
+      assert entry2.metadata["model"] == "test-model"
+    end
+
+    test "an emptied agent model falls back to the Settings one" do
+      user = user_with_ai()
+      agent = report_agent(user.id, %{"model" => "big-model"})
+
+      {:ok, agent} = Agents.update_agent(agent, %{"model" => "   "})
+      assert agent.model == nil
+
+      assert {:ok, entry, _run} = Agents.run_now(user, agent, plug: ai_reply("ok"))
+      assert entry.metadata["model"] == "test-model"
+    end
+
     test "reports an empty context to the model instead of failing" do
       user = user_with_ai()
       agent = report_agent(user.id)

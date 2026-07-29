@@ -65,6 +65,7 @@ const fPrompt = ref('')
 const fKinds = ref('')
 const fLookback = ref(7)
 const fSchedule = ref('every_day')
+const fModel = ref('')
 const fSaving = ref(false)
 const fMode = ref<'prompt' | 'recipe'>('prompt')
 const fDescription = ref('')
@@ -148,6 +149,7 @@ function openCreate() {
   fKinds.value = ''
   fLookback.value = 7
   fSchedule.value = 'every_day'
+  fModel.value = ''
   fMode.value = 'prompt'
   fDescription.value = ''
   fRecipeJson.value = ''
@@ -161,6 +163,7 @@ function openEdit(a: Agent) {
   fKinds.value = a.kinds.join(', ')
   fLookback.value = a.lookback_days
   fSchedule.value = a.schedule
+  fModel.value = a.model || ''
   fMode.value = a.mode
   fDescription.value = ''
   fRecipeJson.value =
@@ -191,6 +194,8 @@ async function saveAgent() {
     }
   } else {
     body.prompt = fPrompt.value.trim()
+    // Empty means "the model from Settings": the backend nils it out.
+    body.model = fModel.value.trim()
   }
   try {
     if (editingId.value) await api.put(`/api/agents/${editingId.value}`, body)
@@ -562,6 +567,21 @@ onMounted(() => {
                   @update:model-value="v => (fSchedule = v)"
                 />
               </label>
+              <template v-if="fMode === 'prompt'">
+                <label class="tk-expiry">
+                  <span class="tk-domain-label">Model</span>
+                  <input
+                    v-model="fModel"
+                    type="text"
+                    :placeholder="aiConfig?.model || 'model from Settings'"
+                  />
+                </label>
+                <p class="tk-hint">
+                  Leave empty to use the model from Settings. A per-agent value
+                  lets a daily digest run on a cheap model and a weekly analysis
+                  on a stronger one.
+                </p>
+              </template>
               <p v-if="agentError" class="msg msg-error">{{ agentError }}</p>
               <div class="card-actions">
                 <button
