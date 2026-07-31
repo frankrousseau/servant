@@ -968,8 +968,11 @@ onUnmounted(destroyPickers)
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 .cal-container {
-  padding: 0;
-  height: calc(100vh - 4rem);
+  /* The header and grid pad nothing themselves, and the app is now flush
+     against the window, so the breathing room lives here (same as finance
+     and trackers). */
+  padding: 1rem 1.25rem;
+  height: 100vh;
   display: flex;
   flex-direction: column;
 }

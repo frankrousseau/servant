@@ -836,7 +836,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 <style scoped>
 .cl-layout {
   display: flex;
-  height: calc(100vh - 4rem);
+  height: 100vh;
 }
 .cl-sidebar {
   width: 280px;

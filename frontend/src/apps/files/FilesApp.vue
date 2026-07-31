@@ -939,7 +939,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 }
 .fs-layout {
   display: flex;
-  height: calc(100vh - 4rem);
+  height: 100vh;
 }
 .fs-main {
   flex: 1;

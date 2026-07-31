@@ -195,6 +195,12 @@ a:hover {
   min-width: 0;
 }
 
+/* Apps bring their own full-height chrome (sidebars, toolbars, panels that pad
+   themselves), so they run edge to edge. The page padding is for the views. */
+.app-layout.authenticated .content--flush {
+  padding: 0;
+}
+
 /* Sidebar */
 .sidebar {
   position: fixed;

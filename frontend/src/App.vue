@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import { useAppsStore } from './stores/apps'
 import { agentsEnabled } from './apps/registry'
@@ -47,6 +47,10 @@ const appIcons: Record<string, unknown> = {
 const auth = useAuthStore()
 const apps = useAppsStore()
 const router = useRouter()
+const route = useRoute()
+
+// App routes are full-bleed: the apps lay out their own full-height chrome.
+const flushContent = computed(() => route.name === 'app')
 
 const showAgents = computed(() => agentsEnabled(auth.user?.enabled_apps))
 
@@ -154,7 +158,7 @@ function handleLogout() {
         </button>
       </div>
     </nav>
-    <main class="content">
+    <main class="content" :class="{ 'content--flush': flushContent }">
       <router-view />
     </main>
     <ConfirmModal />

@@ -1287,7 +1287,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 .ct-layout {
   display: flex;
-  height: calc(100vh - 4rem);
+  height: 100vh;
 }
 .ct-list-col {
   width: 360px;

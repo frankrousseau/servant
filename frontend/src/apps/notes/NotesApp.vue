@@ -1179,7 +1179,7 @@ onBeforeUnmount(() => {
 <style>
 .nt-layout {
   display: flex;
-  height: calc(100vh - 4rem);
+  height: 100vh;
 }
 .nt-sidebar {
   width: 280px;

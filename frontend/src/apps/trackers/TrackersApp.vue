@@ -452,7 +452,7 @@ async function removeTracker(tracker: Tracker) {
 <style scoped>
 .tk-layout {
   padding: 1rem 1.25rem;
-  height: calc(100vh - 4rem);
+  height: 100vh;
   overflow-y: auto;
 }
 .tk-placeholder {

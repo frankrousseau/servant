@@ -1371,7 +1371,7 @@ onUnmounted(() => {
 .ph-layout {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 4rem);
+  height: 100vh;
 }
 .ph-toolbar {
   display: flex;

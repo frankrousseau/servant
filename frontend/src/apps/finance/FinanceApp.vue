@@ -1094,7 +1094,7 @@ function saveShared(a: Account, shared: boolean) {
 .fin-layout {
   padding: 1rem 1.25rem;
   max-width: 860px;
-  height: calc(100vh - 4rem);
+  height: 100vh;
   overflow-y: auto;
 }
 /* Spending wants the full width for its chart and table. */
