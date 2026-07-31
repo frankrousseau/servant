@@ -739,6 +739,28 @@ dd {
   padding: 0.85rem;
   border-radius: 12px !important;
 }
+/* flatpickr ships its own type scale: a 14px box, the month at 135% weight 300,
+   weekdays at 90% weight bolder, and a <select> plus a number input that fall
+   back to the browser font. Put the whole popup on the app's font and a single
+   scale. */
+.flatpickr-calendar,
+.flatpickr-calendar input,
+.flatpickr-calendar select {
+  font-family: inherit !important;
+  font-size: 0.85rem !important;
+}
+.flatpickr-current-month,
+.flatpickr-current-month .flatpickr-monthDropdown-months,
+.flatpickr-current-month input.cur-year {
+  font-size: 0.95rem !important;
+  font-weight: 500 !important;
+}
+span.flatpickr-weekday {
+  font-size: 0.72rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em;
+}
+
 .flatpickr-months,
 .flatpickr-weekdays {
   background: var(--bg-surface) !important;
