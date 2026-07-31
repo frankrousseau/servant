@@ -268,9 +268,16 @@ async function revokeToken(t: ApiToken) {
   await loadTokens()
 }
 
+const copiedToken = ref(false)
+let copiedTimer: ReturnType<typeof setTimeout> | undefined
+
 async function copyCreatedToken() {
-  if (createdToken.value)
-    await navigator.clipboard.writeText(createdToken.value)
+  if (!createdToken.value) return
+  await navigator.clipboard.writeText(createdToken.value)
+  // Nothing else confirms the copy happened, and the token is shown once.
+  copiedToken.value = true
+  clearTimeout(copiedTimer)
+  copiedTimer = setTimeout(() => (copiedToken.value = false), 2000)
 }
 
 // Export
@@ -367,13 +374,15 @@ onMounted(() => {
           <p class="tk-created-warning">
             Copy this token now: it will not be shown again.
           </p>
-          <code class="tk-created-value">{{ createdToken }}</code>
-          <div class="card-actions">
-            <button type="button" @click="copyCreatedToken">
-              <Copy :size="14" /> Copy
+          <div class="tk-created-row">
+            <code class="tk-created-value">{{ createdToken }}</code>
+            <button type="button" class="tk-copy" @click="copyCreatedToken">
+              <Copy :size="14" /> {{ copiedToken ? 'Copied' : 'Copy' }}
             </button>
-            <button type="button" @click="createdToken = null">Done</button>
           </div>
+          <button type="button" class="tk-dismiss" @click="createdToken = null">
+            Done
+          </button>
         </div>
 
         <table v-if="apiTokens.length" class="tk-table">
@@ -870,11 +879,45 @@ onMounted(() => {
   font-size: 0.85rem;
   margin: 0 0 0.5rem;
 }
+/* The token reads as a field with its action attached, not as loose text
+   above two buttons of equal weight. */
+.tk-created-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
 .tk-created-value {
-  display: block;
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.65rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.85rem;
   word-break: break-all;
+  user-select: all;
+}
+.tk-copy {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
+}
+/* Secondary to the copy: dismissing is not what you came for. */
+.tk-dismiss {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  margin-top: 0.6rem;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+}
+.tk-dismiss:hover {
+  background: var(--bg-hover);
+  color: var(--text);
 }
 .tk-table {
   width: 100%;
