@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import { useAppsStore } from './stores/apps'
 import { agentsEnabled } from './apps/registry'
-import { useRouter } from 'vue-router'
 import {
   Database,
   Cable,
