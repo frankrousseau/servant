@@ -644,9 +644,27 @@ onMounted(() => {
   padding: 0.5rem 0 0;
 }
 
-.page-active {
-  background: var(--primary) !important;
-  color: #fff !important;
+/* Buttons are primary-filled by default, so a filled "current page" looked
+   exactly like its neighbours. The row is neutral, the current page is the
+   only filled one. */
+.pagination button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  min-width: 2.1rem;
+}
+
+.pagination button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.pagination .page-active,
+.pagination .page-active:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-contrast);
+  font-weight: 600;
 }
 
 /* Detail panel */
