@@ -1,0 +1,11 @@
+- Follow my son activity
+- Follow my son health needs
+- Store my findings about Matcha vendors
+- Store my findings about Wine makers
+- Track my activities like commits or alchohol consumption
+- Analyze my expenses
+- Store and use all my checklists
+- Organise my contacts
+- Backup my pictures and tag them
+- Build my personal calendar synced with my phone
+- Don't forget birthdays anymore
