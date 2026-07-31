@@ -146,6 +146,58 @@ describe('NotesApp', () => {
     vi.useRealTimers()
   })
 
+  it('keeps what was typed while a save was in flight', async () => {
+    const note1 = note('1', 'Alpha', '', 'x')
+    let releasePut: (() => void) | undefined
+    const putBodies: string[] = []
+
+    const jsonRes = (data: unknown) =>
+      ({ json: async () => ({ data }) }) as Response
+
+    const ctx = {
+      navigate: vi.fn(),
+      confirm: { ask: vi.fn().mockResolvedValue(true) },
+      api: {
+        entries: { list: vi.fn().mockResolvedValue([]) },
+        upload: vi.fn(),
+        fetch: vi.fn(async (path: string, opts?: RequestInit) => {
+          if (path === '/api/notes' && !opts?.method) return jsonRes([note1])
+          if (path.endsWith('/backlinks')) return jsonRes([])
+          if (opts?.method === 'PUT') {
+            const attrs = JSON.parse(opts.body as string)
+            putBodies.push(attrs.body)
+            // Hold the response so the user can keep typing meanwhile.
+            await new Promise<void>(resolve => {
+              releasePut = resolve
+            })
+            return jsonRes({ ...note1, data: { ...note1.data, ...attrs } })
+          }
+          return jsonRes([])
+        })
+      },
+      viewer: { open: vi.fn(), close: vi.fn(), onDelete: vi.fn() }
+    }
+
+    const wrapper = mount(NotesApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    await wrapper.find('.nt-note').trigger('click')
+    await flushPromises()
+
+    const body = wrapper.find('textarea.nt-body')
+    await body.setValue('x1')
+    await new Promise(r => setTimeout(r, 650)) // debounce
+    await flushPromises()
+    expect(putBodies).toEqual(['x1'])
+
+    // Still typing while the server has the previous version.
+    await body.setValue('x12')
+    releasePut!()
+    await flushPromises()
+
+    // The reply must not roll the editor back to what it echoed.
+    expect((body.element as HTMLTextAreaElement).value).toBe('x12')
+  })
+
   it('renames a folder across all its notes (children included)', async () => {
     const { ctx, update } = makeCtx([
       note('1', 'Alpha', 'Proj', ''),

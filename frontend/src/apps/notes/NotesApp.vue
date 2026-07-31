@@ -847,10 +847,12 @@ function onBodyBlur() {
 
 const viewModes = ['edit', 'split', 'preview'] as const
 
-// Re-fill the editor whenever the underlying selected note changes identity
-// (e.g. after a rename reload replaces the object).
-watch(selected, note => {
-  if (note && note.id !== undefined) syncEditorFrom(note)
+// Re-fill the editor when the selection moves to another note. Deliberately
+// not on every object identity change: a save replaces the note object with
+// the server's copy, and re-filling from it would drop whatever was typed
+// during the round trip and send the caret to the end of the text.
+watch(selected, (note, previous) => {
+  if (note && note.id !== previous?.id) syncEditorFrom(note)
 })
 
 // Remembered per device, so reopening the app lands on the last note.
