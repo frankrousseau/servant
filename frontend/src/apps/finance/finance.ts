@@ -354,10 +354,16 @@ export function categoryColor(category: string): string {
 }
 
 // Compact money formatting: big fiat amounts read better without cents,
-// small crypto quantities (0.052 BTC) need their decimals.
-export function formatAmount(amount: number, currency: string): string {
+// small crypto quantities (0.052 BTC) need their decimals. `maxDigits` pins
+// the precision when the caller knows better, e.g. a table of totals where
+// cents are noise.
+export function formatAmount(
+  amount: number,
+  currency: string,
+  opts: { maxDigits?: number } = {}
+): string {
   const abs = Math.abs(amount)
-  const digits = abs >= 1000 ? 0 : abs < 1 ? 6 : 2
+  const digits = opts.maxDigits ?? (abs >= 1000 ? 0 : abs < 1 ? 6 : 2)
   const formatted = amount.toLocaleString(undefined, {
     minimumFractionDigits: 0,
     maximumFractionDigits: digits

@@ -174,7 +174,9 @@ const rows = computed(() =>
 const periodTotal = (period: string) =>
   rows.value.reduce((sum, r) => sum + (r.byPeriod[period] || 0), 0)
 
-const fmt = (v: number) => formatAmount(v, props.refCurrency)
+// Spending is read as magnitudes across a grid of periods: cents add width
+// and noise without ever changing a reading, so everything here is rounded.
+const fmt = (v: number) => formatAmount(v, props.refCurrency, { maxDigits: 0 })
 const cell = (r: { byPeriod: Record<string, number> }, p: string) =>
   r.byPeriod[p] ? fmt(r.byPeriod[p]) : '-'
 

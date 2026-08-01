@@ -160,6 +160,17 @@ describe('SpendingView', () => {
     ])
   })
 
+  it('rounds every amount in the table', () => {
+    const wrapper = mountView([
+      tx('2026-06-10', -12.34, 'food'),
+      tx('2026-06-11', -1.4, 'food')
+    ])
+    const cells = wrapper.findAll('tbody td').map(c => c.text())
+    expect(cells.some(c => c.includes('.'))).toBe(false)
+    // 12.34 + 1.40 rounded, not truncated.
+    expect(wrapper.find('tbody .sp-total').text()).toBe('14 EUR')
+  })
+
   it('offers show all when something is hidden', async () => {
     const wrapper = mountView()
     await wrapper.findAll('.sp-chip')[0].trigger('click')
