@@ -14,7 +14,7 @@ defmodule Servant.DataTest do
     %{user_a: user_a, user_b: user_b, a1: a1, a2: a2, b1: b1}
   end
 
-  describe "user scoping (BE-TEST-2)" do
+  describe "user scoping" do
     test "list_entries only returns the caller's entries", %{user_a: a, b1: b1} do
       ids = a.id |> Data.list_entries() |> Enum.map(& &1.id)
       assert length(ids) == 2
@@ -71,7 +71,7 @@ defmodule Servant.DataTest do
     end
   end
 
-  describe "create_entries/2 batch insert (BE-PERF-1)" do
+  describe "create_entries/2 batch insert" do
     setup do
       %{user: user_fixture()}
     end

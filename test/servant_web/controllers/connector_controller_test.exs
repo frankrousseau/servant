@@ -23,7 +23,7 @@ defmodule ServantWeb.ConnectorControllerTest do
     config
   end
 
-  describe "secret redaction (BE-SEC-3)" do
+  describe "secret redaction" do
     test "show masks sensitive config values but keeps the rest", %{conn: conn, user: user} do
       config = create_strava(user.id)
 

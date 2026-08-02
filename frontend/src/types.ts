@@ -28,6 +28,21 @@ export interface ApiToken {
   token?: string // present only in the create response
 }
 
+// ----- apps -----
+
+export interface InstalledApp {
+  id: string
+  name: string
+  description: string | null
+  icon: string | null
+  entry_url: string
+  repo_url: string | null
+  built_in: boolean
+  generated: boolean
+  has_previous: boolean
+  updated_at: string
+}
+
 // ----- data -----
 
 export interface Entry {

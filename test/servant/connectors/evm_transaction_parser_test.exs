@@ -114,7 +114,7 @@ defmodule Servant.Connectors.EVM.TransactionParserTest do
       assert transfer.counterparty == @other
     end
 
-    test "captures logIndex so multi-transfer txs get distinct external_ids (BE2-BUG-5)" do
+    test "captures logIndex so multi-transfer txs get distinct external_ids" do
       # Two ERC-20 transfers sharing one tx hash (e.g. a swap) must be told apart
       # by their log index, or on_conflict:nothing would drop all but the first.
       tx_a = token_tx(%{"logIndex" => "5"})

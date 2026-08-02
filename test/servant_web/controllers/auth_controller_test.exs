@@ -27,7 +27,7 @@ defmodule ServantWeb.AuthControllerTest do
       assert json_response(conn, 422)
     end
 
-    test "403 when registration is disabled (BE-SEC-9)", %{conn: conn} do
+    test "403 when registration is disabled", %{conn: conn} do
       Application.put_env(:servant, :registration_enabled, false)
       on_exit(fn -> Application.put_env(:servant, :registration_enabled, true) end)
 
@@ -72,7 +72,7 @@ defmodule ServantWeb.AuthControllerTest do
       assert is_binary(token)
     end
 
-    test "sets an HttpOnly file-auth cookie (BE-SEC-1)", %{conn: conn} do
+    test "sets an HttpOnly file-auth cookie", %{conn: conn} do
       conn =
         post(conn, "/api/auth/login", %{"username" => "loginuser", "password" => "password123"})
 
@@ -121,7 +121,7 @@ defmodule ServantWeb.AuthControllerTest do
     end
   end
 
-  describe "Bearer auth plug (BE-TEST-3)" do
+  describe "Bearer auth plug" do
     test "401 without a token", %{conn: conn} do
       conn = get(conn, "/api/auth/me")
       assert json_response(conn, 401)
@@ -143,7 +143,7 @@ defmodule ServantWeb.AuthControllerTest do
       assert data["id"] == user.id
     end
 
-    test "authenticates via the HttpOnly cookie without a Bearer header (FE-SEC-3)", %{conn: conn} do
+    test "authenticates via the HttpOnly cookie without a Bearer header", %{conn: conn} do
       user = user_fixture()
       token = ServantWeb.Auth.sign_token(ServantWeb.Endpoint, user)
 

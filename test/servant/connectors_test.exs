@@ -41,7 +41,7 @@ defmodule Servant.ConnectorsTest do
     end
   end
 
-  describe "config encryption at rest (BE-SEC-4)" do
+  describe "config encryption at rest" do
     test "secrets are stored encrypted but read back decrypted" do
       user = user_fixture()
 

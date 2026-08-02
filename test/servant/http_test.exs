@@ -3,7 +3,7 @@ defmodule Servant.HTTPTest do
 
   alias Servant.HTTP
 
-  describe "ensure_public_url/1 (BE-SEC-7 SSRF)" do
+  describe "ensure_public_url/1" do
     test "allows public IPv4/IPv6 literals" do
       assert HTTP.ensure_public_url("http://93.184.216.34/feed") == :ok
       assert HTTP.ensure_public_url("https://8.8.8.8/") == :ok

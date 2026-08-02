@@ -4,7 +4,7 @@ defmodule ServantWeb.SpaController do
   use ServantWeb, :controller
 
   # `script-src 'self'` blocks injected/inline scripts (the payoff of removing
-  # inline handlers in FE-SEC-5). `style-src` keeps 'unsafe-inline' because the
+  # inline handlers in). `style-src` keeps 'unsafe-inline' because the
   # apps and Vue set inline style attributes; that's a far smaller risk than
   # inline scripts. The HEIC-to-JPEG converter (heic-to) runs libheif in a
   # blob: worker, hence `worker-src blob:`; `wasm-unsafe-eval` permits wasm

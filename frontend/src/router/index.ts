@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 // Only the auth entry views are eager. The dashboard is lazy too: it pulls in
 // the connector catalog (hundreds of lines of inline SVG) and the phoenix
-// socket lib, which we don't want in the main bundle (FE-PERF-2/3).
+// socket lib, which we don't want in the main bundle.
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 

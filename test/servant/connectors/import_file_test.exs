@@ -32,7 +32,7 @@ defmodule Servant.Connectors.ImportFileTest do
     :ok
   end
 
-  test "imports a vCard file into entries and records a sync log (BE-TEST-6)" do
+  test "imports a vCard file into entries and records a sync log" do
     user = user_fixture()
 
     {:ok, config} =
@@ -57,7 +57,7 @@ defmodule Servant.Connectors.ImportFileTest do
     assert log.entries_count == 1
   end
 
-  test "rejects an unsupported connector type (BE-TEST-6)" do
+  test "rejects an unsupported connector type" do
     user = user_fixture()
 
     {:ok, config} =

@@ -3,7 +3,7 @@ defmodule Servant.AccountsTest do
 
   alias Servant.Accounts
 
-  describe "authenticate_user/2 (BE-TEST-3)" do
+  describe "authenticate_user/2" do
     setup do
       user = user_fixture(%{"username" => "alice", "password" => "password123"})
       %{user: user}
@@ -24,7 +24,7 @@ defmodule Servant.AccountsTest do
     end
   end
 
-  describe "change_password/3 (BE-TEST-3)" do
+  describe "change_password/3" do
     setup do
       %{user: user_fixture(%{"username" => "bob", "password" => "password123"})}
     end

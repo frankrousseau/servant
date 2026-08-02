@@ -19,7 +19,7 @@ defmodule Servant.StorageTest do
     %{dir: dir}
   end
 
-  describe "resolve_public_path/1 path traversal (BE-TEST-5)" do
+  describe "resolve_public_path/1 path traversal" do
     test "rejects parent-directory traversal" do
       assert Storage.resolve_public_path("../../etc/passwd") == :error
       assert Storage.resolve_public_path("foo/../../bar") == :error

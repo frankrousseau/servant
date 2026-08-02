@@ -36,7 +36,7 @@ defmodule Servant.Connectors.StravaConnectorTest do
   end
 
   describe "persisted_config/1" do
-    test "persists the (possibly rotated) refresh token and cursor (BE2-BUG-2)" do
+    test "persists the (possibly rotated) refresh token and cursor" do
       state = %{refresh_token: "rt_2", last_activity_after: 1_700_000_500}
 
       assert StravaConnector.persisted_config(state) == %{

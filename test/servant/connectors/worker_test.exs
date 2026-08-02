@@ -31,7 +31,7 @@ defmodule Servant.Connectors.WorkerTest do
     %{user: user, config: config, pid: pid}
   end
 
-  test "a successful sync creates entries (BE-TEST-7)", %{user: user, config: config, pid: pid} do
+  test "a successful sync creates entries", %{user: user, config: config, pid: pid} do
     Worker.sync_now(user.id, config.id)
     # Flush the cast: a following synchronous call returns only once the cast
     # has been handled.
@@ -40,7 +40,7 @@ defmodule Servant.Connectors.WorkerTest do
     assert Data.count_entries(user.id) == 1
   end
 
-  test "a successful sync persists the connector cursor (BE-TEST-7 / BE-ARCH-1)", %{
+  test "a successful sync persists the connector cursor", %{
     user: user,
     config: config,
     pid: pid
@@ -53,7 +53,7 @@ defmodule Servant.Connectors.WorkerTest do
     assert updated.last_synced_at != nil
   end
 
-  # --- Lifecycle (BE2-TEST-2 / BE2-BUG-1/12) ---
+  # --- Lifecycle ---
 
   test "the worker is :transient so an init config error isn't restart-stormed" do
     assert %{restart: :transient} = Worker.child_spec([])

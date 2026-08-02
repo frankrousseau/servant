@@ -3,7 +3,7 @@ defmodule Servant.Connectors.RSSConnectorTest do
 
   alias Servant.Connectors.RSSConnector
 
-  describe "parse_pub_date/1 (BE-BUG-4)" do
+  describe "parse_pub_date/1" do
     test "parses RFC 822 pubDate with a numeric offset" do
       assert RSSConnector.parse_pub_date("Mon, 06 Sep 2021 16:45:00 +0000") ==
                ~U[2021-09-06 16:45:00Z]
@@ -36,7 +36,7 @@ defmodule Servant.Connectors.RSSConnectorTest do
     end
   end
 
-  describe "external_id/1 (BE-BUG-8)" do
+  describe "external_id/1" do
     test "prefers the link" do
       assert RSSConnector.external_id(%{link: "https://x/1", title: "T", description: "d"}) ==
                "https://x/1"

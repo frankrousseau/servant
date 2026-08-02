@@ -7,12 +7,40 @@ import { applyTheme } from '../lib/theme'
 
 // Only a non-sensitive "are we logged in?" flag is persisted. The actual auth
 // token lives in an HttpOnly cookie (unreadable by JS) plus an in-memory copy
-// used to open the realtime socket, never in localStorage (FE-SEC-3).
+// used to open the realtime socket, never in localStorage.
 const LOGGED_IN_KEY = 'servant_logged_in'
+
+type Session = { token: string; user: User }
+type LoginReply = Session | { requires_totp: true; ticket: string }
+
+// The shared client turns any 401 into a logout, which is exactly wrong on the
+// way in: a bad password or a wrong TOTP code answers 401 and must not clear a
+// session. These calls go straight to fetch, with the same error parsing, so a
+// changeset-style {errors: {field: [...]}} body still surfaces its real message
+// instead of a generic one.
+async function postAuth<T>(
+  path: string,
+  body: unknown,
+  fallbackMessage: string
+): Promise<T> {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(apiErrorMessage(err) || fallbackMessage)
+  }
+  return res.json()
+}
 
 export const useAuthStore = defineStore('auth', () => {
   // Drop any token left by the pre-cookie version.
   localStorage.removeItem('auth_token')
+
+  // ----- state -----
 
   const token = ref<string | null>(null)
   const user = ref<User | null>(null)
@@ -20,12 +48,12 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => loggedIn.value || !!user.value)
 
-  function setAuth(newToken: string, newUser: User) {
-    token.value = newToken
-    user.value = newUser
+  function setAuth(session: Session) {
+    token.value = session.token
+    user.value = session.user
     loggedIn.value = true
     localStorage.setItem(LOGGED_IN_KEY, '1')
-    if (newUser.theme) applyTheme(newUser.theme)
+    if (session.user.theme) applyTheme(session.user.theme)
   }
 
   function clearAuth() {
@@ -35,43 +63,35 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem(LOGGED_IN_KEY)
   }
 
+  // ----- entering a session -----
+
   // Resolves to a pending-TOTP marker when the account has 2FA: the caller
   // must then call verifyTotp with the short-lived ticket and a code.
   async function login(
     username: string,
     password: string
   ): Promise<{ requiresTotp: boolean; ticket?: string }> {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    })
+    const data = await postAuth<LoginReply>(
+      '/api/auth/login',
+      { username, password },
+      'Login failed'
+    )
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(apiErrorMessage(err) || 'Login failed')
+    if ('requires_totp' in data) {
+      return { requiresTotp: true, ticket: data.ticket }
     }
-
-    const data = await res.json()
-    if (data.requires_totp) return { requiresTotp: true, ticket: data.ticket }
-    setAuth(data.token, data.user)
+    setAuth(data)
     return { requiresTotp: false }
   }
 
   async function verifyTotp(ticket: string, code: string) {
-    const res = await fetch('/api/auth/totp/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticket, code })
-    })
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(apiErrorMessage(err) || 'Invalid code')
-    }
-
-    const data = await res.json()
-    setAuth(data.token, data.user)
+    setAuth(
+      await postAuth<Session>(
+        '/api/auth/totp/verify',
+        { ticket, code },
+        'Invalid code'
+      )
+    )
   }
 
   async function register(
@@ -79,21 +99,13 @@ export const useAuthStore = defineStore('auth', () => {
     password: string,
     display_name: string
   ) {
-    const res = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password, display_name })
-    })
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      // Uses the shared parser so changeset-style {errors:{field:[...]}} bodies
-      // surface the real field message instead of a generic "Registration failed".
-      throw new Error(apiErrorMessage(err) || 'Registration failed')
-    }
-
-    const data = await res.json()
-    setAuth(data.token, data.user)
+    setAuth(
+      await postAuth<Session>(
+        '/api/auth/register',
+        { username, password, display_name },
+        'Registration failed'
+      )
+    )
   }
 
   function logout() {
@@ -101,6 +113,8 @@ export const useAuthStore = defineStore('auth', () => {
     fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
     clearAuth()
   }
+
+  // ----- boot -----
 
   // On boot, if the flag says we were logged in, confirm via /auth/me; the
   // HttpOnly cookie authenticates the request. Populates the user and an

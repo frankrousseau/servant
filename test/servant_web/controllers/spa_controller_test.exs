@@ -22,7 +22,7 @@ defmodule ServantWeb.SpaControllerTest do
     :ok
   end
 
-  test "serves the SPA with a strict CSP and security headers (FE-SEC-2)", %{conn: conn} do
+  test "serves the SPA with a strict CSP and security headers", %{conn: conn} do
     conn = get(conn, "/")
     assert response(conn, 200)
 

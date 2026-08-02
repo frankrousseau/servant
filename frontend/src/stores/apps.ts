@@ -1,30 +1,24 @@
-import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { defineStore } from 'pinia'
 
+import type { AppDef } from '../apps/types'
+import type { InstalledApp } from '../types'
 import { apiJson } from '../composables/apiClient'
 import { enabledBuiltins } from '../apps/registry'
 import { useAuthStore } from './auth'
-import type { AppDef } from '../apps/types'
-
-export interface InstalledApp {
-  id: string
-  name: string
-  description: string | null
-  icon: string | null
-  entry_url: string
-  repo_url: string | null
-  built_in: boolean
-  generated: boolean
-  has_previous: boolean
-  updated_at: string
-}
 
 // Builtin apps merged with the user's git-installed apps. Installed apps are
 // loaded at runtime by importing their pre-built ES module from /files (the
 // cookie authenticates the request, same as any file).
 export const useAppsStore = defineStore('apps', () => {
+  const auth = useAuthStore()
+
+  // ----- state -----
+
   const installed = ref<InstalledApp[]>([])
   const loaded = ref(false)
+
+  // ----- what the sidebar, the palette and AppView read -----
 
   function toDef(app: InstalledApp): AppDef {
     // updated_at busts the browser's ES-module cache after an app update
@@ -41,7 +35,6 @@ export const useAppsStore = defineStore('apps', () => {
   // Disabled built-ins disappear everywhere defs is consumed: sidebar,
   // command palette, and app mounting (getDef misses). Installed apps were
   // an explicit install, they are always on.
-  const auth = useAuthStore()
   const defs = computed<AppDef[]>(() => [
     ...enabledBuiltins(auth.user?.enabled_apps),
     ...installed.value.map(toDef)
@@ -58,6 +51,8 @@ export const useAppsStore = defineStore('apps', () => {
     loaded.value = true
   }
 
+  // ----- installing from git -----
+
   async function install(repoUrl: string) {
     await apiJson('POST', '/api/apps', { body: { repo_url: repoUrl } })
     await load(true)
@@ -73,13 +68,13 @@ export const useAppsStore = defineStore('apps', () => {
     installed.value = installed.value.filter(a => a.id !== id)
   }
 
+  // ----- the builder (an app written by the model) -----
+
   async function generate(name: string, description: string) {
     const res = await apiJson<{ data: { id: string } }>(
       'POST',
       '/api/apps/generate',
-      {
-        body: { name, description }
-      }
+      { body: { name, description } }
     )
     return res.data.id
   }
@@ -88,9 +83,7 @@ export const useAppsStore = defineStore('apps', () => {
     const res = await apiJson<{ data: { id: string } }>(
       'POST',
       `/api/apps/${id}/modify`,
-      {
-        body: { instruction }
-      }
+      { body: { instruction } }
     )
     return res.data.id
   }
