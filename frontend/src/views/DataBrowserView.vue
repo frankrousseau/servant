@@ -5,14 +5,21 @@ import { useRoute, useRouter } from 'vue-router'
 import ComboBox from '../components/ComboBox.vue'
 import KindIcon from '../components/KindIcon.vue'
 
-import { useApi } from '../composables/useApi'
-import { useSocket, debounce } from '../composables/useSocket'
 import type { Entry, PaginationMeta } from '../types'
-import { relativeTime } from '../lib/datetime'
-import { formatDateTime } from '../lib/datetime'
+import {
+  createEntry,
+  deleteEntriesMatching,
+  deleteEntry as removeEntry,
+  getEntry,
+  listEntriesPage,
+  listKinds,
+  listSources,
+  updateEntry
+} from '../api/entries'
+import { useSocket, debounce } from '../composables/useSocket'
+import { formatDateTime, relativeTime } from '../lib/datetime'
 import { useConfirm } from '../composables/useConfirm'
 
-const api = useApi()
 const route = useRoute()
 const router = useRouter()
 
@@ -76,12 +83,12 @@ onBulkChange(refresh)
 
 async function fetchFilters() {
   try {
-    const [kindsRes, sourcesRes] = await Promise.all([
-      api.get<{ data: string[] }>('/api/entries/kinds'),
-      api.get<{ data: string[] }>('/api/entries/sources')
+    const [allKinds, allSources] = await Promise.all([
+      listKinds(),
+      listSources()
     ])
-    kinds.value = kindsRes.data
-    sources.value = sourcesRes.data
+    kinds.value = allKinds
+    sources.value = allSources
   } catch {
     // ignore
   }
@@ -102,10 +109,7 @@ async function fetchEntries() {
     if (filterDateFrom.value) params.from = filterDateFrom.value + 'T00:00:00Z'
     if (filterDateTo.value) params.to = filterDateTo.value + 'T23:59:59Z'
 
-    const res = await api.get<{ data: Entry[]; meta: PaginationMeta }>(
-      '/api/entries',
-      params
-    )
+    const res = await listEntriesPage(params)
     entries.value = res.data
     meta.value = res.meta
     pageError.value = null
@@ -165,9 +169,9 @@ async function saveEntry() {
     }
 
     if (editingEntry.value) {
-      await api.put(`/api/entries/${editingEntry.value.id}`, body)
+      await updateEntry(editingEntry.value.id, body)
     } else {
-      await api.post('/api/entries', body)
+      await createEntry(body)
     }
 
     showModal.value = false
@@ -200,13 +204,12 @@ async function deleteAllFiltered() {
   if (!ok) return
   try {
     // Mirror fetchEntries exactly: what you see is what gets deleted.
-    const params = new URLSearchParams()
-    if (filterKind.value) params.set('kind', filterKind.value)
-    if (filterSource.value) params.set('source', filterSource.value)
-    if (filterDateFrom.value)
-      params.set('from', filterDateFrom.value + 'T00:00:00Z')
-    if (filterDateTo.value) params.set('to', filterDateTo.value + 'T23:59:59Z')
-    await api.del(`/api/entries?${params.toString()}`)
+    const filters: Record<string, string> = {}
+    if (filterKind.value) filters.kind = filterKind.value
+    if (filterSource.value) filters.source = filterSource.value
+    if (filterDateFrom.value) filters.from = filterDateFrom.value + 'T00:00:00Z'
+    if (filterDateTo.value) filters.to = filterDateTo.value + 'T23:59:59Z'
+    await deleteEntriesMatching(filters)
     filterKind.value = ''
     filterSource.value = ''
     await fetchFilters()
@@ -221,7 +224,7 @@ async function deleteEntry(entry: Entry) {
   })
   if (!ok) return
   try {
-    await api.del(`/api/entries/${entry.id}`)
+    await removeEntry(entry.id)
     showDetail.value = false
     selectedEntry.value = null
     await fetchEntries()
@@ -267,8 +270,7 @@ watch(
   async entryId => {
     if (entryId) {
       try {
-        const res = await api.get<{ data: Entry }>(`/api/entries/${entryId}`)
-        selectedEntry.value = res.data
+        selectedEntry.value = await getEntry(String(entryId))
         showDetail.value = true
       } catch {
         // ignore

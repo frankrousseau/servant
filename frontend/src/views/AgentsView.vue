@@ -6,6 +6,7 @@ import { Wrench, Play, Pencil, Trash2, Undo2, Plus } from 'lucide-vue-next'
 import ComboBox from '../components/ComboBox.vue'
 
 import { useApi } from '../composables/useApi'
+import { listEntriesPage } from '../api/entries'
 import { useConfirm } from '../composables/useConfirm'
 import { useAppsStore } from '../stores/apps'
 import { formatDate } from '../lib/datetime'
@@ -119,10 +120,7 @@ async function loadReports(opts: { append?: boolean } = {}) {
   const q = reportQuery.value.trim()
   if (q) params.q = q
 
-  const res = await api.get<{ data: Entry[]; meta: { total: number } }>(
-    '/api/entries',
-    params
-  )
+  const res = await listEntriesPage(params)
   reportTotal.value = res.meta.total
   reports.value = opts.append ? [...reports.value, ...res.data] : res.data
 }

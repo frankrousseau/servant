@@ -15,6 +15,8 @@ export interface User {
   enabled_apps?: string[] | null
   totp_enabled?: boolean
   admin?: boolean
+  // Only /api/auth/me returns it (the Profile page's "member since").
+  inserted_at?: string
 }
 
 export interface ApiToken {

@@ -5,7 +5,7 @@ import { ArrowLeft, Download, Trash2 } from 'lucide-vue-next'
 
 import VideoPlayer from '../components/VideoPlayer.vue'
 
-import { useApi } from '../composables/useApi'
+import { deleteEntry, getEntry } from '../api/entries'
 import { useFetchData } from '../composables/useFetchData'
 import { useConfirm } from '../composables/useConfirm'
 import type { Entry } from '../types'
@@ -14,20 +14,15 @@ import { formatDateTime } from '../lib/datetime'
 
 const route = useRoute()
 const router = useRouter()
-const api = useApi()
 
 const {
   data: entry,
   loading,
   error,
   refetch
-} = useFetchData<Entry>(
-  () =>
-    api
-      .get<{ data: Entry }>(`/api/entries/${route.params.id}`)
-      .then(r => r.data),
-  { fallbackError: 'Photo not found' }
-)
+} = useFetchData<Entry>(() => getEntry(String(route.params.id)), {
+  fallbackError: 'Photo not found'
+})
 const imgError = ref(false)
 // Refetch when the id changes: the instance is reused across /photos/:id links.
 watch(
@@ -66,7 +61,7 @@ async function deletePhoto() {
     message: `Delete "${entry.value.title || 'this photo'}"?`
   })
   if (!ok) return
-  await api.del(`/api/entries/${entry.value.id}`)
+  await deleteEntry(entry.value.id)
   router.push('/apps/photos')
 }
 </script>

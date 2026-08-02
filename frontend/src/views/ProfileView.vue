@@ -12,11 +12,10 @@ import {
 import ComboBox from '../components/ComboBox.vue'
 
 import { useAuthStore } from '../stores/auth'
-import { useApi } from '../composables/useApi'
+import * as api from '../api/auth'
 import { formatDate } from '../lib/datetime'
 
 const auth = useAuthStore()
-const api = useApi()
 
 // Profile
 const displayName = ref('')
@@ -76,11 +75,7 @@ async function startTotpSetup() {
   totpError.value = ''
   totpBusy.value = true
   try {
-    const res = await api.post<{
-      secret: string
-      otpauth_url: string
-      payload: string
-    }>('/api/auth/totp/setup')
+    const res = await api.setupTotp()
     totpSetup.value = { payload: res.payload, secret: res.secret }
     totpQr.value = await QRCode.toDataURL(res.otpauth_url, {
       margin: 1,
@@ -99,10 +94,7 @@ async function confirmTotp() {
   totpError.value = ''
   totpBusy.value = true
   try {
-    await api.post('/api/auth/totp/confirm', {
-      payload: totpSetup.value.payload,
-      code: totpCode.value.trim()
-    })
+    await api.confirmTotp(totpSetup.value.payload, totpCode.value.trim())
     totpEnabled.value = true
     totpSetup.value = null
     totpQr.value = ''
@@ -118,7 +110,7 @@ async function disableTotp() {
   totpError.value = ''
   totpBusy.value = true
   try {
-    await api.del('/api/auth/totp', { code: totpDisableCode.value.trim() })
+    await api.disableTotp(totpDisableCode.value.trim())
     totpEnabled.value = false
     totpDisableCode.value = ''
   } catch (e: any) {
@@ -133,22 +125,15 @@ const memberSince = ref('')
 
 onMounted(async () => {
   try {
-    const res = await api.get<{
-      data: {
-        display_name: string
-        email: string | null
-        avatar_path: string | null
-        timezone: string | null
-        totp_enabled: boolean
-        inserted_at: string
-      }
-    }>('/api/auth/me')
-    displayName.value = res.data.display_name || ''
-    email.value = res.data.email || ''
-    totpEnabled.value = res.data.totp_enabled === true
-    timezone.value = res.data.timezone || 'UTC'
-    avatarUrl.value = res.data.avatar_path
-    memberSince.value = formatDate(res.data.inserted_at)
+    const session = await api.fetchMe()
+    if (!session) return
+    const me = session.user
+    displayName.value = me.display_name || ''
+    email.value = me.email || ''
+    totpEnabled.value = me.totp_enabled === true
+    timezone.value = me.timezone || 'UTC'
+    avatarUrl.value = me.avatar_path
+    memberSince.value = me.inserted_at ? formatDate(me.inserted_at) : ''
   } catch {
     displayName.value = auth.user?.display_name || ''
   }
@@ -159,24 +144,15 @@ async function saveProfile() {
   profileSuccess.value = false
   profileError.value = ''
   try {
-    const res = await api.put<{
-      data: {
-        id: string
-        username: string
-        display_name: string
-        email: string | null
-        avatar_path: string | null
-        timezone: string | null
-      }
-    }>('/api/auth/profile', {
+    const updated = await api.updateProfile({
       display_name: displayName.value,
       email: email.value || null,
       timezone: timezone.value
     })
     if (auth.user) {
-      auth.user.display_name = res.data.display_name
-      auth.user.email = res.data.email
-      auth.user.timezone = res.data.timezone
+      auth.user.display_name = updated.display_name
+      auth.user.email = updated.email
+      auth.user.timezone = updated.timezone
     }
     profileSuccess.value = true
     setTimeout(() => (profileSuccess.value = false), 3000)
@@ -193,20 +169,11 @@ async function uploadAvatar(event: Event) {
   if (!file) return
 
   avatarUploading.value = true
-  const formData = new FormData()
-  formData.append('avatar', file)
-
   try {
-    const res = await fetch('/api/auth/avatar', {
-      method: 'POST',
-      headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {},
-      body: formData
-    })
-    const data = await res.json()
-    if (res.ok) {
-      avatarUrl.value = data.data.avatar_path + '?t=' + Date.now()
-      if (auth.user) auth.user.avatar_path = data.data.avatar_path
-    }
+    const { avatar_path } = await api.uploadAvatar(file, auth.token)
+    // Cache-buster: the path is stable, the image behind it is not.
+    avatarUrl.value = avatar_path + '?t=' + Date.now()
+    if (auth.user) auth.user.avatar_path = avatar_path
   } catch {
     // ignore
   } finally {
@@ -230,10 +197,7 @@ async function changePassword() {
 
   passwordSaving.value = true
   try {
-    await api.put('/api/auth/password', {
-      current_password: currentPassword.value,
-      new_password: newPassword.value
-    })
+    await api.changePassword(currentPassword.value, newPassword.value)
     currentPassword.value = ''
     newPassword.value = ''
     confirmPassword.value = ''

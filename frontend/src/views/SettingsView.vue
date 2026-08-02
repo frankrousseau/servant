@@ -16,6 +16,7 @@ import ComboBox from '../components/ComboBox.vue'
 import { useAuthStore } from '../stores/auth'
 import { useAppsStore } from '../stores/apps'
 import { useApi } from '../composables/useApi'
+import { updateProfile } from '../api/auth'
 import { formatDate } from '../lib/datetime'
 import { useConfirm } from '../composables/useConfirm'
 import { THEMES, applyTheme, storedTheme, type ThemeId } from '../lib/theme'
@@ -70,7 +71,7 @@ async function toggleApp(id: string) {
     ? enabledApps.value.filter(x => x !== id)
     : [...enabledApps.value, id]
   try {
-    await api.put('/api/auth/profile', { enabled_apps: enabledApps.value })
+    await updateProfile({ enabled_apps: enabledApps.value })
     if (auth.user) auth.user.enabled_apps = [...enabledApps.value]
   } catch {
     enabledApps.value = previous
@@ -88,7 +89,7 @@ async function selectTheme(id: ThemeId) {
   currentTheme.value = id
   applyTheme(id)
   try {
-    await api.put('/api/auth/profile', { theme: id })
+    await updateProfile({ theme: id })
     if (auth.user) auth.user.theme = id
   } catch {
     currentTheme.value = previous

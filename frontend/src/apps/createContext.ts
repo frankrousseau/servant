@@ -1,15 +1,18 @@
 import { useRouter } from 'vue-router'
 
 import { useAuthStore } from '../stores/auth'
-import type {
-  AggregateBucket,
-  AppContext,
-  Entry,
-  UploadResult,
-  ViewerAPI
-} from './types'
+import type { AppContext, UploadResult, ViewerAPI } from './types'
 import { useConfirm } from '../composables/useConfirm'
-import { apiFetch, apiJson } from '../composables/apiClient'
+import { apiFetch } from '../composables/apiClient'
+import {
+  aggregateEntries,
+  createEntry,
+  deleteEntry,
+  entryStats,
+  getEntry,
+  listEntries,
+  updateEntry
+} from '../api/entries'
 
 export function createAppContext(viewer: ViewerAPI): AppContext {
   const auth = useAuthStore()
@@ -21,76 +24,16 @@ export function createAppContext(viewer: ViewerAPI): AppContext {
       router.push(path)
     },
     api: {
+      // The app-facing surface is the shared entries client, nothing more.
       entries: {
-        async list(filters?: Record<string, string>): Promise<Entry[]> {
-          // Page through the results instead of a single hardcoded per_page=10000
-          // request: that cap silently dropped entries beyond 10k and sent one
-          // huge payload. Bounded pages, no cap.
-          const perPage = 1000
-          const all: Entry[] = []
-          let page = 1
-          let totalPages = 1
-          do {
-            const res = await apiJson<{
-              data: Entry[]
-              meta: { total_pages: number }
-            }>('GET', '/api/entries', {
-              params: {
-                ...(filters || {}),
-                per_page: String(perPage),
-                page: String(page)
-              }
-            })
-            all.push(...res.data)
-            totalPages = res.meta?.total_pages ?? page
-            page++
-          } while (page <= totalPages)
-          return all
-        },
-        async get(id: string): Promise<Entry> {
-          const res = await apiJson<{ data: Entry }>(
-            'GET',
-            `/api/entries/${id}`
-          )
-          return res.data
-        },
-        async create(attrs: Record<string, unknown>): Promise<Entry> {
-          const res = await apiJson<{ data: Entry }>('POST', '/api/entries', {
-            body: attrs
-          })
-          return res.data
-        },
-        async update(
-          id: string,
-          attrs: Record<string, unknown>
-        ): Promise<Entry> {
-          const res = await apiJson<{ data: Entry }>(
-            'PUT',
-            `/api/entries/${id}`,
-            { body: attrs }
-          )
-          return res.data
-        },
-        async delete(id: string): Promise<void> {
-          await apiJson<void>('DELETE', `/api/entries/${id}`)
-        },
-        async stats(): Promise<Record<string, number>> {
-          const res = await apiJson<{ data: Record<string, number> }>(
-            'GET',
-            '/api/entries/stats'
-          )
-          return res.data
-        },
-        async aggregate(
-          params: Record<string, string>
-        ): Promise<AggregateBucket[]> {
-          const res = await apiJson<{ data: AggregateBucket[] }>(
-            'GET',
-            '/api/entries/aggregate',
-            { params }
-          )
-          return res.data
-        }
+        list: listEntries,
+        get: getEntry,
+        create: createEntry,
+        update: updateEntry,
+        delete: deleteEntry,
+        // The plugin contract is the per-kind counts alone.
+        stats: async () => (await entryStats()).data,
+        aggregate: aggregateEntries
       },
       // Multipart upload keeps its own request: the browser must set the
       // multipart Content-Type boundary, and XHR (unlike fetch) can report

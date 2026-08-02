@@ -6,6 +6,11 @@ import KindIcon from '../components/KindIcon.vue'
 
 import { useAuthStore } from '../stores/auth'
 import { useApi } from '../composables/useApi'
+import {
+  dailyStats as fetchDailyStats,
+  entryStats,
+  listEntriesPage
+} from '../api/entries'
 import { useSocket, debounce } from '../composables/useSocket'
 import type { Entry, ConnectorConfig } from '../types'
 import { relativeTime } from '../lib/datetime'
@@ -51,35 +56,21 @@ async function fetchData() {
       eventsRes,
       checklistsRes
     ] = await Promise.all([
-      api.get<{ data: Entry[]; meta: { total: number } }>('/api/entries', {
-        per_page: '30',
-        sort: 'inserted_at'
-      }),
-      api.get<{ data: Record<string, number>; total: number }>(
-        '/api/entries/stats'
-      ),
+      listEntriesPage({ per_page: '30', sort: 'inserted_at' }),
+      entryStats(),
       api.get<{ data: ConnectorConfig[] }>('/api/connectors'),
-      api.get<{ data: Record<string, Record<string, number>> }>(
-        '/api/entries/stats/daily',
-        { days: '30' }
-      ),
+      fetchDailyStats(30),
       // All events, not just future ones: recurring events (birthdays,
       // weekly rituals) have past seed dates but upcoming occurrences.
       // ponytail: per_page 1000, paginate if a calendar ever outgrows it.
-      api.get<{ data: Entry[] }>('/api/entries', {
-        kind: 'event',
-        per_page: '1000'
-      }),
-      api.get<{ data: Entry[] }>('/api/entries', {
-        kind: 'checklist',
-        per_page: '100'
-      })
+      listEntriesPage({ kind: 'event', per_page: '1000' }),
+      listEntriesPage({ kind: 'checklist', per_page: '100' })
     ])
     recentEntries.value = entriesRes.data
     stats.value = statsRes.data
     totalEntries.value = statsRes.total
     connectors.value = connectorsRes.data
-    dailyStats.value = dailyRes.data
+    dailyStats.value = dailyRes
     events.value = eventsRes.data
     checklists.value = checklistsRes.data
   } catch {

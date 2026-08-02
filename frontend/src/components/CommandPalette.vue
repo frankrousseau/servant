@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { useApi } from '../composables/useApi'
+import { listEntriesPage } from '../api/entries'
 import { useAppsStore } from '../stores/apps'
 import { useAuthStore } from '../stores/auth'
 import { agentsEnabled } from '../apps/registry'
@@ -11,7 +11,6 @@ import { kindIcon, kindColor } from '../lib/kind'
 import { entryRoute } from '../lib/entryRoute'
 
 const router = useRouter()
-const api = useApi()
 
 const open = ref(false)
 const query = ref('')
@@ -84,7 +83,7 @@ watch(query, q => {
   searchTimer = setTimeout(async () => {
     const mySeq = ++seq
     try {
-      const res = await api.get<{ data: Entry[] }>('/api/entries', {
+      const res = await listEntriesPage({
         q: term,
         per_page: '12',
         sort: 'inserted_at'

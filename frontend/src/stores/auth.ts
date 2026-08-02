@@ -2,39 +2,14 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 
 import type { User } from '../types'
-import { apiErrorMessage } from '../composables/apiClient'
+import * as authApi from '../api/auth'
+import type { Session } from '../api/auth'
 import { applyTheme } from '../lib/theme'
 
 // Only a non-sensitive "are we logged in?" flag is persisted. The actual auth
 // token lives in an HttpOnly cookie (unreadable by JS) plus an in-memory copy
 // used to open the realtime socket, never in localStorage.
 const LOGGED_IN_KEY = 'servant_logged_in'
-
-type Session = { token: string; user: User }
-type LoginReply = Session | { requires_totp: true; ticket: string }
-
-// The shared client turns any 401 into a logout, which is exactly wrong on the
-// way in: a bad password or a wrong TOTP code answers 401 and must not clear a
-// session. These calls go straight to fetch, with the same error parsing, so a
-// changeset-style {errors: {field: [...]}} body still surfaces its real message
-// instead of a generic one.
-async function postAuth<T>(
-  path: string,
-  body: unknown,
-  fallbackMessage: string
-): Promise<T> {
-  const res = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  })
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(apiErrorMessage(err) || fallbackMessage)
-  }
-  return res.json()
-}
 
 export const useAuthStore = defineStore('auth', () => {
   // Drop any token left by the pre-cookie version.
@@ -71,11 +46,7 @@ export const useAuthStore = defineStore('auth', () => {
     username: string,
     password: string
   ): Promise<{ requiresTotp: boolean; ticket?: string }> {
-    const data = await postAuth<LoginReply>(
-      '/api/auth/login',
-      { username, password },
-      'Login failed'
-    )
+    const data = await authApi.login(username, password)
 
     if ('requires_totp' in data) {
       return { requiresTotp: true, ticket: data.ticket }
@@ -85,13 +56,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function verifyTotp(ticket: string, code: string) {
-    setAuth(
-      await postAuth<Session>(
-        '/api/auth/totp/verify',
-        { ticket, code },
-        'Invalid code'
-      )
-    )
+    setAuth(await authApi.verifyTotp(ticket, code))
   }
 
   async function register(
@@ -99,18 +64,11 @@ export const useAuthStore = defineStore('auth', () => {
     password: string,
     display_name: string
   ) {
-    setAuth(
-      await postAuth<Session>(
-        '/api/auth/register',
-        { username, password, display_name },
-        'Registration failed'
-      )
-    )
+    setAuth(await authApi.register(username, password, display_name))
   }
 
   function logout() {
-    // Clear the HttpOnly cookie server-side, then local state.
-    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
+    authApi.logout()
     clearAuth()
   }
 
@@ -123,15 +81,14 @@ export const useAuthStore = defineStore('auth', () => {
     if (user.value || !loggedIn.value) return
 
     try {
-      const res = await fetch('/api/auth/me')
-      if (res.ok) {
-        const body = await res.json()
-        user.value = body.data
-        token.value = body.token ?? null
-        if (body.data?.theme) applyTheme(body.data.theme)
-      } else if (res.status === 401) {
+      const session = await authApi.fetchMe()
+      if (!session) {
         clearAuth()
+        return
       }
+      user.value = session.user
+      token.value = session.token
+      if (session.user.theme) applyTheme(session.user.theme)
     } catch {
       // Network error: keep the flag and retry on the next boot.
     }
