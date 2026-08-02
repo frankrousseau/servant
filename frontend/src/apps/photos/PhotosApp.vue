@@ -6,7 +6,7 @@ import DateInput from '../../components/DateInput.vue'
 import FaceChip from './FaceChip.vue'
 
 import type { AppContext, Entry } from '../types'
-import { formatFileSize } from '../../types'
+import { formatFileSize } from '../../lib/filesize'
 import {
   formatDate,
   formatDateTime,

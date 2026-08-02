@@ -16,7 +16,7 @@ import {
 import ComboBox from '../../components/ComboBox.vue'
 
 import type { AppContext, Entry } from '../types'
-import { formatFileSize } from '../../types'
+import { formatFileSize } from '../../lib/filesize'
 import { formatDate } from '../../lib/datetime'
 import { safeUrl } from '../../lib/url'
 import {

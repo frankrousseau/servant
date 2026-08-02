@@ -1,5 +1,6 @@
-import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { defineStore } from 'pinia'
+
 import type { User } from '../types'
 import { apiErrorMessage } from '../composables/apiClient'
 import { applyTheme } from '../lib/theme'

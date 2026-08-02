@@ -8,7 +8,8 @@ import { useAuthStore } from '../stores/auth'
 import { useApi } from '../composables/useApi'
 import { useSocket, debounce } from '../composables/useSocket'
 import type { Entry, ConnectorConfig } from '../types'
-import { relativeTime, kindColor } from '../types'
+import { relativeTime } from '../lib/datetime'
+import { kindColor } from '../lib/kind'
 import {
   formatDate,
   formatDateTime,

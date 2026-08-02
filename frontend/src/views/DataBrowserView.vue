@@ -8,7 +8,7 @@ import KindIcon from '../components/KindIcon.vue'
 import { useApi } from '../composables/useApi'
 import { useSocket, debounce } from '../composables/useSocket'
 import type { Entry, PaginationMeta } from '../types'
-import { relativeTime } from '../types'
+import { relativeTime } from '../lib/datetime'
 import { formatDateTime } from '../lib/datetime'
 import { useConfirm } from '../composables/useConfirm'
 

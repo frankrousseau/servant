@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 import { useApi } from '../composables/useApi'
-import { formatFileSize } from '../types'
+import { formatFileSize } from '../lib/filesize'
 import { utcToZonedParts } from '../lib/datetime'
 
 interface SystemStats {

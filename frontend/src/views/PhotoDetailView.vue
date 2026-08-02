@@ -9,7 +9,7 @@ import { useApi } from '../composables/useApi'
 import { useFetchData } from '../composables/useFetchData'
 import { useConfirm } from '../composables/useConfirm'
 import type { Entry } from '../types'
-import { formatFileSize } from '../types'
+import { formatFileSize } from '../lib/filesize'
 import { formatDateTime } from '../lib/datetime'
 
 const route = useRoute()

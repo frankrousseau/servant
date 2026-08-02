@@ -10,6 +10,27 @@
  * purpose: putting data-theme on any element re-themes its subtree, which
  * is how the Settings theme previews render themselves.
  */
+
+/*
+ * Sections, in cascade order: tokens, then the bare elements, then the
+ * shell, then what pages are built from, and third-party overrides last.
+ *
+ *   1. Design tokens and themes
+ *   2. Base elements
+ *   3. Layout shell
+ *   4. Views
+ *   5. Forms and controls
+ *   6. Tables
+ *   7. Page pieces (filters, stats, connectors, settings, auth)
+ *   8. Modal
+ *   9. Third-party overrides (flatpickr)
+ *
+ * Component-specific rules live in the component, scoped; what is here is
+ * either shared by several of them or global by nature.
+ */
+
+/* ----- 1. Design tokens and themes ----- */
+
 :root {
   --bg: #05070f;
   --bg-surface: #0a0e1c;
@@ -151,6 +172,8 @@
   padding: 0;
 }
 
+/* ----- 2. Base elements ----- */
+
 body {
   font-family:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
@@ -179,7 +202,8 @@ a:hover {
   outline-offset: 2px;
 }
 
-/* Layout */
+/* ----- 3. Layout shell ----- */
+
 .app-layout {
   min-height: 100vh;
 }
@@ -201,8 +225,8 @@ a:hover {
   padding: 0;
 }
 
-/* Sidebar */
-/* Views */
+/* ----- 4. Views ----- */
+
 .view {
   max-width: 960px;
 }
@@ -239,73 +263,8 @@ a:hover {
   font-style: italic;
 }
 
-/* Auth pages */
-.auth-page {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-}
+/* ----- 5. Forms and controls ----- */
 
-.auth-card {
-  background: var(--bg-surface);
-  border: 1px solid rgba(var(--primary-rgb), 0.35);
-  border-radius: var(--radius);
-  padding: 2.5rem 2rem;
-  width: 100%;
-  max-width: 400px;
-  box-shadow:
-    0 0 40px rgba(var(--primary-rgb), 0.12),
-    inset 0 0 24px rgba(var(--primary-rgb), 0.04);
-}
-
-.auth-card .field label {
-  font-family: var(--font-display);
-  font-size: 1.1rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.auth-card input:focus {
-  box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.35);
-}
-
-.auth-card button[type='submit'] {
-  width: 100%;
-  margin-top: 0.5rem;
-  font-family: var(--font-display);
-  font-size: 1.25rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.auth-logo {
-  display: block;
-  margin: 0 auto 1rem;
-  color: var(--text);
-  filter: drop-shadow(0 0 4px rgba(var(--primary-rgb), 0.3));
-}
-
-.auth-card h1 {
-  font-family: var(--font-display);
-  font-weight: 400;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 1.75rem;
-  color: var(--primary);
-  text-shadow: 0 0 8px rgba(var(--primary-rgb), 0.55);
-  margin-bottom: 1.5rem;
-  text-align: center;
-}
-
-.alt-link {
-  margin-top: 1rem;
-  text-align: center;
-  font-size: 1rem;
-  color: var(--text-muted);
-}
-
-/* Forms */
 .field {
   margin-bottom: 1rem;
 }
@@ -393,7 +352,8 @@ button.danger:hover {
   margin-bottom: 0.75rem;
 }
 
-/* Tables */
+/* ----- 6. Tables ----- */
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -428,7 +388,8 @@ th {
   gap: 0.4rem;
 }
 
-/* Filters */
+/* ----- 7. Page pieces ----- */
+
 .filters {
   display: flex;
   gap: 0.75rem;
@@ -441,7 +402,6 @@ th {
   min-width: 150px;
 }
 
-/* Stats */
 .stats-grid {
   display: flex;
   gap: 1rem;
@@ -471,7 +431,6 @@ th {
   text-transform: capitalize;
 }
 
-/* Connector cards */
 .connector-list {
   display: flex;
   flex-direction: column;
@@ -539,7 +498,6 @@ th {
   width: auto;
 }
 
-/* Settings */
 .settings-section {
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -562,7 +520,73 @@ dd {
   font-size: 0.9rem;
 }
 
-/* Modal */
+.auth-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.auth-card {
+  background: var(--bg-surface);
+  border: 1px solid rgba(var(--primary-rgb), 0.35);
+  border-radius: var(--radius);
+  padding: 2.5rem 2rem;
+  width: 100%;
+  max-width: 400px;
+  box-shadow:
+    0 0 40px rgba(var(--primary-rgb), 0.12),
+    inset 0 0 24px rgba(var(--primary-rgb), 0.04);
+}
+
+.auth-card .field label {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.auth-card input:focus {
+  box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.35);
+}
+
+.auth-card button[type='submit'] {
+  width: 100%;
+  margin-top: 0.5rem;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.auth-logo {
+  display: block;
+  margin: 0 auto 1rem;
+  color: var(--text);
+  filter: drop-shadow(0 0 4px rgba(var(--primary-rgb), 0.3));
+}
+
+.auth-card h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 1.75rem;
+  color: var(--primary);
+  text-shadow: 0 0 8px rgba(var(--primary-rgb), 0.55);
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.alt-link {
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+
+/* ----- 8. Modal ----- */
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -598,6 +622,8 @@ dd {
   border: 1px solid var(--border);
   color: var(--text-muted);
 }
+
+/* ----- 9. Third-party overrides ----- */
 
 /* Flatpickr, themed by the variables above (global: the picker renders on
    document.body; used by the Calendar app and components/DateInput.vue). */

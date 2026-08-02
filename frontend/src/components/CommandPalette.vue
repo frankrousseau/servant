@@ -7,7 +7,7 @@ import { useAppsStore } from '../stores/apps'
 import { useAuthStore } from '../stores/auth'
 import { agentsEnabled } from '../apps/registry'
 import type { Entry } from '../types'
-import { kindIcon, kindColor } from '../types'
+import { kindIcon, kindColor } from '../lib/kind'
 import { entryRoute } from '../lib/entryRoute'
 
 const router = useRouter()
