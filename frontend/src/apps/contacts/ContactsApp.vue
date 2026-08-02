@@ -8,15 +8,17 @@ import {
   onMounted,
   onUnmounted
 } from 'vue'
-import type { AppContext, Entry } from '../types'
 import { useVirtualList } from '@vueuse/core'
-import { formatDate } from '../../lib/datetime'
-import { contactField, contactName, contactInitials } from '../../lib/contact'
-import { safeUrl } from '../../lib/url'
 import { Cake, User } from 'lucide-vue-next'
+
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
 import RelationsGraph from './RelationsGraph.vue'
+
+import type { AppContext, Entry } from '../types'
+import { formatDate } from '../../lib/datetime'
+import { contactField, contactName, contactInitials } from '../../lib/contact'
+import { safeUrl } from '../../lib/url'
 // Photos owns the shape of a stored face; read it through its helper rather
 // than re-deriving `data.faces` here.
 import { facesOf } from '../photos/faces'

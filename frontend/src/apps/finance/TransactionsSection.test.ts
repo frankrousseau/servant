@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+
 import TransactionsSection from './TransactionsSection.vue'
 import ComboBox from '../../components/ComboBox.vue'
+
 import type { Entry } from '../types'
 
 function tx(

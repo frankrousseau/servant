@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+
 import { apiJson } from '../composables/apiClient'
 import { enabledBuiltins } from '../apps/registry'
 import { useAuthStore } from './auth'

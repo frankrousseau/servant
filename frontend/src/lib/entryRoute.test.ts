@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+
 import { entryRoute } from './entryRoute'
 import type { Entry } from '../types'
 

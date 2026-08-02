@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+
+import ComboBox from '../components/ComboBox.vue'
+
 import { useApi } from '../composables/useApi'
 import type { ConnectorConfig, Schedule } from '../types'
 import { SCHEDULE_LABELS, relativeTime } from '../types'
-import ComboBox from '../components/ComboBox.vue'
 import { CONNECTOR_DEFS, getConnectorDef } from '../connectors'
 import type { ConnectorDef } from '../connectors'
 

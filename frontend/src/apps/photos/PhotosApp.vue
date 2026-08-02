@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+
 import ComboBox from '../../components/ComboBox.vue'
 import DateInput from '../../components/DateInput.vue'
+import FaceChip from './FaceChip.vue'
+
 import type { AppContext, Entry } from '../types'
 import { formatFileSize } from '../../types'
 import {
@@ -11,7 +14,6 @@ import {
   zonedToUtcISO
 } from '../../lib/datetime'
 import { contactName, contactInitials } from '../../lib/contact'
-import FaceChip from './FaceChip.vue'
 import {
   clusterFaces,
   facesOf,

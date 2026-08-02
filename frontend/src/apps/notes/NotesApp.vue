@@ -9,7 +9,9 @@ import {
   watch
 } from 'vue'
 import { Star } from 'lucide-vue-next'
+
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
+
 import type { AppContext, Entry } from '../types'
 import { todayInUserTz, formatDate } from '../../lib/datetime'
 import { renderMarkdown, canon, continueListEdit } from './render'

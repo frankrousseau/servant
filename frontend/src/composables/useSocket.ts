@@ -1,5 +1,6 @@
 import { watch, onUnmounted } from 'vue'
 import { Socket, Channel } from 'phoenix'
+
 import { useAuthStore } from '../stores/auth'
 import { reportClientError } from '../lib/reportError'
 import type { Entry } from '../types'

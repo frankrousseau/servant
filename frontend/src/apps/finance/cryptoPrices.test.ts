@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
+
 import { fetchCryptoPrices } from './cryptoPrices'
 
 afterEach(() => vi.unstubAllGlobals())

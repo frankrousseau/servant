@@ -12,7 +12,9 @@ import {
   Receipt,
   Video
 } from 'lucide-vue-next'
+
 import ComboBox from '../../components/ComboBox.vue'
+
 import type { AppContext, Entry } from '../types'
 import { formatFileSize } from '../../types'
 import { formatDate } from '../../lib/datetime'

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
+
 import { useApi } from '../composables/useApi'
 import { useAppsStore } from '../stores/apps'
 import { useAuthStore } from '../stores/auth'

@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { Wrench, Play, Pencil, Trash2, Undo2, Plus } from 'lucide-vue-next'
+
 import ComboBox from '../components/ComboBox.vue'
+
 import { useApi } from '../composables/useApi'
 import { useConfirm } from '../composables/useConfirm'
 import { useAppsStore } from '../stores/apps'
 import { formatDate } from '../lib/datetime'
 import { renderMarkdown } from '../lib/markdown'
-import { Wrench, Play, Pencil, Trash2, Undo2, Plus } from 'lucide-vue-next'
 import type { Agent, AgentRun, AiConfig, Entry } from '../types'
 
 const api = useApi()

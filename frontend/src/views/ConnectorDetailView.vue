@@ -1,13 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useApi } from '../composables/useApi'
-import { useAuthStore } from '../stores/auth'
-import ComboBox from '../components/ComboBox.vue'
-import type { ConnectorConfig, SyncLog, Schedule } from '../types'
-import { SCHEDULE_LABELS, relativeTime } from '../types'
-import { formatDate, formatDateTime } from '../lib/datetime'
-import { getConnectorDef } from '../connectors'
 import {
   Upload,
   ArrowLeft,
@@ -20,6 +13,15 @@ import {
   ToggleRight,
   Trash2
 } from 'lucide-vue-next'
+
+import ComboBox from '../components/ComboBox.vue'
+
+import { useApi } from '../composables/useApi'
+import { useAuthStore } from '../stores/auth'
+import type { ConnectorConfig, SyncLog, Schedule } from '../types'
+import { SCHEDULE_LABELS, relativeTime } from '../types'
+import { formatDate, formatDateTime } from '../lib/datetime'
+import { getConnectorDef } from '../connectors'
 import { useConfirm } from '../composables/useConfirm'
 
 const copiedId = ref<string | null>(null)

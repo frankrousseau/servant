@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+
 import FilesApp from './FilesApp.vue'
+
 import type { Entry } from '../types'
 
 function fileEntry(

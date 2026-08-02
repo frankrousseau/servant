@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, watch, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
+
+import MediaViewer from '../components/MediaViewer.vue'
+
 import { useAppsStore } from '../stores/apps'
 import { createAppContext } from '../apps/createContext'
 import type { AppModule, ViewerItem, ViewerAPI } from '../apps/types'
-import MediaViewer from '../components/MediaViewer.vue'
 
 const route = useRoute()
 const appsStore = useAppsStore()

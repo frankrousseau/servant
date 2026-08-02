@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+
 import {
   BUILTIN_APPS,
   DEFAULT_ENABLED_APPS,

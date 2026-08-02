@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+
 import { itemsToMarkdown, parseListText } from './markdown'
 
 describe('parseListText', () => {

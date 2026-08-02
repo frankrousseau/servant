@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { watch, onUnmounted } from 'vue'
-import { useConfirm } from '../composables/useConfirm'
 import { AlertTriangle } from 'lucide-vue-next'
+
+import { useConfirm } from '../composables/useConfirm'
 
 const { visible, title, message, confirmLabel, danger, resolve } = useConfirm()
 

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { Entry } from '../types'
+
 import ComboBox from '../../components/ComboBox.vue'
+
+import type { Entry } from '../types'
 import {
   categoryColor,
   formatAmount,

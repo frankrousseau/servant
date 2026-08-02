@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+
+import ComboBox from '../../components/ComboBox.vue'
+import TrackerCard from './TrackerCard.vue'
+
 import type { AppContext, Entry } from '../types'
 import {
   todayInUserTz,
   utcToZonedParts,
   zonedToUtcISO
 } from '../../lib/datetime'
-import ComboBox from '../../components/ComboBox.vue'
-import TrackerCard from './TrackerCard.vue'
 import {
   TRACKER_TYPES,
   aggregateByDate,

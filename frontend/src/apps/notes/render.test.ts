@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+
 import { renderMarkdown, canon, continueListEdit } from './render'
 
 const noneResolved = () => null

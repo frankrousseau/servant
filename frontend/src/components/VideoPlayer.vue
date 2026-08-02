@@ -8,6 +8,7 @@ import {
   Maximize,
   Minimize
 } from 'lucide-vue-next'
+
 import { formatDuration } from '../lib/datetime'
 
 const props = defineProps<{ src: string; autoplay?: boolean }>()

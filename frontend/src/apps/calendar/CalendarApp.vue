@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import flatpickr from 'flatpickr'
-import 'flatpickr/dist/flatpickr.min.css'
+
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
+
 import type { AppContext, Entry } from '../types'
 import type { Item as ChecklistItem } from '../checklists/markdown'
 import { birthdaySeed, contactField, contactName } from '../../lib/contact'
@@ -14,6 +15,8 @@ import {
   todayInUserTz
 } from '../../lib/datetime'
 import { nextOccurrence, occursOn, recurrenceOf } from './recurrence'
+
+import 'flatpickr/dist/flatpickr.min.css'
 
 const props = defineProps<{ ctx: AppContext }>()
 

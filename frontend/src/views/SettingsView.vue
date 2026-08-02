@@ -1,11 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from 'vue'
-import ComboBox from '../components/ComboBox.vue'
-import { useAuthStore } from '../stores/auth'
-import { useAppsStore } from '../stores/apps'
-import { useApi } from '../composables/useApi'
-import { formatDate } from '../lib/datetime'
-import { useConfirm } from '../composables/useConfirm'
 import {
   Download,
   TerminalSquare,
@@ -16,6 +10,14 @@ import {
   Palette,
   Wrench
 } from 'lucide-vue-next'
+
+import ComboBox from '../components/ComboBox.vue'
+
+import { useAuthStore } from '../stores/auth'
+import { useAppsStore } from '../stores/apps'
+import { useApi } from '../composables/useApi'
+import { formatDate } from '../lib/datetime'
+import { useConfirm } from '../composables/useConfirm'
 import { THEMES, applyTheme, storedTheme, type ThemeId } from '../lib/theme'
 import { BUILTIN_APPS, DEFAULT_ENABLED_APPS } from '../apps/registry'
 import type { ApiToken, AiConfig } from '../types'

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+
 import { nextOccurrence, occursOn, recurrenceOf } from './recurrence'
 
 describe('recurrenceOf', () => {

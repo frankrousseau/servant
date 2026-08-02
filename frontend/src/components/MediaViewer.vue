@@ -12,8 +12,10 @@ import {
   Info,
   Maximize2
 } from 'lucide-vue-next'
-import { useConfirm } from '../composables/useConfirm'
+
 import VideoPlayer from './VideoPlayer.vue'
+
+import { useConfirm } from '../composables/useConfirm'
 
 export interface ViewerItem {
   id: string

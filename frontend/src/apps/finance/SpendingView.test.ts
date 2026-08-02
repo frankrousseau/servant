@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+
 import SpendingView from './SpendingView.vue'
+
 import type { Entry } from '../types'
 
 function tx(

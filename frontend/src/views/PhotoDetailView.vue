@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ArrowLeft, Download, Trash2 } from 'lucide-vue-next'
+
+import VideoPlayer from '../components/VideoPlayer.vue'
+
 import { useApi } from '../composables/useApi'
 import { useFetchData } from '../composables/useFetchData'
-import { ArrowLeft, Download, Trash2 } from 'lucide-vue-next'
 import { useConfirm } from '../composables/useConfirm'
-import VideoPlayer from '../components/VideoPlayer.vue'
 import type { Entry } from '../types'
 import { formatFileSize } from '../types'
 import { formatDateTime } from '../lib/datetime'

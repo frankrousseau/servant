@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { Paperclip } from 'lucide-vue-next'
+
+import AutocompleteInput from '../../components/AutocompleteInput.vue'
+import ComboBox from '../../components/ComboBox.vue'
+
 import type { AppContext, Entry } from '../types'
 import { utcToZonedParts } from '../../lib/datetime'
 import { entryRoute } from '../../lib/entryRoute'
 import { safeUrl } from '../../lib/url'
-import AutocompleteInput from '../../components/AutocompleteInput.vue'
-import ComboBox from '../../components/ComboBox.vue'
 import { categoryColor, daysBetween, formatAmount } from './finance'
 
 const props = defineProps<{

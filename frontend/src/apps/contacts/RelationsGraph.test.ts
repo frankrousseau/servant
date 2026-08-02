@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
+
 import RelationsGraph from './RelationsGraph.vue'
+
 import type { Entry } from '../types'
 
 function contact(

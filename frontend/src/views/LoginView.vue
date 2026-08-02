@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, nextTick, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+
 import { useAuthStore } from '../stores/auth'
 import { fetchRegistrationEnabled } from '../composables/authConfig'
 

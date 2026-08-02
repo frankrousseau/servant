@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+
 import NotesApp from './NotesApp.vue'
+
 import type { Entry } from '../types'
 
 function note(id: string, title: string, folder: string, body: string): Entry {

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+
 import TrackersApp from './TrackersApp.vue'
+
 import type { Entry } from '../types'
 
 function entry(kind: string, attrs: Partial<Entry> = {}): Entry {

@@ -7,8 +7,10 @@ import {
   onMounted,
   onBeforeUnmount
 } from 'vue'
+
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import DateInput from '../../components/DateInput.vue'
+
 import type { AppContext, Entry } from '../types'
 import { createFolderOrder } from '../folderOrder'
 import { itemsToMarkdown, parseListText, type Item } from './markdown'

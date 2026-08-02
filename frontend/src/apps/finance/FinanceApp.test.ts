@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+
 import FinanceApp from './FinanceApp.vue'
+
 import type { Entry } from '../types'
 
 vi.mock('./cryptoPrices', () => ({

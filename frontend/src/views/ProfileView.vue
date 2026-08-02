@@ -1,9 +1,5 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import ComboBox from '../components/ComboBox.vue'
-import { useAuthStore } from '../stores/auth'
-import { useApi } from '../composables/useApi'
-import { formatDate } from '../lib/datetime'
 import QRCode from 'qrcode'
 import {
   User as UserIcon,
@@ -12,6 +8,12 @@ import {
   Camera,
   ShieldCheck
 } from 'lucide-vue-next'
+
+import ComboBox from '../components/ComboBox.vue'
+
+import { useAuthStore } from '../stores/auth'
+import { useApi } from '../composables/useApi'
+import { formatDate } from '../lib/datetime'
 
 const auth = useAuthStore()
 const api = useApi()

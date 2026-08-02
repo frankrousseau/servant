@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore } from './stores/auth'
-import { useAppsStore } from './stores/apps'
-import { agentsEnabled } from './apps/registry'
 import {
   Database,
   Cable,
@@ -22,6 +19,13 @@ import {
   Puzzle,
   Wrench
 } from 'lucide-vue-next'
+
+import CommandPalette from './components/CommandPalette.vue'
+import ConfirmModal from './components/ConfirmModal.vue'
+
+import { useAuthStore } from './stores/auth'
+import { useAppsStore } from './stores/apps'
+import { agentsEnabled } from './apps/registry'
 import {
   uploading as photosUploading,
   uploadProgress as photosProgress
@@ -30,8 +34,6 @@ import {
   uploading as filesUploading,
   uploadProgress as filesProgress
 } from './apps/files/uploadQueue'
-import CommandPalette from './components/CommandPalette.vue'
-import ConfirmModal from './components/ConfirmModal.vue'
 
 const appIcons: Record<string, unknown> = {
   UserRound,

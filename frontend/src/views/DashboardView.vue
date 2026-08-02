@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+
+import KindIcon from '../components/KindIcon.vue'
+
 import { useAuthStore } from '../stores/auth'
 import { useApi } from '../composables/useApi'
 import { useSocket, debounce } from '../composables/useSocket'
@@ -14,7 +17,6 @@ import {
   utcToZonedParts
 } from '../lib/datetime'
 import { getConnectorDef } from '../connectors'
-import KindIcon from '../components/KindIcon.vue'
 import { occursOn, recurrenceOf } from '../apps/calendar/recurrence'
 
 const api = useApi()

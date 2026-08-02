@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+
 import ContactsApp from './ContactsApp.vue'
+
 import type { Entry } from '../types'
 
 function contact(

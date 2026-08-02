@@ -1,4 +1,5 @@
-import { defineVueApp } from '../defineVueApp'
 import PhotosApp from './PhotosApp.vue'
+
+import { defineVueApp } from '../defineVueApp'
 
 export default defineVueApp(PhotosApp)

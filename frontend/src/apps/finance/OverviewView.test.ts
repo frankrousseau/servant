@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
+
 import OverviewView from './OverviewView.vue'
+
 import { buildAccounts, snapshotSeries } from './finance'
 import type { Entry } from '../types'
 

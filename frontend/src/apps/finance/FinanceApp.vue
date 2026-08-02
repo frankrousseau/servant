@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, reactive, nextTick, onMounted, watch } from 'vue'
-import type { AppContext, Entry } from '../types'
-import { todayInUserTz, zonedToUtcISO } from '../../lib/datetime'
-import { addDays } from '../calendar/recurrence'
+
 import ComboBox from '../../components/ComboBox.vue'
 import BalanceChart from './BalanceChart.vue'
 import OverviewView from './OverviewView.vue'
-import { fetchCryptoPrices } from './cryptoPrices'
 import SpendingView from './SpendingView.vue'
 import TransactionsSection from './TransactionsSection.vue'
+
+import type { AppContext, Entry } from '../types'
+import { todayInUserTz, zonedToUtcISO } from '../../lib/datetime'
+import { addDays } from '../calendar/recurrence'
+import { fetchCryptoPrices } from './cryptoPrices'
 import {
   ACCOUNT_TYPES,
   accountTxName,

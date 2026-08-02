@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
+
 import AutocompleteInput from './AutocompleteInput.vue'
 
 const OPTIONS = ['Voyages', 'Maison', 'Travail']
