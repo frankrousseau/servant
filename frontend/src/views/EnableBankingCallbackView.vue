@@ -2,11 +2,10 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { useApi } from '../composables/useApi'
+import { enableBankingExchange } from '../api/connectors'
 
 const route = useRoute()
 const router = useRouter()
-const api = useApi()
 
 const error = ref('')
 
@@ -28,9 +27,7 @@ onMounted(async () => {
   }
 
   try {
-    await api.post(`/api/connectors/${configId}/enable_banking/exchange`, {
-      code
-    })
+    await enableBankingExchange(configId, code)
     await router.replace(`/connectors/${configId}`)
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Bank connection failed.'

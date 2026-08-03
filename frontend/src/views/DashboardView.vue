@@ -5,7 +5,7 @@ import { useRouter } from 'vue-router'
 import KindIcon from '../components/KindIcon.vue'
 
 import { useAuthStore } from '../stores/auth'
-import { useApi } from '../composables/useApi'
+import { listConnectors } from '../api/connectors'
 import {
   dailyStats as fetchDailyStats,
   entryStats,
@@ -25,7 +25,6 @@ import {
 import { getConnectorDef } from '../connectors'
 import { occursOn, recurrenceOf } from '../apps/calendar/recurrence'
 
-const api = useApi()
 const router = useRouter()
 const auth = useAuthStore()
 
@@ -58,7 +57,7 @@ async function fetchData() {
     ] = await Promise.all([
       listEntriesPage({ per_page: '30', sort: 'inserted_at' }),
       entryStats(),
-      api.get<{ data: ConnectorConfig[] }>('/api/connectors'),
+      listConnectors(),
       fetchDailyStats(30),
       // All events, not just future ones: recurring events (birthdays,
       // weekly rituals) have past seed dates but upcoming occurrences.
@@ -69,7 +68,7 @@ async function fetchData() {
     recentEntries.value = entriesRes.data
     stats.value = statsRes.data
     totalEntries.value = statsRes.total
-    connectors.value = connectorsRes.data
+    connectors.value = connectorsRes
     dailyStats.value = dailyRes
     events.value = eventsRes.data
     checklists.value = checklistsRes.data

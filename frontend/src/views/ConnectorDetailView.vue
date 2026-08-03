@@ -16,7 +16,17 @@ import {
 
 import ComboBox from '../components/ComboBox.vue'
 
-import { useApi } from '../composables/useApi'
+import {
+  connectorLogs,
+  deleteConnector as removeConnector,
+  enableBankingAuthUrl,
+  getConnector,
+  importConnectorFile,
+  startConnector,
+  stopConnector,
+  syncConnector,
+  updateConnector
+} from '../api/connectors'
 import { useAuthStore } from '../stores/auth'
 import type { ConnectorConfig, SyncLog, Schedule } from '../types'
 import { relativeTime } from '../lib/datetime'
@@ -38,7 +48,6 @@ const connectorDef = computed(() =>
 
 const route = useRoute()
 const router = useRouter()
-const api = useApi()
 
 const connector = ref<ConnectorConfig | null>(null)
 const logs = ref<SyncLog[]>([])
@@ -79,25 +88,14 @@ async function uploadCSV(event: Event) {
   uploadResult.value = null
   uploadError.value = ''
 
-  const formData = new FormData()
-  formData.append('file', file)
-
   try {
-    const res = await fetch(`/api/connectors/${connectorId.value}/import`, {
-      method: 'POST',
-      headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {},
-      body: formData
-    })
-
-    const data = await res.json()
-
-    if (res.ok) {
-      uploadResult.value = { imported: data.imported, skipped: data.skipped }
-      await fetchConnector()
-      await fetchLogs()
-    } else {
-      uploadError.value = data.error || 'Import failed'
-    }
+    uploadResult.value = await importConnectorFile(
+      connectorId.value,
+      file,
+      auth.token
+    )
+    await fetchConnector()
+    await fetchLogs()
   } catch (e: any) {
     uploadError.value = e.message || 'Upload failed'
   } finally {
@@ -130,11 +128,10 @@ async function ebConnect() {
   ebConnecting.value = true
   ebError.value = ''
   try {
-    const res = await api.post<{ url: string }>(
-      `/api/connectors/${connectorId.value}/enable_banking/auth_url`,
-      { redirect_url: ebRedirectUrl }
+    window.location.href = await enableBankingAuthUrl(
+      connectorId.value,
+      ebRedirectUrl
     )
-    window.location.href = res.url
   } catch (e) {
     ebError.value =
       e instanceof Error ? e.message : 'Could not start the bank connection'
@@ -147,10 +144,7 @@ async function ebConnect() {
 async function fetchConnector(silent = false) {
   if (!silent) loading.value = true
   try {
-    const res = await api.get<{ data: ConnectorConfig }>(
-      `/api/connectors/${connectorId.value}`
-    )
-    connector.value = res.data
+    connector.value = await getConnector(connectorId.value)
   } catch {
     if (!silent) connector.value = null
   } finally {
@@ -161,10 +155,7 @@ async function fetchConnector(silent = false) {
 async function fetchLogs(silent = false) {
   if (!silent) logsLoading.value = true
   try {
-    const res = await api.get<{ data: SyncLog[] }>(
-      `/api/connectors/${connectorId.value}/logs`
-    )
-    logs.value = res.data
+    logs.value = await connectorLogs(connectorId.value)
   } catch {
     if (!silent) logs.value = []
   } finally {
@@ -178,7 +169,7 @@ async function saveName(event: Event) {
   if (!connector.value || newName === (connector.value.name || '')) return
 
   try {
-    await api.put(`/api/connectors/${connectorId.value}`, { name: newName })
+    await updateConnector(connectorId.value, { name: newName })
     connector.value.name = newName
   } catch {
     // Revert the field to the last saved value on failure.
@@ -193,12 +184,12 @@ async function syncNow() {
     connector.value.error = null
   }
   try {
-    await api.post(`/api/connectors/${connectorId.value}/sync`)
+    await syncConnector(connectorId.value)
   } catch {
     // Connector may not be running, try start first
     try {
-      await api.post(`/api/connectors/${connectorId.value}/start`)
-      await api.post(`/api/connectors/${connectorId.value}/sync`)
+      await startConnector(connectorId.value)
+      await syncConnector(connectorId.value)
     } catch {
       // ignore
     }
@@ -253,7 +244,7 @@ function onScheduleChange(v: string) {
 async function updateSchedule(schedule: Schedule) {
   if (!connector.value) return
   try {
-    await api.put(`/api/connectors/${connectorId.value}`, { schedule })
+    await updateConnector(connectorId.value, { schedule })
     connector.value.schedule = schedule
   } catch {
     // ignore
@@ -265,14 +256,12 @@ async function toggleEnabled() {
   const newState = !connector.value.enabled
   try {
     // Update the flag in DB
-    await api.put(`/api/connectors/${connectorId.value}`, {
-      enabled: newState
-    })
+    await updateConnector(connectorId.value, { enabled: newState })
     // Start or stop the worker accordingly
     if (newState) {
-      await api.post(`/api/connectors/${connectorId.value}/start`)
+      await startConnector(connectorId.value)
     } else {
-      await api.post(`/api/connectors/${connectorId.value}/stop`)
+      await stopConnector(connectorId.value)
     }
     connector.value.enabled = newState
     showFeedback(newState ? 'Connector enabled' : 'Connector disabled')
@@ -290,7 +279,7 @@ async function deleteConnector() {
   })
   if (!ok) return
   try {
-    await api.del(`/api/connectors/${connectorId.value}`)
+    await removeConnector(connectorId.value)
     router.push('/connectors')
   } catch {
     // ignore

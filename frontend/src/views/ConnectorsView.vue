@@ -4,14 +4,17 @@ import { useRouter } from 'vue-router'
 
 import ComboBox from '../components/ComboBox.vue'
 
-import { useApi } from '../composables/useApi'
+import {
+  connectorSchedules,
+  createConnector,
+  listConnectors
+} from '../api/connectors'
 import type { ConnectorConfig, Schedule } from '../types'
 import { relativeTime } from '../lib/datetime'
 import { SCHEDULE_LABELS } from '../lib/connectors'
 import { CONNECTOR_DEFS, getConnectorDef } from '../connectors'
 import type { ConnectorDef } from '../connectors'
 
-const api = useApi()
 const router = useRouter()
 
 const connectors = ref<ConnectorConfig[]>([])
@@ -60,8 +63,7 @@ const catalogGroups = computed(() => {
 async function fetchConnectors() {
   loading.value = true
   try {
-    const res = await api.get<{ data: ConnectorConfig[] }>('/api/connectors')
-    connectors.value = res.data
+    connectors.value = await listConnectors()
   } catch {
     connectors.value = []
   } finally {
@@ -90,9 +92,7 @@ function closeSetup() {
 
 async function loadSchedules(type: string) {
   try {
-    const data = await api.get<{ schedules: Schedule[]; default: Schedule }>(
-      `/api/connectors/schedules/${encodeURIComponent(type)}`
-    )
+    const data = await connectorSchedules(type)
     supportedSchedules.value = data.schedules
     setupSchedule.value = data.default
   } catch {
@@ -116,7 +116,7 @@ async function submitSetup() {
       }
     })
 
-    await api.post('/api/connectors', {
+    await createConnector({
       connector_type: setupDef.value.id,
       name: setupName.value || null,
       config,
