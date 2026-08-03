@@ -220,15 +220,15 @@ the `servant` service.
 ## Invoice Collector (optional)
 
 The Invoice Collector connector runs Playwright scripts via `node` at sync time, so stage 3 of
-the Dockerfile installs Node.js 22, the scraper dependencies (`npm ci` in the release's
-`priv/scrapers/`) and Playwright's Chromium (under `/opt/playwright`, readable by the `nobody`
-user). Playwright launches Chromium with its sandbox disabled by default, so it runs fine as an
-unprivileged user.
+the Dockerfile copies Node.js 22 from the frontend stage into `/opt/node`, installs the scraper
+dependencies (`npm ci` in the release's `priv/scrapers/`) and Playwright's Chromium (under
+`/opt/playwright`, readable by the `nobody` user). Playwright launches Chromium with its sandbox
+disabled by default, so it runs fine as an unprivileged user.
 
 This block is the only reason the runtime image contains Node.js, and it accounts for roughly
-1 GB. If you do not use the connector, delete it (and the `PLAYWRIGHT_BROWSERS_PATH` line) for a
-slim image; Invoice Collector syncs then fail with an explicit "Node.js is not installed on the
-server" error instead of running.
+1 GB. If you do not use the connector, delete it (and the `PLAYWRIGHT_BROWSERS_PATH` /
+`PATH=/opt/node/bin` lines) for a slim image; Invoice Collector syncs then fail with an explicit
+"Node.js is not installed on the server" error instead of running.
 
 ## Notes & gotchas
 
