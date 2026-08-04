@@ -8,6 +8,7 @@ import {
   rateFor,
   sharedTxNames,
   snapshotSeries,
+  sumCurves,
   universeCurve,
   valueAt
 } from './finance'
@@ -325,6 +326,28 @@ describe('universeCurve', () => {
     )
     expect(excluded).toEqual(['Broker'])
     expect(points).toEqual([{ date: '2026-01-01', amount: 100 }])
+  })
+})
+
+describe('sumCurves', () => {
+  it('sums forward-filled curves over the union of dates', () => {
+    const points = sumCurves([
+      [
+        { date: '2026-01-01', amount: 100 },
+        { date: '2026-03-01', amount: 200 }
+      ],
+      [{ date: '2026-02-01', amount: 50 }]
+    ])
+    expect(points).toEqual([
+      { date: '2026-01-01', amount: 100 },
+      { date: '2026-02-01', amount: 150 },
+      { date: '2026-03-01', amount: 250 }
+    ])
+  })
+
+  it('returns an empty curve for no input', () => {
+    expect(sumCurves([])).toEqual([])
+    expect(sumCurves([[]])).toEqual([])
   })
 })
 

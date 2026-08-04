@@ -209,6 +209,18 @@ export function rateFor(
   return typeof r === 'number' && Number.isFinite(r) && r > 0 ? r : null
 }
 
+// Sum forward-filled curves: one point per date where any curve changes,
+// each curve holding its last value (0 before its first point).
+export function sumCurves(curves: SnapshotPoint[][]): SnapshotPoint[] {
+  const dates = [
+    ...new Set(curves.flatMap(curve => curve.map(point => point.date)))
+  ].sort()
+  return dates.map(date => ({
+    date,
+    amount: curves.reduce((sum, curve) => sum + valueAt(curve, date), 0)
+  }))
+}
+
 // Forward-filled total across accounts, in the reference currency: one point
 // per date where any account changes. Accounts whose currency has no rate
 // are excluded (and reported) rather than silently counted at zero.
@@ -229,25 +241,10 @@ export function universeCurve(
     else usable.push({ series, rate })
   }
 
-  const dates = [
-    ...new Set(usable.flatMap(u => u.series.map(p => p.date)))
-  ].sort()
-
-  const points = dates.map(date => {
-    let total = 0
-    for (const { series, rate } of usable) {
-      // Last observation on or before the date; nothing yet counts as 0.
-      let value = 0
-      for (const p of series) {
-        if (p.date > date) break
-        value = p.amount
-      }
-      total += value * rate
-    }
-    return { date, amount: total }
-  })
-
-  return { points, excluded }
+  const scaled = usable.map(({ series, rate }) =>
+    series.map(point => ({ date: point.date, amount: point.amount * rate }))
+  )
+  return { points: sumCurves(scaled), excluded }
 }
 
 // Value of a forward-filled curve at a date (0 before the first point).
