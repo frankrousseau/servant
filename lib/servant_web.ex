@@ -21,7 +21,7 @@ defmodule ServantWeb do
   # "swagger" holds the SwaggerUI assets the frontend build copies in, served
   # to the /api/docs page (ServantWeb.DocsController).
   def static_paths,
-    do: ~w(assets fonts images models swagger favicon.ico robots.txt index.html)
+    do: ~w(assets fonts images models swagger favicon.ico favicon.svg robots.txt index.html)
 
   def router do
     quote do
