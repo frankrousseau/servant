@@ -505,7 +505,7 @@ async function changePassword() {
 }
 
 .info-value.mono {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 0.9rem;
 }
 
@@ -593,7 +593,7 @@ async function changePassword() {
 }
 .totp-code {
   width: 120px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   letter-spacing: 0.15em;
 }
 .totp-qr {
@@ -605,7 +605,7 @@ async function changePassword() {
   background: #fff;
 }
 .totp-secret {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   color: var(--text-muted);
   word-break: break-all;

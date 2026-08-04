@@ -1286,7 +1286,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .ct-loading {
   color: var(--text-muted);
   padding: 2rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
 }
 .ct-layout {
   display: flex;
@@ -1370,7 +1370,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   font-size: 0.78rem;
 }
 .ct-count {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   color: var(--text);
   white-space: nowrap;
@@ -1443,7 +1443,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   color: var(--text-muted);
   text-align: center;
   padding: 3rem 1rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.88rem;
 }
 .ct-detail {
@@ -1531,7 +1531,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 .ct-section-title {
   margin: 0 0 0.6rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -1599,7 +1599,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   color: var(--text-muted);
 }
 .ct-mono {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
 }
 .ct-photo-grid {
@@ -1709,7 +1709,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 .ct-me-badge {
   margin-left: 0.4rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.62rem;
   letter-spacing: 0.08em;
   padding: 0.05rem 0.4rem;

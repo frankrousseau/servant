@@ -459,7 +459,7 @@ async function removeTracker(tracker: Tracker) {
 }
 .tk-placeholder {
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.88rem;
   padding: 1.5rem 0;
 }
@@ -475,7 +475,7 @@ async function removeTracker(tracker: Tracker) {
   font-size: 0.85rem;
 }
 .tk-date {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;

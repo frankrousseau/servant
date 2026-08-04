@@ -541,7 +541,7 @@ onMounted(fetchData)
   border-radius: 10px;
   padding: 1rem 1.25rem;
   margin-bottom: 1.5rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.9rem;
   line-height: 1.7;
 }
@@ -611,7 +611,7 @@ onMounted(fetchData)
   color: var(--text-muted);
   border-radius: 999px;
   padding: 0.05rem 0.5rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   letter-spacing: 0.04em;
   flex-shrink: 0;
@@ -923,7 +923,7 @@ onMounted(fetchData)
 .activity-feed {
   display: flex;
   flex-direction: column;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.88rem;
 }
 

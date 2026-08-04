@@ -365,7 +365,7 @@ const ms = (us: number) =>
   background: transparent;
   border: none;
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -382,7 +382,7 @@ const ms = (us: number) =>
 }
 .au-error {
   color: var(--danger);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
 }
 .au-panels {
@@ -404,7 +404,7 @@ const ms = (us: number) =>
 }
 .au-panel-title {
   margin: 0 0 0.75rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -421,7 +421,7 @@ const ms = (us: number) =>
   color: var(--text-muted);
 }
 .au-value {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   white-space: nowrap;
 }
 .au-bar {
@@ -444,7 +444,7 @@ const ms = (us: number) =>
 }
 .au-table th {
   text-align: left;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -458,7 +458,7 @@ const ms = (us: number) =>
   border-bottom: 1px solid var(--border);
 }
 .au-num {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   white-space: nowrap;
 }
 /* Outranks the `.au-table th` left alignment so numeric headers sit over
@@ -469,7 +469,7 @@ const ms = (us: number) =>
 }
 .au-empty {
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.88rem;
   padding: 1.5rem 0;
 }
@@ -477,7 +477,7 @@ const ms = (us: number) =>
 .au-logs {
   flex: 1;
   overflow-y: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.82rem;
   padding-right: 0.75rem;
 }

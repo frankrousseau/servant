@@ -259,7 +259,7 @@ function onDatePick(v: string) {
 }
 .tk-stat {
   margin-left: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -286,13 +286,13 @@ function onDatePick(v: string) {
   min-height: 34px;
 }
 .tk-auto {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--text-muted);
 }
 .tk-cell-info {
   margin-left: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--text-muted);
   display: inline-flex;
@@ -353,7 +353,7 @@ function onDatePick(v: string) {
   font-size: 0.85rem;
 }
 .tk-count {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 1.1rem;
   font-weight: 600;
   min-width: 2.2em;

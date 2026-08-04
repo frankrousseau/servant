@@ -49,6 +49,7 @@
   --radius: 6px;
   --sidebar-width: 220px;
   --font-display: 'Maple Mono', 'Courier New', monospace;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color-scheme: dark;
 }
 
@@ -374,7 +375,7 @@ th {
 }
 
 .data-cell {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 0.9rem;
   color: var(--text-muted);
   max-width: 250px;

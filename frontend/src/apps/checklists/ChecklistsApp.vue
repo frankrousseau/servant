@@ -851,7 +851,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   flex-shrink: 0;
 }
 .cl-count {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   color: var(--text);
   white-space: nowrap;
@@ -971,7 +971,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   color: var(--text-muted);
   text-align: center;
   padding: 2.5rem 1rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.88rem;
 }
 .cl-main {
@@ -1006,7 +1006,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   flex-shrink: 0;
 }
 .cl-save-status {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--text-muted);
   white-space: nowrap;
@@ -1063,7 +1063,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 }
 /* Status readout: 3/7 DONE */
 .cl-progress {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1173,7 +1173,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   color: var(--text-muted);
   border-radius: 999px;
   padding: 0.05rem 0.5rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   letter-spacing: 0.04em;
   cursor: pointer;

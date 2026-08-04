@@ -234,7 +234,7 @@ function handleLogout() {
   padding: 0.45rem 1.25rem;
   color: var(--primary);
   text-decoration: none;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;

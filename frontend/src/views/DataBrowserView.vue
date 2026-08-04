@@ -734,7 +734,7 @@ onMounted(() => {
 }
 
 .detail-value.mono {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 1rem;
   word-break: break-all;
 }

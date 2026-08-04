@@ -820,7 +820,7 @@ onMounted(() => {
 }
 
 .build-info {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   color: var(--text-muted);
   text-align: right;
@@ -843,7 +843,7 @@ onMounted(() => {
   }
 }
 .app-repo {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   color: var(--text-muted);
   word-break: break-all;
@@ -863,7 +863,7 @@ onMounted(() => {
 
 /* API tokens */
 .tk-hint {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   color: var(--text-muted);
   margin: 0 0 1rem;
@@ -897,7 +897,7 @@ onMounted(() => {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.5rem 0.65rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   word-break: break-all;
   user-select: all;
@@ -931,7 +931,7 @@ onMounted(() => {
 }
 .tk-table th {
   text-align: left;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -946,7 +946,7 @@ onMounted(() => {
   vertical-align: top;
 }
 .tk-prefix {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   color: var(--text-muted);
 }
@@ -961,7 +961,7 @@ onMounted(() => {
 }
 .tk-empty {
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   margin: 0 0 1rem;
 }

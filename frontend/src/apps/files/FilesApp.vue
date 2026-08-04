@@ -937,7 +937,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 .fs-loading {
   color: var(--text-muted);
   padding: 2rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
 }
 .fs-layout {
   display: flex;
@@ -969,7 +969,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   display: flex;
   align-items: center;
   gap: 0.15rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.88rem;
   min-width: 0;
   overflow: hidden;
@@ -1037,7 +1037,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   align-items: center;
   gap: 0.35rem 0.75rem;
   padding: 0.5rem 1rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.82rem;
   color: var(--primary);
   background: rgba(var(--primary-rgb), 0.08);
@@ -1073,7 +1073,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 }
 .fs-upload-errors {
   padding: 0.5rem 1rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.82rem;
   color: var(--danger);
   background: rgba(255, 92, 122, 0.08);
@@ -1116,7 +1116,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   top: -0.5rem; /* cancel .fs-list padding */
   z-index: 2;
   background: var(--bg);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -1163,7 +1163,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   align-items: flex-start;
 }
 .fs-name {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.88rem;
   white-space: nowrap;
   overflow: hidden;
@@ -1171,7 +1171,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   max-width: 100%;
 }
 .fs-row-path {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   color: var(--text-muted);
   background: none;
@@ -1193,7 +1193,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 }
 .fs-size,
 .fs-date {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   color: var(--text-muted);
   white-space: nowrap;
@@ -1210,14 +1210,14 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   color: var(--text-muted);
   text-align: center;
   padding: 3rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.88rem;
 }
 .fs-placeholder {
   color: var(--text-muted);
   text-align: center;
   padding: 3rem 1rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.88rem;
 }
 .fs-detail {
@@ -1238,7 +1238,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 }
 .fs-detail-name {
   margin: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.95rem;
   text-align: center;
   word-break: break-word;

@@ -1004,7 +1004,7 @@ onMounted(() => {
 }
 
 .tk-hint {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   color: var(--text-muted);
   margin: 0 0 1rem;
@@ -1021,7 +1021,7 @@ onMounted(() => {
 }
 .tk-table th {
   text-align: left;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -1038,7 +1038,7 @@ onMounted(() => {
 
 .tk-empty {
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   margin: 0 0 1rem;
 }
@@ -1253,7 +1253,7 @@ onMounted(() => {
   padding: 0.05rem 0.4rem;
 }
 .recipe-json {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
 }
 </style>

@@ -1208,7 +1208,7 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 .nt-count {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   color: var(--text);
   white-space: nowrap;
@@ -1258,7 +1258,7 @@ onBeforeUnmount(() => {
   color: var(--text-muted);
   border-radius: 8px;
   cursor: pointer;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -1284,7 +1284,7 @@ onBeforeUnmount(() => {
   border-radius: 6px;
   cursor: pointer;
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.76rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1347,7 +1347,7 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 .nt-fav-head {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1372,7 +1372,7 @@ onBeforeUnmount(() => {
   color: var(--text-muted);
   text-align: center;
   padding: 2.5rem 1rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.88rem;
 }
 .nt-main {
@@ -1411,7 +1411,7 @@ onBeforeUnmount(() => {
 }
 .nt-save-status {
   flex-shrink: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--text-muted);
   max-width: 240px;
@@ -1424,7 +1424,7 @@ onBeforeUnmount(() => {
 }
 .nt-created {
   flex-shrink: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   color: var(--text-muted);
   white-space: nowrap;
@@ -1491,7 +1491,7 @@ onBeforeUnmount(() => {
   border-radius: 0;
   resize: none;
   padding: 1rem 1.25rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.9rem;
   line-height: 1.6;
   background: var(--bg);

@@ -687,7 +687,7 @@ async function openLinked(t: Entry) {
   letter-spacing: 0.06em;
 }
 .ftx-count {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   color: var(--text-muted);
 }
@@ -706,7 +706,7 @@ async function openLinked(t: Entry) {
   margin: 0.5rem 0 0;
 }
 .ftx-month {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -722,7 +722,7 @@ async function openLinked(t: Entry) {
   font-size: 0.88rem;
 }
 .ftx-date {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   color: var(--text-muted);
   flex-shrink: 0;
@@ -790,7 +790,7 @@ async function openLinked(t: Entry) {
 }
 .ftx-cat {
   flex-shrink: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -816,7 +816,7 @@ async function openLinked(t: Entry) {
   padding: 0.15rem 0.4rem;
 }
 .ftx-amount {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   flex-shrink: 0;
   min-width: 7.5em;
@@ -847,7 +847,7 @@ async function openLinked(t: Entry) {
   margin-top: 0.75rem;
 }
 .ftx-bulk-count {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   color: var(--text-muted);
 }
@@ -882,7 +882,7 @@ async function openLinked(t: Entry) {
   flex-shrink: 0;
 }
 .ftx-auto-cat {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
 }
 .ftx-auto-count {
@@ -949,7 +949,7 @@ async function openLinked(t: Entry) {
   width: auto;
 }
 .ftx-dedup-meta {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   color: var(--text-muted);
   flex-shrink: 0;

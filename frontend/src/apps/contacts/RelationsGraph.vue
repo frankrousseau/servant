@@ -251,7 +251,7 @@ function edgePath(e: Edge): string {
 }
 .rg-empty {
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.88rem;
   padding: 2.5rem 1rem;
   text-align: center;
@@ -281,7 +281,7 @@ function edgePath(e: Edge): string {
 }
 .rg-label {
   fill: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   text-anchor: middle;
   /* Halo: an edge running behind a name stays readable. */

@@ -815,7 +815,7 @@ onMounted(() => {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.75rem;
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 0.9rem;
   white-space: pre-wrap;
   word-break: break-word;

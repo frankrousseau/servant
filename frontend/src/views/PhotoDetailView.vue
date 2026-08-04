@@ -305,7 +305,7 @@ async function deletePhoto() {
 }
 
 .mono {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
 }
 

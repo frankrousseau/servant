@@ -1368,7 +1368,7 @@ onUnmounted(() => {
 .ph-loading {
   color: var(--text-muted);
   padding: 2rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
 }
 .ph-layout {
   display: flex;
@@ -1393,13 +1393,13 @@ onUnmounted(() => {
   min-width: 180px;
 }
 .ph-sel-count {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   letter-spacing: 0.06em;
   color: var(--primary);
 }
 .ph-status {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   color: var(--text);
   white-space: nowrap;
@@ -1558,7 +1558,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.35rem 0.75rem;
   padding: 0.5rem 1rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.82rem;
   color: var(--primary);
   background: rgba(var(--primary-rgb), 0.08);
@@ -1594,7 +1594,7 @@ onUnmounted(() => {
 }
 .ph-upload-errors {
   padding: 0.5rem 1rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.82rem;
   color: var(--danger);
   background: rgba(255, 92, 122, 0.08);
@@ -1642,7 +1642,7 @@ onUnmounted(() => {
   padding: 0.5rem 0 0.45rem;
   margin: 0 -0.1rem 0.5rem;
   background: var(--bg);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -1813,7 +1813,7 @@ onUnmounted(() => {
   margin-bottom: 0.5rem;
 }
 .ph-empty-hint {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.88rem;
 }
 .ph-modal-overlay {
@@ -1876,7 +1876,7 @@ onUnmounted(() => {
   overflow: hidden;
 }
 .ph-face-count {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--text-muted);
   white-space: nowrap;

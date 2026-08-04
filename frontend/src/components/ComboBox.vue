@@ -333,7 +333,7 @@ function onFocusout(e: FocusEvent) {
 }
 .cb-empty {
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   padding: 0.6rem 0.65rem;
   margin: 0;

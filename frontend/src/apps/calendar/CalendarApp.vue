@@ -968,7 +968,7 @@ onUnmounted(destroyPickers)
 .cal-loading {
   color: var(--text-muted);
   padding: 2rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
 }
 .cal-container {
   /* The header and grid pad nothing themselves, and the app is now flush
@@ -1054,7 +1054,7 @@ onUnmounted(destroyPickers)
 .cal-grid-header {
   padding: 0.5rem;
   text-align: center;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -1086,7 +1086,7 @@ onUnmounted(destroyPickers)
   font-weight: 700;
 }
 .cal-day-num {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   color: var(--text-muted);
 }
@@ -1119,14 +1119,14 @@ onUnmounted(destroyPickers)
   border-radius: 3px;
 }
 .cal-cell-more {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.66rem;
   color: var(--text-muted);
   margin-top: 2px;
   padding-left: 5px;
 }
 .cal-chip-time {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.68rem;
   color: var(--cal-color, var(--primary));
   flex-shrink: 0;
@@ -1145,7 +1145,7 @@ onUnmounted(destroyPickers)
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   padding: 0.25rem 0.6rem;
   border-radius: 999px;
@@ -1213,7 +1213,7 @@ onUnmounted(destroyPickers)
 }
 .cal-manage-count,
 .cal-manage-synced {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   color: var(--text-muted);
   flex-shrink: 0;
@@ -1257,7 +1257,7 @@ onUnmounted(destroyPickers)
 .cal-empty {
   color: var(--text-muted);
   padding: 2rem 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.88rem;
 }
 .cal-day {
@@ -1286,7 +1286,7 @@ onUnmounted(destroyPickers)
 .cal-event-time {
   width: 64px;
   flex-shrink: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   color: var(--primary);
 }

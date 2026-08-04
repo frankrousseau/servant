@@ -229,7 +229,7 @@ const alerts = computed<Alert[]>(() => {
 <style scoped>
 .ov-empty {
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.88rem;
   padding: 2rem 0;
 }
@@ -241,7 +241,7 @@ const alerts = computed<Alert[]>(() => {
   background: var(--bg-surface);
 }
 .ov-caption {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -259,7 +259,7 @@ const alerts = computed<Alert[]>(() => {
   font-weight: 500;
 }
 .ov-delta {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   color: var(--success, #4fd674);
 }
@@ -272,7 +272,7 @@ const alerts = computed<Alert[]>(() => {
   margin: 0.6rem 0 0;
 }
 .ov-split {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   color: var(--text-muted);
 }
@@ -305,7 +305,7 @@ const alerts = computed<Alert[]>(() => {
   color: var(--text-muted);
 }
 .ov-spent-amount {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 1.15rem;
   font-weight: 600;
   color: var(--text);
@@ -320,7 +320,7 @@ const alerts = computed<Alert[]>(() => {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
 }
 .ov-cat-dot {

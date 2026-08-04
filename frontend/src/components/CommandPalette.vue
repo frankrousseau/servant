@@ -216,7 +216,7 @@ onBeforeUnmount(() => {
   background: transparent;
   padding: 0.85rem 1rem;
   font-size: 1rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
 }
 .cp-input:focus {
   outline: none;
@@ -244,7 +244,7 @@ onBeforeUnmount(() => {
   width: 1.2em;
   flex-shrink: 0;
   text-align: center;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
 }
 .cp-label {
   min-width: 0;
@@ -256,7 +256,7 @@ onBeforeUnmount(() => {
   margin-left: auto;
   flex-shrink: 0;
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -272,7 +272,7 @@ onBeforeUnmount(() => {
   border-top: 1px solid var(--border);
   padding: 0.4rem 1rem;
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.7rem;
 }
 </style>

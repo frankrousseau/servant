@@ -561,7 +561,7 @@ onMounted(fetchConnectors)
 
 /* PEM keys and other multiline secrets */
 .field-textarea {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   resize: vertical;
 }

@@ -128,7 +128,7 @@ const stroke = computed(() => props.color || 'var(--primary)')
   opacity: 0.9;
 }
 .bc-label {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 9px;
   fill: var(--text-muted);
 }
@@ -137,7 +137,7 @@ const stroke = computed(() => props.color || 'var(--primary)')
 }
 .bc-empty {
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   padding: 1.5rem 0;
   margin: 0;

@@ -583,13 +583,13 @@ const pie = computed(() => {
   flex-shrink: 0;
 }
 .sp-pie-total {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 600;
   fill: var(--text);
 }
 .sp-pie-period {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 9px;
   fill: var(--text-muted);
 }
@@ -603,7 +603,7 @@ const pie = computed(() => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.82rem;
   padding: 0.12rem 0;
 }
@@ -622,7 +622,7 @@ const pie = computed(() => {
   text-align: right;
 }
 .sp-warn {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   color: var(--danger);
   background: transparent;
@@ -655,7 +655,7 @@ const pie = computed(() => {
   padding: 0.12rem 0;
 }
 .sp-excluded-date {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.76rem;
   color: var(--text-muted);
   flex-shrink: 0;
@@ -667,20 +667,20 @@ const pie = computed(() => {
   white-space: nowrap;
 }
 .sp-excluded-account {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   color: var(--text-muted);
   flex-shrink: 0;
 }
 .sp-excluded-amount {
   margin-left: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.82rem;
   flex-shrink: 0;
 }
 .sp-empty {
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   margin: 0.5rem 0 0;
 }
@@ -698,7 +698,7 @@ const pie = computed(() => {
   border-radius: 999px;
   background: transparent;
   color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   padding: 0.12rem 0.6rem;
   cursor: pointer;
@@ -735,7 +735,7 @@ const pie = computed(() => {
   opacity: 0.8;
 }
 .sp-chart-label {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   fill: var(--text-muted);
 }
@@ -754,7 +754,7 @@ const pie = computed(() => {
 .sp-table td {
   padding: 0.3rem 0.6rem;
   text-align: right;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   white-space: nowrap;
 }
 .sp-table th {

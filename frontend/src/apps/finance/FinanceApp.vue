@@ -1112,17 +1112,17 @@ function saveShared(a: Account, shared: boolean) {
   width: 160px;
 }
 .fin-crypto-name {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
 }
 .fin-crypto-price {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   color: var(--text-muted);
 }
 .fin-crypto-qty-input {
   width: 140px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   text-align: right;
   padding: 0.15rem 0.4rem;
@@ -1130,7 +1130,7 @@ function saveShared(a: Account, shared: boolean) {
 .fin-placeholder,
 .fin-empty {
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.88rem;
   padding: 2rem 0;
 }
@@ -1144,7 +1144,7 @@ function saveShared(a: Account, shared: boolean) {
   background: transparent;
   border: none;
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -1177,7 +1177,7 @@ function saveShared(a: Account, shared: boolean) {
   width: 110px;
 }
 .fin-ref-label {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1234,12 +1234,12 @@ function saveShared(a: Account, shared: boolean) {
   letter-spacing: 0.06em;
 }
 .fin-total {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 1.15rem;
   font-weight: 600;
 }
 .fin-delta {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   color: var(--success, #4fd674);
 }
@@ -1249,7 +1249,7 @@ function saveShared(a: Account, shared: boolean) {
 .fin-warn {
   color: var(--danger);
   font-size: 0.8rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   margin: 0.35rem 0 0;
 }
 
@@ -1287,7 +1287,7 @@ function saveShared(a: Account, shared: boolean) {
   cursor: default;
 }
 .fin-badge {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1297,7 +1297,7 @@ function saveShared(a: Account, shared: boolean) {
   padding: 0 0.3em;
 }
 .fin-account-type {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -1311,7 +1311,7 @@ function saveShared(a: Account, shared: boolean) {
   margin: -0.5rem 0 1rem;
 }
 .fin-total-caption {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1321,7 +1321,7 @@ function saveShared(a: Account, shared: boolean) {
   padding-bottom: 0.15rem;
 }
 .fin-col-label {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1336,7 +1336,7 @@ function saveShared(a: Account, shared: boolean) {
   flex-shrink: 0;
 }
 .fin-tx-col {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   color: var(--text-muted);
   flex-shrink: 0;
@@ -1346,7 +1346,7 @@ function saveShared(a: Account, shared: boolean) {
   border: none;
   background: transparent;
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   padding: 0;
   cursor: pointer;
@@ -1356,7 +1356,7 @@ function saveShared(a: Account, shared: boolean) {
   color: var(--primary);
 }
 .fin-fresh {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   flex-shrink: 0;
   width: 68px;
@@ -1372,7 +1372,7 @@ function saveShared(a: Account, shared: boolean) {
 }
 .fin-account-amount {
   margin-left: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.88rem;
   flex-shrink: 0;
 }
@@ -1429,7 +1429,7 @@ function saveShared(a: Account, shared: boolean) {
   padding: 0.25rem 0 0.4rem;
 }
 .fin-ident-label {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -1467,7 +1467,7 @@ function saveShared(a: Account, shared: boolean) {
   display: flex;
   align-items: baseline;
   gap: 0.75rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   padding: 0.15rem 0;
 }
@@ -1477,13 +1477,13 @@ function saveShared(a: Account, shared: boolean) {
 .fin-history-note {
   color: var(--text-muted);
   font-size: 0.75rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   margin: 0.25rem 0 0;
 }
 
 /* Footer combined total: present but never the headline */
 .fin-grand {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   letter-spacing: 0.08em;
   color: var(--text-muted);
@@ -1552,7 +1552,7 @@ function saveShared(a: Account, shared: boolean) {
 .fin-rate-row label {
   width: 70px;
   flex-shrink: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
 }
 .fin-rate-input {
   flex: 1;
@@ -1560,7 +1560,7 @@ function saveShared(a: Account, shared: boolean) {
 }
 .fin-rate-unit {
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
 }
 </style>
