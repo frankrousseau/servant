@@ -1,19 +1,23 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import KindIcon from '../components/KindIcon.vue'
 
-import { useAuthStore } from '../stores/auth'
 import { listConnectors } from '../api/connectors'
 import {
   dailyStats as fetchDailyStats,
   entryStats,
   listEntriesPage
 } from '../api/entries'
-import { useSocket, debounce } from '../composables/useSocket'
-import type { Entry, ConnectorConfig } from '../types'
-import { kindColor } from '../lib/kind'
+import {
+  addDays,
+  occursOn,
+  recurrenceOf,
+  upcomingOccurrence
+} from '../apps/calendar/recurrence'
+import { debounce, useSocket } from '../composables/useSocket'
+import { getConnectorDef } from '../connectors'
 import {
   formatDate,
   formatDateTime,
@@ -25,14 +29,10 @@ import {
   utcToZonedParts,
   zonedToUtcISO
 } from '../lib/datetime'
-import { getConnectorDef } from '../connectors'
-import {
-  addDays,
-  occursOn,
-  recurrenceOf,
-  upcomingOccurrence
-} from '../apps/calendar/recurrence'
+import { kindColor } from '../lib/kind'
+import { useAuthStore } from '../stores/auth'
 import type { Item as ChecklistItem } from '../apps/checklists/markdown'
+import type { ConnectorConfig, Entry } from '../types'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -534,7 +534,106 @@ onMounted(fetchData)
   color: var(--text-muted);
 }
 
-/* Header: terminal-style calendar summary */
+/* ----- Layout: the dashboard owns the viewport, header on top, then three
+   independently scrolling columns. Full width (overrides the global 960px
+   cap meant for narrow settings-style views). ----- */
+
+.view {
+  max-width: none;
+  height: calc(100vh - 4rem);
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px minmax(0, 1.15fr);
+  gap: 1.5rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.dashboard-main,
+.dashboard-stats {
+  min-width: 0;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 0.5rem;
+}
+
+.dashboard-activity {
+  min-width: 0;
+  min-height: 0;
+  padding-right: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-layout {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+  .dashboard-activity {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 860px) {
+  .view {
+    height: auto;
+  }
+  .dashboard-layout {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-main,
+  .dashboard-stats,
+  .dashboard-activity {
+    overflow-y: visible;
+  }
+  .dashboard-activity {
+    grid-column: auto;
+  }
+}
+
+/* ----- Sections (shared chrome of the three columns) ----- */
+
+.dashboard-section {
+  margin-bottom: 2rem;
+}
+
+/* Modifier after its base so its margin-bottom wins the cascade. */
+.dashboard-section--fill {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 0;
+}
+
+.dashboard-section--fill .activity-feed {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.section-header h2 {
+  margin: 0;
+}
+
+.section-link {
+  font-size: 0.9rem;
+}
+
+/* ----- Header: terminal-style calendar summary ----- */
+
 .motd {
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -575,17 +674,14 @@ onMounted(fetchData)
   font-weight: 600;
 }
 
+/* ----- Checklists: pending items ----- */
+
 .today-item {
   display: flex;
   align-items: baseline;
   gap: 0.6rem;
   padding: 0.3rem 0.5rem;
   font-size: 0.92rem;
-}
-
-.today-box {
-  color: var(--text-muted);
-  flex-shrink: 0;
 }
 
 .today-item--clickable {
@@ -597,6 +693,11 @@ onMounted(fetchData)
 }
 .today-item--clickable:hover .today-box {
   color: var(--primary);
+}
+
+.today-box {
+  color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .today-item-text {
@@ -634,80 +735,101 @@ onMounted(fetchData)
   font-size: 0.85rem;
 }
 
-/* The dashboard owns the viewport: header fixed on top, then three
-   independently scrolling columns. Full width (overrides the global
-   960px cap meant for narrow settings-style views). */
-.view {
-  max-width: none;
-  height: calc(100vh - 4rem);
+/* ----- Connectors ----- */
+
+.connector-status-list {
   display: flex;
   flex-direction: column;
+  gap: 0.5rem;
 }
 
-.dashboard-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px minmax(0, 1.15fr);
-  gap: 1.5rem;
-  flex: 1;
-  min-height: 0;
-}
-
-.dashboard-main,
-.dashboard-stats {
-  min-width: 0;
-  overflow-y: auto;
-  min-height: 0;
-  padding-right: 0.5rem;
-}
-
-.dashboard-activity {
-  min-width: 0;
-  min-height: 0;
-  padding-right: 0.5rem;
+.connector-status-item {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem 1rem;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.connector-status-item--clickable {
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.connector-status-item--clickable:hover {
+  border-color: var(--primary);
+  background: var(--bg-hover);
+}
+
+.connector-mini-logo {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 4px;
   overflow: hidden;
+  background: #000;
 }
 
-.dashboard-section--fill {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  margin-bottom: 0;
+.connector-mini-logo :deep(svg),
+.connector-mini-logo :deep(img) {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
-.dashboard-section--fill .activity-feed {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
+.connector-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
 }
 
-@media (max-width: 1100px) {
-  .dashboard-layout {
-    grid-template-columns: minmax(0, 1fr) 280px;
-  }
-  .dashboard-activity {
-    grid-column: 1 / -1;
-  }
+.connector-dot.active {
+  background: var(--success);
 }
 
-@media (max-width: 860px) {
-  .view {
-    height: auto;
-  }
-  .dashboard-layout {
-    grid-template-columns: 1fr;
-  }
-  .dashboard-main,
-  .dashboard-stats,
-  .dashboard-activity {
-    overflow-y: visible;
-  }
-  .dashboard-activity {
-    grid-column: auto;
-  }
+.connector-dot.error {
+  background: var(--danger);
 }
+
+.connector-status-name {
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.connector-status-meta {
+  color: var(--text-muted);
+  margin-left: auto;
+  font-size: 0.85rem;
+}
+
+/* Errored connectors: red-tinted card, message shown in place of the
+   sync time (full text in the tooltip). Kept after the clickable rules
+   so the error hover wins the cascade. */
+.connector-status-item--error {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 7%, var(--bg-surface));
+}
+
+.connector-status-item--error:hover {
+  border-color: var(--danger-hover);
+}
+
+.connector-status-meta--error {
+  color: var(--danger);
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ----- Statistics ----- */
 
 .sidebar-section h2 {
   margin: 0 0 0.75rem;
@@ -724,7 +846,6 @@ onMounted(fetchData)
   font-weight: 600;
 }
 
-/* Stats */
 .sidebar-stats {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -807,119 +928,15 @@ onMounted(fetchData)
   text-overflow: ellipsis;
 }
 
-/* Sections */
-.dashboard-section {
-  margin-bottom: 2rem;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.75rem;
-}
-
-.section-header h2 {
-  margin: 0;
-}
-
-.section-link {
-  font-size: 0.9rem;
-}
-
-/* Connector status */
-.connector-status-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.connector-status-item {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.6rem 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-}
-
-.connector-status-item--clickable {
-  cursor: pointer;
-  transition:
-    border-color 0.15s,
-    background 0.15s;
-}
-.connector-status-item--clickable:hover {
-  border-color: var(--primary);
-  background: var(--bg-hover);
-}
-
-.connector-mini-logo {
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-  border-radius: 4px;
-  overflow: hidden;
-  background: #000;
-}
-
-.connector-mini-logo :deep(svg),
-.connector-mini-logo :deep(img) {
+.stat-spark {
   width: 100%;
-  height: 100%;
-  display: block;
+  height: 14px;
+  margin-top: 0.35rem;
+  fill: rgba(var(--primary-rgb), 0.65);
 }
 
-.connector-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  flex-shrink: 0;
-}
+/* ----- Activity feed as terminal log lines ----- */
 
-.connector-dot.active {
-  background: var(--success);
-}
-
-.connector-dot.error {
-  background: var(--danger);
-}
-
-.connector-status-name {
-  font-weight: 500;
-  flex-shrink: 0;
-}
-
-.connector-status-meta {
-  color: var(--text-muted);
-  margin-left: auto;
-  font-size: 0.85rem;
-}
-
-/* Errored connectors: red-tinted card, message shown in place of the
-   sync time (full text in the tooltip). */
-.connector-status-item--error {
-  border-color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 7%, var(--bg-surface));
-}
-
-.connector-status-item--error:hover {
-  border-color: var(--danger-hover);
-}
-
-.connector-status-meta--error {
-  color: var(--danger);
-  font-weight: 500;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Activity feed as terminal log lines */
 .activity-feed {
   display: flex;
   flex-direction: column;
@@ -964,13 +981,5 @@ onMounted(fetchData)
   margin-left: auto;
   flex-shrink: 0;
   font-size: 0.8rem;
-}
-
-/* Sparklines */
-.stat-spark {
-  width: 100%;
-  height: 14px;
-  margin-top: 0.35rem;
-  fill: rgba(var(--primary-rgb), 0.65);
 }
 </style>
