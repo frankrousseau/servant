@@ -547,6 +547,12 @@ const cryptoTotal = computed(() =>
   )
 )
 
+const cryptoTotalLabel = computed(
+  () =>
+    (cryptoTotal.value.approx ? '≈ ' : '') +
+    formatAmount(cryptoTotal.value.total, refCurrency.value)
+)
+
 const portfolioSnapshots = computed(() =>
   balanceEntries.value
     .filter(snapshot => snapshot.data.universe === 'crypto')
@@ -757,12 +763,7 @@ function saveShared(account: Account, shared: boolean) {
             {{ expanded.has(PORTFOLIO_KEY) ? '▾' : '▸' }}
           </span>
           <span class="fin-total-caption">total</span>
-          <span class="fin-total">
-            {{
-              (cryptoTotal.approx ? '≈ ' : '') +
-              formatAmount(cryptoTotal.total, refCurrency)
-            }}
-          </span>
+          <span class="fin-total">{{ cryptoTotalLabel }}</span>
           <span v-if="cryptoTotal.excluded.length" class="fin-warn">
             without {{ cryptoTotal.excluded.join(', ') }} (no price)
           </span>
