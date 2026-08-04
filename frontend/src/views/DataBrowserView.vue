@@ -328,8 +328,16 @@ onMounted(() => {
           class="db-filter capitalize"
           :options="sourceOptions"
         />
-        <DateInput v-model="filterDateFrom" title="From date" />
-        <DateInput v-model="filterDateTo" title="To date" />
+        <DateInput
+          v-model="filterDateFrom"
+          title="From date"
+          placeholder="From date"
+        />
+        <DateInput
+          v-model="filterDateTo"
+          title="To date"
+          placeholder="To date"
+        />
         <span class="filter-count" v-if="!loading"
           >{{ meta.total }} entries</span
         >
