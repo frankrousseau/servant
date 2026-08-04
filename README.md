@@ -47,6 +47,7 @@ project structure and architecture notes.
 ## Documentation
 
 - [docs/deploy.md](docs/deploy.md): deployment (Docker, release, env vars, ops)
+- [docs/backup-strategy.md](docs/backup-strategy.md): what to back up, recipes, restore procedure
 - [docs/development.md](docs/development.md): dev setup, project structure, architecture
 - [docs/dav.md](docs/dav.md): CalDAV/CardDAV/WebDAV endpoint (phone calendar, contacts, files)
 - [docs/phone-backup.md](docs/phone-backup.md): auto-upload a phone's camera roll to the Files app
