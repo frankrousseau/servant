@@ -1150,6 +1150,10 @@ onMounted(() => {
   padding: 0.45rem 1rem;
   cursor: pointer;
 }
+.tabs button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
 .tabs button.active {
   color: var(--text);
   border-color: var(--primary);
@@ -1178,6 +1182,10 @@ onMounted(() => {
   font-size: 0.75rem;
   padding: 0.15rem 0.6rem;
   cursor: pointer;
+}
+.report-view-tabs button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
 }
 .report-view-tabs button.active {
   color: var(--text);

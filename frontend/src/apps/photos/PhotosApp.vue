@@ -1754,6 +1754,7 @@ onUnmounted(() => {
 .ph-thumb-delete:focus-visible {
   background: var(--danger);
   border-color: transparent;
+  color: var(--primary-contrast);
 }
 /* No hover on touch screens: keep the button reachable */
 @media (hover: none) {

@@ -149,7 +149,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
 .confirm-btn--danger {
   background: var(--danger);
   border: 1px solid var(--danger);
-  color: #fff;
+  color: var(--primary-contrast);
 }
 
 .confirm-btn--danger:hover {
@@ -160,7 +160,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
 .confirm-btn--primary {
   background: var(--primary);
   border: 1px solid var(--primary);
-  color: #fff;
+  color: var(--primary-contrast);
 }
 
 .confirm-btn--primary:hover {

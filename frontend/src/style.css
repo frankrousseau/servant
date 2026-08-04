@@ -47,6 +47,7 @@
   --success: #4fd674;
   --warning: #ffb454;
   --radius: 6px;
+  --control-radius: 8px;
   --sidebar-width: 220px;
   --font-display: 'Maple Mono', 'Courier New', monospace;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -277,17 +278,29 @@ a:hover {
   color: var(--text-muted);
 }
 
+/* Two control sizes, shared by inputs, selects, buttons and the Servant
+   widgets (ComboBox, DateInput): the default form control computes to
+   ~40px (1rem text, 1.4 line-height, 0.5rem vertical padding, 1px
+   border), the compact `.small` tier to ~32px (0.85rem, 0.35rem), which
+   is also the toolbar standard the apps use. Buttons carry a transparent
+   border so both box heights match exactly. */
 input,
 textarea,
 select {
   width: 100%;
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 0.9rem;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--control-radius);
   color: var(--text);
   font-size: 1rem;
+  line-height: 1.4;
   font-family: inherit;
+}
+
+::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
 }
 
 select {
@@ -317,16 +330,22 @@ select:focus-visible {
 button {
   background: var(--primary);
   color: var(--primary-contrast);
-  border: none;
-  padding: 0.75rem 1.4rem;
-  border-radius: 10px;
+  border: 1px solid transparent;
+  padding: 0.5rem 1.2rem;
+  border-radius: var(--control-radius);
   cursor: pointer;
   font-size: 1rem;
+  line-height: 1.4;
+  font-family: inherit;
   transition: background 0.15s;
 }
 
+/* The hover repaints the text too: a component button styled by a bare
+   class (0-1-0) loses both properties to this rule (0-1-1), so changing
+   only the background would put muted text on a primary background. */
 button:hover {
   background: var(--primary-hover);
+  color: var(--primary-contrast);
 }
 
 button:disabled {
@@ -334,9 +353,26 @@ button:disabled {
   cursor: not-allowed;
 }
 
-button.small {
-  padding: 0.4rem 0.85rem;
-  font-size: 1rem;
+button.small,
+input.small,
+select.small {
+  padding: 0.35rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+select.small {
+  padding-right: 2.5rem;
+}
+
+button.ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+}
+
+button.ghost:hover {
+  background: var(--bg-hover);
+  color: var(--text);
 }
 
 button.danger {
@@ -620,8 +656,13 @@ dd {
 
 .modal-actions button:first-child {
   background: transparent;
-  border: 1px solid var(--border);
+  border-color: var(--border);
   color: var(--text-muted);
+}
+
+.modal-actions button:first-child:hover {
+  background: var(--bg-hover);
+  color: var(--text);
 }
 
 /* ----- 9. Third-party overrides ----- */
