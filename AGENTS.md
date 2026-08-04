@@ -15,7 +15,14 @@ All Vue code follows the [official Vue.js style guide](https://fr.vuejs.org/styl
 - **Priority C (recommended)**: SFC top-level order is `<script>` then `<template>` then `<style>` in every file
 - **Servant widgets first**: reach for the shared components in `frontend/src/components/` before native controls or ad-hoc markup: `ComboBox` for closed single choices (never a bare `<select>` or a `<datalist>` picker), `AutocompleteInput` for free text with suggestions, `ConfirmModal` through `useConfirm` for confirmations, `DateInput`, `KindIcon`, `MediaViewer`/`VideoPlayer` for media. Fall back to a native control only when no shared widget covers the need
 
-Formatting is Prettier's job (`cd frontend && npm run format`; config in `frontend/.prettierrc.json`: no semicolons, single quotes, no trailing commas, `arrowParens: avoid`). Run it before committing frontend changes.
+### Code organization
+
+- **Import order** in `<script setup>`: framework (`vue`, `vue-router`), then components, then app modules sorted by path (`api/`, `apps/`, `composables/`, `connectors`, `lib/`, `stores/`), then `import type` lines last; one import per module, names sorted inside each brace
+- **Scoped styles follow the template**: layout rules first, then one commented block per template region in display order (`/* ----- Connectors ----- */`); a modifier class (`.thing--variant`) is declared after its base so it wins the cascade at equal specificity
+- **Shared helpers live in `frontend/src/lib/`** (dates and civil-date strings in `lib/datetime.ts`, per-kind routes in `lib/entryRoute.ts`); before writing a helper in a view or app, check `lib/` and the owning app module, and promote duplicated logic there instead of copying it
+- **Design tokens over literals**: `var(--font-mono)`, `var(--font-display)`, theme colors (`--primary`, `--danger`, ...), never a hardcoded font stack or palette hex in a component
+- **Name bindings with words**: no single-letter variables (`entry`, `list`, `connector`, never `e`, `l`, `c`), in arrow functions and `v-for` included; the accepted exceptions are a numeric loop index `i` and the `(a, b)` pair of a sort comparator
+- **Derive in computeds, not in the template**: anything involving a loop, `Date`/`Intl` work, or a lookup per row goes through a `computed` (or is attached to the items of an existing one), so it is cached instead of recomputed on every render (`cd frontend && npm run format`; config in `frontend/.prettierrc.json`: no semicolons, single quotes, no trailing commas, `arrowParens: avoid`). Run it before committing frontend changes.
 
 ## Elixir style
 
