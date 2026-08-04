@@ -6,11 +6,13 @@ import BalanceChart from './BalanceChart.vue'
 import { addDays } from '../calendar/recurrence'
 import {
   categoryColor,
+  cryptoCurve,
   formatAmount,
   freshnessDays,
   freshnessLevel,
   monthlySpending,
   sharedTxNames,
+  sumCurves,
   universeCurve,
   valueAt,
   type Account,
@@ -25,6 +27,7 @@ import type { Entry } from '../types'
 const props = defineProps<{
   accounts: Account[]
   seriesByKey: Map<string, SnapshotPoint[]>
+  balanceEntries: Entry[]
   txs: Entry[]
   rates: Rates
   refCurrency: string
@@ -33,14 +36,35 @@ const props = defineProps<{
 
 const emit = defineEmits<{ go: [tab: 'accounts' | 'spending'] }>()
 
-const combined = computed(() =>
+const tradfiCurve = computed(() =>
   universeCurve(
-    props.accounts,
+    props.accounts.filter(account => account.universe === 'tradfi'),
     props.seriesByKey,
     props.rates,
     props.refCurrency
   )
 )
+
+const cryptoUniverseCurve = computed(() =>
+  cryptoCurve(
+    props.accounts.filter(account => account.universe === 'crypto'),
+    props.seriesByKey,
+    props.balanceEntries,
+    props.rates,
+    props.refCurrency
+  )
+)
+
+const combined = computed(() => ({
+  points: sumCurves([
+    tradfiCurve.value.points,
+    cryptoUniverseCurve.value.points
+  ]),
+  excluded: [
+    ...tradfiCurve.value.excluded,
+    ...cryptoUniverseCurve.value.excluded
+  ]
+}))
 
 const total = computed(() => valueAt(combined.value.points, props.today))
 const delta30 = computed(
@@ -54,23 +78,18 @@ function deltaLabel(delta: number): string {
 
 // Per-universe subtotals, only for universes that hold accounts.
 const splits = computed(() =>
-  (['tradfi', 'crypto'] as const)
-    .map(universe => {
-      const list = props.accounts.filter(
-        account => account.universe === universe
-      )
-      const { points } = universeCurve(
-        list,
-        props.seriesByKey,
-        props.rates,
-        props.refCurrency
-      )
-      return {
-        universe,
-        count: list.length,
-        total: valueAt(points, props.today)
-      }
-    })
+  (
+    [
+      ['tradfi', tradfiCurve.value],
+      ['crypto', cryptoUniverseCurve.value]
+    ] as const
+  )
+    .map(([universe, curve]) => ({
+      universe,
+      count: props.accounts.filter(account => account.universe === universe)
+        .length,
+      total: valueAt(curve.points, props.today)
+    }))
     .filter(split => split.count > 0)
 )
 

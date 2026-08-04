@@ -63,6 +63,7 @@ function mountOverview(
     props: {
       accounts,
       seriesByKey,
+      balanceEntries: balances,
       txs,
       rates,
       refCurrency: 'EUR',
@@ -118,5 +119,24 @@ describe('OverviewView', () => {
     expect(wrapper.find('.ov-empty').exists()).toBe(true)
     await wrapper.find('.ov-link').trigger('click')
     expect(wrapper.emitted('go')![0]).toEqual(['accounts'])
+  })
+
+  it('drives the crypto split from portfolio snapshots when present', () => {
+    const wallet = entry('account', {
+      id: 'w1',
+      title: 'BTC',
+      data: { type: 'wallet', currency: 'BTC' }
+    })
+    const snapshot = entry('balance', {
+      occurred_at: '2026-07-10T12:00:00Z',
+      data: { universe: 'crypto', amount: 9999, currency: 'EUR' }
+    })
+    const wrapper = mountOverview(
+      [accountEntry('a1', 'Bank'), wallet],
+      [balanceEntry('a1', '2026-07-10', 900), snapshot],
+      []
+    )
+    expect(wrapper.find('.ov-splits').text()).toMatch(/crypto 9.999 EUR/)
+    expect(wrapper.find('.ov-total').text()).toMatch(/^10.899 EUR$/)
   })
 })

@@ -2,12 +2,16 @@ import { describe, it, expect } from 'vitest'
 
 import {
   buildAccounts,
+  cryptoCurve,
+  cryptoSpotTotal,
   freshnessDays,
   freshnessLevel,
   monthlySpending,
+  portfolioSeries,
   rateFor,
   sharedTxNames,
   snapshotSeries,
+  sumCurves,
   universeCurve,
   valueAt
 } from './finance'
@@ -65,6 +69,16 @@ const balanceEntry = (accountId: string, occurredAt: string, amount: number) =>
   entry('balance', {
     occurred_at: occurredAt,
     data: { account_id: accountId, amount, currency: 'EUR' }
+  })
+
+const portfolioSnapshot = (
+  occurredAt: string,
+  amount: number,
+  currency = 'EUR'
+) =>
+  entry('balance', {
+    occurred_at: occurredAt,
+    data: { universe: 'crypto', amount, currency }
   })
 
 describe('buildAccounts', () => {
@@ -328,6 +342,28 @@ describe('universeCurve', () => {
   })
 })
 
+describe('sumCurves', () => {
+  it('sums forward-filled curves over the union of dates', () => {
+    const points = sumCurves([
+      [
+        { date: '2026-01-01', amount: 100 },
+        { date: '2026-03-01', amount: 200 }
+      ],
+      [{ date: '2026-02-01', amount: 50 }]
+    ])
+    expect(points).toEqual([
+      { date: '2026-01-01', amount: 100 },
+      { date: '2026-02-01', amount: 150 },
+      { date: '2026-03-01', amount: 250 }
+    ])
+  })
+
+  it('returns an empty curve for no input', () => {
+    expect(sumCurves([])).toEqual([])
+    expect(sumCurves([[]])).toEqual([])
+  })
+})
+
 describe('rates and freshness', () => {
   it('rateFor returns 1 for the reference and null when missing', () => {
     expect(rateFor('EUR', 'EUR', {})).toBe(1)
@@ -354,5 +390,157 @@ describe('rates and freshness', () => {
     expect(freshnessLevel(36)).toBe('warn')
     expect(freshnessLevel(91)).toBe('stale')
     expect(freshnessLevel(null)).toBe('stale')
+  })
+})
+
+describe('portfolioSeries', () => {
+  it('builds one point per day, latest observation wins', () => {
+    const { points, excluded } = portfolioSeries(
+      [
+        portfolioSnapshot('2026-06-02T12:00:00Z', 5200),
+        portfolioSnapshot('2026-06-01T08:00:00Z', 5000),
+        portfolioSnapshot('2026-06-01T15:00:00Z', 5100)
+      ],
+      {},
+      'EUR'
+    )
+    expect(excluded).toEqual([])
+    expect(points).toEqual([
+      { date: '2026-06-01', amount: 5100 },
+      { date: '2026-06-02', amount: 5200 }
+    ])
+  })
+
+  it('ignores per-account balance entries', () => {
+    const { points } = portfolioSeries(
+      [balanceEntry('a1', '2026-06-01T12:00:00Z', 999)],
+      {},
+      'EUR'
+    )
+    expect(points).toEqual([])
+  })
+
+  it('converts snapshot currencies and excludes those without a rate', () => {
+    const { points, excluded } = portfolioSeries(
+      [
+        portfolioSnapshot('2026-06-01T12:00:00Z', 100),
+        portfolioSnapshot('2026-06-02T12:00:00Z', 200, 'USD'),
+        portfolioSnapshot('2026-06-03T12:00:00Z', 300, 'CHF')
+      ],
+      { USD: 0.9 },
+      'EUR'
+    )
+    expect(excluded).toEqual(['2026-06-03 (CHF)'])
+    expect(points).toEqual([
+      { date: '2026-06-01', amount: 100 },
+      { date: '2026-06-02', amount: 180 }
+    ])
+  })
+})
+
+describe('cryptoCurve', () => {
+  const wallet: Account = {
+    key: 'w1',
+    entryId: 'w1',
+    name: 'BTC',
+    identifier: null,
+    shared: false,
+    type: 'wallet',
+    currency: 'BTC',
+    universe: 'crypto',
+    derived: false
+  }
+  const quantitySeries = new Map([['w1', [{ date: '2026-06-01', amount: 2 }]]])
+
+  it('prefers portfolio snapshots over the quantity derivation', () => {
+    const { points } = cryptoCurve(
+      [wallet],
+      quantitySeries,
+      [portfolioSnapshot('2026-06-10T12:00:00Z', 9999)],
+      { BTC: 50000 },
+      'EUR'
+    )
+    expect(points).toEqual([{ date: '2026-06-10', amount: 9999 }])
+  })
+
+  it('falls back to quantities times manual rates without snapshots', () => {
+    const { points } = cryptoCurve(
+      [wallet],
+      quantitySeries,
+      [],
+      { BTC: 50000 },
+      'EUR'
+    )
+    expect(points).toEqual([{ date: '2026-06-01', amount: 100000 }])
+  })
+
+  it('stays on snapshots even when none is convertible', () => {
+    const { points, excluded } = cryptoCurve(
+      [wallet],
+      quantitySeries,
+      [portfolioSnapshot('2026-06-10T12:00:00Z', 9999, 'CHF')],
+      { BTC: 50000 },
+      'EUR'
+    )
+    expect(points).toEqual([])
+    expect(excluded).toEqual(['2026-06-10 (CHF)'])
+  })
+})
+
+describe('cryptoSpotTotal', () => {
+  const wallet = (key: string, token: string): Account => ({
+    key,
+    entryId: key,
+    name: token,
+    identifier: null,
+    shared: false,
+    type: 'wallet',
+    currency: token,
+    universe: 'crypto',
+    derived: false
+  })
+
+  it('values quantities at spot first, manual rate as fallback', () => {
+    const { total, excluded, approx, counted } = cryptoSpotTotal(
+      [wallet('w1', 'BTC'), wallet('w2', 'ETH'), wallet('w3', 'DOG')],
+      new Map([
+        ['w1', [{ date: '2026-06-01', amount: 0.5 }]],
+        ['w2', [{ date: '2026-06-01', amount: 2 }]],
+        ['w3', [{ date: '2026-06-01', amount: 100 }]]
+      ]),
+      { BTC: 50000 },
+      { ETH: 2000, BTC: 40000 },
+      'EUR'
+    )
+    // BTC at spot (50000, not the stale manual 40000), ETH at its rate.
+    expect(total).toBe(0.5 * 50000 + 2 * 2000)
+    expect(excluded).toEqual(['DOG'])
+    expect(approx).toBe(true)
+    expect(counted).toBe(2)
+  })
+
+  it('is exact when only manual rates enter the sum', () => {
+    const { approx, total } = cryptoSpotTotal(
+      [wallet('w1', 'ETH')],
+      new Map([['w1', [{ date: '2026-06-01', amount: 2 }]]]),
+      {},
+      { ETH: 2000 },
+      'EUR'
+    )
+    expect(approx).toBe(false)
+    expect(total).toBe(4000)
+  })
+
+  it('skips accounts without any quantity record', () => {
+    const { total, excluded, counted } = cryptoSpotTotal(
+      [wallet('w1', 'BTC')],
+      new Map(),
+      { BTC: 50000 },
+      {},
+      'EUR'
+    )
+    expect(total).toBe(0)
+    expect(excluded).toEqual([])
+    expect(counted).toBe(0)
   })
 })

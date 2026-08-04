@@ -209,6 +209,18 @@ export function rateFor(
   return typeof r === 'number' && Number.isFinite(r) && r > 0 ? r : null
 }
 
+// Sum forward-filled curves: one point per date where any curve changes,
+// each curve holding its last value (0 before its first point).
+export function sumCurves(curves: SnapshotPoint[][]): SnapshotPoint[] {
+  const dates = [
+    ...new Set(curves.flatMap(curve => curve.map(point => point.date)))
+  ].sort()
+  return dates.map(date => ({
+    date,
+    amount: curves.reduce((sum, curve) => sum + valueAt(curve, date), 0)
+  }))
+}
+
 // Forward-filled total across accounts, in the reference currency: one point
 // per date where any account changes. Accounts whose currency has no rate
 // are excluded (and reported) rather than silently counted at zero.
@@ -229,25 +241,118 @@ export function universeCurve(
     else usable.push({ series, rate })
   }
 
-  const dates = [
-    ...new Set(usable.flatMap(u => u.series.map(p => p.date)))
-  ].sort()
+  const scaled = usable.map(({ series, rate }) =>
+    series.map(point => ({ date: point.date, amount: point.amount * rate }))
+  )
+  return { points: sumCurves(scaled), excluded }
+}
 
-  const points = dates.map(date => {
-    let total = 0
-    for (const { series, rate } of usable) {
-      // Last observation on or before the date; nothing yet counts as 0.
-      let value = 0
-      for (const p of series) {
-        if (p.date > date) break
-        value = p.amount
-      }
-      total += value * rate
+// Portfolio value snapshots: balance entries carrying data.universe
+// ('crypto') instead of an account_id. Each is a dated observation of the
+// whole portfolio's value in its own currency; one point per day, the
+// latest observation of the day wins. Snapshots whose currency has no rate
+// to `ref` are excluded and reported, same rule as accounts.
+export function portfolioSeries(
+  balanceEntries: Entry[],
+  rates: Rates,
+  ref: string
+): { points: SnapshotPoint[]; excluded: string[] } {
+  const observations: { at: string; date: string; amount: number }[] = []
+  const excluded: string[] = []
+
+  for (const snapshot of balanceEntries) {
+    if (snapshot.data.universe !== 'crypto') continue
+    const amount = snapshot.data.amount
+    if (typeof amount !== 'number' || !Number.isFinite(amount)) continue
+    if (!snapshot.occurred_at) continue
+    const date = utcToZonedParts(snapshot.occurred_at).date
+    const currency = ((snapshot.data.currency as string) || ref)
+      .trim()
+      .toUpperCase()
+    const rate = rateFor(currency, ref, rates)
+    if (rate == null) {
+      excluded.push(`${date} (${currency})`)
+      continue
     }
-    return { date, amount: total }
-  })
+    observations.push({
+      at: snapshot.occurred_at,
+      date,
+      amount: amount * rate
+    })
+  }
 
-  return { points, excluded }
+  observations.sort((a, b) => a.at.localeCompare(b.at))
+  const byDay = new Map<string, number>()
+  for (const observation of observations)
+    byDay.set(observation.date, observation.amount)
+
+  return {
+    points: [...byDay.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, amount]) => ({ date, amount })),
+    excluded
+  }
+}
+
+// The crypto universe curve. As soon as portfolio snapshots exist they are
+// the curve (an observed value beats a derivation, even when the snapshots
+// are currently unconvertible); the quantity-times-manual-rate derivation
+// only serves users who never snapshotted.
+export function cryptoCurve(
+  cryptoAccounts: Account[],
+  seriesByKey: Map<string, SnapshotPoint[]>,
+  balanceEntries: Entry[],
+  rates: Rates,
+  ref: string
+): { points: SnapshotPoint[]; excluded: string[] } {
+  const portfolio = portfolioSeries(balanceEntries, rates, ref)
+  if (portfolio.points.length || portfolio.excluded.length) return portfolio
+  return universeCurve(cryptoAccounts, seriesByKey, rates, ref)
+}
+
+export interface CryptoTotal {
+  total: number
+  excluded: string[]
+  approx: boolean
+  counted: number
+}
+
+// Live value of the crypto holdings in the reference currency. Spot price
+// first (that is what "worth right now" means), manual rate as fallback;
+// an account with neither is excluded and named. `approx` flags any spot
+// component, `counted` says how many accounts entered the sum.
+export function cryptoSpotTotal(
+  accounts: Account[],
+  seriesByKey: Map<string, SnapshotPoint[]>,
+  spotPrices: Record<string, number>,
+  rates: Rates,
+  ref: string
+): CryptoTotal {
+  let total = 0
+  let approx = false
+  let counted = 0
+  const excluded: string[] = []
+
+  for (const account of accounts) {
+    const series = seriesByKey.get(account.key) || []
+    if (!series.length) continue
+    const quantity = series[series.length - 1].amount
+    const spot = spotPrices[account.currency]
+    if (typeof spot === 'number' && Number.isFinite(spot)) {
+      total += quantity * spot
+      approx = true
+      counted += 1
+      continue
+    }
+    const rate = rateFor(account.currency, ref, rates)
+    if (rate == null) excluded.push(account.name)
+    else {
+      total += quantity * rate
+      counted += 1
+    }
+  }
+
+  return { total, excluded, approx, counted }
 }
 
 // Value of a forward-filled curve at a date (0 before the first point).

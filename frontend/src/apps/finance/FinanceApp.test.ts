@@ -216,7 +216,8 @@ describe('FinanceApp tabs', () => {
     await wrapper.find('.fin-crypto-add').trigger('submit')
     await flushPromises()
 
-    await wrapper.find('.fin-account-caret').trigger('click')
+    // Scoped: the crypto summary bar has its own caret with the same class.
+    await wrapper.find('.fin-accounts .fin-account-caret').trigger('click')
     const row = wrapper.find('.fin-history-row')
     const recordInput = row.find('input')
     expect((recordInput.element as HTMLInputElement).value).toBe('1.5')
@@ -249,5 +250,151 @@ describe('FinanceApp tabs', () => {
     expect(wrapper.find('.fin-account-converted').text()).toMatch(
       /^≈ 4.500 EUR$/
     )
+  })
+
+  it('shows the spot total and records portfolio snapshots without stacking', async () => {
+    const ctx = makeCtx()
+    const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    await wrapper.findAll('.fin-tab')[3].trigger('click')
+    await wrapper.find('.fin-crypto-token').setValue('eth')
+    await wrapper.find('.fin-crypto-qty').setValue('1.5')
+    await wrapper.find('.fin-crypto-add').trigger('submit')
+    await flushPromises()
+
+    // 1.5 ETH at spot 3000, no manual rate: approximate total.
+    expect(wrapper.find('.fin-crypto-summary .fin-total').text()).toMatch(
+      /^≈ 4.500 EUR$/
+    )
+
+    await wrapper.find('.fin-crypto-snapshot').trigger('click')
+    await flushPromises()
+    expect(ctx.api.entries.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'balance',
+        title: 'Crypto portfolio: 4500 EUR',
+        data: { universe: 'crypto', amount: 4500, currency: 'EUR' }
+      })
+    )
+
+    // Same day again: correct the day's snapshot instead of stacking.
+    await wrapper.find('.fin-crypto-snapshot').trigger('click')
+    await flushPromises()
+    expect(ctx.api.entries.update).toHaveBeenCalledWith(
+      'new3',
+      expect.objectContaining({
+        data: expect.objectContaining({ universe: 'crypto', amount: 4500 })
+      })
+    )
+    const portfolioCreates = ctx.api.entries.create.mock.calls.filter(
+      call =>
+        (call[0] as { data?: { universe?: string } }).data?.universe ===
+        'crypto'
+    )
+    expect(portfolioCreates.length).toBe(1)
+
+    // History behind the caret, deletable like any snapshot.
+    await wrapper
+      .find('.fin-crypto-summary .fin-account-caret')
+      .trigger('click')
+    expect(wrapper.find('.fin-history-amount').text()).toMatch(/^4.500 EUR$/)
+  })
+
+  it('drives the accounts-tab crypto section from portfolio snapshots', async () => {
+    const ctx = makeCtx()
+    const wallet = entry('account', {
+      id: 'w1',
+      title: 'BTC',
+      data: { type: 'wallet', currency: 'BTC' }
+    })
+    const quantity = entry('balance', {
+      id: 'q1',
+      occurred_at: '2026-07-01T12:00:00Z',
+      data: { account_id: 'w1', amount: 2, currency: 'BTC' }
+    })
+    const snapshot = entry('balance', {
+      id: 's1',
+      occurred_at: '2026-07-15T12:00:00Z',
+      data: { universe: 'crypto', amount: 9999, currency: 'EUR' }
+    })
+    ctx.api.entries.list = vi.fn(async (filters?: Record<string, string>) => {
+      if (filters?.kind === 'account') return [wallet]
+      if (filters?.kind === 'balance') return [quantity, snapshot]
+      return STORE[filters?.kind || ''] || []
+    })
+    const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    await wrapper.findAll('.fin-tab')[1].trigger('click')
+
+    const sections = wrapper.findAll('.fin-universe')
+    const cryptoSection = sections[sections.length - 1]
+    expect(cryptoSection.find('.fin-total').text()).toMatch(/^9.999 EUR$/)
+  })
+
+  it('keeps an orphaned portfolio snapshot reachable after its last token is deleted', async () => {
+    const ctx = makeCtx()
+    const snapshot = entry('balance', {
+      id: 's1',
+      occurred_at: '2026-07-15T12:00:00Z',
+      data: { universe: 'crypto', amount: 9999, currency: 'EUR' }
+    })
+    ctx.api.entries.list = vi.fn(async (filters?: Record<string, string>) => {
+      if (filters?.kind === 'account') return []
+      if (filters?.kind === 'balance') return [snapshot]
+      return STORE[filters?.kind || ''] || []
+    })
+    const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    await wrapper.findAll('.fin-tab')[3].trigger('click')
+
+    // No wallet accounts left, but the snapshot still counts toward other
+    // totals: the summary bar must stay reachable, not hidden behind
+    // "No tokens yet".
+    expect(wrapper.find('.fin-crypto-summary').exists()).toBe(true)
+
+    await wrapper
+      .find('.fin-crypto-summary .fin-account-caret')
+      .trigger('click')
+    const row = wrapper.find('.fin-history-row')
+    expect(row.exists()).toBe(true)
+    expect(row.find('.fin-history-amount').text()).toMatch(/^9.999 EUR$/)
+  })
+
+  it('surfaces a snapshot currency in the rates editor after the reference currency moves away from it', async () => {
+    const ctx = makeCtx()
+    const prefs = entry('prefs', {
+      id: 'p1',
+      title: 'finance',
+      data: { reference_currency: 'USD' }
+    })
+    const snapshot = entry('balance', {
+      id: 's1',
+      occurred_at: '2026-07-15T12:00:00Z',
+      data: { universe: 'crypto', amount: 9999, currency: 'EUR' }
+    })
+    ctx.api.entries.list = vi.fn(async (filters?: Record<string, string>) => {
+      if (filters?.kind === 'prefs') return [prefs]
+      if (filters?.kind === 'balance') return [snapshot]
+      if (filters?.kind === 'account') return []
+      if (filters?.kind === 'bank_tx') return []
+      return STORE[filters?.kind || ''] || []
+    })
+    const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    await wrapper.findAll('.fin-tab')[1].trigger('click')
+
+    const ratesButton = wrapper
+      .findAll('button')
+      .find(button => button.text() === 'Rates')
+    expect(ratesButton?.exists()).toBe(true)
+    await ratesButton!.trigger('click')
+    await flushPromises()
+
+    // EUR only ever shows up via the snapshot's currency here: accounts and
+    // bank_tx are both empty in this scenario.
+    const row = wrapper
+      .findAll('.fin-rate-row')
+      .find(candidate => candidate.text().includes('EUR'))
+    expect(row?.exists()).toBe(true)
   })
 })
