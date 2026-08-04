@@ -1330,16 +1330,21 @@ onBeforeUnmount(() => {
   border-radius: 6px;
 }
 .nt-note {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   padding: 0.45rem 0.5rem;
   border-radius: 6px;
   cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   font-size: 0.92rem;
   color: inherit;
   text-decoration: none;
+}
+.nt-note-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .nt-fav-head {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -1349,19 +1354,9 @@ onBeforeUnmount(() => {
   color: var(--text-muted);
   padding: 0.4rem 0.5rem 0.15rem;
 }
-.nt-note--fav {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-.nt-note--fav .nt-note-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .nt-star {
   color: #ffb454;
   flex-shrink: 0;
-  vertical-align: -1px;
 }
 .nt-note:hover {
   background: var(--bg-hover);
@@ -1436,13 +1431,12 @@ onBeforeUnmount(() => {
 }
 .nt-view-toggle {
   display: flex;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
+  gap: 0.35rem;
 }
 .nt-vb {
   background: transparent;
-  border: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
   color: var(--text-muted);
   padding: 0.35rem 0.6rem;
   font-size: 0.8rem;
@@ -1451,9 +1445,12 @@ onBeforeUnmount(() => {
 }
 .nt-vb:hover {
   background: var(--bg-hover);
+  border-color: var(--primary);
+  color: var(--text);
 }
 .nt-vb--active {
   background: var(--primary);
+  border-color: var(--primary);
   color: var(--primary-contrast);
 }
 .nt-fav-btn {
