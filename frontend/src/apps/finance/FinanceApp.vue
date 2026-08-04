@@ -671,7 +671,7 @@ function saveShared(a: Account, shared: boolean) {
               <span
                 v-if="cryptoPrices[a.currency] != null"
                 class="fin-crypto-price"
-                title="Spot price (CoinGecko)"
+                title="Spot price (CoinGecko / DexScreener)"
               >
                 {{ formatAmount(cryptoPrices[a.currency], refCurrency) }}
               </span>
