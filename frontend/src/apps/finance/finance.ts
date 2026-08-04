@@ -247,6 +247,69 @@ export function universeCurve(
   return { points: sumCurves(scaled), excluded }
 }
 
+// Portfolio value snapshots: balance entries carrying data.universe
+// ('crypto') instead of an account_id. Each is a dated observation of the
+// whole portfolio's value in its own currency; one point per day, the
+// latest observation of the day wins. Snapshots whose currency has no rate
+// to `ref` are excluded and reported, same rule as accounts.
+export function portfolioSeries(
+  balanceEntries: Entry[],
+  rates: Rates,
+  ref: string
+): { points: SnapshotPoint[]; excluded: string[] } {
+  const observations: { at: string; date: string; amount: number }[] = []
+  const excluded: string[] = []
+
+  for (const snapshot of balanceEntries) {
+    if (snapshot.data.universe !== 'crypto') continue
+    const amount = snapshot.data.amount
+    if (typeof amount !== 'number' || !Number.isFinite(amount)) continue
+    if (!snapshot.occurred_at) continue
+    const date = utcToZonedParts(snapshot.occurred_at).date
+    const currency = ((snapshot.data.currency as string) || ref)
+      .trim()
+      .toUpperCase()
+    const rate = rateFor(currency, ref, rates)
+    if (rate == null) {
+      excluded.push(`${date} (${currency})`)
+      continue
+    }
+    observations.push({
+      at: snapshot.occurred_at,
+      date,
+      amount: amount * rate
+    })
+  }
+
+  observations.sort((a, b) => a.at.localeCompare(b.at))
+  const byDay = new Map<string, number>()
+  for (const observation of observations)
+    byDay.set(observation.date, observation.amount)
+
+  return {
+    points: [...byDay.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, amount]) => ({ date, amount })),
+    excluded
+  }
+}
+
+// The crypto universe curve. As soon as portfolio snapshots exist they are
+// the curve (an observed value beats a derivation, even when the snapshots
+// are currently unconvertible); the quantity-times-manual-rate derivation
+// only serves users who never snapshotted.
+export function cryptoCurve(
+  cryptoAccounts: Account[],
+  seriesByKey: Map<string, SnapshotPoint[]>,
+  balanceEntries: Entry[],
+  rates: Rates,
+  ref: string
+): { points: SnapshotPoint[]; excluded: string[] } {
+  const portfolio = portfolioSeries(balanceEntries, rates, ref)
+  if (portfolio.points.length || portfolio.excluded.length) return portfolio
+  return universeCurve(cryptoAccounts, seriesByKey, rates, ref)
+}
+
 // Value of a forward-filled curve at a date (0 before the first point).
 export function valueAt(points: SnapshotPoint[], date: string): number {
   let value = 0

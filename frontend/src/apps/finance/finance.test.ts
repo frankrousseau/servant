@@ -2,9 +2,11 @@ import { describe, it, expect } from 'vitest'
 
 import {
   buildAccounts,
+  cryptoCurve,
   freshnessDays,
   freshnessLevel,
   monthlySpending,
+  portfolioSeries,
   rateFor,
   sharedTxNames,
   snapshotSeries,
@@ -66,6 +68,16 @@ const balanceEntry = (accountId: string, occurredAt: string, amount: number) =>
   entry('balance', {
     occurred_at: occurredAt,
     data: { account_id: accountId, amount, currency: 'EUR' }
+  })
+
+const portfolioSnapshot = (
+  occurredAt: string,
+  amount: number,
+  currency = 'EUR'
+) =>
+  entry('balance', {
+    occurred_at: occurredAt,
+    data: { universe: 'crypto', amount, currency }
   })
 
 describe('buildAccounts', () => {
@@ -377,5 +389,99 @@ describe('rates and freshness', () => {
     expect(freshnessLevel(36)).toBe('warn')
     expect(freshnessLevel(91)).toBe('stale')
     expect(freshnessLevel(null)).toBe('stale')
+  })
+})
+
+describe('portfolioSeries', () => {
+  it('builds one point per day, latest observation wins', () => {
+    const { points, excluded } = portfolioSeries(
+      [
+        portfolioSnapshot('2026-06-02T12:00:00Z', 5200),
+        portfolioSnapshot('2026-06-01T08:00:00Z', 5000),
+        portfolioSnapshot('2026-06-01T15:00:00Z', 5100)
+      ],
+      {},
+      'EUR'
+    )
+    expect(excluded).toEqual([])
+    expect(points).toEqual([
+      { date: '2026-06-01', amount: 5100 },
+      { date: '2026-06-02', amount: 5200 }
+    ])
+  })
+
+  it('ignores per-account balance entries', () => {
+    const { points } = portfolioSeries(
+      [balanceEntry('a1', '2026-06-01T12:00:00Z', 999)],
+      {},
+      'EUR'
+    )
+    expect(points).toEqual([])
+  })
+
+  it('converts snapshot currencies and excludes those without a rate', () => {
+    const { points, excluded } = portfolioSeries(
+      [
+        portfolioSnapshot('2026-06-01T12:00:00Z', 100),
+        portfolioSnapshot('2026-06-02T12:00:00Z', 200, 'USD'),
+        portfolioSnapshot('2026-06-03T12:00:00Z', 300, 'CHF')
+      ],
+      { USD: 0.9 },
+      'EUR'
+    )
+    expect(excluded).toEqual(['2026-06-03 (CHF)'])
+    expect(points).toEqual([
+      { date: '2026-06-01', amount: 100 },
+      { date: '2026-06-02', amount: 180 }
+    ])
+  })
+})
+
+describe('cryptoCurve', () => {
+  const wallet: Account = {
+    key: 'w1',
+    entryId: 'w1',
+    name: 'BTC',
+    identifier: null,
+    shared: false,
+    type: 'wallet',
+    currency: 'BTC',
+    universe: 'crypto',
+    derived: false
+  }
+  const quantitySeries = new Map([['w1', [{ date: '2026-06-01', amount: 2 }]]])
+
+  it('prefers portfolio snapshots over the quantity derivation', () => {
+    const { points } = cryptoCurve(
+      [wallet],
+      quantitySeries,
+      [portfolioSnapshot('2026-06-10T12:00:00Z', 9999)],
+      { BTC: 50000 },
+      'EUR'
+    )
+    expect(points).toEqual([{ date: '2026-06-10', amount: 9999 }])
+  })
+
+  it('falls back to quantities times manual rates without snapshots', () => {
+    const { points } = cryptoCurve(
+      [wallet],
+      quantitySeries,
+      [],
+      { BTC: 50000 },
+      'EUR'
+    )
+    expect(points).toEqual([{ date: '2026-06-01', amount: 100000 }])
+  })
+
+  it('stays on snapshots even when none is convertible', () => {
+    const { points, excluded } = cryptoCurve(
+      [wallet],
+      quantitySeries,
+      [portfolioSnapshot('2026-06-10T12:00:00Z', 9999, 'CHF')],
+      { BTC: 50000 },
+      'EUR'
+    )
+    expect(points).toEqual([])
+    expect(excluded).toEqual(['2026-06-10 (CHF)'])
   })
 })
