@@ -11,6 +11,7 @@ const props = defineProps<{
   modelValue: string
   max?: string
   title?: string
+  placeholder?: string
 }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
@@ -49,5 +50,5 @@ onBeforeUnmount(() => fp?.destroy())
 </script>
 
 <template>
-  <input ref="input" type="text" :title="title" />
+  <input ref="input" type="text" :title="title" :placeholder="placeholder" />
 </template>
