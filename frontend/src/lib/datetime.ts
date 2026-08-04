@@ -107,6 +107,28 @@ export function zonedToUtcISO(
   return new Date(guess - tzOffsetMs(zone, firstPass)).toISOString()
 }
 
+// Intl.DateTimeFormat construction is the expensive part of Intl (tens of µs);
+// callers like the dashboard parse hundreds of instants per refresh, so cache
+// one formatter per timezone.
+const zonedPartsFmts = new Map<string, Intl.DateTimeFormat>()
+
+function zonedPartsFmt(zone: string): Intl.DateTimeFormat {
+  let fmt = zonedPartsFmts.get(zone)
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: zone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+    zonedPartsFmts.set(zone, fmt)
+  }
+  return fmt
+}
+
 // A UTC ISO string -> its wall-clock parts in `tz`, for pre-filling date/time
 // inputs when editing.
 export function utcToZonedParts(
@@ -114,15 +136,7 @@ export function utcToZonedParts(
   tz = userTimeZone()
 ): { date: string; time: string } {
   const zone = tz || Intl.DateTimeFormat().resolvedOptions().timeZone
-  const dtf = new Intl.DateTimeFormat('en-CA', {
-    timeZone: zone,
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  const dtf = zonedPartsFmt(zone)
   const m: Record<string, string> = {}
   for (const p of dtf.formatToParts(new Date(iso))) {
     if (p.type !== 'literal') m[p.type] = p.value
@@ -136,6 +150,25 @@ export function utcToZonedParts(
 // Today's wall-clock date ("YYYY-MM-DD") in the user's timezone.
 export function todayInUserTz(tz = userTimeZone()): string {
   return utcToZonedParts(new Date().toISOString(), tz).date
+}
+
+// --- Civil dates ("YYYY-MM-DD", no time component; deadlines are days) ---
+
+// Today as a local civil date, matching the checklists overdue rule.
+export function todayLocalStr(): string {
+  const d = new Date()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// A civil date as a short "Aug 12" due-chip label.
+export function formatDue(due: string): string {
+  const [y, m, d] = due.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC'
+  })
 }
 
 // Coarse "how long ago" for lists and log lines, where the exact timestamp is

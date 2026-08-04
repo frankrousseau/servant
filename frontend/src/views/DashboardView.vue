@@ -13,17 +13,20 @@ import {
 } from '../api/entries'
 import { useSocket, debounce } from '../composables/useSocket'
 import type { Entry, ConnectorConfig } from '../types'
-import { relativeTime } from '../lib/datetime'
 import { kindColor } from '../lib/kind'
 import {
   formatDate,
   formatDateTime,
+  formatDue,
   formatTime,
+  relativeTime,
   todayInUserTz,
+  todayLocalStr,
   utcToZonedParts
 } from '../lib/datetime'
 import { getConnectorDef } from '../connectors'
-import { occursOn, recurrenceOf } from '../apps/calendar/recurrence'
+import { addDays, occursOn, recurrenceOf } from '../apps/calendar/recurrence'
+import type { Item as ChecklistItem } from '../apps/checklists/markdown'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -41,7 +44,7 @@ const { onEntryChange, onBulkChange } = useSocket()
 
 // Coalesce refetches: a connector sync can fire many entry events in a burst,
 // and each fetchData() is several requests. Debounce so we refresh once.
-const refresh = debounce(() => fetchData())
+const refresh = debounce(fetchData)
 onEntryChange(refresh)
 onBulkChange(refresh)
 
@@ -81,11 +84,8 @@ async function fetchData() {
 
 // ----- Today panel -----
 
-interface ChecklistItem {
-  text: string
-  done: boolean
-  due?: string
-}
+// Local civil date, matching the checklists app's overdue rule.
+const todayLocal = todayLocalStr()
 
 // Today's events, recurring ones included (they occur today when their
 // pattern matches, whatever their seed date).
@@ -108,10 +108,7 @@ const todaysEvents = computed(() => {
 // Checklist deadlines compete for the "next" slot once they are less than
 // a week out (pending items only, virtual all-day events like the calendar).
 const upcomingDeadlines = computed<Entry[]>(() => {
-  const d = new Date()
-  d.setDate(d.getDate() + 7)
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const horizon = `${d.getFullYear()}-${m}-${String(d.getDate()).padStart(2, '0')}`
+  const horizon = addDays(todayLocal, 7)
   const out: Entry[] = []
   for (const l of checklists.value) {
     const items = (l.data.items as ChecklistItem[]) || []
@@ -198,22 +195,6 @@ const pendingItems = computed(() => {
   })
 })
 
-// Local civil date, matching the checklists app's overdue rule.
-const todayLocal = (() => {
-  const d = new Date()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${String(d.getDate()).padStart(2, '0')}`
-})()
-
-function formatDue(due: string): string {
-  const [y, m, d] = due.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC'
-  })
-}
-
 // Clicking a pending item opens its checklist (checking off happens there).
 function openChecklist(p: { listId: string }) {
   router.push(`/apps/checklists?selected=${p.listId}`)
@@ -222,10 +203,10 @@ function openChecklist(p: { listId: string }) {
 // Backend daily stats use UTC days; so does this key.
 const entriesToday = computed(() => {
   const key = new Date().toISOString().slice(0, 10)
-  let n = 0
-  for (const kind of Object.keys(dailyStats.value))
-    n += dailyStats.value[kind][key] || 0
-  return n
+  return Object.values(dailyStats.value).reduce(
+    (n, perDay) => n + (perDay[key] || 0),
+    0
+  )
 })
 
 const lastSyncAt = computed(() => {
@@ -237,12 +218,15 @@ const lastSyncAt = computed(() => {
 })
 
 // Errored connectors first (they need attention), then most recently
-// synced first; never-synced ones sink to the bottom.
+// synced first; never-synced ones sink to the bottom. The def rides along
+// so the template resolves it once per connector.
 const sortedConnectors = computed(() =>
-  [...connectors.value].sort((a, b) => {
-    if (!!a.error !== !!b.error) return a.error ? -1 : 1
-    return (b.last_synced_at ?? '').localeCompare(a.last_synced_at ?? '')
-  })
+  [...connectors.value]
+    .sort((a, b) => {
+      if (!!a.error !== !!b.error) return a.error ? -1 : 1
+      return (b.last_synced_at ?? '').localeCompare(a.last_synced_at ?? '')
+    })
+    .map(c => ({ ...c, def: getConnectorDef(c.connector_type) }))
 )
 
 // Timestamp for a log line: time-of-day if today, short date otherwise.
@@ -285,12 +269,25 @@ const totalSpark = computed(() => {
   return sparkBars(merged)
 })
 
+// One row per stat card, total first; bars precomputed here so the template
+// does not rebuild every sparkline on unrelated re-renders.
+const statCards = computed(() => [
+  {
+    kind: null as string | null,
+    count: totalEntries.value,
+    label: 'Total entries',
+    bars: totalSpark.value
+  },
+  ...Object.entries(stats.value).map(([kind, count]) => ({
+    kind: kind as string | null,
+    count,
+    label: kind,
+    bars: sparkBars(dailyStats.value[kind])
+  }))
+])
+
 function goToData(kind?: string) {
-  if (kind) {
-    router.push({ path: '/data', query: { kind } })
-  } else {
-    router.push('/data')
-  }
+  router.push({ path: '/data', query: kind ? { kind } : {} })
 }
 
 function goToEntry(entry: Entry) {
@@ -389,20 +386,16 @@ onMounted(fetchData)
                 tabindex="0"
               >
                 <span
-                  v-if="getConnectorDef(c.connector_type)"
+                  v-if="c.def"
                   class="connector-mini-logo"
-                  v-html="getConnectorDef(c.connector_type)?.logo || ''"
+                  v-html="c.def.logo || ''"
                 ></span>
                 <span
                   class="connector-dot"
                   :class="{ active: c.enabled, error: c.error }"
                 ></span>
                 <span class="connector-status-name">
-                  {{
-                    c.name ||
-                    getConnectorDef(c.connector_type)?.name ||
-                    c.connector_type
-                  }}
+                  {{ c.name || c.def?.name || c.connector_type }}
                 </span>
                 <span
                   v-if="c.error"
@@ -438,50 +431,25 @@ onMounted(fetchData)
             </p>
             <div class="sidebar-stats">
               <div
-                class="stat-card stat-card--total"
-                @click="goToData()"
-                v-click-key
-                role="button"
-                tabindex="0"
-              >
-                <div class="stat-icon-badge stat-icon-badge--total">
-                  <span class="stat-icon-text">&Sigma;</span>
-                </div>
-                <div class="stat-content">
-                  <span class="stat-count">{{ totalEntries }}</span>
-                  <span class="stat-label">Total entries</span>
-                  <svg
-                    class="stat-spark"
-                    viewBox="0 0 89 14"
-                    preserveAspectRatio="none"
-                    aria-hidden="true"
-                  >
-                    <rect
-                      v-for="(b, i) in totalSpark"
-                      :key="i"
-                      :x="b.x"
-                      :y="14 - b.h"
-                      width="2"
-                      :height="b.h"
-                    />
-                  </svg>
-                </div>
-              </div>
-              <div
-                v-for="(count, kind) in stats"
-                :key="kind"
+                v-for="card in statCards"
+                :key="card.kind ?? 'total'"
                 class="stat-card"
-                @click="goToData(kind as string)"
+                :class="{ 'stat-card--total': !card.kind }"
+                @click="goToData(card.kind ?? undefined)"
                 v-click-key
                 role="button"
                 tabindex="0"
               >
-                <div class="stat-icon-badge">
-                  <KindIcon :kind="kind as string" :size="18" />
+                <div
+                  class="stat-icon-badge"
+                  :class="{ 'stat-icon-badge--total': !card.kind }"
+                >
+                  <span v-if="!card.kind" class="stat-icon-text">&Sigma;</span>
+                  <KindIcon v-else :kind="card.kind" :size="18" />
                 </div>
                 <div class="stat-content">
-                  <span class="stat-count">{{ count }}</span>
-                  <span class="stat-label">{{ kind }}</span>
+                  <span class="stat-count">{{ card.count }}</span>
+                  <span class="stat-label">{{ card.label }}</span>
                   <svg
                     class="stat-spark"
                     viewBox="0 0 89 14"
@@ -489,7 +457,7 @@ onMounted(fetchData)
                     aria-hidden="true"
                   >
                     <rect
-                      v-for="(b, i) in sparkBars(dailyStats[kind as string])"
+                      v-for="(b, i) in card.bars"
                       :key="i"
                       :x="b.x"
                       :y="14 - b.h"
@@ -795,6 +763,7 @@ onMounted(fetchData)
 }
 
 .stat-content {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
@@ -982,9 +951,5 @@ onMounted(fetchData)
   height: 14px;
   margin-top: 0.35rem;
   fill: rgba(var(--primary-rgb), 0.65);
-}
-
-.stat-content {
-  flex: 1;
 }
 </style>

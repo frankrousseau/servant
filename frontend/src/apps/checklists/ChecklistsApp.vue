@@ -12,6 +12,7 @@ import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import DateInput from '../../components/DateInput.vue'
 
 import type { AppContext, Entry } from '../types'
+import { formatDue, todayLocalStr } from '../../lib/datetime'
 import { createFolderOrder } from '../folderOrder'
 import { itemsToMarkdown, parseListText, type Item } from './markdown'
 
@@ -367,24 +368,8 @@ function clearDue(item: Item) {
   saveNow()
 }
 
-// Local civil date; a deadline is a day, not an instant.
-function todayStr(): string {
-  const d = new Date()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${String(d.getDate()).padStart(2, '0')}`
-}
-
 function overdue(item: Item): boolean {
-  return !!item.due && !item.done && item.due < todayStr()
-}
-
-function formatDue(due: string): string {
-  const [y, m, d] = due.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC'
-  })
+  return !!item.due && !item.done && item.due < todayLocalStr()
 }
 
 // Tab indents an item one level, Shift+Tab brings it back (outliner
