@@ -138,7 +138,7 @@ function resolveTargetNote(target: string): Note | null {
 }
 function resolveMention(target: string): Mentionable | null {
   const key = canon(target)
-  return mentionables.value.find(mention => canon(m.name) === c) || null
+  return mentionables.value.find(mention => canon(mention.name) === key) || null
 }
 
 const filteredNotes = computed(() => {
@@ -683,12 +683,12 @@ function hideAutocomplete() {
 function mentionItems(query: string, close: boolean): AcItem[] {
   const needle = query.toLowerCase()
   return mentionables.value
-    .filter(mention => m.name.toLowerCase().includes(needle))
+    .filter(mention => mention.name.toLowerCase().includes(needle))
     .slice(0, 8)
     .map(mention => ({
-      label: m.name,
-      icon: m.kind === 'event' ? '📅' : '👤',
-      text: close ? `${m.name}]]` : `@[[${m.name}]]`
+      label: mention.name,
+      icon: mention.kind === 'event' ? '📅' : '👤',
+      text: close ? `${mention.name}]]` : `@[[${mention.name}]]`
     }))
 }
 

@@ -237,7 +237,7 @@ function openVirtualFile(file: Entry) {
     )
   } else if (kind === 'photo' && filePath(file)) {
     window.open(filePath(file)!, '_blank')
-  } else if (v === 'invoice') {
+  } else if (kind === 'invoice') {
     const url = safeUrl(field<string>(file, 'url') || '')
     if (url) window.open(url, '_blank', 'noopener')
   }

@@ -114,8 +114,8 @@ const birthdayEvents = computed<Entry[]>(() => {
           all_day: true,
           calendar: 'Birthdays',
           recurrence: 'yearly',
-          contact_id: c.id,
-          contact_name: contactName(c)
+          contact_id: contact.id,
+          contact_name: contactName(contact)
         }
       } as Entry
     ]
@@ -133,16 +133,16 @@ const deadlineEvents = computed<Entry[]>(() =>
       item.due && !item.done
         ? [
             {
-              ...l,
-              id: `deadline:${l.id}:${i}`,
+              ...list,
+              id: `deadline:${list.id}:${i}`,
               kind: 'event',
               title: `⏰ ${item.text}`,
               occurred_at: `${item.due}T12:00:00Z`,
               data: {
                 all_day: true,
                 calendar: 'Deadlines',
-                checklist_id: l.id,
-                checklist_title: l.title
+                checklist_id: list.id,
+                checklist_title: list.title
               }
             } as Entry
           ]
@@ -169,7 +169,7 @@ const calendarEntityByName = computed(() => {
   const map = new Map<string, Entry>()
   for (const c of calendarEntities.value) {
     const name = (c.title || '').trim()
-    if (name && !m.has(name)) m.set(name, c)
+    if (name && !map.has(name)) map.set(name, c)
   }
   return map
 })

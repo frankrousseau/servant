@@ -406,7 +406,7 @@ function onItemDragStart(i: number, e: DragEvent) {
 
 function onItemDragOver(i: number, e: DragEvent) {
   if (dragIndex.value === null) return
-  event.preventDefault()
+  e.preventDefault()
   if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
   dropIndex.value = i
 }

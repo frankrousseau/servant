@@ -706,9 +706,12 @@ async function tagWithContact(contact: Entry) {
       const photo = allPhotos.value.find(photo => photo.id === id)
       if (!photo) continue
       const existing = getPeople(photo)
-      if (existing.some(pp => pp.id === c.id)) continue
+      if (existing.some(pp => pp.id === contact.id)) continue
       await props.ctx.api.entries.update(id, {
-        data: { ...photo.data, people: [...existing, { id: c.id, name }] }
+        data: {
+          ...photo.data,
+          people: [...existing, { id: contact.id, name }]
+        }
       })
     }
   } catch (err) {
@@ -1129,25 +1132,25 @@ onUnmounted(() => {
         </div>
         <div class="ph-grid">
           <div
-            v-for="person in group.photos"
-            :key="person.id"
+            v-for="photo in group.photos"
+            :key="photo.id"
             class="ph-thumb"
             :class="{
-              'ph-thumb--selected': selectionMode && selectedIds.has(person.id)
+              'ph-thumb--selected': selectionMode && selectedIds.has(photo.id)
             }"
-            @click="onThumbClick(person, $event)"
+            @click="onThumbClick(photo, $event)"
           >
             <span
               v-if="selectionMode"
               class="ph-check"
-              :class="{ 'ph-check--on': selectedIds.has(person.id) }"
+              :class="{ 'ph-check--on': selectedIds.has(photo.id) }"
             ></span>
             <button
               v-else
               class="ph-thumb-delete"
               title="Delete"
               aria-label="Delete"
-              @click.stop="deletePhotos([person.id])"
+              @click.stop="deletePhotos([photo.id])"
             >
               <svg
                 width="14"
@@ -1166,15 +1169,15 @@ onUnmounted(() => {
               </svg>
             </button>
             <img
-              v-if="!broken.has(person.id) && hasGridImage(person)"
+              v-if="!broken.has(photo.id) && hasGridImage(photo)"
               class="ph-thumb-img"
-              :src="getThumbPath(person)"
-              :alt="person.title || ''"
+              :src="getThumbPath(photo)"
+              :alt="photo.title || ''"
               loading="lazy"
-              @error="broken.add(person.id)"
+              @error="broken.add(photo.id)"
             />
             <span
-              v-if="isVideo(person) && !broken.has(person.id)"
+              v-if="isVideo(photo) && !broken.has(photo.id)"
               class="ph-thumb-play"
               aria-hidden="true"
             >
@@ -1188,7 +1191,7 @@ onUnmounted(() => {
                 <path d="M10 8l6 4-6 4z" fill="#fff" />
               </svg>
             </span>
-            <div v-if="broken.has(person.id)" class="ph-broken">
+            <div v-if="broken.has(photo.id)" class="ph-broken">
               <svg
                 width="28"
                 height="28"
@@ -1205,21 +1208,21 @@ onUnmounted(() => {
               </svg>
             </div>
             <div
-              v-if="getTags(person).length || getPeople(person).length"
+              v-if="getTags(photo).length || getPeople(photo).length"
               class="ph-thumb-tags"
             >
               <span
-                v-for="tag in getTags(person)"
+                v-for="tag in getTags(photo)"
                 :key="'tag' + tag"
                 class="ph-thumb-tag"
                 >{{ tag }}</span
               >
               <span
-                v-for="person in getPeople(person)"
-                :key="'person' + person.id"
+                v-for="tagged in getPeople(photo)"
+                :key="'person' + tagged.id"
                 class="ph-thumb-tag ph-thumb-tag--person"
-                :title="person.name"
-                >{{ firstName(person.name) }}</span
+                :title="tagged.name"
+                >{{ firstName(tagged.name) }}</span
               >
             </div>
           </div>
@@ -1255,14 +1258,14 @@ onUnmounted(() => {
         </p>
         <div
           v-for="(row, rowIndex) in faceRows"
-          :key="index"
+          :key="rowIndex"
           class="ph-face-row"
           :class="{ 'ph-face-row--done': row.done }"
         >
           <div class="ph-face-chips">
             <FaceChip
               v-for="(face, faceIndex) in row.cluster.faces.slice(0, 5)"
-              :key="j"
+              :key="faceIndex"
               :src="chipSrc(face.photoId)"
               :box="face.face.box"
             />
