@@ -27,9 +27,49 @@ describe('fetchCryptoPrices', () => {
     expect(url).toContain('vs_currencies=eur')
   })
 
-  it('falls back to DexScreener for unknown tickers (USD vs)', async () => {
+  it('resolves listed tickers via CoinGecko search, best rank first', async () => {
     const fetchMock = vi.fn(async (url: string) => {
-      if (String(url).includes('dexscreener')) {
+      const u = String(url)
+      if (u.includes('coingecko.com/api/v3/search')) {
+        return jsonOk({
+          coins: [
+            { id: 'jupiter', symbol: 'JUP', market_cap_rank: 3814 },
+            {
+              id: 'jupiter-exchange-solana',
+              symbol: 'JUP',
+              market_cap_rank: 87
+            },
+            { id: 'jupiter-perps', symbol: 'JLP', market_cap_rank: 300 }
+          ]
+        })
+      }
+      if (u.includes('ids=')) {
+        expect(u).toContain('jupiter-exchange-solana')
+        return jsonOk({ 'jupiter-exchange-solana': { usd: 0.19 } })
+      }
+      throw new Error(`unexpected fetch: ${u}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await fetchCryptoPrices(['JUP'], 'USD')).toEqual({ JUP: 0.19 })
+    for (const call of fetchMock.mock.calls) {
+      expect(String(call[0])).not.toContain('dexscreener')
+    }
+
+    // Resolution is cached: a second fetch skips the search request.
+    const searches = () =>
+      fetchMock.mock.calls.filter(c => String(c[0]).includes('/search')).length
+    expect(searches()).toBe(1)
+    await fetchCryptoPrices(['JUP'], 'USD')
+    expect(searches()).toBe(1)
+  })
+
+  it('falls back to DexScreener for tickers CoinGecko does not know', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      const u = String(url)
+      if (u.includes('coingecko.com/api/v3/search'))
+        return jsonOk({ coins: [] })
+      if (u.includes('dexscreener')) {
         return jsonOk({
           pairs: [
             {
@@ -50,12 +90,38 @@ describe('fetchCryptoPrices', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     expect(await fetchCryptoPrices(['BONK'], 'USD')).toEqual({ BONK: 0.00002 })
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('falls back to DexScreener when the search request fails', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      const u = String(url)
+      if (u.includes('coingecko.com/api/v3/search')) return { ok: false }
+      if (u.includes('dexscreener')) {
+        return jsonOk({
+          pairs: [
+            {
+              baseToken: { symbol: 'FAILSRCH' },
+              priceUsd: '3',
+              liquidity: { usd: 1000 }
+            }
+          ]
+        })
+      }
+      throw new Error(`unexpected fetch: ${u}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await fetchCryptoPrices(['FAILSRCH'], 'USD')).toEqual({
+      FAILSRCH: 3
+    })
   })
 
   it('converts DexScreener USD quotes to the requested fiat via USDT', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       const u = String(url)
+      if (u.includes('coingecko.com/api/v3/search'))
+        return jsonOk({ coins: [] })
       if (u.includes('tether')) return jsonOk({ tether: { eur: 0.92 } })
       if (u.includes('dexscreener')) {
         return jsonOk({
@@ -79,6 +145,8 @@ describe('fetchCryptoPrices', () => {
   it('mixes CoinGecko majors and DexScreener long-tails in one call', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       const u = String(url)
+      if (u.includes('coingecko.com/api/v3/search'))
+        return jsonOk({ coins: [] })
       if (u.includes('ids=bitcoin')) return jsonOk({ bitcoin: { usd: 60000 } })
       if (u.includes('dexscreener')) {
         return jsonOk({

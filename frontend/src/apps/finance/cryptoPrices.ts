@@ -1,8 +1,10 @@
 // Spot prices for the Cryptos tab, fetched from the browser (display only:
 // the curve and totals still go through manual rates). Majors use CoinGecko
-// (stable fiat pairs). Everything else falls back to DexScreener search by
-// ticker (highest-liquidity pair); those quotes are in USD and converted to
-// `vs` via USDT on CoinGecko.
+// directly; other tickers are resolved to a CoinGecko id via /search (exact
+// symbol, best market-cap rank) because DexScreener's ticker search surfaces
+// counterfeit pools with fake liquidity for any listed token. DexScreener
+// stays as the last resort for tokens CoinGecko does not know; those quotes
+// are in USD and converted to `vs` via USDT on CoinGecko.
 
 const COINGECKO_IDS: Record<string, string> = {
   AAVE: 'aave',
@@ -39,7 +41,8 @@ type DexPair = {
   liquidity?: { usd?: number }
 }
 
-// Symbol -> price in `vs`. Known CoinGecko ids first; DexScreener for the rest.
+// Symbol -> price in `vs`. CoinGecko (static ids, then search resolution)
+// first; DexScreener only for what CoinGecko does not know.
 export async function fetchCryptoPrices(
   symbols: string[],
   vs: string
@@ -47,22 +50,59 @@ export async function fetchCryptoPrices(
   const unique = [...new Set(symbols.map(s => s.toUpperCase()).filter(Boolean))]
   if (!unique.length) return {}
 
-  const known = unique.filter(s => s in COINGECKO_IDS)
-  const unknown = unique.filter(s => !(s in COINGECKO_IDS))
+  const idBySymbol: Record<string, string> = {}
+  const unresolved: string[] = []
+  await Promise.all(
+    unique.map(async s => {
+      const id =
+        s in COINGECKO_IDS
+          ? COINGECKO_IDS[s]
+          : await resolveGeckoId(s).catch(() => null)
+      if (id) idBySymbol[s] = id
+      else unresolved.push(s)
+    })
+  )
 
   const [gecko, dex] = await Promise.all([
-    fetchCoinGecko(known, vs),
-    fetchDexScreener(unknown, vs)
+    fetchCoinGecko(idBySymbol, vs),
+    fetchDexScreener(unresolved, vs)
   ])
   return { ...gecko, ...dex }
 }
 
+// Ticker -> CoinGecko id (null = definitively not listed there). Cached for
+// the session: the tab refetches prices on every visit. Transient failures
+// are not cached so the next visit retries.
+const resolvedIds = new Map<string, string | null>()
+
+async function resolveGeckoId(symbol: string): Promise<string | null> {
+  const cached = resolvedIds.get(symbol)
+  if (cached !== undefined) return cached
+  const res = await fetch(
+    `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(symbol)}`
+  )
+  if (!res.ok) return null
+  const body = (await res.json()) as {
+    coins?: { id?: string; symbol?: string; market_cap_rank?: number | null }[]
+  }
+  const matches = (body.coins || [])
+    .filter(c => c.id && c.symbol?.toUpperCase() === symbol)
+    .sort(
+      (a, b) =>
+        (a.market_cap_rank ?? Infinity) - (b.market_cap_rank ?? Infinity)
+    )
+  const id = matches[0]?.id ?? null
+  resolvedIds.set(symbol, id)
+  return id
+}
+
 async function fetchCoinGecko(
-  symbols: string[],
+  idBySymbol: Record<string, string>,
   vs: string
 ): Promise<Record<string, number>> {
+  const symbols = Object.keys(idBySymbol)
   if (!symbols.length) return {}
-  const ids = symbols.map(s => COINGECKO_IDS[s]).join(',')
+  const ids = symbols.map(s => idBySymbol[s]).join(',')
   const currency = vs.toLowerCase()
   const res = await fetch(
     `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=${currency}`
@@ -71,7 +111,7 @@ async function fetchCoinGecko(
   const body = (await res.json()) as Record<string, Record<string, number>>
   const out: Record<string, number> = {}
   for (const s of symbols) {
-    const price = body[COINGECKO_IDS[s]]?.[currency]
+    const price = body[idBySymbol[s]]?.[currency]
     if (typeof price === 'number') out[s] = price
   }
   return out
