@@ -58,3 +58,19 @@ export function nextOccurrence(
   }
   return seed
 }
+
+// First occurrence still ahead at `today` + `nowTime` ("HH:MM" wall clock):
+// an occurrence today only counts until the event's time has passed.
+export function upcomingOccurrence(
+  seed: string,
+  rec: Recurrence,
+  today: string,
+  seedTime: string,
+  nowTime: string
+): string {
+  const occ = nextOccurrence(seed, rec, today)
+  if (occ === today && seedTime < nowTime) {
+    return nextOccurrence(seed, rec, addDays(today, 1))
+  }
+  return occ
+}

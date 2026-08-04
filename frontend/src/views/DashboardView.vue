@@ -22,10 +22,16 @@ import {
   relativeTime,
   todayInUserTz,
   todayLocalStr,
-  utcToZonedParts
+  utcToZonedParts,
+  zonedToUtcISO
 } from '../lib/datetime'
 import { getConnectorDef } from '../connectors'
-import { addDays, occursOn, recurrenceOf } from '../apps/calendar/recurrence'
+import {
+  addDays,
+  occursOn,
+  recurrenceOf,
+  upcomingOccurrence
+} from '../apps/calendar/recurrence'
 import type { Item as ChecklistItem } from '../apps/checklists/markdown'
 
 const router = useRouter()
@@ -129,10 +135,25 @@ const upcomingDeadlines = computed<Entry[]>(() => {
   return out
 })
 
-// Next upcoming event on any day: earliest one not yet finished.
+// Next upcoming event on any day: earliest one not yet finished. Recurring
+// events are projected to their next occurrence (same wall-clock time) so
+// past seeds still compete for the slot.
 const nextEvent = computed(() => {
   const now = new Date().toISOString()
+  const { date: today, time: nowTime } = utcToZonedParts(now)
   const upcoming = [...events.value, ...upcomingDeadlines.value]
+    .map(e => {
+      const rec = recurrenceOf(e.data)
+      if (!rec || !e.occurred_at) return e
+      const { date, time } = utcToZonedParts(e.occurred_at)
+      const occ = upcomingOccurrence(date, rec, today, time, nowTime)
+      // end_at belongs to the seed occurrence; drop it on the projection.
+      return {
+        ...e,
+        occurred_at: zonedToUtcISO(occ, time),
+        data: { ...e.data, end_at: undefined }
+      }
+    })
     .filter(
       e =>
         e.occurred_at &&

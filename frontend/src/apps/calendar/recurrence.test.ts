@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest'
 
-import { nextOccurrence, occursOn, recurrenceOf } from './recurrence'
+import {
+  nextOccurrence,
+  occursOn,
+  recurrenceOf,
+  upcomingOccurrence
+} from './recurrence'
 
 describe('recurrenceOf', () => {
   it('accepts only known values', () => {
@@ -66,5 +71,26 @@ describe('nextOccurrence', () => {
     expect(nextOccurrence('2026-01-31', 'monthly', '2026-04-01')).toBe(
       '2026-04-30'
     )
+  })
+})
+
+describe('upcomingOccurrence', () => {
+  // 2026-07-06 and 2026-08-03 are Mondays.
+  it('keeps an occurrence today while its time is still ahead', () => {
+    expect(
+      upcomingOccurrence('2026-07-06', 'weekly', '2026-08-03', '10:00', '09:00')
+    ).toBe('2026-08-03')
+  })
+
+  it('rolls past an occurrence today whose time has passed', () => {
+    expect(
+      upcomingOccurrence('2026-07-06', 'weekly', '2026-08-03', '10:00', '11:00')
+    ).toBe('2026-08-10')
+  })
+
+  it('ignores the time of day for occurrences on later days', () => {
+    expect(
+      upcomingOccurrence('1985-03-12', 'yearly', '2026-08-03', '00:00', '23:59')
+    ).toBe('2027-03-12')
   })
 })
