@@ -1005,7 +1005,7 @@ onUnmounted(destroyPickers)
   border: 1px solid var(--border);
   color: var(--text-muted);
   padding: 0.3rem 0.6rem;
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   cursor: pointer;
   font-size: 1rem;
 }
@@ -1042,7 +1042,7 @@ onUnmounted(destroyPickers)
   border: none;
   color: var(--text-muted);
   padding: 0.3rem 0.7rem;
-  border-radius: 4px;
+  border-radius: calc(var(--control-radius) - 2px);
   cursor: pointer;
   font-size: 0.85rem;
 }
@@ -1409,10 +1409,10 @@ onUnmounted(destroyPickers)
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text);
-  padding: 0.4rem 1rem;
-  border-radius: 6px;
+  padding: 0.35rem 0.8rem;
+  border-radius: var(--control-radius);
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 .cal-modal-btn:hover {
   border-color: var(--text-muted);
