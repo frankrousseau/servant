@@ -216,7 +216,8 @@ describe('FinanceApp tabs', () => {
     await wrapper.find('.fin-crypto-add').trigger('submit')
     await flushPromises()
 
-    await wrapper.find('.fin-account-caret').trigger('click')
+    // Scoped: the crypto summary bar has its own caret with the same class.
+    await wrapper.find('.fin-accounts .fin-account-caret').trigger('click')
     const row = wrapper.find('.fin-history-row')
     const recordInput = row.find('input')
     expect((recordInput.element as HTMLInputElement).value).toBe('1.5')
@@ -249,5 +250,53 @@ describe('FinanceApp tabs', () => {
     expect(wrapper.find('.fin-account-converted').text()).toMatch(
       /^≈ 4.500 EUR$/
     )
+  })
+
+  it('shows the spot total and records portfolio snapshots without stacking', async () => {
+    const ctx = makeCtx()
+    const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    await wrapper.findAll('.fin-tab')[3].trigger('click')
+    await wrapper.find('.fin-crypto-token').setValue('eth')
+    await wrapper.find('.fin-crypto-qty').setValue('1.5')
+    await wrapper.find('.fin-crypto-add').trigger('submit')
+    await flushPromises()
+
+    // 1.5 ETH at spot 3000, no manual rate: approximate total.
+    expect(wrapper.find('.fin-crypto-summary .fin-total').text()).toMatch(
+      /^≈ 4.500 EUR$/
+    )
+
+    await wrapper.find('.fin-crypto-snapshot').trigger('click')
+    await flushPromises()
+    expect(ctx.api.entries.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'balance',
+        title: 'Crypto portfolio: 4500 EUR',
+        data: { universe: 'crypto', amount: 4500, currency: 'EUR' }
+      })
+    )
+
+    // Same day again: correct the day's snapshot instead of stacking.
+    await wrapper.find('.fin-crypto-snapshot').trigger('click')
+    await flushPromises()
+    expect(ctx.api.entries.update).toHaveBeenCalledWith(
+      'new3',
+      expect.objectContaining({
+        data: expect.objectContaining({ universe: 'crypto', amount: 4500 })
+      })
+    )
+    const portfolioCreates = ctx.api.entries.create.mock.calls.filter(
+      call =>
+        (call[0] as { data?: { universe?: string } }).data?.universe ===
+        'crypto'
+    )
+    expect(portfolioCreates.length).toBe(1)
+
+    // History behind the caret, deletable like any snapshot.
+    await wrapper
+      .find('.fin-crypto-summary .fin-account-caret')
+      .trigger('click')
+    expect(wrapper.find('.fin-history-amount').text()).toMatch(/^4.500 EUR$/)
   })
 })

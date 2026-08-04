@@ -16,6 +16,7 @@ import {
   accountTxName,
   accountTxs,
   buildAccounts,
+  cryptoSpotTotal,
   formatAmount,
   freshnessDays,
   freshnessLevel,
@@ -514,8 +515,10 @@ function editQtyRecord(snapshot: Entry, account: Account, raw: string) {
 // ----- spot prices (display only; valuation stays on manual rates) -----
 
 const cryptoPrices = ref<Record<string, number>>({})
+const cryptoPricesLoading = ref(false)
 
 async function loadCryptoPrices() {
+  cryptoPricesLoading.value = true
   try {
     cryptoPrices.value = await fetchCryptoPrices(
       cryptoAccounts.value.map(account => account.currency),
@@ -523,6 +526,79 @@ async function loadCryptoPrices() {
     )
   } catch {
     // offline or blocked: quantities alone still work
+  } finally {
+    cryptoPricesLoading.value = false
+  }
+}
+
+// ----- portfolio total + value snapshots -----
+
+// Expanded-set key for the portfolio history; account keys are UUIDs or
+// "bank:<name>", so this can never collide.
+const PORTFOLIO_KEY = 'portfolio:crypto'
+
+const cryptoTotal = computed(() =>
+  cryptoSpotTotal(
+    cryptoAccounts.value,
+    seriesByKey.value,
+    cryptoPrices.value,
+    rates.value,
+    refCurrency.value
+  )
+)
+
+const portfolioSnapshots = computed(() =>
+  balanceEntries.value
+    .filter(snapshot => snapshot.data.universe === 'crypto')
+    .sort((a, b) => (b.occurred_at || '').localeCompare(a.occurred_at || ''))
+)
+
+function portfolioAmountLabel(snapshot: Entry): string {
+  const amount = snapshot.data.amount
+  if (typeof amount !== 'number') return ''
+  const currency = (
+    (snapshot.data.currency as string) || refCurrency.value
+  ).toUpperCase()
+  return formatAmount(amount, currency)
+}
+
+const cryptoSnapshotSaving = ref(false)
+
+// Record the displayed total as a dated observation, with the same
+// no-stacking rule as quantities: a second snapshot the same day corrects
+// the day's entry.
+async function snapshotPortfolio() {
+  if (cryptoSnapshotSaving.value) return
+  const amount = Math.round(cryptoTotal.value.total * 100) / 100
+  const currency = refCurrency.value
+  const title = `Crypto portfolio: ${amount} ${currency}`
+  cryptoSnapshotSaving.value = true
+  try {
+    const todays = portfolioSnapshots.value.find(
+      snapshot => snapshotDateLabel(snapshot) === today.value
+    )
+    if (todays) {
+      const updated = await ctx.api.entries.update(todays.id, {
+        title,
+        data: { ...todays.data, amount, currency }
+      })
+      balanceEntries.value = balanceEntries.value.map(entry =>
+        entry.id === updated.id ? updated : entry
+      )
+    } else {
+      const created = await ctx.api.entries.create({
+        kind: 'balance',
+        source: 'finance_app',
+        title,
+        occurred_at: zonedToUtcISO(today.value, '12:00'),
+        data: { universe: 'crypto', amount, currency }
+      })
+      balanceEntries.value = [...balanceEntries.value, created]
+    }
+  } catch {
+    // nothing recorded; the button stays available for a retry
+  } finally {
+    cryptoSnapshotSaving.value = false
   }
 }
 
@@ -671,6 +747,66 @@ function saveShared(account: Account, shared: boolean) {
             Add
           </button>
         </form>
+
+        <div v-if="cryptoAccounts.length" class="fin-crypto-summary">
+          <span
+            class="fin-account-caret"
+            title="Snapshot history"
+            @click="toggleExpanded(PORTFOLIO_KEY)"
+          >
+            {{ expanded.has(PORTFOLIO_KEY) ? '▾' : '▸' }}
+          </span>
+          <span class="fin-total-caption">total</span>
+          <span class="fin-total">
+            {{
+              (cryptoTotal.approx ? '≈ ' : '') +
+              formatAmount(cryptoTotal.total, refCurrency)
+            }}
+          </span>
+          <span v-if="cryptoTotal.excluded.length" class="fin-warn">
+            without {{ cryptoTotal.excluded.join(', ') }} (no price)
+          </span>
+          <span class="fin-toolbar-spacer"></span>
+          <button
+            class="fin-btn fin-crypto-snapshot"
+            :disabled="
+              cryptoSnapshotSaving ||
+              cryptoPricesLoading ||
+              !cryptoTotal.counted
+            "
+            title="Record the current total as a dated observation; it feeds the Overview curve"
+            @click="snapshotPortfolio"
+          >
+            Snapshot
+          </button>
+        </div>
+        <div
+          v-if="cryptoAccounts.length && expanded.has(PORTFOLIO_KEY)"
+          class="fin-history"
+        >
+          <div
+            v-for="snapshot in portfolioSnapshots"
+            :key="snapshot.id"
+            class="fin-history-row"
+          >
+            <span class="fin-history-date">{{
+              snapshotDateLabel(snapshot)
+            }}</span>
+            <span class="fin-history-amount">{{
+              portfolioAmountLabel(snapshot)
+            }}</span>
+            <button
+              class="fin-mini-del"
+              title="Delete snapshot"
+              @click="deleteSnapshot(snapshot)"
+            >
+              ×
+            </button>
+          </div>
+          <p v-if="!portfolioSnapshots.length" class="fin-history-note">
+            No snapshots yet.
+          </p>
+        </div>
 
         <p v-if="!cryptoAccounts.length" class="fin-empty">
           No tokens yet. Enter a token and the quantity you hold; set its rate
@@ -1182,6 +1318,15 @@ function saveShared(account: Account, shared: boolean) {
   font-size: 0.85rem;
   text-align: right;
   padding: 0.15rem 0.4rem;
+}
+.fin-crypto-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0.25rem;
+}
+.fin-history-amount {
+  font-variant-numeric: tabular-nums;
 }
 .fin-placeholder,
 .fin-empty {
