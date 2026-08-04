@@ -299,4 +299,35 @@ describe('FinanceApp tabs', () => {
       .trigger('click')
     expect(wrapper.find('.fin-history-amount').text()).toMatch(/^4.500 EUR$/)
   })
+
+  it('drives the accounts-tab crypto section from portfolio snapshots', async () => {
+    const ctx = makeCtx()
+    const wallet = entry('account', {
+      id: 'w1',
+      title: 'BTC',
+      data: { type: 'wallet', currency: 'BTC' }
+    })
+    const quantity = entry('balance', {
+      id: 'q1',
+      occurred_at: '2026-07-01T12:00:00Z',
+      data: { account_id: 'w1', amount: 2, currency: 'BTC' }
+    })
+    const snapshot = entry('balance', {
+      id: 's1',
+      occurred_at: '2026-07-15T12:00:00Z',
+      data: { universe: 'crypto', amount: 9999, currency: 'EUR' }
+    })
+    ctx.api.entries.list = vi.fn(async (filters?: Record<string, string>) => {
+      if (filters?.kind === 'account') return [wallet]
+      if (filters?.kind === 'balance') return [quantity, snapshot]
+      return STORE[filters?.kind || ''] || []
+    })
+    const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    await wrapper.findAll('.fin-tab')[1].trigger('click')
+
+    const sections = wrapper.findAll('.fin-universe')
+    const cryptoSection = sections[sections.length - 1]
+    expect(cryptoSection.find('.fin-total').text()).toMatch(/^9.999 EUR$/)
+  })
 })

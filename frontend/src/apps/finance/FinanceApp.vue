@@ -16,6 +16,7 @@ import {
   accountTxName,
   accountTxs,
   buildAccounts,
+  cryptoCurve,
   cryptoSpotTotal,
   formatAmount,
   freshnessDays,
@@ -175,12 +176,16 @@ function buildUniverse(
   color: string
 ): UniverseView {
   const list = accounts.value.filter(account => account.universe === universe)
-  const { points, excluded } = universeCurve(
-    list,
-    seriesByKey.value,
-    rates.value,
-    refCurrency.value
-  )
+  const { points, excluded } =
+    universe === 'crypto'
+      ? cryptoCurve(
+          list,
+          seriesByKey.value,
+          balanceEntries.value,
+          rates.value,
+          refCurrency.value
+        )
+      : universeCurve(list, seriesByKey.value, rates.value, refCurrency.value)
   const total = valueAt(points, today.value)
   const delta30 = total - valueAt(points, addDays(today.value, -30))
   return {
@@ -707,6 +712,7 @@ function saveShared(account: Account, shared: boolean) {
         v-if="tab === 'overview'"
         :accounts="accounts"
         :series-by-key="seriesByKey"
+        :balance-entries="balanceEntries"
         :txs="bankTxs"
         :rates="rates"
         :ref-currency="refCurrency"
