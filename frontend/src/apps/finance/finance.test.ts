@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest'
 import {
   buildAccounts,
   cryptoCurve,
+  cryptoSpotTotal,
   freshnessDays,
   freshnessLevel,
   monthlySpending,
@@ -483,5 +484,63 @@ describe('cryptoCurve', () => {
     )
     expect(points).toEqual([])
     expect(excluded).toEqual(['2026-06-10 (CHF)'])
+  })
+})
+
+describe('cryptoSpotTotal', () => {
+  const wallet = (key: string, token: string): Account => ({
+    key,
+    entryId: key,
+    name: token,
+    identifier: null,
+    shared: false,
+    type: 'wallet',
+    currency: token,
+    universe: 'crypto',
+    derived: false
+  })
+
+  it('values quantities at spot first, manual rate as fallback', () => {
+    const { total, excluded, approx, counted } = cryptoSpotTotal(
+      [wallet('w1', 'BTC'), wallet('w2', 'ETH'), wallet('w3', 'DOG')],
+      new Map([
+        ['w1', [{ date: '2026-06-01', amount: 0.5 }]],
+        ['w2', [{ date: '2026-06-01', amount: 2 }]],
+        ['w3', [{ date: '2026-06-01', amount: 100 }]]
+      ]),
+      { BTC: 50000 },
+      { ETH: 2000, BTC: 40000 },
+      'EUR'
+    )
+    // BTC at spot (50000, not the stale manual 40000), ETH at its rate.
+    expect(total).toBe(0.5 * 50000 + 2 * 2000)
+    expect(excluded).toEqual(['DOG'])
+    expect(approx).toBe(true)
+    expect(counted).toBe(2)
+  })
+
+  it('is exact when only manual rates enter the sum', () => {
+    const { approx, total } = cryptoSpotTotal(
+      [wallet('w1', 'ETH')],
+      new Map([['w1', [{ date: '2026-06-01', amount: 2 }]]]),
+      {},
+      { ETH: 2000 },
+      'EUR'
+    )
+    expect(approx).toBe(false)
+    expect(total).toBe(4000)
+  })
+
+  it('skips accounts without any quantity record', () => {
+    const { total, excluded, counted } = cryptoSpotTotal(
+      [wallet('w1', 'BTC')],
+      new Map(),
+      { BTC: 50000 },
+      {},
+      'EUR'
+    )
+    expect(total).toBe(0)
+    expect(excluded).toEqual([])
+    expect(counted).toBe(0)
   })
 })

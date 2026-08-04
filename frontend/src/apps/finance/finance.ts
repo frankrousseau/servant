@@ -310,6 +310,51 @@ export function cryptoCurve(
   return universeCurve(cryptoAccounts, seriesByKey, rates, ref)
 }
 
+export interface CryptoTotal {
+  total: number
+  excluded: string[]
+  approx: boolean
+  counted: number
+}
+
+// Live value of the crypto holdings in the reference currency. Spot price
+// first (that is what "worth right now" means), manual rate as fallback;
+// an account with neither is excluded and named. `approx` flags any spot
+// component, `counted` says how many accounts entered the sum.
+export function cryptoSpotTotal(
+  accounts: Account[],
+  seriesByKey: Map<string, SnapshotPoint[]>,
+  spotPrices: Record<string, number>,
+  rates: Rates,
+  ref: string
+): CryptoTotal {
+  let total = 0
+  let approx = false
+  let counted = 0
+  const excluded: string[] = []
+
+  for (const account of accounts) {
+    const series = seriesByKey.get(account.key) || []
+    if (!series.length) continue
+    const quantity = series[series.length - 1].amount
+    const spot = spotPrices[account.currency]
+    if (typeof spot === 'number' && Number.isFinite(spot)) {
+      total += quantity * spot
+      approx = true
+      counted += 1
+      continue
+    }
+    const rate = rateFor(account.currency, ref, rates)
+    if (rate == null) excluded.push(account.name)
+    else {
+      total += quantity * rate
+      counted += 1
+    }
+  }
+
+  return { total, excluded, approx, counted }
+}
+
 // Value of a forward-filled curve at a date (0 before the first point).
 export function valueAt(points: SnapshotPoint[], date: string): number {
   let value = 0
