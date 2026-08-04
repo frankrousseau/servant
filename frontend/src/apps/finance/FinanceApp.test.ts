@@ -330,4 +330,71 @@ describe('FinanceApp tabs', () => {
     const cryptoSection = sections[sections.length - 1]
     expect(cryptoSection.find('.fin-total').text()).toMatch(/^9.999 EUR$/)
   })
+
+  it('keeps an orphaned portfolio snapshot reachable after its last token is deleted', async () => {
+    const ctx = makeCtx()
+    const snapshot = entry('balance', {
+      id: 's1',
+      occurred_at: '2026-07-15T12:00:00Z',
+      data: { universe: 'crypto', amount: 9999, currency: 'EUR' }
+    })
+    ctx.api.entries.list = vi.fn(async (filters?: Record<string, string>) => {
+      if (filters?.kind === 'account') return []
+      if (filters?.kind === 'balance') return [snapshot]
+      return STORE[filters?.kind || ''] || []
+    })
+    const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    await wrapper.findAll('.fin-tab')[3].trigger('click')
+
+    // No wallet accounts left, but the snapshot still counts toward other
+    // totals: the summary bar must stay reachable, not hidden behind
+    // "No tokens yet".
+    expect(wrapper.find('.fin-crypto-summary').exists()).toBe(true)
+
+    await wrapper
+      .find('.fin-crypto-summary .fin-account-caret')
+      .trigger('click')
+    const row = wrapper.find('.fin-history-row')
+    expect(row.exists()).toBe(true)
+    expect(row.find('.fin-history-amount').text()).toMatch(/^9.999 EUR$/)
+  })
+
+  it('surfaces a snapshot currency in the rates editor after the reference currency moves away from it', async () => {
+    const ctx = makeCtx()
+    const prefs = entry('prefs', {
+      id: 'p1',
+      title: 'finance',
+      data: { reference_currency: 'USD' }
+    })
+    const snapshot = entry('balance', {
+      id: 's1',
+      occurred_at: '2026-07-15T12:00:00Z',
+      data: { universe: 'crypto', amount: 9999, currency: 'EUR' }
+    })
+    ctx.api.entries.list = vi.fn(async (filters?: Record<string, string>) => {
+      if (filters?.kind === 'prefs') return [prefs]
+      if (filters?.kind === 'balance') return [snapshot]
+      if (filters?.kind === 'account') return []
+      if (filters?.kind === 'bank_tx') return []
+      return STORE[filters?.kind || ''] || []
+    })
+    const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    await wrapper.findAll('.fin-tab')[1].trigger('click')
+
+    const ratesButton = wrapper
+      .findAll('button')
+      .find(button => button.text() === 'Rates')
+    expect(ratesButton?.exists()).toBe(true)
+    await ratesButton!.trigger('click')
+    await flushPromises()
+
+    // EUR only ever shows up via the snapshot's currency here: accounts and
+    // bank_tx are both empty in this scenario.
+    const row = wrapper
+      .findAll('.fin-rate-row')
+      .find(candidate => candidate.text().includes('EUR'))
+    expect(row?.exists()).toBe(true)
+  })
 })

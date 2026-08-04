@@ -115,11 +115,18 @@ const refCurrencyOptions = computed(() => {
 const ratesOpen = ref(false)
 const ratesDraft = reactive<Record<string, string>>({})
 
-const foreignCurrencies = computed(() =>
-  [...new Set(accounts.value.map(account => account.currency))]
+// Includes portfolio snapshot currencies too: a refCurrency change can
+// strand a snapshot stored in a currency no account carries, and it still
+// needs a rate to become convertible again.
+const foreignCurrencies = computed(() => {
+  const accountCurrencies = accounts.value.map(account => account.currency)
+  const snapshotCurrencies = portfolioSnapshots.value
+    .map(snapshot => ((snapshot.data.currency as string) || '').toUpperCase())
+    .filter(currency => currency)
+  return [...new Set([...accountCurrencies, ...snapshotCurrencies])]
     .filter(currency => currency !== refCurrency.value)
     .sort()
-)
+})
 
 function openRates() {
   for (const key of Object.keys(ratesDraft)) delete ratesDraft[key]
@@ -760,7 +767,10 @@ function saveShared(account: Account, shared: boolean) {
           </button>
         </form>
 
-        <div v-if="cryptoAccounts.length" class="fin-crypto-summary">
+        <div
+          v-if="cryptoAccounts.length || portfolioSnapshots.length"
+          class="fin-crypto-summary"
+        >
           <span
             class="fin-account-caret"
             title="Snapshot history"
@@ -788,7 +798,10 @@ function saveShared(account: Account, shared: boolean) {
           </button>
         </div>
         <div
-          v-if="cryptoAccounts.length && expanded.has(PORTFOLIO_KEY)"
+          v-if="
+            (cryptoAccounts.length || portfolioSnapshots.length) &&
+            expanded.has(PORTFOLIO_KEY)
+          "
           class="fin-history"
         >
           <div
