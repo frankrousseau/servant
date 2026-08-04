@@ -236,11 +236,22 @@ const lastSyncAt = computed(() => {
   return ts.length ? ts[ts.length - 1] : null
 })
 
+// Newest activation first (inserted_at = when the connector was set up).
+const connectorsByActivation = computed(() =>
+  [...connectors.value].sort((a, b) =>
+    a.inserted_at < b.inserted_at ? 1 : a.inserted_at > b.inserted_at ? -1 : 0
+  )
+)
+
 // Timestamp for a log line: time-of-day if today, short date otherwise.
 function logStamp(iso: string): string {
   return utcToZonedParts(iso).date === todayInUserTz()
     ? formatTime(iso)
     : formatDate(iso, { month: 'short', day: 'numeric' })
+}
+
+function goToConnector(c: ConnectorConfig) {
+  router.push(`/connectors/${c.id}`)
 }
 
 // ----- Sparklines (30 UTC days, bars normalized per kind) -----
@@ -322,7 +333,7 @@ onMounted(fetchData)
       </div>
 
       <div class="dashboard-layout">
-        <!-- Main column: Checklists + Coming up + Recent activity -->
+        <!-- Left: Checklists + Connectors (by activation date) -->
         <div class="dashboard-main">
           <section v-if="pendingItems.length" class="dashboard-section">
             <div class="section-header">
@@ -359,38 +370,56 @@ onMounted(fetchData)
 
           <section class="dashboard-section">
             <div class="section-header">
-              <h2>Recent Activity</h2>
-              <router-link to="/data" class="section-link"
-                >View all</router-link
+              <h2>Connectors</h2>
+              <router-link to="/connectors" class="section-link"
+                >Manage</router-link
               >
             </div>
-            <div v-if="recentEntries.length" class="activity-feed">
+            <div v-if="connectorsByActivation.length" class="connector-status-list">
               <div
-                v-for="entry in recentEntries"
-                :key="entry.id"
-                class="activity-item"
-                @click="goToEntry(entry)"
+                v-for="c in connectorsByActivation"
+                :key="c.id"
+                class="connector-status-item connector-status-item--clickable"
+                @click="goToConnector(c)"
                 v-click-key
                 role="button"
                 tabindex="0"
               >
-                <span class="log-time">{{ logStamp(entry.inserted_at) }}</span>
-                <span class="log-kind" :style="{ color: kindColor(entry.kind) }"
-                  >[{{ entry.kind }}]</span
-                >
-                <span class="log-title">{{ entry.title || entry.kind }}</span>
-                <span class="log-source">&larr; {{ entry.source }}</span>
+                <span
+                  v-if="getConnectorDef(c.connector_type)"
+                  class="connector-mini-logo"
+                  v-html="getConnectorDef(c.connector_type)?.logo || ''"
+                ></span>
+                <span
+                  class="connector-dot"
+                  :class="{ active: c.enabled, error: c.error }"
+                ></span>
+                <span class="connector-status-name">
+                  {{
+                    c.name ||
+                    getConnectorDef(c.connector_type)?.name ||
+                    c.connector_type
+                  }}
+                </span>
+                <span class="connector-status-meta">
+                  <template v-if="c.error">Error</template>
+                  <template v-else-if="c.last_synced_at">
+                    {{ relativeTime(c.last_synced_at) }}
+                  </template>
+                  <template v-else>Never synced</template>
+                </span>
               </div>
             </div>
             <p v-else class="empty">
-              No entries yet. Set up a connector to start collecting data.
+              No connectors yet.
+              <router-link to="/connectors">Set one up</router-link>
+              to start collecting data.
             </p>
           </section>
         </div>
 
-        <!-- Right sidebar: Stats + Connectors -->
-        <aside class="dashboard-sidebar">
-          <!-- Stats -->
+        <!-- Middle: Statistics -->
+        <aside class="dashboard-stats">
           <section class="sidebar-section">
             <h2>Statistics</h2>
             <p class="stats-meta">
@@ -464,44 +493,38 @@ onMounted(fetchData)
               </div>
             </div>
           </section>
+        </aside>
 
-          <!-- Connectors status -->
-          <section v-if="connectors.length" class="sidebar-section">
+        <!-- Right: Recent activity (fills the leftover width) -->
+        <aside class="dashboard-activity">
+          <section class="dashboard-section dashboard-section--fill">
             <div class="section-header">
-              <h2>Connectors</h2>
-              <router-link to="/connectors" class="section-link"
-                >Manage</router-link
+              <h2>Recent Activity</h2>
+              <router-link to="/data" class="section-link"
+                >View all</router-link
               >
             </div>
-            <div class="connector-status-list">
+            <div v-if="recentEntries.length" class="activity-feed">
               <div
-                v-for="c in connectors"
-                :key="c.id"
-                class="connector-status-item"
+                v-for="entry in recentEntries"
+                :key="entry.id"
+                class="activity-item"
+                @click="goToEntry(entry)"
+                v-click-key
+                role="button"
+                tabindex="0"
               >
-                <span
-                  v-if="getConnectorDef(c.connector_type)"
-                  class="connector-mini-logo"
-                  v-html="getConnectorDef(c.connector_type)?.logo || ''"
-                ></span>
-                <span
-                  class="connector-dot"
-                  :class="{ active: c.enabled, error: c.error }"
-                ></span>
-                <span class="connector-status-name">
-                  {{
-                    getConnectorDef(c.connector_type)?.name || c.connector_type
-                  }}
-                </span>
-                <span class="connector-status-meta">
-                  <template v-if="c.error">Error</template>
-                  <template v-else-if="c.last_synced_at">
-                    {{ relativeTime(c.last_synced_at) }}
-                  </template>
-                  <template v-else>Never synced</template>
-                </span>
+                <span class="log-time">{{ logStamp(entry.inserted_at) }}</span>
+                <span class="log-kind" :style="{ color: kindColor(entry.kind) }"
+                  >[{{ entry.kind }}]</span
+                >
+                <span class="log-title">{{ entry.title || entry.kind }}</span>
+                <span class="log-source">&larr; {{ entry.source }}</span>
               </div>
             </div>
+            <p v-else class="empty">
+              No entries yet. Set up a connector to start collecting data.
+            </p>
           </section>
         </aside>
       </div>
@@ -614,7 +637,7 @@ onMounted(fetchData)
   font-size: 0.85rem;
 }
 
-/* The dashboard owns the viewport: header fixed on top, then two
+/* The dashboard owns the viewport: header fixed on top, then three
    independently scrolling columns. */
 .view {
   height: calc(100vh - 4rem);
@@ -624,27 +647,50 @@ onMounted(fetchData)
 
 .dashboard-layout {
   display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: 2rem;
+  grid-template-columns: minmax(0, 1fr) 300px minmax(0, 1.15fr);
+  gap: 1.5rem;
   flex: 1;
   min-height: 0;
 }
 
-.dashboard-main {
+.dashboard-main,
+.dashboard-stats {
   min-width: 0;
   overflow-y: auto;
   min-height: 0;
-  padding-right: 0.75rem;
+  padding-right: 0.5rem;
 }
 
-/* Sidebar */
-.dashboard-sidebar {
+.dashboard-activity {
+  min-width: 0;
+  min-height: 0;
+  padding-right: 0.5rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  overflow: hidden;
+}
+
+.dashboard-section--fill {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 0;
+}
+
+.dashboard-section--fill .activity-feed {
+  flex: 1;
   overflow-y: auto;
   min-height: 0;
-  padding-right: 0.75rem;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-layout {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+  .dashboard-activity {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 860px) {
@@ -655,8 +701,12 @@ onMounted(fetchData)
     grid-template-columns: 1fr;
   }
   .dashboard-main,
-  .dashboard-sidebar {
+  .dashboard-stats,
+  .dashboard-activity {
     overflow-y: visible;
+  }
+  .dashboard-activity {
+    grid-column: auto;
   }
 }
 
@@ -793,6 +843,17 @@ onMounted(fetchData)
   align-items: center;
   gap: 0.5rem;
   font-size: 0.9rem;
+}
+
+.connector-status-item--clickable {
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.connector-status-item--clickable:hover {
+  border-color: var(--primary);
+  background: var(--bg-hover);
 }
 
 .connector-mini-logo {

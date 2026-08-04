@@ -22,13 +22,23 @@ onMounted(() => {
     dateFormat: 'Y-m-d',
     maxDate: props.max,
     defaultDate: props.modelValue || undefined,
-    onChange: (_dates, str) => emit('update:modelValue', str)
+    // Let optional fields (filters, birthday, token expiry) be cleared by
+    // deleting the text; the native date input had a clear affordance too.
+    allowInput: true,
+    onChange: (_dates, str) => emit('update:modelValue', str),
+    onClose: (_dates, str) => {
+      if (str !== props.modelValue) emit('update:modelValue', str)
+    }
   }) as flatpickr.Instance
 })
 
 watch(
   () => props.modelValue,
-  v => fp?.setDate(v, false)
+  v => {
+    if (!fp) return
+    if (!v) fp.clear(false)
+    else fp.setDate(v, false)
+  }
 )
 watch(
   () => props.max,

@@ -12,6 +12,7 @@ import {
 } from 'lucide-vue-next'
 
 import ComboBox from '../components/ComboBox.vue'
+import DateInput from '../components/DateInput.vue'
 
 import { useAuthStore } from '../stores/auth'
 import { useAppsStore } from '../stores/apps'
@@ -212,7 +213,7 @@ async function toggleAgents(event: Event) {
 // API tokens
 const apiTokens = ref<ApiToken[]>([])
 const tokenName = ref('')
-const tokenExpiry = ref('') // yyyy-mm-dd from <input type="date">, optional
+const tokenExpiry = ref('') // yyyy-mm-dd from DateInput, optional
 const tokenLevels = ref<Record<string, AccessLevel>>({})
 const tokenReadBinary = ref(false)
 const createdToken = ref<string | null>(null)
@@ -456,7 +457,7 @@ onMounted(() => {
           </label>
           <label class="tk-expiry">
             <span class="tk-domain-label">Expires (optional)</span>
-            <input v-model="tokenExpiry" type="date" />
+            <DateInput v-model="tokenExpiry" />
           </label>
           <p v-if="tokenError" class="msg msg-error">{{ tokenError }}</p>
           <div class="card-actions">

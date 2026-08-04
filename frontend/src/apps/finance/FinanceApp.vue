@@ -2,6 +2,7 @@
 import { ref, computed, reactive, nextTick, onMounted, watch } from 'vue'
 
 import ComboBox from '../../components/ComboBox.vue'
+import DateInput from '../../components/DateInput.vue'
 import BalanceChart from './BalanceChart.vue'
 import OverviewView from './OverviewView.vue'
 import SpendingView from './SpendingView.vue'
@@ -903,11 +904,7 @@ function saveShared(a: Account, shared: boolean) {
                   :placeholder="`Amount (${a.currency})`"
                   autofocus
                 />
-                <input
-                  v-model="snapshotDate"
-                  type="date"
-                  class="fin-snap-date"
-                />
+                <DateInput v-model="snapshotDate" class="fin-snap-date" />
                 <button
                   type="submit"
                   class="fin-btn fin-btn--primary"

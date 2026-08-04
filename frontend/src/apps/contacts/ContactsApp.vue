@@ -13,6 +13,7 @@ import { Cake, User } from 'lucide-vue-next'
 
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
+import DateInput from '../../components/DateInput.vue'
 import RelationsGraph from './RelationsGraph.vue'
 
 import type { AppContext, Entry } from '../types'
@@ -918,7 +919,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
               </div>
               <div class="ct-form-field">
                 <label>Birthday</label>
-                <input v-model="form.birthday" type="date" />
+                <DateInput v-model="form.birthday" />
               </div>
               <div class="ct-form-field">
                 <label>Website</label>

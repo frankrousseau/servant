@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import ComboBox from '../components/ComboBox.vue'
+import DateInput from '../components/DateInput.vue'
 import KindIcon from '../components/KindIcon.vue'
 
 import type { Entry, PaginationMeta } from '../types'
@@ -327,8 +328,8 @@ onMounted(() => {
           class="db-filter capitalize"
           :options="sourceOptions"
         />
-        <input v-model="filterDateFrom" type="date" title="From date" />
-        <input v-model="filterDateTo" type="date" title="To date" />
+        <DateInput v-model="filterDateFrom" title="From date" />
+        <DateInput v-model="filterDateTo" title="To date" />
         <span class="filter-count" v-if="!loading"
           >{{ meta.total }} entries</span
         >
@@ -567,10 +568,6 @@ onMounted(() => {
 
 .capitalize {
   text-transform: capitalize;
-}
-
-.filters input[type='date'] {
-  width: auto;
 }
 
 .filter-count {
