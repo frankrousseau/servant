@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import {
-  ref,
   computed,
-  reactive,
-  watch,
   nextTick,
   onMounted,
-  onUnmounted
+  onUnmounted,
+  reactive,
+  ref,
+  watch
 } from 'vue'
 import { useVirtualList } from '@vueuse/core'
 import { Cake, User } from 'lucide-vue-next'
@@ -16,9 +16,8 @@ import ComboBox from '../../components/ComboBox.vue'
 import DateInput from '../../components/DateInput.vue'
 import RelationsGraph from './RelationsGraph.vue'
 
-import type { AppContext, Entry } from '../types'
+import { contactField, contactInitials, contactName } from '../../lib/contact'
 import { formatDate } from '../../lib/datetime'
-import { contactField, contactName, contactInitials } from '../../lib/contact'
 import { safeUrl } from '../../lib/url'
 // Photos owns the shape of a stored face; read it through its helper rather
 // than re-deriving `data.faces` here.
@@ -34,6 +33,7 @@ import {
   withoutRelation,
   type Relation
 } from './relations'
+import type { AppContext, Entry } from '../types'
 
 const props = defineProps<{ ctx: AppContext }>()
 
@@ -87,9 +87,9 @@ function avatarStyle(name: string) {
     color: `hsl(${h}, 45%, 62%)`
   }
 }
-const isUnnamed = (c: Entry) => contactName(c) === '(unnamed)'
-const getEmails = (e: Entry) => (e.data.emails as Labeled[]) || []
-const getPhones = (e: Entry) => (e.data.phones as Labeled[]) || []
+const isUnnamed = (contact: Entry) => contactName(contact) === '(unnamed)'
+const getEmails = (contact: Entry) => (contact.data.emails as Labeled[]) || []
+const getPhones = (contact: Entry) => (contact.data.phones as Labeled[]) || []
 
 function sortContacts(list: Entry[]): Entry[] {
   return [...list].sort((a, b) => {
@@ -105,23 +105,23 @@ function sortContacts(list: Entry[]): Entry[] {
 const filtered = computed(() => {
   let list = allContacts.value
   if (activeTags.value.length) {
-    list = list.filter(c => {
-      const tags = tagsOf(c)
+    list = list.filter(contact => {
+      const tags = tagsOf(contact)
       return activeTags.value.every(t => tags.includes(t))
     })
   }
   if (!searchQuery.value) return list
   const q = searchQuery.value.toLowerCase()
-  return list.filter(c => {
-    const name = contactName(c).toLowerCase()
-    const org = fld(c, 'org').toLowerCase()
-    const email = getEmails(c)
+  return list.filter(contact => {
+    const name = contactName(contact).toLowerCase()
+    const org = fld(contact, 'org').toLowerCase()
+    const email = getEmails(contact)
       .map(e => e.value.toLowerCase())
       .join(' ')
-    const phone = getPhones(c)
+    const phone = getPhones(contact)
       .map(p => p.value)
       .join(' ')
-    const tags = tagsOf(c).join(' ')
+    const tags = tagsOf(contact).join(' ')
     return (
       name.includes(q) ||
       org.includes(q) ||
@@ -134,7 +134,8 @@ const filtered = computed(() => {
 
 const allTags = computed(() => {
   const set = new Set<string>()
-  for (const c of allContacts.value) for (const t of tagsOf(c)) set.add(t)
+  for (const contact of allContacts.value)
+    for (const t of tagsOf(contact)) set.add(t)
   return [...set].sort()
 })
 
@@ -158,7 +159,8 @@ const {
 } = useVirtualList(filtered, { itemHeight: 56, overscan: 8 })
 
 const selected = computed(
-  () => allContacts.value.find(c => c.id === selectedId.value) || null
+  () =>
+    allContacts.value.find(contact => contact.id === selectedId.value) || null
 )
 
 const websiteHref = computed(() =>
@@ -318,7 +320,7 @@ function queueDataSave(
 ) {
   saveChain = saveChain
     .then(async () => {
-      const entry = allContacts.value.find(x => x.id === id)
+      const entry = allContacts.value.find(candidate => candidate.id === id)
       if (!entry) return
       const data = mutate(entry)
       if (!data) return
@@ -335,9 +337,9 @@ function queueDataSave(
 }
 
 function mutateTags(mutate: (cur: string[]) => string[]) {
-  const c = selected.value
-  if (!c) return
-  queueDataSave(c.id, entry => {
+  const contact = selected.value
+  if (!contact) return
+  queueDataSave(contact.id, entry => {
     const cur = tagsOf(entry)
     const next = mutate(cur)
     if (next.length === cur.length && next.every((t, i) => t === cur[i])) {
@@ -386,19 +388,19 @@ function commitRenameTag() {
   // Every carrier is rewritten through the same serialized chain as a single
   // tag edit, so a rename can't clobber a queued write; a contact that already
   // carries the target tag just ends up with one instead of two.
-  for (const c of allContacts.value) {
-    if (!tagsOf(c).includes(from)) continue
-    queueDataSave(c.id, entry => {
+  for (const contact of allContacts.value) {
+    if (!tagsOf(contact).includes(from)) continue
+    queueDataSave(contact.id, entry => {
       const cur = tagsOf(entry)
       if (!cur.includes(from)) return null
       return {
         ...entry.data,
-        tags: [...new Set(cur.map(t => (t === from ? to : t)))]
+        tags: [...new Set(cur.map(tag => (tag === from ? to : tag)))]
       }
     })
   }
   // The filter follows the tag it was pointing at.
-  activeTags.value = activeTags.value.map(t => (t === from ? to : t))
+  activeTags.value = activeTags.value.map(tag => (tag === from ? to : tag))
 }
 
 // ----- relations (reciprocal, saved immediately on both cards) -----
@@ -410,31 +412,39 @@ const newRelId = ref('')
 // whatever custom ones the address book already uses.
 const relTypeOptions = computed(() => {
   const used = new Set<string>()
-  for (const c of allContacts.value) {
-    for (const r of relationsOf(c)) used.add(r.type)
+  for (const contact of allContacts.value) {
+    for (const relation of relationsOf(contact)) used.add(relation.type)
   }
-  for (const t of RELATION_TYPES) used.delete(t)
+  for (const type of RELATION_TYPES) used.delete(type)
   return [...RELATION_TYPES, ...[...used].sort()]
 })
 
 const relTargets = computed(() =>
-  allContacts.value.filter(c => c.id !== selectedId.value)
+  allContacts.value.filter(contact => contact.id !== selectedId.value)
 )
 
 // Options carry the contact id, so two contacts sharing a display name
 // stay distinct targets.
 const relTargetOptions = computed(() =>
-  relTargets.value.map(c => ({ value: c.id, label: contactName(c) }))
+  relTargets.value.map(contact => ({
+    value: contact.id,
+    label: contactName(contact)
+  }))
 )
 
 const visibleRelations = computed(() => {
   if (!selected.value) return []
   return relationsOf(selected.value)
-    .map(r => ({
-      ...r,
-      contact: allContacts.value.find(c => c.id === r.contact_id) || null
+    .map(relation => ({
+      ...relation,
+      contact:
+        allContacts.value.find(contact => contact.id === relation.contact_id) ||
+        null
     }))
-    .filter((r): r is Relation & { contact: Entry } => r.contact !== null)
+    .filter(
+      (relation): relation is Relation & { contact: Entry } =>
+        relation.contact !== null
+    )
 })
 
 function queueRelationsSave(
@@ -448,22 +458,24 @@ function queueRelationsSave(
 }
 
 function addRelation() {
-  const c = selected.value
-  const target = relTargets.value.find(t => t.id === newRelId.value)
+  const contact = selected.value
+  const target = relTargets.value.find(
+    candidate => candidate.id === newRelId.value
+  )
   const type = normalizeRelationType(newRelType.value)
-  if (!c || !target || !type) return
+  if (!contact || !target || !type) return
   newRelId.value = ''
-  queueRelationsSave(c.id, cur => withRelation(cur, target.id, type))
+  queueRelationsSave(contact.id, cur => withRelation(cur, target.id, type))
   queueRelationsSave(target.id, cur =>
-    withRelation(cur, c.id, inverseType(type))
+    withRelation(cur, contact.id, inverseType(type))
   )
 }
 
 function removeRelation(contactId: string) {
-  const c = selected.value
-  if (!c) return
-  queueRelationsSave(c.id, cur => withoutRelation(cur, contactId))
-  queueRelationsSave(contactId, cur => withoutRelation(cur, c.id))
+  const contact = selected.value
+  if (!contact) return
+  queueRelationsSave(contact.id, cur => withoutRelation(cur, contactId))
+  queueRelationsSave(contactId, cur => withoutRelation(cur, contact.id))
 }
 
 function openNote(n: Entry) {
@@ -491,22 +503,22 @@ function openCreate() {
 }
 
 function openEdit() {
-  const c = selected.value
-  if (!c) return
-  form.display_name = fld(c, 'display_name')
-  form.org = fld(c, 'org')
-  form.title = fld(c, 'title')
-  form.emails = getEmails(c).length
-    ? getEmails(c).map(e => ({ ...e }))
+  const contact = selected.value
+  if (!contact) return
+  form.display_name = fld(contact, 'display_name')
+  form.org = fld(contact, 'org')
+  form.title = fld(contact, 'title')
+  form.emails = getEmails(contact).length
+    ? getEmails(contact).map(email => ({ ...email }))
     : [{ value: '', type: '' }]
-  form.phones = getPhones(c).length
-    ? getPhones(c).map(p => ({ ...p }))
+  form.phones = getPhones(contact).length
+    ? getPhones(contact).map(phone => ({ ...phone }))
     : [{ value: '', type: '' }]
-  form.address = fld(c, 'address')
-  form.birthday = fld(c, 'birthday')
-  form.url = fld(c, 'url')
-  form.note = fld(c, 'note')
-  form.photo = fld(c, 'photo')
+  form.address = fld(contact, 'address')
+  form.birthday = fld(contact, 'birthday')
+  form.url = fld(contact, 'url')
+  form.note = fld(contact, 'note')
+  form.photo = fld(contact, 'photo')
   formError.value = ''
   mode.value = 'edit'
   nextTick(() => nameInput.value?.focus())
@@ -553,11 +565,11 @@ async function saveForm() {
   formError.value = ''
 
   const emails = form.emails
-    .filter(e => e.value.trim())
-    .map(e => ({ value: e.value.trim(), type: e.type.trim() }))
+    .filter(email => email.value.trim())
+    .map(email => ({ value: email.value.trim(), type: email.type.trim() }))
   const phones = form.phones
-    .filter(p => p.value.trim())
-    .map(p => ({ value: p.value.trim(), type: p.type.trim() }))
+    .filter(phone => phone.value.trim())
+    .map(phone => ({ value: phone.value.trim(), type: phone.type.trim() }))
   const titleParts = [
     displayName,
     form.org.trim(),
@@ -586,13 +598,15 @@ async function saveForm() {
       // redirect the PATCH onto another contact.
       const id = selected.value.id
       await saveChain
-      const base = allContacts.value.find(x => x.id === id)
+      const base = allContacts.value.find(candidate => candidate.id === id)
       const updated = await props.ctx.api.entries.update(id, {
         title: titleParts.join(' - '),
         data: { ...base?.data, ...data }
       })
       allContacts.value = sortContacts(
-        allContacts.value.map(c => (c.id === updated.id ? updated : c))
+        allContacts.value.map(contact =>
+          contact.id === updated.id ? updated : contact
+        )
       )
       selectContact(updated.id)
     } else {
@@ -613,19 +627,23 @@ async function saveForm() {
 }
 
 async function deleteContact() {
-  const c = selected.value
-  if (!c) return
+  const contact = selected.value
+  if (!contact) return
   const ok = await props.ctx.confirm.ask({
-    message: `Delete "${contactName(c)}"?`,
+    message: `Delete "${contactName(contact)}"?`,
     danger: true
   })
   if (!ok) return
   try {
-    await props.ctx.api.entries.delete(c.id)
-    allContacts.value = allContacts.value.filter(x => x.id !== c.id)
-    for (const o of allContacts.value) {
-      if (relationsOf(o).some(r => r.contact_id === c.id)) {
-        queueRelationsSave(o.id, cur => withoutRelation(cur, c.id))
+    await props.ctx.api.entries.delete(contact.id)
+    allContacts.value = allContacts.value.filter(
+      candidate => candidate.id !== contact.id
+    )
+    for (const other of allContacts.value) {
+      if (
+        relationsOf(other).some(relation => relation.contact_id === contact.id)
+      ) {
+        queueRelationsSave(other.id, cur => withoutRelation(cur, contact.id))
       }
     }
     selectedId.value = null
@@ -635,8 +653,8 @@ async function deleteContact() {
   }
 }
 
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && mode.value !== 'view') cancelForm()
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && mode.value !== 'view') cancelForm()
 }
 
 async function reload() {
@@ -644,15 +662,16 @@ async function reload() {
   try {
     const entries = await props.ctx.api.entries.list({ kind: 'contact' })
     allContacts.value = sortContacts(entries)
-  } catch (e) {
-    loadError.value = e instanceof Error ? e.message : 'Failed to load contacts'
+  } catch (err) {
+    loadError.value =
+      err instanceof Error ? err.message : 'Failed to load contacts'
   } finally {
     loading.value = false
     nextTick(() => searchInput.value?.focus())
   }
   try {
     const prefs = await props.ctx.api.entries.list({ kind: 'prefs' })
-    mePrefs.value = prefs.find(p => p.title === 'me') || null
+    mePrefs.value = prefs.find(entry => entry.title === 'me') || null
   } catch {
     // the ME badge just stays hidden
   }
@@ -682,9 +701,9 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
         />
       </div>
       <div v-if="allTags.length" class="ct-tag-bar">
-        <template v-for="t in allTags" :key="t">
+        <template v-for="tag in allTags" :key="tag">
           <input
-            v-if="renamingTag === t"
+            v-if="renamingTag === tag"
             :ref="el => (renameTagInput = el as HTMLInputElement | null)"
             class="ct-tag-rename"
             v-model="renameTagValue"
@@ -695,12 +714,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           <button
             v-else
             class="ct-tag-chip"
-            :class="{ 'ct-tag-chip--active': activeTags.includes(t) }"
+            :class="{ 'ct-tag-chip--active': activeTags.includes(tag) }"
             title="Double-click to rename everywhere"
-            @click="toggleTagFilter(t)"
-            @dblclick="startRenameTag(t)"
+            @click="toggleTagFilter(tag)"
+            @dblclick="startRenameTag(tag)"
           >
-            {{ t }}
+            {{ tag }}
           </button>
         </template>
         <button
@@ -720,28 +739,33 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
       <div v-else class="ct-list" v-bind="containerProps">
         <div v-bind="wrapperProps">
           <div
-            v-for="{ data: c } in virtualContacts"
-            :key="c.id"
+            v-for="{ data: contact } in virtualContacts"
+            :key="contact.id"
             class="ct-card"
-            :class="{ 'ct-card--active': c.id === selectedId }"
-            @click="selectContact(c.id)"
+            :class="{ 'ct-card--active': contact.id === selectedId }"
+            @click="selectContact(contact.id)"
           >
-            <span v-if="fld(c, 'photo')" class="ct-avatar ct-avatar--photo">
-              <img :src="fld(c, 'photo')" alt="" loading="lazy" />
+            <span
+              v-if="fld(contact, 'photo')"
+              class="ct-avatar ct-avatar--photo"
+            >
+              <img :src="fld(contact, 'photo')" alt="" loading="lazy" />
             </span>
             <span
               v-else
               class="ct-avatar"
-              :style="avatarStyle(contactName(c))"
-              >{{ getInitials(contactName(c)) }}</span
+              :style="avatarStyle(contactName(contact))"
+              >{{ getInitials(contactName(contact)) }}</span
             >
             <div class="ct-card-body">
               <span class="ct-name"
-                >{{ contactName(c)
-                }}<span v-if="c.id === meId" class="ct-me-badge">ME</span></span
+                >{{ contactName(contact)
+                }}<span v-if="contact.id === meId" class="ct-me-badge"
+                  >ME</span
+                ></span
               >
               <span class="ct-sub">{{
-                fld(c, 'org') || getEmails(c)[0]?.value || ''
+                fld(contact, 'org') || getEmails(contact)[0]?.value || ''
               }}</span>
             </div>
           </div>
@@ -861,22 +885,26 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           <div class="ct-section-card">
             <h3 class="ct-section-title">Contact</h3>
             <div
-              v-for="(e, i) in form.emails"
-              :key="'e' + i"
+              v-for="(email, index) in form.emails"
+              :key="'email' + index"
               class="ct-form-row"
             >
               <input
-                v-model="e.value"
+                v-model="email.value"
                 type="email"
                 placeholder="Email"
                 class="ct-form-flex"
               />
-              <input v-model="e.type" placeholder="Type" class="ct-form-type" />
+              <input
+                v-model="email.type"
+                placeholder="Type"
+                class="ct-form-type"
+              />
               <button
                 type="button"
                 class="ct-row-remove"
                 title="Remove"
-                @click="removeEmail(i)"
+                @click="removeEmail(index)"
               >
                 &times;
               </button>
@@ -885,22 +913,26 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
               + Email
             </button>
             <div
-              v-for="(p, i) in form.phones"
-              :key="'p' + i"
+              v-for="(phone, index) in form.phones"
+              :key="'phone' + index"
               class="ct-form-row"
             >
               <input
-                v-model="p.value"
+                v-model="phone.value"
                 type="tel"
                 placeholder="Phone"
                 class="ct-form-flex"
               />
-              <input v-model="p.type" placeholder="Type" class="ct-form-type" />
+              <input
+                v-model="phone.type"
+                placeholder="Type"
+                class="ct-form-type"
+              />
               <button
                 type="button"
                 class="ct-row-remove"
                 title="Remove"
-                @click="removePhone(i)"
+                @click="removePhone(index)"
               >
                 &times;
               </button>
@@ -990,16 +1022,16 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 
           <div class="ct-header-tags">
             <button
-              v-for="t in tagsOf(selected)"
-              :key="t"
+              v-for="tag in tagsOf(selected)"
+              :key="tag"
               class="ct-tag-chip"
-              @click="toggleTagFilter(t)"
+              @click="toggleTagFilter(tag)"
             >
-              {{ t }}
+              {{ tag }}
               <span
                 class="ct-tag-x"
                 title="Remove tag"
-                @click.stop="removeTag(t)"
+                @click.stop="removeTag(tag)"
                 >&times;</span
               >
             </button>
@@ -1015,8 +1047,8 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           <div class="ct-section-card">
             <h3 class="ct-section-title">Contact Info</h3>
             <div
-              v-for="(e, i) in getEmails(selected)"
-              :key="'e' + i"
+              v-for="(email, index) in getEmails(selected)"
+              :key="'email' + index"
               class="ct-info-row"
             >
               <svg
@@ -1034,13 +1066,17 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                 <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
               </svg>
               <div class="ct-info-body">
-                <a class="ct-link" :href="'mailto:' + e.value">{{ e.value }}</a>
-                <span v-if="e.type" class="ct-info-type">{{ e.type }}</span>
+                <a class="ct-link" :href="'mailto:' + email.value">{{
+                  email.value
+                }}</a>
+                <span v-if="email.type" class="ct-info-type">{{
+                  email.type
+                }}</span>
               </div>
             </div>
             <div
-              v-for="(p, i) in getPhones(selected)"
-              :key="'p' + i"
+              v-for="(phone, index) in getPhones(selected)"
+              :key="'phone' + index"
               class="ct-info-row"
             >
               <svg
@@ -1059,8 +1095,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                 />
               </svg>
               <div class="ct-info-body">
-                <a class="ct-link" :href="'tel:' + p.value">{{ p.value }}</a>
-                <span v-if="p.type" class="ct-info-type">{{ p.type }}</span>
+                <a class="ct-link" :href="'tel:' + phone.value">{{
+                  phone.value
+                }}</a>
+                <span v-if="phone.type" class="ct-info-type">{{
+                  phone.type
+                }}</span>
               </div>
             </div>
             <span
@@ -1115,20 +1155,24 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           <div v-if="selected.id !== meId" class="ct-section-card">
             <h3 class="ct-section-title">Relations</h3>
             <div
-              v-for="r in visibleRelations"
-              :key="r.contact_id"
+              v-for="relation in visibleRelations"
+              :key="relation.contact_id"
               class="ct-linked-row"
               role="button"
               tabindex="0"
-              @click="selectContact(r.contact_id)"
-              @keydown.enter="selectContact(r.contact_id)"
+              @click="selectContact(relation.contact_id)"
+              @keydown.enter="selectContact(relation.contact_id)"
             >
-              <span class="ct-linked-meta">{{ relationLabel(r.type) }}</span>
-              <span class="ct-linked-title">{{ contactName(r.contact) }}</span>
+              <span class="ct-linked-meta">{{
+                relationLabel(relation.type)
+              }}</span>
+              <span class="ct-linked-title">{{
+                contactName(relation.contact)
+              }}</span>
               <span
                 class="ct-rel-x"
                 title="Remove relation"
-                @click.stop="removeRelation(r.contact_id)"
+                @click.stop="removeRelation(relation.contact_id)"
                 >&times;</span
               >
             </div>
@@ -1181,8 +1225,8 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           <div v-if="linkedEvents.length" class="ct-section-card">
             <h3 class="ct-section-title">Events</h3>
             <div
-              v-for="e in linkedEvents.slice(0, 8)"
-              :key="e.id"
+              v-for="event in linkedEvents.slice(0, 8)"
+              :key="event.id"
               class="ct-linked-row"
               role="button"
               tabindex="0"
@@ -1190,11 +1234,11 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
               @keydown.enter="ctx.navigate('/apps/calendar')"
             >
               <span class="ct-linked-meta">{{
-                formatDate(e.occurred_at || e.inserted_at)
+                formatDate(event.occurred_at || event.inserted_at)
               }}</span>
               <span class="ct-linked-title">
-                <span v-if="e.data.recurrence" title="Recurring">↻</span>
-                {{ e.title || 'Untitled' }}
+                <span v-if="event.data.recurrence" title="Recurring">↻</span>
+                {{ event.title || 'Untitled' }}
               </span>
             </div>
           </div>
@@ -1203,15 +1247,15 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             <h3 class="ct-section-title">Photos</h3>
             <div class="ct-photo-grid">
               <a
-                v-for="p in linkedPhotos.slice(0, PHOTO_PREVIEW)"
-                :key="p.id"
+                v-for="photo in linkedPhotos.slice(0, PHOTO_PREVIEW)"
+                :key="photo.id"
                 class="ct-photo"
-                :href="`/photos/${p.id}`"
-                @click="onLinkClick(`/photos/${p.id}`, $event)"
+                :href="`/photos/${photo.id}`"
+                @click="onLinkClick(`/photos/${photo.id}`, $event)"
               >
                 <img
-                  :src="photoThumb(p)"
-                  :alt="p.title || 'Photo'"
+                  :src="photoThumb(photo)"
+                  :alt="photo.title || 'Photo'"
                   loading="lazy"
                 />
               </a>
@@ -1232,17 +1276,19 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           <div v-if="mentioningNotes.length" class="ct-section-card">
             <h3 class="ct-section-title">Mentioned in</h3>
             <div
-              v-for="n in mentioningNotes"
-              :key="n.id"
+              v-for="note in mentioningNotes"
+              :key="note.id"
               class="ct-linked-row"
               role="button"
               tabindex="0"
-              @click="openNote(n)"
-              @keydown.enter="openNote(n)"
+              @click="openNote(note)"
+              @keydown.enter="openNote(note)"
             >
-              <span class="ct-linked-title">{{ n.title || 'Untitled' }}</span>
-              <span v-if="n.data.folder" class="ct-linked-meta">{{
-                n.data.folder
+              <span class="ct-linked-title">{{
+                note.title || 'Untitled'
+              }}</span>
+              <span v-if="note.data.folder" class="ct-linked-meta">{{
+                note.data.folder
               }}</span>
             </div>
           </div>

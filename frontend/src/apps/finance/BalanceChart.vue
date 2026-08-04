@@ -18,17 +18,17 @@ const PAD_TOP = 14
 const PAD_BOTTOM = 18
 
 const dayMs = (date: string) => {
-  const [y, m, d] = date.split('-').map(Number)
-  return Date.UTC(y, m - 1, d)
+  const [year, month, day] = date.split('-').map(Number)
+  return Date.UTC(year, month - 1, day)
 }
 
 const geometry = computed(() => {
   if (!props.points.length) return null
-  const xs = props.points.map(p => dayMs(p.date))
+  const xs = props.points.map(point => dayMs(point.date))
   const x0 = xs[0]
   const x1 = Math.max(dayMs(props.endDate), xs[xs.length - 1])
   const span = Math.max(x1 - x0, 1)
-  const values = props.points.map(p => p.amount)
+  const values = props.points.map(point => point.amount)
   const lo = Math.min(...values)
   const hi = Math.max(...values)
   // Baseline at 0 when everything is positive and 0 is close enough to keep
@@ -44,24 +44,24 @@ const geometry = computed(() => {
   min -= yPad
   max += yPad
 
-  const x = (ms: number) => PAD_X + ((ms - x0) / span) * (W - 2 * PAD_X)
-  const y = (v: number) =>
-    PAD_TOP + (1 - (v - min) / (max - min)) * (H - PAD_TOP - PAD_BOTTOM)
+  const toX = (ms: number) => PAD_X + ((ms - x0) / span) * (W - 2 * PAD_X)
+  const toY = (value: number) =>
+    PAD_TOP + (1 - (value - min) / (max - min)) * (H - PAD_TOP - PAD_BOTTOM)
 
-  let d = `M ${x(xs[0]).toFixed(1)} ${y(values[0]).toFixed(1)}`
+  let path = `M ${toX(xs[0]).toFixed(1)} ${toY(values[0]).toFixed(1)}`
   for (let i = 1; i < props.points.length; i++) {
-    d += ` H ${x(xs[i]).toFixed(1)} V ${y(values[i]).toFixed(1)}`
+    path += ` H ${toX(xs[i]).toFixed(1)} V ${toY(values[i]).toFixed(1)}`
   }
-  d += ` H ${x(x1).toFixed(1)}`
+  path += ` H ${toX(x1).toFixed(1)}`
 
-  const dots = props.points.map(p => ({
-    cx: x(dayMs(p.date)),
-    cy: y(p.amount),
-    title: `${p.date}: ${p.amount.toLocaleString()}`
+  const dots = props.points.map(point => ({
+    cx: toX(dayMs(point.date)),
+    cy: toY(point.amount),
+    title: `${point.date}: ${point.amount.toLocaleString()}`
   }))
 
   return {
-    d,
+    d: path,
     dots,
     minLabel: Math.min(...values).toLocaleString(),
     maxLabel: Math.max(...values).toLocaleString(),
@@ -90,8 +90,8 @@ const stroke = computed(() => props.color || 'var(--primary)')
         stroke-width="1.5"
       />
       <circle
-        v-for="(dot, i) in geometry.dots"
-        :key="i"
+        v-for="(dot, index) in geometry.dots"
+        :key="index"
         class="bc-dot"
         :cx="dot.cx"
         :cy="dot.cy"

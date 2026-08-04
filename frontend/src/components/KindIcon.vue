@@ -1,19 +1,21 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import {
   ArrowLeftRight,
+  CalendarDays,
+  CircleDot,
+  FileText,
+  Heart,
+  Image,
   Landmark,
   Link,
-  FileText,
   Mail,
-  Image,
-  UserRound,
-  StickyNote,
-  CalendarDays,
   Receipt,
-  Heart,
-  CircleDot
+  StickyNote,
+  UserRound
 } from 'lucide-vue-next'
-import { computed } from 'vue'
+
+import { kindColor } from '../lib/kind'
 
 const props = withDefaults(
   defineProps<{
@@ -23,6 +25,8 @@ const props = withDefaults(
   { size: 16 }
 )
 
+// The lucide component per kind is render-layer knowledge and stays here;
+// the color comes from the shared kind palette in lib/kind.ts.
 const iconMap: Record<string, typeof ArrowLeftRight> = {
   transaction: ArrowLeftRight,
   bank_tx: Landmark,
@@ -37,22 +41,8 @@ const iconMap: Record<string, typeof ArrowLeftRight> = {
   health: Heart
 }
 
-const colorMap: Record<string, string> = {
-  transaction: '#9d7bff',
-  bank_tx: '#4a9c6d',
-  blockchain_tx: '#9b6cff',
-  article: '#f0a06c',
-  email: '#5cc98a',
-  photo: '#c96cd0',
-  contact: '#6ccec9',
-  note: '#e0d56c',
-  event: '#e07c5a',
-  invoice: '#8b6cff',
-  health: '#e05577'
-}
-
 const icon = computed(() => iconMap[props.kind] || CircleDot)
-const color = computed(() => colorMap[props.kind] || '#8b8fa3')
+const color = computed(() => kindColor(props.kind))
 </script>
 
 <template>

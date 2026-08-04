@@ -15,13 +15,13 @@ const open = ref(false)
 const activeIndex = ref(-1)
 
 const filtered = computed(() => {
-  const q = props.modelValue.trim().toLowerCase()
-  if (!q) return props.options
-  return props.options.filter(o => o.toLowerCase().includes(q))
+  const query = props.modelValue.trim().toLowerCase()
+  if (!query) return props.options
+  return props.options.filter(option => option.toLowerCase().includes(query))
 })
 
-function onInput(e: Event) {
-  emit('update:modelValue', (e.target as HTMLInputElement).value)
+function onInput(event: Event) {
+  emit('update:modelValue', (event.target as HTMLInputElement).value)
   open.value = true
   activeIndex.value = -1
 }
@@ -40,26 +40,26 @@ function close() {
 function move(delta: number) {
   if (!filtered.value.length) return
   open.value = true
-  const n = filtered.value.length
-  activeIndex.value = (activeIndex.value + delta + n) % n
+  const count = filtered.value.length
+  activeIndex.value = (activeIndex.value + delta + count) % count
 }
 
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'ArrowDown') {
-    e.preventDefault()
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
     move(1)
-  } else if (e.key === 'ArrowUp') {
-    e.preventDefault()
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault()
     move(-1)
-  } else if (e.key === 'Enter') {
+  } else if (event.key === 'Enter') {
     if (open.value && activeIndex.value >= 0) {
-      e.preventDefault()
+      event.preventDefault()
       select(filtered.value[activeIndex.value])
     } else {
       emit('select', props.modelValue)
       close()
     }
-  } else if (e.key === 'Escape') {
+  } else if (event.key === 'Escape') {
     close()
   }
 }
@@ -81,14 +81,14 @@ function onKeydown(e: KeyboardEvent) {
       <!-- mousedown.prevent keeps the input focused so blur doesn't
            close the list before the option registers -->
       <div
-        v-for="(option, i) in filtered"
+        v-for="(option, index) in filtered"
         :key="option"
         class="ac-option"
-        :class="{ 'ac-option--active': i === activeIndex }"
+        :class="{ 'ac-option--active': index === activeIndex }"
         role="option"
-        :aria-selected="i === activeIndex"
+        :aria-selected="index === activeIndex"
         @mousedown.prevent="select(option)"
-        @mousemove="activeIndex = i"
+        @mousemove="activeIndex = index"
       >
         {{ option }}
       </div>

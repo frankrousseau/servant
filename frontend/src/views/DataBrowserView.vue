@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import ComboBox from '../components/ComboBox.vue'
 import DateInput from '../components/DateInput.vue'
 import KindIcon from '../components/KindIcon.vue'
 
-import type { Entry, PaginationMeta } from '../types'
 import {
   createEntry,
   deleteEntriesMatching,
@@ -17,9 +16,10 @@ import {
   listSources,
   updateEntry
 } from '../api/entries'
-import { useSocket, debounce } from '../composables/useSocket'
-import { formatDateTime, relativeTime } from '../lib/datetime'
 import { useConfirm } from '../composables/useConfirm'
+import { debounce, useSocket } from '../composables/useSocket'
+import { formatDateTime, relativeTime } from '../lib/datetime'
+import type { Entry, PaginationMeta } from '../types'
 
 const route = useRoute()
 const router = useRouter()
@@ -71,14 +71,14 @@ const saving = ref(false)
 const formError = ref<string | null>(null)
 const pageError = ref<string | null>(null)
 
-function errMessage(e: unknown, fallback: string): string {
-  return e instanceof Error && e.message ? e.message : fallback
+function errMessage(err: unknown, fallback: string): string {
+  return err instanceof Error && err.message ? err.message : fallback
 }
 
 // Real-time. Debounced so a burst of entry events (e.g. a connector sync) or the
 // aggregated entries_changed signal refetches the page once, not per row.
 const { onEntryChange, onBulkChange } = useSocket()
-const refresh = debounce(() => fetchEntries())
+const refresh = debounce(fetchEntries)
 onEntryChange(refresh)
 onBulkChange(refresh)
 
@@ -114,9 +114,9 @@ async function fetchEntries() {
     entries.value = res.data
     meta.value = res.meta
     pageError.value = null
-  } catch (e) {
+  } catch (err) {
     entries.value = []
-    pageError.value = errMessage(e, 'Failed to load entries')
+    pageError.value = errMessage(err, 'Failed to load entries')
   } finally {
     loading.value = false
   }
@@ -178,8 +178,8 @@ async function saveEntry() {
     showModal.value = false
     await fetchEntries()
     await fetchFilters()
-  } catch (e) {
-    formError.value = errMessage(e, 'Failed to save entry')
+  } catch (err) {
+    formError.value = errMessage(err, 'Failed to save entry')
   } finally {
     saving.value = false
   }
@@ -214,8 +214,8 @@ async function deleteAllFiltered() {
     filterKind.value = ''
     filterSource.value = ''
     await fetchFilters()
-  } catch (e) {
-    pageError.value = errMessage(e, 'Failed to delete entries')
+  } catch (err) {
+    pageError.value = errMessage(err, 'Failed to delete entries')
   }
 }
 
@@ -230,13 +230,13 @@ async function deleteEntry(entry: Entry) {
     selectedEntry.value = null
     await fetchEntries()
     await fetchFilters()
-  } catch (e) {
-    pageError.value = errMessage(e, 'Failed to delete entry')
+  } catch (err) {
+    pageError.value = errMessage(err, 'Failed to delete entry')
   }
 }
 
-function goToPage(p: number) {
-  page.value = p
+function goToPage(target: number) {
+  page.value = target
 }
 
 const pageRange = computed(() => {
@@ -351,13 +351,13 @@ onMounted(() => {
           &lsaquo;
         </button>
         <button
-          v-for="p in pageRange"
-          :key="p"
+          v-for="pageNumber in pageRange"
+          :key="pageNumber"
           class="small"
-          :class="{ 'page-active': p === meta.page }"
-          @click.stop="goToPage(p)"
+          :class="{ 'page-active': pageNumber === meta.page }"
+          @click.stop="goToPage(pageNumber)"
         >
-          {{ p }}
+          {{ pageNumber }}
         </button>
         <button
           class="small"
@@ -509,8 +509,16 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.loading-text {
-  color: var(--text-muted);
+/* Sticky header: negative margin swallows the content's 2rem top padding so
+   the opaque background reaches the viewport edge when pinned. */
+.browser-head {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg);
+  padding: 2rem 0 0.75rem;
+  margin: -2rem 0 1rem;
+  border-bottom: 1px solid var(--border);
 }
 
 .error-banner {
@@ -518,7 +526,7 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  background: rgba(240, 108, 108, 0.12);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
   border: 1px solid var(--danger);
   color: var(--danger);
   padding: 0.6rem 0.85rem;
@@ -534,24 +542,6 @@ onMounted(() => {
   line-height: 1;
   cursor: pointer;
   padding: 0;
-}
-
-.form-error {
-  color: var(--danger);
-  margin: 0 0 0.5rem;
-  font-size: 0.9rem;
-}
-
-/* Sticky header: negative margin swallows the content's 2rem top padding so
-   the opaque background reaches the viewport edge when pinned. */
-.browser-head {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: var(--bg);
-  padding: 2rem 0 0.75rem;
-  margin: -2rem 0 1rem;
-  border-bottom: 1px solid var(--border);
 }
 
 .filters {
@@ -576,6 +566,10 @@ onMounted(() => {
   margin-left: auto;
 }
 
+.loading-text {
+  color: var(--text-muted);
+}
+
 /* Entry list */
 .entry-list {
   display: flex;
@@ -595,18 +589,6 @@ onMounted(() => {
 
 .entry-row:hover {
   background: var(--bg-hover);
-}
-
-.entry-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  color: #fff;
-  flex-shrink: 0;
 }
 
 .entry-main {
@@ -698,18 +680,6 @@ onMounted(() => {
   font-size: 1.15rem;
 }
 
-.detail-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  color: #fff;
-  flex-shrink: 0;
-}
-
 .detail-meta {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -769,5 +739,12 @@ onMounted(() => {
   gap: 0.5rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border);
+}
+
+/* Create/Edit modal */
+.form-error {
+  color: var(--danger);
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
 }
 </style>

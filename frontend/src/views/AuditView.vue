@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 import { useApi } from '../composables/useApi'
-import { formatFileSize } from '../lib/filesize'
 import { utcToZonedParts } from '../lib/datetime'
+import { formatFileSize } from '../lib/filesize'
 
 interface SystemStats {
   cpu: {
@@ -99,14 +99,14 @@ async function refresh() {
         })
       ).data
     }
-  } catch (e) {
+  } catch (err) {
     loadError.value =
-      e instanceof Error ? e.message : 'Failed to load audit data'
+      err instanceof Error ? err.message : 'Failed to load audit data'
   }
 }
 
-function selectTab(t: Tab) {
-  tab.value = t
+function selectTab(next: Tab) {
+  tab.value = next
   refresh()
 }
 
@@ -123,39 +123,41 @@ onUnmounted(() => {
 
 // In Docker the cgroup limit is the real budget; the host numbers otherwise.
 const ramUsed = computed(() => {
-  const m = stats.value?.memory
-  if (!m) return null
-  if (m.cgroup_limit_bytes && m.cgroup_used_bytes != null)
-    return m.cgroup_used_bytes
-  if (m.total_bytes != null && m.available_bytes != null)
-    return m.total_bytes - m.available_bytes
+  const memory = stats.value?.memory
+  if (!memory) return null
+  if (memory.cgroup_limit_bytes && memory.cgroup_used_bytes != null)
+    return memory.cgroup_used_bytes
+  if (memory.total_bytes != null && memory.available_bytes != null)
+    return memory.total_bytes - memory.available_bytes
   return null
 })
 const ramTotal = computed(() => {
-  const m = stats.value?.memory
-  return m?.cgroup_limit_bytes ?? m?.total_bytes ?? null
+  const memory = stats.value?.memory
+  return memory?.cgroup_limit_bytes ?? memory?.total_bytes ?? null
 })
 
 const pct = (used: number | null, total: number | null) =>
   used != null && total ? Math.min(100, Math.round((used / total) * 100)) : null
 
+const ramPct = computed(() => pct(ramUsed.value, ramTotal.value))
+
 function uptime(seconds: number): string {
-  const d = Math.floor(seconds / 86400)
-  const h = Math.floor((seconds % 86400) / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  if (d > 0) return `${d}d ${h}h ${m}m`
-  if (h > 0) return `${h}h ${m}m`
-  return `${m}m`
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`
+  if (hours > 0) return `${hours}h ${minutes}m`
+  return `${minutes}m`
 }
 
-const bytes = (n: number | null | undefined) =>
-  n == null ? '-' : formatFileSize(n)
+const bytes = (value: number | null | undefined) =>
+  value == null ? '-' : formatFileSize(value)
 
 // ----- logs helpers -----
 
 function stamp(iso: string): string {
-  const p = utcToZonedParts(iso)
-  return `${p.date} ${p.time}`
+  const parts = utcToZonedParts(iso)
+  return `${parts.date} ${parts.time}`
 }
 
 function statusClass(status: number | null): string {
@@ -175,13 +177,13 @@ const ms = (us: number) =>
 
     <div class="au-tabs">
       <button
-        v-for="t in TABS"
-        :key="t.id"
+        v-for="option in TABS"
+        :key="option.id"
         class="au-tab"
-        :class="{ 'au-tab--active': tab === t.id }"
-        @click="selectTab(t.id)"
+        :class="{ 'au-tab--active': tab === option.id }"
+        @click="selectTab(option.id)"
       >
-        {{ t.label }}
+        {{ option.label }}
       </button>
     </div>
 
@@ -211,11 +213,8 @@ const ms = (us: number) =>
               >{{ bytes(ramUsed) }} / {{ bytes(ramTotal) }}</span
             >
           </div>
-          <div v-if="pct(ramUsed, ramTotal) != null" class="au-bar">
-            <div
-              class="au-bar-fill"
-              :style="{ width: pct(ramUsed, ramTotal) + '%' }"
-            ></div>
+          <div v-if="ramPct != null" class="au-bar">
+            <div class="au-bar-fill" :style="{ width: ramPct + '%' }"></div>
           </div>
         </section>
 
@@ -301,11 +300,11 @@ const ms = (us: number) =>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="w in stats.workers" :key="w.config_id">
-                <td>{{ w.name || w.config_id }}</td>
-                <td>{{ w.connector_type || '-' }}</td>
-                <td class="au-num">{{ bytes(w.memory_bytes) }}</td>
-                <td class="au-num">{{ w.message_queue_len ?? '-' }}</td>
+              <tr v-for="worker in stats.workers" :key="worker.config_id">
+                <td>{{ worker.name || worker.config_id }}</td>
+                <td>{{ worker.connector_type || '-' }}</td>
+                <td class="au-num">{{ bytes(worker.memory_bytes) }}</td>
+                <td class="au-num">{{ worker.message_queue_len ?? '-' }}</td>
               </tr>
             </tbody>
           </table>
@@ -319,19 +318,19 @@ const ms = (us: number) =>
       <p v-if="accessLogs.length === 0" class="au-empty">
         No requests recorded yet.
       </p>
-      <div v-for="(l, i) in accessLogs" :key="i" class="au-line">
-        <span class="au-stamp">{{ stamp(l.at) }}</span>
-        <span class="au-method">{{ l.method }}</span>
+      <div v-for="(line, index) in accessLogs" :key="index" class="au-line">
+        <span class="au-stamp">{{ stamp(line.at) }}</span>
+        <span class="au-method">{{ line.method }}</span>
         <span
           class="au-path"
-          :title="l.query ? `${l.path}?${l.query}` : l.path"
-          >{{ l.path }}</span
+          :title="line.query ? `${line.path}?${line.query}` : line.path"
+          >{{ line.path }}</span
         >
-        <span class="au-status" :class="statusClass(l.status)">{{
-          l.status ?? '-'
+        <span class="au-status" :class="statusClass(line.status)">{{
+          line.status ?? '-'
         }}</span>
-        <span class="au-dur">{{ ms(l.duration_us) }}</span>
-        <span class="au-ip">{{ l.ip || '' }}</span>
+        <span class="au-dur">{{ ms(line.duration_us) }}</span>
+        <span class="au-ip">{{ line.ip || '' }}</span>
       </div>
     </div>
 
@@ -340,10 +339,14 @@ const ms = (us: number) =>
       <p v-if="errorLogs.length === 0" class="au-empty">
         No errors recorded. Quiet night.
       </p>
-      <div v-for="(l, i) in errorLogs" :key="i" class="au-line au-line--error">
-        <span class="au-stamp">{{ stamp(l.at) }}</span>
-        <span class="au-level">{{ l.level.toUpperCase() }}</span>
-        <span class="au-msg">{{ l.message }}</span>
+      <div
+        v-for="(line, index) in errorLogs"
+        :key="index"
+        class="au-line au-line--error"
+      >
+        <span class="au-stamp">{{ stamp(line.at) }}</span>
+        <span class="au-level">{{ line.level.toUpperCase() }}</span>
+        <span class="au-msg">{{ line.message }}</span>
       </div>
     </div>
   </div>
@@ -485,7 +488,7 @@ const ms = (us: number) =>
   display: flex;
   gap: 0.75rem;
   padding: 0.25rem 0;
-  border-bottom: 1px solid rgba(28, 35, 66, 0.5);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
   align-items: baseline;
 }
 .au-stamp {
@@ -510,7 +513,7 @@ const ms = (us: number) =>
   color: var(--success);
 }
 .au-status--4xx {
-  color: #ffb454;
+  color: var(--warning);
 }
 .au-status--5xx {
   color: var(--danger);

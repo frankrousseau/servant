@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { listEntriesPage } from '../api/entries'
+import { agentsEnabled } from '../apps/registry'
+import { entryRoute } from '../lib/entryRoute'
+import { kindColor, kindIcon } from '../lib/kind'
 import { useAppsStore } from '../stores/apps'
 import { useAuthStore } from '../stores/auth'
-import { agentsEnabled } from '../apps/registry'
 import type { Entry } from '../types'
-import { kindIcon, kindColor } from '../lib/kind'
-import { entryRoute } from '../lib/entryRoute'
 
 const router = useRouter()
 
@@ -24,7 +24,7 @@ const auth = useAuthStore()
 // Apps come from the store, so disabled built-ins stay out of the palette.
 const pages = computed(() => [
   { label: 'Dashboard', path: '/' },
-  ...appsStore.defs.map(a => ({ label: a.name, path: `/apps/${a.id}` })),
+  ...appsStore.defs.map(app => ({ label: app.name, path: `/apps/${app.id}` })),
   { label: 'Data browser', path: '/data' },
   { label: 'Connectors', path: '/connectors' },
   ...(agentsEnabled(auth.user?.enabled_apps)
@@ -44,26 +44,26 @@ interface Item {
 }
 
 const pageItems = computed<Item[]>(() => {
-  const q = query.value.trim().toLowerCase()
+  const needle = query.value.trim().toLowerCase()
   return pages.value
-    .filter(p => !q || p.label.toLowerCase().includes(q))
-    .map(p => ({
-      key: 'p:' + p.path,
+    .filter(page => !needle || page.label.toLowerCase().includes(needle))
+    .map(page => ({
+      key: 'p:' + page.path,
       icon: '→',
-      label: p.label,
+      label: page.label,
       hint: 'page',
-      path: p.path
+      path: page.path
     }))
 })
 
 const entryItems = computed<Item[]>(() =>
-  results.value.map(e => ({
-    key: 'e:' + e.id,
-    icon: kindIcon(e.kind),
-    color: kindColor(e.kind),
-    label: e.title || e.kind,
-    hint: e.kind,
-    path: entryRoute(e)
+  results.value.map(entry => ({
+    key: 'e:' + entry.id,
+    icon: kindIcon(entry.kind),
+    color: kindColor(entry.kind),
+    label: entry.title || entry.kind,
+    hint: entry.kind,
+    path: entryRoute(entry)
   }))
 )
 
@@ -72,10 +72,10 @@ const items = computed<Item[]>(() => [...entryItems.value, ...pageItems.value])
 // Debounced entries search; a sequence counter drops out-of-order responses.
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 let seq = 0
-watch(query, q => {
+watch(query, text => {
   activeIndex.value = 0
   if (searchTimer) clearTimeout(searchTimer)
-  const term = q.trim()
+  const term = text.trim()
   if (term.length < 2) {
     results.value = []
     return
@@ -113,30 +113,30 @@ function go(item: Item) {
 }
 
 function move(delta: number) {
-  const n = items.value.length
-  if (n) activeIndex.value = (activeIndex.value + delta + n) % n
+  const count = items.value.length
+  if (count) activeIndex.value = (activeIndex.value + delta + count) % count
 }
 
-function onKeydown(e: KeyboardEvent) {
-  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-    e.preventDefault()
+function onKeydown(event: KeyboardEvent) {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault()
     if (open.value) close()
     else openPalette()
     return
   }
   if (!open.value) return
-  if (e.key === 'Escape') {
+  if (event.key === 'Escape') {
     close()
-  } else if (e.key === 'ArrowDown') {
-    e.preventDefault()
+  } else if (event.key === 'ArrowDown') {
+    event.preventDefault()
     move(1)
-  } else if (e.key === 'ArrowUp') {
-    e.preventDefault()
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault()
     move(-1)
-  } else if (e.key === 'Enter') {
+  } else if (event.key === 'Enter') {
     const item = items.value[activeIndex.value]
     if (item) {
-      e.preventDefault()
+      event.preventDefault()
       go(item)
     }
   }
@@ -163,11 +163,11 @@ onBeforeUnmount(() => {
         />
         <div class="cp-list">
           <div
-            v-for="(item, i) in items"
+            v-for="(item, index) in items"
             :key="item.key"
             class="cp-item"
-            :class="{ 'cp-item--active': i === activeIndex }"
-            @mousemove="activeIndex = i"
+            :class="{ 'cp-item--active': index === activeIndex }"
+            @mousemove="activeIndex = index"
             @mousedown.prevent="go(item)"
           >
             <span

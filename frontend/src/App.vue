@@ -6,8 +6,8 @@ import AppSidebar from './components/AppSidebar.vue'
 import CommandPalette from './components/CommandPalette.vue'
 import ConfirmModal from './components/ConfirmModal.vue'
 
-import { useAuthStore } from './stores/auth'
 import { useAppsStore } from './stores/apps'
+import { useAuthStore } from './stores/auth'
 
 const auth = useAuthStore()
 const apps = useAppsStore()

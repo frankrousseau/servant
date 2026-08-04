@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Wrench, Play, Pencil, Trash2, Undo2, Plus } from 'lucide-vue-next'
+import { Pencil, Play, Plus, Trash2, Undo2, Wrench } from 'lucide-vue-next'
 
 import ComboBox from '../components/ComboBox.vue'
 
-import { useApi } from '../composables/useApi'
 import { listEntriesPage } from '../api/entries'
+import { useApi } from '../composables/useApi'
 import { useConfirm } from '../composables/useConfirm'
-import { useAppsStore } from '../stores/apps'
 import { formatDate } from '../lib/datetime'
 import { renderMarkdown } from '../lib/markdown'
+import { useAppsStore } from '../stores/apps'
 import type { Agent, AgentRun, AiConfig, Entry } from '../types'
 
 const api = useApi()
@@ -27,8 +27,8 @@ const tab = computed(() =>
   route.query.tab === 'builder' ? 'builder' : 'recurrents'
 )
 
-function setTab(t: string) {
-  router.replace({ query: { ...route.query, tab: t } })
+function setTab(next: string) {
+  router.replace({ query: { ...route.query, tab: next } })
 }
 
 const serverHost = computed(() => {
@@ -117,8 +117,8 @@ async function loadReports(opts: { append?: boolean } = {}) {
     page: String(reportPage.value),
     per_page: String(REPORTS_PER_PAGE)
   }
-  const q = reportQuery.value.trim()
-  if (q) params.q = q
+  const needle = reportQuery.value.trim()
+  if (needle) params.q = needle
 
   const res = await listEntriesPage(params)
   reportTotal.value = res.meta.total
@@ -137,31 +137,34 @@ async function loadMoreReports() {
 }
 
 function reportsOf(agentId: string) {
-  return reports.value.filter(r => r.metadata?.agent_id === agentId)
+  return reports.value.filter(report => report.metadata?.agent_id === agentId)
 }
 
-function reportContent(r: Entry): string {
-  return typeof r.data.content === 'string' ? r.data.content : ''
+function reportContent(report: Entry): string {
+  return typeof report.data.content === 'string' ? report.data.content : ''
 }
 
 const rawReport = ref(false)
 
 // The renderer escapes the model's HTML, so v-html below only injects markup
 // markdown-it produced itself (see lib/markdown.ts).
-function reportHtml(r: Entry): string {
-  return renderMarkdown(reportContent(r))
+function reportHtml(report: Entry): string {
+  return renderMarkdown(reportContent(report))
 }
 
 function lastRunOf(agentId: string) {
-  return recurrentRuns.value.find(r => r.agent_id === agentId) || null
+  return recurrentRuns.value.find(run => run.agent_id === agentId) || null
 }
 
 function agentName(agentId: string | null) {
-  return agents.value.find(a => a.id === agentId)?.name || '-'
+  return agents.value.find(agent => agent.id === agentId)?.name || '-'
 }
 
 function scheduleLabel(schedule: string) {
-  return SCHEDULE_OPTIONS.find(o => o.value === schedule)?.label || schedule
+  return (
+    SCHEDULE_OPTIONS.find(option => option.value === schedule)?.label ||
+    schedule
+  )
 }
 
 function openCreate() {
@@ -179,19 +182,21 @@ function openCreate() {
   formOpen.value = true
 }
 
-function openEdit(a: Agent) {
-  editingId.value = a.id
-  fName.value = a.name
-  fPrompt.value = a.prompt || ''
-  fKinds.value = a.kinds.join(', ')
-  fLookback.value = a.lookback_days
-  fSchedule.value = a.schedule
-  fModel.value = a.model || ''
-  fHour.value = a.run_at_hour ?? ''
-  fMode.value = a.mode
+function openEdit(agent: Agent) {
+  editingId.value = agent.id
+  fName.value = agent.name
+  fPrompt.value = agent.prompt || ''
+  fKinds.value = agent.kinds.join(', ')
+  fLookback.value = agent.lookback_days
+  fSchedule.value = agent.schedule
+  fModel.value = agent.model || ''
+  fHour.value = agent.run_at_hour ?? ''
+  fMode.value = agent.mode
   fDescription.value = ''
   fRecipeJson.value =
-    a.mode === 'recipe' && a.recipe ? JSON.stringify(a.recipe, null, 2) : ''
+    agent.mode === 'recipe' && agent.recipe
+      ? JSON.stringify(agent.recipe, null, 2)
+      : ''
   formOpen.value = true
 }
 
@@ -203,7 +208,7 @@ async function saveAgent() {
     mode: fMode.value,
     kinds: fKinds.value
       .split(',')
-      .map(k => k.trim())
+      .map(kind => kind.trim())
       .filter(Boolean),
     lookback_days: fLookback.value,
     schedule: fSchedule.value,
@@ -232,8 +237,8 @@ async function saveAgent() {
     else await api.post('/api/agents', body)
     formOpen.value = false
     await loadAgents()
-  } catch (e) {
-    agentError.value = e instanceof Error ? e.message : 'Save failed'
+  } catch (err) {
+    agentError.value = err instanceof Error ? err.message : 'Save failed'
   } finally {
     fSaving.value = false
   }
@@ -249,48 +254,50 @@ async function draftRecipe() {
       description: fDescription.value.trim(),
       kinds: fKinds.value
         .split(',')
-        .map(k => k.trim())
+        .map(kind => kind.trim())
         .filter(Boolean)
     })
     fRecipeJson.value = JSON.stringify(res.data.recipe, null, 2)
     await loadRecurrentRuns()
-  } catch (e) {
-    agentError.value = e instanceof Error ? e.message : 'Draft failed'
+  } catch (err) {
+    agentError.value = err instanceof Error ? err.message : 'Draft failed'
   } finally {
     drafting.value = false
   }
 }
 
-async function toggleAgent(a: Agent) {
+async function toggleAgent(agent: Agent) {
   try {
-    await api.put(`/api/agents/${a.id}`, { enabled: !a.enabled })
+    await api.put(`/api/agents/${agent.id}`, { enabled: !agent.enabled })
     await loadAgents()
-  } catch (e) {
-    agentError.value = e instanceof Error ? e.message : 'Save failed'
+  } catch (err) {
+    agentError.value = err instanceof Error ? err.message : 'Save failed'
   }
 }
 
-async function deleteAgent(a: Agent) {
+async function deleteAgent(agent: Agent) {
   const ok = await ask({
     title: 'Delete agent',
-    message: `Delete "${a.name}"? Its past reports are kept (visible in the Data browser).`,
+    message: `Delete "${agent.name}"? Its past reports are kept (visible in the Data browser).`,
     danger: true
   })
   if (!ok) return
-  await api.del(`/api/agents/${a.id}`)
+  await api.del(`/api/agents/${agent.id}`)
   await loadAgents()
 }
 
-async function runNow(a: Agent) {
+async function runNow(agent: Agent) {
   agentError.value = ''
-  runningId.value = a.id
+  runningId.value = agent.id
   try {
-    const res = await api.post<{ data: AgentRun }>(`/api/agents/${a.id}/run`)
+    const res = await api.post<{ data: AgentRun }>(
+      `/api/agents/${agent.id}/run`
+    )
     const run = await pollRun(res.data.id)
     if (run.status === 'error') agentError.value = run.error || 'Run failed'
     await Promise.all([loadAgents(), loadRecurrentRuns(), loadReports()])
-  } catch (e) {
-    agentError.value = e instanceof Error ? e.message : 'Run failed'
+  } catch (err) {
+    agentError.value = err instanceof Error ? err.message : 'Run failed'
   } finally {
     runningId.value = ''
   }
@@ -318,7 +325,9 @@ const modifyInstruction = ref('')
 const restoringId = ref('')
 
 const builderRuns = ref<AgentRun[]>([])
-const generatedApps = computed(() => apps.installed.filter(a => a.generated))
+const generatedApps = computed(() =>
+  apps.installed.filter(app => app.generated)
+)
 
 async function loadBuilderRuns() {
   builderRuns.value = (
@@ -343,8 +352,8 @@ async function generateApp() {
       genError.value = run.error || 'Generation failed'
     }
     await loadBuilderRuns()
-  } catch (e) {
-    genError.value = e instanceof Error ? e.message : 'Generation failed'
+  } catch (err) {
+    genError.value = err instanceof Error ? err.message : 'Generation failed'
   } finally {
     genBusy.value = false
   }
@@ -364,8 +373,8 @@ async function modifyApp(id: string) {
       genError.value = run.error || 'Modification failed'
     }
     await loadBuilderRuns()
-  } catch (e) {
-    genError.value = e instanceof Error ? e.message : 'Modification failed'
+  } catch (err) {
+    genError.value = err instanceof Error ? err.message : 'Modification failed'
   } finally {
     genBusy.value = false
   }
@@ -376,8 +385,8 @@ async function restoreApp(id: string) {
   restoringId.value = id
   try {
     await apps.restore(id)
-  } catch (e) {
-    genError.value = e instanceof Error ? e.message : 'Restore failed'
+  } catch (err) {
+    genError.value = err instanceof Error ? err.message : 'Restore failed'
   } finally {
     restoringId.value = ''
   }
@@ -470,29 +479,29 @@ onMounted(() => {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="a in agents" :key="a.id">
+                <tr v-for="agent in agents" :key="agent.id">
                   <td>
-                    {{ a.name }}
-                    <span class="mode-badge">{{ a.mode }}</span>
+                    {{ agent.name }}
+                    <span class="mode-badge">{{ agent.mode }}</span>
                   </td>
-                  <td>{{ a.kinds.join(', ') }}</td>
-                  <td>{{ scheduleLabel(a.schedule) }}</td>
+                  <td>{{ agent.kinds.join(', ') }}</td>
+                  <td>{{ scheduleLabel(agent.schedule) }}</td>
                   <td>
                     <label class="toggle">
                       <input
                         type="checkbox"
-                        :checked="a.enabled"
-                        @change="toggleAgent(a)"
+                        :checked="agent.enabled"
+                        @change="toggleAgent(agent)"
                       />
                     </label>
                   </td>
                   <td>
-                    <template v-if="lastRunOf(a.id)">
-                      {{ formatDate(lastRunOf(a.id)!.inserted_at) }} -
-                      {{ lastRunOf(a.id)!.status }}
+                    <template v-if="lastRunOf(agent.id)">
+                      {{ formatDate(lastRunOf(agent.id)!.inserted_at) }} -
+                      {{ lastRunOf(agent.id)!.status }}
                     </template>
-                    <template v-else-if="a.last_run_at">
-                      {{ formatDate(a.last_run_at) }}
+                    <template v-else-if="agent.last_run_at">
+                      {{ formatDate(agent.last_run_at) }}
                     </template>
                     <template v-else>never</template>
                   </td>
@@ -501,8 +510,8 @@ onMounted(() => {
                       type="button"
                       class="tk-revoke"
                       title="Run now"
-                      :disabled="runningId === a.id"
-                      @click="runNow(a)"
+                      :disabled="runningId === agent.id"
+                      @click="runNow(agent)"
                     >
                       <Play :size="14" />
                     </button>
@@ -510,7 +519,7 @@ onMounted(() => {
                       type="button"
                       class="tk-revoke"
                       title="Edit"
-                      @click="openEdit(a)"
+                      @click="openEdit(agent)"
                     >
                       <Pencil :size="14" />
                     </button>
@@ -518,7 +527,7 @@ onMounted(() => {
                       type="button"
                       class="tk-revoke"
                       title="Delete"
-                      @click="deleteAgent(a)"
+                      @click="deleteAgent(agent)"
                     >
                       <Trash2 :size="14" />
                     </button>
@@ -536,7 +545,9 @@ onMounted(() => {
                   class="tk-domain-select"
                   :model-value="fMode"
                   :options="MODE_OPTIONS"
-                  @update:model-value="v => (fMode = v as 'prompt' | 'recipe')"
+                  @update:model-value="
+                    value => (fMode = value as 'prompt' | 'recipe')
+                  "
                 />
               </label>
               <textarea
@@ -657,25 +668,26 @@ onMounted(() => {
               placeholder="Search reports..."
               @input="onReportSearch"
             />
-            <template v-for="a in agents" :key="a.id">
-              <template v-if="reportsOf(a.id).length">
-                <p class="report-agent-name">{{ a.name }}</p>
+            <template v-for="agent in agents" :key="agent.id">
+              <template v-if="reportsOf(agent.id).length">
+                <p class="report-agent-name">{{ agent.name }}</p>
                 <div
-                  v-for="r in reportsOf(a.id)"
-                  :key="r.id"
+                  v-for="report in reportsOf(agent.id)"
+                  :key="report.id"
                   class="report-item"
                 >
                   <button
                     type="button"
                     class="report-toggle"
                     @click="
-                      expandedReport = expandedReport === r.id ? '' : r.id
+                      expandedReport =
+                        expandedReport === report.id ? '' : report.id
                     "
                   >
-                    {{ r.title || 'Report' }} -
-                    {{ formatDate(r.occurred_at || r.inserted_at) }}
+                    {{ report.title || 'Report' }} -
+                    {{ formatDate(report.occurred_at || report.inserted_at) }}
                   </button>
-                  <template v-if="expandedReport === r.id">
+                  <template v-if="expandedReport === report.id">
                     <div class="report-view-tabs">
                       <button
                         type="button"
@@ -693,19 +705,19 @@ onMounted(() => {
                       </button>
                     </div>
                     <pre v-if="rawReport" class="report-content">{{
-                      reportContent(r)
+                      reportContent(report)
                     }}</pre>
                     <div
                       v-else
                       class="report-content report-rendered"
-                      v-html="reportHtml(r)"
+                      v-html="reportHtml(report)"
                     ></div>
                   </template>
                 </div>
               </template>
             </template>
             <p
-              v-if="!agents.some(a => reportsOf(a.id).length)"
+              v-if="!agents.some(agent => reportsOf(agent.id).length)"
               class="tk-empty"
             >
               {{ reportQuery ? 'No report matches.' : 'No reports yet.' }}
@@ -733,28 +745,28 @@ onMounted(() => {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="r in recurrentRuns" :key="r.id">
-                  <td>{{ formatDate(r.inserted_at) }}</td>
-                  <td>{{ agentName(r.agent_id) }}</td>
-                  <td>{{ r.model || '-' }}</td>
+                <tr v-for="run in recurrentRuns" :key="run.id">
+                  <td>{{ formatDate(run.inserted_at) }}</td>
+                  <td>{{ agentName(run.agent_id) }}</td>
+                  <td>{{ run.model || '-' }}</td>
                   <td>
                     {{
-                      r.input_tokens != null
-                        ? `${r.input_tokens} in / ${r.output_tokens} out`
+                      run.input_tokens != null
+                        ? `${run.input_tokens} in / ${run.output_tokens} out`
                         : '-'
                     }}
                   </td>
                   <td>
                     {{
-                      r.duration_ms != null
-                        ? `${Math.round(r.duration_ms / 1000)}s`
+                      run.duration_ms != null
+                        ? `${Math.round(run.duration_ms / 1000)}s`
                         : '-'
                     }}
                   </td>
                   <td>
-                    {{ r.status }}
-                    <div v-if="r.error" class="run-error" :title="r.error">
-                      {{ r.error }}
+                    {{ run.status }}
+                    <div v-if="run.error" class="run-error" :title="run.error">
+                      {{ run.error }}
                     </div>
                   </td>
                 </tr>
@@ -812,26 +824,28 @@ onMounted(() => {
                 </tr>
               </thead>
               <tbody>
-                <template v-for="a in generatedApps" :key="a.id">
+                <template v-for="app in generatedApps" :key="app.id">
                   <tr>
-                    <td>{{ a.name }}</td>
+                    <td>{{ app.name }}</td>
                     <td class="app-actions">
                       <button
                         type="button"
                         class="tk-revoke"
                         title="Modify with the configured model"
                         :disabled="genBusy"
-                        @click="modifyingId = modifyingId === a.id ? '' : a.id"
+                        @click="
+                          modifyingId = modifyingId === app.id ? '' : app.id
+                        "
                       >
                         <Pencil :size="14" />
                       </button>
                       <button
-                        v-if="a.has_previous"
+                        v-if="app.has_previous"
                         type="button"
                         class="tk-revoke"
                         title="Restore the previous version"
-                        :disabled="restoringId === a.id"
-                        @click="restoreApp(a.id)"
+                        :disabled="restoringId === app.id"
+                        @click="restoreApp(app.id)"
                       >
                         <Undo2 :size="14" />
                       </button>
@@ -839,15 +853,18 @@ onMounted(() => {
                         type="button"
                         class="tk-revoke"
                         title="Uninstall"
-                        @click="uninstallGenerated(a.id, a.name)"
+                        @click="uninstallGenerated(app.id, app.name)"
                       >
                         <Trash2 :size="14" />
                       </button>
                     </td>
                   </tr>
-                  <tr v-if="modifyingId === a.id">
+                  <tr v-if="modifyingId === app.id">
                     <td colspan="2">
-                      <form class="app-form" @submit.prevent="modifyApp(a.id)">
+                      <form
+                        class="app-form"
+                        @submit.prevent="modifyApp(app.id)"
+                      >
                         <textarea
                           v-model="modifyInstruction"
                           rows="3"
@@ -891,29 +908,29 @@ onMounted(() => {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="r in builderRuns" :key="r.id">
-                  <td>{{ formatDate(r.inserted_at) }}</td>
-                  <td>{{ r.action }}</td>
-                  <td>{{ r.app_id || '-' }}</td>
-                  <td>{{ r.model || '-' }}</td>
+                <tr v-for="run in builderRuns" :key="run.id">
+                  <td>{{ formatDate(run.inserted_at) }}</td>
+                  <td>{{ run.action }}</td>
+                  <td>{{ run.app_id || '-' }}</td>
+                  <td>{{ run.model || '-' }}</td>
                   <td>
                     {{
-                      r.input_tokens != null
-                        ? `${r.input_tokens} in / ${r.output_tokens} out`
+                      run.input_tokens != null
+                        ? `${run.input_tokens} in / ${run.output_tokens} out`
                         : '-'
                     }}
                   </td>
                   <td>
                     {{
-                      r.duration_ms != null
-                        ? `${Math.round(r.duration_ms / 1000)}s`
+                      run.duration_ms != null
+                        ? `${Math.round(run.duration_ms / 1000)}s`
                         : '-'
                     }}
                   </td>
                   <td>
-                    {{ r.status }}
-                    <div v-if="r.error" class="run-error" :title="r.error">
-                      {{ r.error }}
+                    {{ run.status }}
+                    <div v-if="run.error" class="run-error" :title="run.error">
+                      {{ run.error }}
                     </div>
                   </td>
                 </tr>
@@ -1059,7 +1076,7 @@ onMounted(() => {
 .tk-revoke:hover {
   color: var(--danger);
   border-color: var(--danger);
-  background: rgba(240, 108, 108, 0.08);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
 
 .msg {
@@ -1070,7 +1087,7 @@ onMounted(() => {
 }
 .msg-error {
   color: var(--danger);
-  background: rgba(240, 108, 108, 0.1);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
 }
 
 .run-error {

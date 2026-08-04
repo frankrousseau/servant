@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from 'vue'
+import { onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import MediaViewer from '../components/MediaViewer.vue'
 
-import { useAppsStore } from '../stores/apps'
 import { createAppContext } from '../apps/createContext'
-import type { AppModule, ViewerItem, ViewerAPI } from '../apps/types'
+import { useAppsStore } from '../stores/apps'
+import type { AppModule, ViewerAPI, ViewerItem } from '../apps/types'
 
 const route = useRoute()
 const appsStore = useAppsStore()
@@ -52,9 +52,9 @@ function handleViewerClose() {
 function handleViewerDelete(id: string) {
   if (viewerDeleteCb) viewerDeleteCb(id)
   // Remove from items and adjust index
-  const idx = viewerItems.value.findIndex(i => i.id === id)
+  const idx = viewerItems.value.findIndex(item => item.id === id)
   if (idx >= 0) {
-    viewerItems.value = viewerItems.value.filter(i => i.id !== id)
+    viewerItems.value = viewerItems.value.filter(item => item.id !== id)
     if (viewerItems.value.length === 0) {
       viewerOpen.value = false
       if (viewerCloseCb) viewerCloseCb()
@@ -91,8 +91,8 @@ async function loadApp(appId: string) {
       await currentApp.mount(mountEl.value, ctx)
       document.title = `Servant | ${def.name}`
     }
-  } catch (e: any) {
-    error.value = e.message || 'Failed to load app'
+  } catch (err: any) {
+    error.value = err.message || 'Failed to load app'
   }
 }
 
@@ -130,12 +130,12 @@ onUnmounted(() => {
   height: 100%;
 }
 
-.app-mount {
-  height: 100%;
-}
-
 .app-error {
   color: var(--danger);
   padding: 2rem;
+}
+
+.app-mount {
+  height: 100%;
 }
 </style>

@@ -15,17 +15,35 @@ function draw() {
   if (!el) return
   const img = new Image()
   img.onload = () => {
-    const [x, y, w, h] = props.box
-    const nw = img.naturalWidth
-    const nh = img.naturalHeight
+    const [boxX, boxY, boxWidth, boxHeight] = props.box
+    const naturalWidth = img.naturalWidth
+    const naturalHeight = img.naturalHeight
     // Square source region centered on the box, margin included.
-    const side = Math.max(w * nw, h * nh) * (1 + MARGIN * 2)
-    const cx = (x + w / 2) * nw
-    const cy = (y + h / 2) * nh
-    const sx = Math.max(0, Math.min(cx - side / 2, nw - side))
-    const sy = Math.max(0, Math.min(cy - side / 2, nh - side))
-    const s = Math.min(side, nw, nh)
-    el.getContext('2d')?.drawImage(img, sx, sy, s, s, 0, 0, SIZE, SIZE)
+    const side =
+      Math.max(boxWidth * naturalWidth, boxHeight * naturalHeight) *
+      (1 + MARGIN * 2)
+    const centerX = (boxX + boxWidth / 2) * naturalWidth
+    const centerY = (boxY + boxHeight / 2) * naturalHeight
+    const sourceX = Math.max(
+      0,
+      Math.min(centerX - side / 2, naturalWidth - side)
+    )
+    const sourceY = Math.max(
+      0,
+      Math.min(centerY - side / 2, naturalHeight - side)
+    )
+    const cropSide = Math.min(side, naturalWidth, naturalHeight)
+    el.getContext('2d')?.drawImage(
+      img,
+      sourceX,
+      sourceY,
+      cropSide,
+      cropSide,
+      0,
+      0,
+      SIZE,
+      SIZE
+    )
   }
   // A missing/deleted thumbnail would otherwise leave a blank canvas: draw a
   // placeholder glyph so the chip reads as "image unavailable", not empty.

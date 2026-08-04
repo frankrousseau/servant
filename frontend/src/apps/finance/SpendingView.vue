@@ -3,7 +3,6 @@ import { computed, ref, watch } from 'vue'
 
 import ComboBox from '../../components/ComboBox.vue'
 
-import type { Entry } from '../types'
 import {
   categoryColor,
   formatAmount,
@@ -12,6 +11,7 @@ import {
   type Account,
   type Rates
 } from './finance'
+import type { Entry } from '../types'
 
 const props = defineProps<{
   txs: Entry[]
@@ -27,7 +27,7 @@ const MAX_MONTHS = 12
 const ALL_BANKS = 'All banks'
 const bankFilter = ref(ALL_BANKS)
 
-const txAccountOf = (t: Entry) => ((t.data.account as string) || '').trim()
+const txAccountOf = (tx: Entry) => ((tx.data.account as string) || '').trim()
 
 const bankOptions = computed(() => [
   ALL_BANKS,
@@ -37,7 +37,7 @@ const bankOptions = computed(() => [
 const scopedTxs = computed(() =>
   bankFilter.value === ALL_BANKS
     ? props.txs
-    : props.txs.filter(t => txAccountOf(t) === bankFilter.value)
+    : props.txs.filter(tx => txAccountOf(tx) === bankFilter.value)
 )
 
 const spending = computed(() =>
@@ -58,7 +58,9 @@ const range = ref(RANGE_LAST12)
 const excludedOpen = ref(false)
 
 const years = computed(() =>
-  [...new Set(spending.value.months.map(m => m.slice(0, 4)))].sort().reverse()
+  [...new Set(spending.value.months.map(month => month.slice(0, 4)))]
+    .sort()
+    .reverse()
 )
 const rangeOptions = computed(() => [
   RANGE_LAST12,
@@ -71,7 +73,7 @@ const periods = computed<string[]>(() => {
   if (range.value === RANGE_ALL_YEARS) return [...years.value].reverse()
   if (range.value === RANGE_LAST12)
     return spending.value.months.slice(-MAX_MONTHS)
-  return spending.value.months.filter(m => m.startsWith(range.value))
+  return spending.value.months.filter(month => month.startsWith(range.value))
 })
 
 const byYears = computed(() => range.value === RANGE_ALL_YEARS)
@@ -79,14 +81,15 @@ const byYears = computed(() => range.value === RANGE_ALL_YEARS)
 function rowByPeriod(byMonth: Record<string, number>): Record<string, number> {
   if (!byYears.value) return byMonth
   const out: Record<string, number> = {}
-  for (const [m, v] of Object.entries(byMonth)) {
-    const y = m.slice(0, 4)
-    out[y] = (out[y] || 0) + v
+  for (const [month, value] of Object.entries(byMonth)) {
+    const year = month.slice(0, 4)
+    out[year] = (out[year] || 0) + value
   }
   return out
 }
 
-const periodLabel = (p: string) => (byYears.value ? p : p.slice(5))
+const periodLabel = (period: string) =>
+  byYears.value ? period : period.slice(5)
 
 // ----- chart type: stacked bars over the range, or a pie for one period -----
 
@@ -111,7 +114,7 @@ function loadHidden(): Set<string> {
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
     return new Set(
-      Array.isArray(raw) ? raw.filter(v => typeof v === 'string') : []
+      Array.isArray(raw) ? raw.filter(value => typeof value === 'string') : []
     )
   } catch {
     return new Set()
@@ -133,9 +136,11 @@ function toggleCategory(category: string) {
 
 // Solo on a fresh legend, back to everything when already solo.
 function soloCategory(category: string) {
-  const others = allRows.value.map(r => r.category).filter(c => c !== category)
+  const others = allRows.value
+    .map(row => row.category)
+    .filter(cat => cat !== category)
   const alreadySolo =
-    !hidden.value.has(category) && others.every(c => hidden.value.has(c))
+    !hidden.value.has(category) && others.every(cat => hidden.value.has(cat))
   hidden.value = alreadySolo ? new Set() : new Set(others)
   persistHidden()
 }
@@ -152,15 +157,18 @@ const sortMode = ref<'total' | 'alpha'>('total')
 // hidden included, so they can be brought back.
 const allRows = computed(() =>
   spending.value.rows
-    .map(r => {
-      const byPeriod = rowByPeriod(r.byMonth)
+    .map(row => {
+      const byPeriod = rowByPeriod(row.byMonth)
       return {
-        category: r.category,
+        category: row.category,
         byPeriod,
-        total: periods.value.reduce((sum, p) => sum + (byPeriod[p] || 0), 0)
+        total: periods.value.reduce(
+          (sum, period) => sum + (byPeriod[period] || 0),
+          0
+        )
       }
     })
-    .filter(r => r.total > 0)
+    .filter(row => row.total > 0)
     .sort((a, b) =>
       sortMode.value === 'alpha'
         ? a.category.localeCompare(b.category)
@@ -170,17 +178,18 @@ const allRows = computed(() =>
 
 // What the chart and table consolidate.
 const rows = computed(() =>
-  allRows.value.filter(r => !hidden.value.has(r.category))
+  allRows.value.filter(row => !hidden.value.has(row.category))
 )
 
 const periodTotal = (period: string) =>
-  rows.value.reduce((sum, r) => sum + (r.byPeriod[period] || 0), 0)
+  rows.value.reduce((sum, row) => sum + (row.byPeriod[period] || 0), 0)
 
 // Spending is read as magnitudes across a grid of periods: cents add width
 // and noise without ever changing a reading, so everything here is rounded.
-const fmt = (v: number) => formatAmount(v, props.refCurrency, { maxDigits: 0 })
-const cell = (r: { byPeriod: Record<string, number> }, p: string) =>
-  r.byPeriod[p] ? fmt(r.byPeriod[p]) : '-'
+const fmt = (value: number) =>
+  formatAmount(value, props.refCurrency, { maxDigits: 0 })
+const cell = (row: { byPeriod: Record<string, number> }, period: string) =>
+  row.byPeriod[period] ? fmt(row.byPeriod[period]) : '-'
 
 // ----- stacked bar chart -----
 
@@ -204,55 +213,58 @@ interface Segment {
 function tickStep(max: number): number {
   const raw = max / 4
   const mag = 10 ** Math.floor(Math.log10(raw))
-  const candidates = [1, 2, 2.5, 5, 10].map(c => c * mag)
-  return candidates.find(c => c >= raw) || candidates[candidates.length - 1]
+  const candidates = [1, 2, 2.5, 5, 10].map(factor => factor * mag)
+  return (
+    candidates.find(candidate => candidate >= raw) ||
+    candidates[candidates.length - 1]
+  )
 }
 
 const chart = computed(() => {
-  const ps = periods.value
-  if (!ps.length || !rows.value.length) return null
-  const maxTotal = Math.max(...ps.map(periodTotal), 1)
+  const periodList = periods.value
+  if (!periodList.length || !rows.value.length) return null
+  const maxTotal = Math.max(...periodList.map(periodTotal), 1)
   const step = tickStep(maxTotal)
   const top = Math.ceil(maxTotal / step) * step
   const innerW = W - PAD_LEFT - PAD_RIGHT
-  const slot = innerW / ps.length
+  const slot = innerW / periodList.length
   const barWidth = Math.min(slot * 0.66, 72)
   const scale = (H - PAD_TOP - PAD_BOTTOM) / top
 
   const gridlines = []
-  for (let v = step; v <= top; v += step) {
+  for (let tick = step; tick <= top; tick += step) {
     gridlines.push({
-      y: H - PAD_BOTTOM - v * scale,
-      label: fmt(v)
+      y: H - PAD_BOTTOM - tick * scale,
+      label: fmt(tick)
     })
   }
 
   const segments: Segment[] = []
-  const labels = ps.map((p, i) => ({
-    x: PAD_LEFT + i * slot + slot / 2,
-    text: periodLabel(p)
+  const labels = periodList.map((period, index) => ({
+    x: PAD_LEFT + index * slot + slot / 2,
+    text: periodLabel(period)
   }))
-  ps.forEach((p, i) => {
+  periodList.forEach((period, index) => {
     let y = H - PAD_BOTTOM
-    for (const r of rows.value) {
-      const v = r.byPeriod[p] || 0
-      if (!v) continue
-      const height = v * scale
+    for (const row of rows.value) {
+      const value = row.byPeriod[period] || 0
+      if (!value) continue
+      const height = value * scale
       y -= height
       segments.push({
-        x: PAD_LEFT + i * slot + (slot - barWidth) / 2,
+        x: PAD_LEFT + index * slot + (slot - barWidth) / 2,
         y,
         width: barWidth,
         height,
-        color: categoryColor(r.category),
-        title: `${p} ${r.category}: ${fmt(v)}`
+        color: categoryColor(row.category),
+        title: `${period} ${row.category}: ${fmt(value)}`
       })
     }
   })
-  const totals = ps.map((p, i) => ({
-    x: PAD_LEFT + i * slot + slot / 2,
-    y: H - PAD_BOTTOM - periodTotal(p) * scale - 5,
-    text: fmt(periodTotal(p))
+  const totals = periodList.map((period, index) => ({
+    x: PAD_LEFT + index * slot + slot / 2,
+    y: H - PAD_BOTTOM - periodTotal(period) * scale - 5,
+    text: fmt(periodTotal(period))
   }))
   return { segments, labels, totals, gridlines }
 })
@@ -283,30 +295,33 @@ function slicePath(r0: number, r1: number, a0: number, a1: number): string {
 }
 
 const pie = computed(() => {
-  const p = piePeriod.value
-  if (!p) return null
+  const period = piePeriod.value
+  if (!period) return null
   const parts = rows.value
-    .map(r => ({ category: r.category, value: r.byPeriod[p] || 0 }))
-    .filter(x => x.value > 0)
-  const total = parts.reduce((sum, x) => sum + x.value, 0)
+    .map(row => ({ category: row.category, value: row.byPeriod[period] || 0 }))
+    .filter(part => part.value > 0)
+  const total = parts.reduce((sum, part) => sum + part.value, 0)
   if (!total) return null
 
   let angle = -Math.PI / 2
-  const slices = parts.map(x => {
-    const sweep = Math.min((x.value / total) * 2 * Math.PI, 2 * Math.PI - 1e-4)
-    const d = slicePath(PIE_R0, PIE_R, angle, angle + sweep)
+  const slices = parts.map(part => {
+    const sweep = Math.min(
+      (part.value / total) * 2 * Math.PI,
+      2 * Math.PI - 1e-4
+    )
+    const path = slicePath(PIE_R0, PIE_R, angle, angle + sweep)
     angle += sweep
     return {
-      d,
-      color: categoryColor(x.category),
-      title: `${x.category}: ${fmt(x.value)}`
+      d: path,
+      color: categoryColor(part.category),
+      title: `${part.category}: ${fmt(part.value)}`
     }
   })
-  const breakdown = parts.map(x => ({
-    category: x.category,
-    color: categoryColor(x.category),
-    amount: fmt(x.value),
-    pct: Math.round((x.value / total) * 100)
+  const breakdown = parts.map(part => ({
+    category: part.category,
+    color: categoryColor(part.category),
+    amount: fmt(part.value),
+    pct: Math.round((part.value / total) * 100)
   }))
   return { slices, breakdown, total: fmt(total) }
 })
@@ -351,21 +366,21 @@ const pie = computed(() => {
         These outgoing transactions are not consolidated: their currency has no
         {{ refCurrency }} rate. Set one via Accounts, Rates.
       </p>
-      <div v-for="t in spending.excluded" :key="t.id" class="sp-excluded-row">
+      <div v-for="tx in spending.excluded" :key="tx.id" class="sp-excluded-row">
         <span class="sp-excluded-date">{{
-          (t.occurred_at || '').slice(0, 10)
+          (tx.occurred_at || '').slice(0, 10)
         }}</span>
         <span class="sp-excluded-label">{{
-          (t.data.description as string) || t.title || ''
+          (tx.data.description as string) || tx.title || ''
         }}</span>
         <span class="sp-excluded-account">{{
-          (t.data.account as string) || ''
+          (tx.data.account as string) || ''
         }}</span>
         <span class="sp-excluded-amount">
           {{
             formatAmount(
-              (t.data.amount as number) || 0,
-              (t.data.currency as string) || ''
+              (tx.data.amount as number) || 0,
+              (tx.data.currency as string) || ''
             )
           }}
         </span>
@@ -374,19 +389,19 @@ const pie = computed(() => {
 
     <div v-if="allRows.length" class="sp-legend">
       <button
-        v-for="r in allRows"
-        :key="r.category"
+        v-for="row in allRows"
+        :key="row.category"
         class="sp-chip"
-        :class="{ 'sp-chip--off': hidden.has(r.category) }"
-        :title="`${fmt(r.total)}; click to toggle, double-click to solo`"
-        @click="toggleCategory(r.category)"
-        @dblclick="soloCategory(r.category)"
+        :class="{ 'sp-chip--off': hidden.has(row.category) }"
+        :title="`${fmt(row.total)}; click to toggle, double-click to solo`"
+        @click="toggleCategory(row.category)"
+        @dblclick="soloCategory(row.category)"
       >
         <span
           class="sp-dot"
-          :style="{ background: categoryColor(r.category) }"
+          :style="{ background: categoryColor(row.category) }"
         ></span>
-        {{ r.category }}
+        {{ row.category }}
       </button>
       <button v-if="hidden.size" class="sp-chip sp-chip--all" @click="showAll">
         show all
@@ -409,13 +424,13 @@ const pie = computed(() => {
           :aria-label="`Spending by category, ${piePeriod}`"
         >
           <path
-            v-for="(s, i) in pie.slices"
-            :key="i"
+            v-for="(slice, index) in pie.slices"
+            :key="index"
             class="sp-seg"
-            :d="s.d"
-            :fill="s.color"
+            :d="slice.d"
+            :fill="slice.color"
           >
-            <title>{{ s.title }}</title>
+            <title>{{ slice.title }}</title>
           </path>
           <text class="sp-pie-total" x="100" y="97" text-anchor="middle">
             {{ pie.total }}
@@ -426,14 +441,14 @@ const pie = computed(() => {
         </svg>
         <div class="sp-breakdown">
           <div
-            v-for="b in pie.breakdown"
-            :key="b.category"
+            v-for="part in pie.breakdown"
+            :key="part.category"
             class="sp-breakdown-row"
           >
-            <span class="sp-dot" :style="{ background: b.color }"></span>
-            <span class="sp-breakdown-cat">{{ b.category }}</span>
-            <span class="sp-breakdown-amount">{{ b.amount }}</span>
-            <span class="sp-breakdown-pct">{{ b.pct }}%</span>
+            <span class="sp-dot" :style="{ background: part.color }"></span>
+            <span class="sp-breakdown-cat">{{ part.category }}</span>
+            <span class="sp-breakdown-amount">{{ part.amount }}</span>
+            <span class="sp-breakdown-pct">{{ part.pct }}%</span>
           </div>
         </div>
       </div>
@@ -445,50 +460,50 @@ const pie = computed(() => {
         role="img"
         aria-label="Monthly spending by category"
       >
-        <g v-for="g in chart.gridlines" :key="g.y">
+        <g v-for="line in chart.gridlines" :key="line.y">
           <line
             class="sp-grid"
             :x1="PAD_LEFT"
             :x2="W - PAD_RIGHT"
-            :y1="g.y"
-            :y2="g.y"
+            :y1="line.y"
+            :y2="line.y"
           />
-          <text class="sp-chart-label" :x="PAD_LEFT" :y="g.y - 3">
-            {{ g.label }}
+          <text class="sp-chart-label" :x="PAD_LEFT" :y="line.y - 3">
+            {{ line.label }}
           </text>
         </g>
         <rect
-          v-for="(s, i) in chart.segments"
-          :key="i"
+          v-for="(segment, index) in chart.segments"
+          :key="index"
           class="sp-seg"
-          :x="s.x"
-          :y="s.y"
-          :width="s.width"
-          :height="s.height"
-          :fill="s.color"
+          :x="segment.x"
+          :y="segment.y"
+          :width="segment.width"
+          :height="segment.height"
+          :fill="segment.color"
           rx="1.5"
         >
-          <title>{{ s.title }}</title>
+          <title>{{ segment.title }}</title>
         </rect>
         <text
-          v-for="t in chart.totals"
-          :key="'t' + t.x"
+          v-for="total in chart.totals"
+          :key="'t' + total.x"
           class="sp-chart-label sp-chart-label--total"
-          :x="t.x"
-          :y="t.y"
+          :x="total.x"
+          :y="total.y"
           text-anchor="middle"
         >
-          {{ t.text }}
+          {{ total.text }}
         </text>
         <text
-          v-for="l in chart.labels"
-          :key="'l' + l.x"
+          v-for="label in chart.labels"
+          :key="'l' + label.x"
           class="sp-chart-label"
-          :x="l.x"
+          :x="label.x"
           :y="H - 6"
           text-anchor="middle"
         >
-          {{ l.text }}
+          {{ label.text }}
         </text>
       </svg>
 
@@ -506,7 +521,7 @@ const pie = computed(() => {
                   Category{{ sortMode === 'alpha' ? ' ▲' : '' }}
                 </button>
               </th>
-              <th v-for="p in periods" :key="p">{{ p }}</th>
+              <th v-for="period in periods" :key="period">{{ period }}</th>
               <th>
                 <button
                   class="sp-sort"
@@ -520,24 +535,35 @@ const pie = computed(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="r in rows" :key="r.category">
+            <tr v-for="row in rows" :key="row.category">
               <td class="sp-cat-col">
                 <span
                   class="sp-dot"
-                  :style="{ background: categoryColor(r.category) }"
+                  :style="{ background: categoryColor(row.category) }"
                 ></span>
-                {{ r.category }}
+                {{ row.category }}
               </td>
-              <td v-for="p in periods" :key="p">{{ cell(r, p) }}</td>
-              <td class="sp-total">{{ fmt(r.total) }}</td>
+              <td v-for="period in periods" :key="period">
+                {{ cell(row, period) }}
+              </td>
+              <td class="sp-total">{{ fmt(row.total) }}</td>
             </tr>
           </tbody>
           <tfoot>
             <tr>
               <td class="sp-cat-col">Total</td>
-              <td v-for="p in periods" :key="p">{{ fmt(periodTotal(p)) }}</td>
+              <td v-for="period in periods" :key="period">
+                {{ fmt(periodTotal(period)) }}
+              </td>
               <td class="sp-total">
-                {{ fmt(periods.reduce((s, p) => s + periodTotal(p), 0)) }}
+                {{
+                  fmt(
+                    periods.reduce(
+                      (sum, period) => sum + periodTotal(period),
+                      0
+                    )
+                  )
+                }}
               </td>
             </tr>
           </tfoot>

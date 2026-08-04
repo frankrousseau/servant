@@ -1,33 +1,33 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
-  Download,
-  TerminalSquare,
   Copy,
-  Trash2,
+  Download,
+  Palette,
   Puzzle,
   RefreshCw,
-  Palette,
+  TerminalSquare,
+  Trash2,
   Wrench
 } from 'lucide-vue-next'
 
 import ComboBox from '../components/ComboBox.vue'
 import DateInput from '../components/DateInput.vue'
 
-import { useAuthStore } from '../stores/auth'
-import { useAppsStore } from '../stores/apps'
-import { useApi } from '../composables/useApi'
 import { updateProfile } from '../api/auth'
-import { formatDate } from '../lib/datetime'
-import { useConfirm } from '../composables/useConfirm'
-import { THEMES, applyTheme, storedTheme, type ThemeId } from '../lib/theme'
 import { BUILTIN_APPS, DEFAULT_ENABLED_APPS } from '../apps/registry'
-import type { ApiToken, AiConfig } from '../types'
+import { useApi } from '../composables/useApi'
+import { useConfirm } from '../composables/useConfirm'
 import {
   SCOPE_DOMAINS,
   buildScopes,
   type AccessLevel
 } from '../lib/apiTokenScopes'
+import { formatDate } from '../lib/datetime'
+import { THEMES, applyTheme, storedTheme, type ThemeId } from '../lib/theme'
+import { useAppsStore } from '../stores/apps'
+import { useAuthStore } from '../stores/auth'
+import type { AiConfig, ApiToken } from '../types'
 
 const auth = useAuthStore()
 const apps = useAppsStore()
@@ -69,7 +69,7 @@ watch(
 async function toggleApp(id: string) {
   const previous = [...enabledApps.value]
   enabledApps.value = enabledApps.value.includes(id)
-    ? enabledApps.value.filter(x => x !== id)
+    ? enabledApps.value.filter(appId => appId !== id)
     : [...enabledApps.value, id]
   try {
     await updateProfile({ enabled_apps: enabledApps.value })
@@ -100,7 +100,7 @@ async function selectTheme(id: ThemeId) {
 
 // Installed apps (git-installed only; generated apps live in the Agents
 // section's Builder tab)
-const gitApps = computed(() => apps.installed.filter(a => !a.generated))
+const gitApps = computed(() => apps.installed.filter(app => !app.generated))
 const appRepoUrl = ref('')
 const appInstalling = ref(false)
 const appError = ref('')
@@ -123,8 +123,8 @@ async function installApp() {
   try {
     await apps.install(url)
     appRepoUrl.value = ''
-  } catch (e) {
-    appError.value = e instanceof Error ? e.message : 'Install failed'
+  } catch (err) {
+    appError.value = err instanceof Error ? err.message : 'Install failed'
   } finally {
     appInstalling.value = false
   }
@@ -147,8 +147,8 @@ async function updateApp(id: string) {
   appUpdating.value = id
   try {
     await apps.update(id)
-  } catch (e) {
-    appError.value = e instanceof Error ? e.message : 'Update failed'
+  } catch (err) {
+    appError.value = err instanceof Error ? err.message : 'Update failed'
   } finally {
     appUpdating.value = ''
   }
@@ -181,8 +181,8 @@ async function saveAiConfig(overrides: Partial<AiConfig> = {}) {
     aiConfig.value = (
       await api.put<{ data: AiConfig }>('/api/ai_config', body)
     ).data
-  } catch (e) {
-    aiError.value = e instanceof Error ? e.message : 'Save failed'
+  } catch (err) {
+    aiError.value = err instanceof Error ? err.message : 'Save failed'
   } finally {
     aiSaving.value = false
   }
@@ -255,20 +255,20 @@ async function createToken() {
     tokenLevels.value = {}
     tokenReadBinary.value = false
     await loadTokens()
-  } catch (e) {
-    tokenError.value = e instanceof Error ? e.message : 'Creation failed'
+  } catch (err) {
+    tokenError.value = err instanceof Error ? err.message : 'Creation failed'
   } finally {
     tokenCreating.value = false
   }
 }
 
-async function revokeToken(t: ApiToken) {
+async function revokeToken(token: ApiToken) {
   const ok = await ask({
     title: 'Revoke token',
-    message: `Revoke "${t.name}"? Scripts using it will stop working.`
+    message: `Revoke "${token.name}"? Scripts using it will stop working.`
   })
   if (!ok) return
-  await api.del(`/api/tokens/${t.id}`)
+  await api.del(`/api/tokens/${token.id}`)
   await loadTokens()
 }
 
@@ -300,15 +300,15 @@ async function downloadFile(
     if (!res.ok) throw new Error('Download failed')
     const blob = await res.blob()
     const blobUrl = URL.createObjectURL(blob)
-    const a = document.createElement('a')
+    const link = document.createElement('a')
     const disposition = res.headers.get('content-disposition') || ''
     const match = disposition.match(/filename="(.+)"/)
-    a.href = blobUrl
-    a.download = match?.[1] || fallbackName
-    a.click()
+    link.href = blobUrl
+    link.download = match?.[1] || fallbackName
+    link.click()
     URL.revokeObjectURL(blobUrl)
-  } catch (e: any) {
-    alert(e.message || 'Failed to download')
+  } catch (err: any) {
+    alert(err.message || 'Failed to download')
   } finally {
     loadingRef.value = false
   }
@@ -339,23 +339,23 @@ onMounted(() => {
       <div class="card-body">
         <div class="theme-grid" role="radiogroup" aria-label="Theme">
           <button
-            v-for="t in THEMES"
-            :key="t.id"
+            v-for="theme in THEMES"
+            :key="theme.id"
             type="button"
             class="theme-card"
-            :class="{ 'theme-card--active': currentTheme === t.id }"
-            :data-theme="t.id"
+            :class="{ 'theme-card--active': currentTheme === theme.id }"
+            :data-theme="theme.id"
             role="radio"
-            :aria-checked="currentTheme === t.id"
-            :title="t.hint"
-            @click="selectTheme(t.id)"
+            :aria-checked="currentTheme === theme.id"
+            :title="theme.hint"
+            @click="selectTheme(theme.id)"
           >
             <span class="theme-screen" aria-hidden="true">
               <span class="theme-line theme-line--text"></span>
               <span class="theme-line theme-line--muted"></span>
               <span class="theme-cursor"></span>
             </span>
-            <span class="theme-name">{{ t.name }}</span>
+            <span class="theme-name">{{ theme.name }}</span>
           </button>
         </div>
       </div>
@@ -400,25 +400,33 @@ onMounted(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="t in apiTokens" :key="t.id">
+            <tr v-for="token in apiTokens" :key="token.id">
               <td>
-                {{ t.name }} <span class="tk-prefix">{{ t.prefix }}…</span>
+                {{ token.name }}
+                <span class="tk-prefix">{{ token.prefix }}…</span>
               </td>
               <td>
-                <span v-for="s in t.scopes" :key="s" class="tk-scope">{{
-                  s
-                }}</span>
+                <span
+                  v-for="scope in token.scopes"
+                  :key="scope"
+                  class="tk-scope"
+                  >{{ scope }}</span
+                >
               </td>
               <td>
-                {{ t.last_used_at ? formatDate(t.last_used_at) : 'never' }}
+                {{
+                  token.last_used_at ? formatDate(token.last_used_at) : 'never'
+                }}
               </td>
-              <td>{{ t.expires_at ? formatDate(t.expires_at) : '-' }}</td>
+              <td>
+                {{ token.expires_at ? formatDate(token.expires_at) : '-' }}
+              </td>
               <td>
                 <button
                   type="button"
                   class="tk-revoke"
                   title="Revoke"
-                  @click="revokeToken(t)"
+                  @click="revokeToken(token)"
                 >
                   <Trash2 :size="14" />
                 </button>
@@ -435,14 +443,18 @@ onMounted(() => {
             placeholder="Token name (e.g. tracker bot)"
           />
           <div class="tk-domains">
-            <div v-for="d in SCOPE_DOMAINS" :key="d.id" class="tk-domain">
-              <span class="tk-domain-label">{{ d.label }}</span>
+            <div
+              v-for="domain in SCOPE_DOMAINS"
+              :key="domain.id"
+              class="tk-domain"
+            >
+              <span class="tk-domain-label">{{ domain.label }}</span>
               <ComboBox
                 class="tk-domain-select"
-                :model-value="tokenLevels[d.id] ?? 'none'"
+                :model-value="tokenLevels[domain.id] ?? 'none'"
                 :options="ACCESS_OPTIONS"
                 @update:model-value="
-                  v => (tokenLevels[d.id] = v as AccessLevel)
+                  value => (tokenLevels[domain.id] = value as AccessLevel)
                 "
               />
             </div>
@@ -482,13 +494,13 @@ onMounted(() => {
           their data stays untouched.
         </p>
         <div class="app-toggles">
-          <label v-for="a in toggleableApps" :key="a.id" class="toggle">
+          <label v-for="app in toggleableApps" :key="app.id" class="toggle">
             <input
               type="checkbox"
-              :checked="enabledApps.includes(a.id)"
-              @change="toggleApp(a.id)"
+              :checked="enabledApps.includes(app.id)"
+              @change="toggleApp(app.id)"
             />
-            {{ a.name }}
+            {{ app.name }}
           </label>
         </div>
 
@@ -508,27 +520,27 @@ onMounted(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="a in gitApps" :key="a.id">
-              <td>{{ a.name }}</td>
-              <td class="app-repo">{{ a.repo_url }}</td>
+            <tr v-for="app in gitApps" :key="app.id">
+              <td>{{ app.name }}</td>
+              <td class="app-repo">{{ app.repo_url }}</td>
               <td class="app-actions">
                 <button
                   type="button"
                   class="tk-revoke"
                   title="Update from the repository"
-                  :disabled="appUpdating === a.id"
-                  @click="updateApp(a.id)"
+                  :disabled="appUpdating === app.id"
+                  @click="updateApp(app.id)"
                 >
                   <RefreshCw
                     :size="14"
-                    :class="{ spin: appUpdating === a.id }"
+                    :class="{ spin: appUpdating === app.id }"
                   />
                 </button>
                 <button
                   type="button"
                   class="tk-revoke"
                   title="Uninstall"
-                  @click="uninstallApp(a.id, a.name)"
+                  @click="uninstallApp(app.id, app.name)"
                 >
                   <Trash2 :size="14" />
                 </button>
@@ -805,7 +817,7 @@ onMounted(() => {
 
 .msg-error {
   color: var(--danger);
-  background: rgba(240, 108, 108, 0.1);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
 }
 
 .export-desc {
@@ -981,7 +993,7 @@ onMounted(() => {
 .tk-revoke:hover {
   color: var(--danger);
   border-color: var(--danger);
-  background: rgba(240, 108, 108, 0.08);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
 .tk-form input[type='text'] {
   width: 100%;

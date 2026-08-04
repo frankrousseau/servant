@@ -31,8 +31,8 @@ const emit = defineEmits<{
 const editDate = ref(props.today)
 watch(
   () => props.today,
-  t => {
-    editDate.value = t
+  next => {
+    editDate.value = next
   }
 )
 
@@ -59,10 +59,10 @@ const heatWeeks = computed(() =>
 
 const rgb = computed(() => {
   const hex = props.tracker.color
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
-  return `${r}, ${g}, ${b}`
+  const red = parseInt(hex.slice(1, 3), 16)
+  const green = parseInt(hex.slice(3, 5), 16)
+  const blue = parseInt(hex.slice(5, 7), 16)
+  return `${red}, ${green}, ${blue}`
 })
 
 const ALPHAS = [0, 0.18, 0.38, 0.62, 0.9]
@@ -77,26 +77,29 @@ const readOnly = computed(() => props.tracker.type === 'entry')
 
 // The selected cell spelled out (the heatmap only shows intensity).
 const cellInfo = computed(() => {
-  const v = editValue.value
+  const value = editValue.value
   const label =
     props.tracker.type === 'check'
-      ? v > 0
+      ? value > 0
         ? 'done'
         : 'not done'
-      : `${Math.round(v * 100) / 100}${props.tracker.unit ? ' ' + props.tracker.unit : ''}`
+      : `${Math.round(value * 100) / 100}${props.tracker.unit ? ' ' + props.tracker.unit : ''}`
   return `${editDate.value} · ${label}`
 })
 
 const statLabel = computed(() => {
-  const t = props.tracker
-  if (t.type === 'check') return `streak ${streak(props.byDate, props.today)}d`
-  if (t.type === 'count' || t.type === 'entry') {
+  const tracker = props.tracker
+  if (tracker.type === 'check')
+    return `streak ${streak(props.byDate, props.today)}d`
+  if (tracker.type === 'count' || tracker.type === 'entry') {
     const sum = sumLastDays(props.byDate, props.today, 7)
     const rounded = Math.round(sum * 100) / 100
-    return `7d: ${rounded}${t.unit ? ' ' + t.unit : ''}`
+    return `7d: ${rounded}${tracker.unit ? ' ' + tracker.unit : ''}`
   }
   const last = lastValue(props.byDate, props.today)
-  return last == null ? 'no data' : `last: ${last}${t.unit ? ' ' + t.unit : ''}`
+  return last == null
+    ? 'no data'
+    : `last: ${last}${tracker.unit ? ' ' + tracker.unit : ''}`
 })
 
 function toggleCheck() {
@@ -108,8 +111,8 @@ function increment(delta: number) {
 }
 
 function saveValue() {
-  const v = parseFloat(valueDraft.value.replace(',', '.'))
-  if (Number.isFinite(v)) emit('set', editDate.value, v)
+  const value = parseFloat(valueDraft.value.replace(',', '.'))
+  if (Number.isFinite(value)) emit('set', editDate.value, value)
 }
 
 function cellTitle(date: string, value: number): string {
@@ -122,8 +125,8 @@ function onCellClick(date: string) {
 }
 
 // Explicit way to fix a previous day (the heatmap cells do it too).
-function onDatePick(v: string) {
-  if (v && v <= props.today) editDate.value = v
+function onDatePick(value: string) {
+  if (value && value <= props.today) editDate.value = value
 }
 </script>
 
@@ -212,8 +215,12 @@ function onDatePick(v: string) {
     </div>
 
     <div class="tk-heatmap" role="img" :aria-label="`${tracker.name} history`">
-      <div v-for="(week, w) in heatWeeks" :key="w" class="tk-week">
-        <template v-for="(cell, d) in week" :key="d">
+      <div
+        v-for="(week, weekIndex) in heatWeeks"
+        :key="weekIndex"
+        class="tk-week"
+      >
+        <template v-for="(cell, dayIndex) in week" :key="dayIndex">
           <button
             v-if="cell"
             class="tk-cell"

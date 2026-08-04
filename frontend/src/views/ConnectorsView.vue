@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import ComboBox from '../components/ComboBox.vue'
@@ -9,11 +9,11 @@ import {
   createConnector,
   listConnectors
 } from '../api/connectors'
-import type { ConnectorConfig, Schedule } from '../types'
-import { relativeTime } from '../lib/datetime'
-import { SCHEDULE_LABELS } from '../lib/connectors'
 import { CONNECTOR_DEFS, getConnectorDef } from '../connectors'
+import { SCHEDULE_LABELS } from '../lib/connectors'
+import { relativeTime } from '../lib/datetime'
 import type { ConnectorDef } from '../connectors'
+import type { ConnectorConfig, Schedule } from '../types'
 
 const router = useRouter()
 
@@ -26,27 +26,38 @@ const setupName = ref('')
 const setupSchedule = ref<Schedule>('every_hour')
 const supportedSchedules = ref<Schedule[]>([])
 const setupConfig = ref<Record<string, string>>({})
+const saving = ref(false)
 
-const scheduleOptions = computed(() =>
-  supportedSchedules.value.map(s => ({ value: s, label: SCHEDULE_LABELS[s] }))
+// The def rides along so the template resolves it once per connector.
+const connectorsWithDef = computed(() =>
+  connectors.value.map(connector => ({
+    ...connector,
+    def: getConnectorDef(connector.connector_type)
+  }))
 )
 
-function onSetupScheduleChange(v: string) {
-  setupSchedule.value = v as Schedule
+const scheduleOptions = computed(() =>
+  supportedSchedules.value.map(schedule => ({
+    value: schedule,
+    label: SCHEDULE_LABELS[schedule]
+  }))
+)
+
+function onSetupScheduleChange(value: string) {
+  setupSchedule.value = value as Schedule
 }
-const saving = ref(false)
 
 // Catalog search, grouped by category (alphabetical, connectors within too)
 const catalogSearch = ref('')
 const catalogGroups = computed(() => {
-  const q = catalogSearch.value.toLowerCase().trim()
+  const needle = catalogSearch.value.toLowerCase().trim()
   const defs = [...CONNECTOR_DEFS]
     .sort((a, b) => a.name.localeCompare(b.name))
     .filter(
-      d =>
-        !q ||
-        d.name.toLowerCase().includes(q) ||
-        d.category.toLowerCase().includes(q)
+      def =>
+        !needle ||
+        def.name.toLowerCase().includes(needle) ||
+        def.category.toLowerCase().includes(needle)
     )
 
   const groups = new Map<string, ConnectorDef[]>()
@@ -75,11 +86,11 @@ function openSetup(def: ConnectorDef) {
   setupDef.value = def
   setupName.value = ''
   setupConfig.value = {}
-  def.configFields.forEach(f => {
-    if (f.type === 'select' && f.options?.length) {
-      setupConfig.value[f.key] = f.options[0].value
+  def.configFields.forEach(field => {
+    if (field.type === 'select' && field.options?.length) {
+      setupConfig.value[field.key] = field.options[0].value
     } else {
-      setupConfig.value[f.key] = ''
+      setupConfig.value[field.key] = ''
     }
   })
   // Load supported schedules
@@ -109,10 +120,10 @@ async function submitSetup() {
     const config: Record<string, unknown> = {
       ...setupDef.value.configHint
     }
-    setupDef.value.configFields.forEach(f => {
-      const val = setupConfig.value[f.key]?.trim()
+    setupDef.value.configFields.forEach(field => {
+      const val = setupConfig.value[field.key]?.trim()
       if (val) {
-        config[f.key] = f.type === 'number' ? Number(val) : val
+        config[field.key] = field.type === 'number' ? Number(val) : val
       }
     })
 
@@ -143,45 +154,44 @@ onMounted(fetchConnectors)
       <!-- Left: Active connectors -->
       <div class="sources-col">
         <h2 class="section-title">Active</h2>
-        <div v-if="connectors.length" class="active-grid">
+        <div v-if="connectorsWithDef.length" class="active-grid">
           <div
-            v-for="c in connectors"
-            :key="c.id"
+            v-for="connector in connectorsWithDef"
+            :key="connector.id"
             class="active-card"
-            :class="{ 'has-error': c.error }"
-            @click="router.push(`/connectors/${c.id}`)"
+            :class="{ 'has-error': connector.error }"
+            @click="router.push(`/connectors/${connector.id}`)"
             v-click-key
             role="button"
             tabindex="0"
           >
-            <div
-              class="active-logo"
-              v-html="getConnectorDef(c.connector_type)?.logo || ''"
-            ></div>
+            <div class="active-logo" v-html="connector.def?.logo || ''"></div>
             <div class="active-body">
               <div class="active-name-row">
                 <span class="active-name">
                   {{
-                    c.name ||
-                    getConnectorDef(c.connector_type)?.name ||
-                    c.connector_type
+                    connector.name ||
+                    connector.def?.name ||
+                    connector.connector_type
                   }}
                 </span>
                 <span
                   class="status-dot"
                   :class="{
-                    active: c.enabled && !c.error,
-                    error: !!c.error
+                    active: connector.enabled && !connector.error,
+                    error: !!connector.error
                   }"
                 ></span>
               </div>
               <span class="active-meta">
-                {{ SCHEDULE_LABELS[c.schedule] }}
-                <template v-if="c.last_synced_at">
-                  &middot; {{ relativeTime(c.last_synced_at) }}
+                {{ SCHEDULE_LABELS[connector.schedule] }}
+                <template v-if="connector.last_synced_at">
+                  &middot; {{ relativeTime(connector.last_synced_at) }}
                 </template>
               </span>
-              <span v-if="c.error" class="active-error">{{ c.error }}</span>
+              <span v-if="connector.error" class="active-error">{{
+                connector.error
+              }}</span>
             </div>
             <span class="active-arrow">&rsaquo;</span>
           </div>
@@ -432,11 +442,11 @@ onMounted(fetchConnectors)
   line-height: 1;
 }
 
+/* Catalog (available), grouped by category */
 .catalog-search {
   margin-bottom: 0.75rem;
 }
 
-/* Catalog (available), grouped by category */
 .catalog-group {
   margin-bottom: 1.25rem;
 }

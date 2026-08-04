@@ -8,7 +8,6 @@ import OverviewView from './OverviewView.vue'
 import SpendingView from './SpendingView.vue'
 import TransactionsSection from './TransactionsSection.vue'
 
-import type { AppContext, Entry } from '../types'
 import { todayInUserTz, zonedToUtcISO } from '../../lib/datetime'
 import { addDays } from '../calendar/recurrence'
 import { fetchCryptoPrices } from './cryptoPrices'
@@ -29,6 +28,7 @@ import {
   type SnapshotPoint,
   type Universe
 } from './finance'
+import type { AppContext, Entry } from '../types'
 
 const props = defineProps<{ ctx: AppContext }>()
 const ctx = props.ctx
@@ -64,7 +64,7 @@ async function reload() {
     accountEntries.value = accounts
     balanceEntries.value = balances
     bankTxs.value = txs
-    prefs.value = prefsList.find(p => p.title === 'finance') || null
+    prefs.value = prefsList.find(entry => entry.title === 'finance') || null
     loadState.value = 'ready'
   } catch {
     loadState.value = 'error'
@@ -96,14 +96,14 @@ async function savePrefs(patch: Record<string, unknown>) {
   }
 }
 
-function onRefCurrencyChange(v: string) {
-  void savePrefs({ reference_currency: v })
+function onRefCurrencyChange(value: string) {
+  void savePrefs({ reference_currency: value })
 }
 
 const refCurrencyOptions = computed(() => {
   const set = new Set(['EUR', 'USD', 'GBP', 'CHF'])
-  for (const a of accounts.value)
-    if (a.universe === 'tradfi') set.add(a.currency)
+  for (const account of accounts.value)
+    if (account.universe === 'tradfi') set.add(account.currency)
   set.add(refCurrency.value)
   return [...set].sort()
 })
@@ -114,15 +114,16 @@ const ratesOpen = ref(false)
 const ratesDraft = reactive<Record<string, string>>({})
 
 const foreignCurrencies = computed(() =>
-  [...new Set(accounts.value.map(a => a.currency))]
-    .filter(c => c !== refCurrency.value)
+  [...new Set(accounts.value.map(account => account.currency))]
+    .filter(currency => currency !== refCurrency.value)
     .sort()
 )
 
 function openRates() {
   for (const key of Object.keys(ratesDraft)) delete ratesDraft[key]
-  for (const c of foreignCurrencies.value) {
-    ratesDraft[c] = rates.value[c] != null ? String(rates.value[c]) : ''
+  for (const currency of foreignCurrencies.value) {
+    ratesDraft[currency] =
+      rates.value[currency] != null ? String(rates.value[currency]) : ''
   }
   ratesOpen.value = true
 }
@@ -144,11 +145,14 @@ const accounts = computed(() =>
 )
 
 const seriesByKey = computed(() => {
-  const m = new Map<string, SnapshotPoint[]>()
-  for (const a of accounts.value) {
-    m.set(a.key, snapshotSeries(a, balanceEntries.value, bankTxs.value))
+  const map = new Map<string, SnapshotPoint[]>()
+  for (const account of accounts.value) {
+    map.set(
+      account.key,
+      snapshotSeries(account, balanceEntries.value, bankTxs.value)
+    )
   }
-  return m
+  return map
 })
 
 const today = computed(() => todayInUserTz())
@@ -169,7 +173,7 @@ function buildUniverse(
   label: string,
   color: string
 ): UniverseView {
-  const list = accounts.value.filter(a => a.universe === universe)
+  const list = accounts.value.filter(account => account.universe === universe)
   const { points, excluded } = universeCurve(
     list,
     seriesByKey.value,
@@ -196,59 +200,62 @@ const universes = computed<UniverseView[]>(() => [
 ])
 
 const grandTotal = computed(() =>
-  universes.value.reduce((sum, u) => sum + u.total, 0)
+  universes.value.reduce((sum, universe) => sum + universe.total, 0)
 )
 const bothUniversesLive = computed(() =>
-  universes.value.every(u => u.points.length > 0)
+  universes.value.every(universe => universe.points.length > 0)
 )
 
 // ----- per-account helpers -----
 
-function lastPoint(a: Account): SnapshotPoint | null {
-  const series = seriesByKey.value.get(a.key) || []
+function lastPoint(account: Account): SnapshotPoint | null {
+  const series = seriesByKey.value.get(account.key) || []
   return series.length ? series[series.length - 1] : null
 }
 
-function converted(a: Account): string | null {
-  const point = lastPoint(a)
-  if (!point || a.currency === refCurrency.value) return null
-  const rate = rateFor(a.currency, refCurrency.value, rates.value)
+function converted(account: Account): string | null {
+  const point = lastPoint(account)
+  if (!point || account.currency === refCurrency.value) return null
+  const rate = rateFor(account.currency, refCurrency.value, rates.value)
   if (rate == null) return 'no rate'
   return formatAmount(point.amount * rate, refCurrency.value)
 }
 
-function freshness(a: Account): { label: string; level: string } {
-  const days = freshnessDays(seriesByKey.value.get(a.key) || [], today.value)
+function freshness(account: Account): { label: string; level: string } {
+  const days = freshnessDays(
+    seriesByKey.value.get(account.key) || [],
+    today.value
+  )
   const level = freshnessLevel(days)
   const label = days == null ? 'never' : days === 0 ? 'today' : `${days} d ago`
   return { label, level: `fin-fresh--${level}` }
 }
 
-function manualSnapshots(a: Account): Entry[] {
-  if (!a.entryId) return []
+function manualSnapshots(account: Account): Entry[] {
+  if (!account.entryId) return []
   return balanceEntries.value
-    .filter(b => b.data.account_id === a.entryId)
-    .sort((x, y) => (y.occurred_at || '').localeCompare(x.occurred_at || ''))
+    .filter(snapshot => snapshot.data.account_id === account.entryId)
+    .sort((a, b) => (b.occurred_at || '').localeCompare(a.occurred_at || ''))
 }
 
-function txObservationCount(a: Account): number {
-  const total = (seriesByKey.value.get(a.key) || []).length
-  return Math.max(0, total - manualSnapshots(a).length)
+function txObservationCount(account: Account): number {
+  const total = (seriesByKey.value.get(account.key) || []).length
+  return Math.max(0, total - manualSnapshots(account).length)
 }
 
-function txCount(a: Account): number {
-  return accountTxs(a, bankTxs.value).length
+function txCount(account: Account): number {
+  return accountTxs(account, bankTxs.value).length
 }
 
 // The accounts <-> transactions bridge: jump to the Spending tab with the
 // transactions list filtered on this account.
 const txFocus = ref<string | null>(null)
 
-async function showTransactions(a: Account) {
+async function showTransactions(account: Account) {
   txFocus.value = null
   tab.value = 'spending'
   await nextTick()
-  txFocus.value = accountTxName(a)
+  txFocus.value = accountTxName(account)
   await nextTick()
   document.querySelector('.ftx')?.scrollIntoView?.({ behavior: 'smooth' })
 }
@@ -303,25 +310,27 @@ async function createAccount() {
 
 // ponytail: deleting an account with manual snapshots is refused rather than
 // cascading; delete the snapshots first (same rule as calendars).
-async function deleteAccount(a: Account) {
-  if (!a.entryId) return
-  const snapshots = manualSnapshots(a)
+async function deleteAccount(account: Account) {
+  if (!account.entryId) return
+  const snapshots = manualSnapshots(account)
   if (snapshots.length) {
     await ctx.confirm.ask({
       title: 'Account not empty',
-      message: `"${a.name}" still has ${snapshots.length} snapshot(s). Delete them first.`,
+      message: `"${account.name}" still has ${snapshots.length} snapshot(s). Delete them first.`,
       confirmLabel: 'OK'
     })
     return
   }
   const ok = await ctx.confirm.ask({
-    message: `Delete account "${a.name}"?`,
+    message: `Delete account "${account.name}"?`,
     danger: true
   })
   if (!ok) return
   try {
-    await ctx.api.entries.delete(a.entryId)
-    accountEntries.value = accountEntries.value.filter(e => e.id !== a.entryId)
+    await ctx.api.entries.delete(account.entryId)
+    accountEntries.value = accountEntries.value.filter(
+      entry => entry.id !== account.entryId
+    )
   } catch {
     // ignore
   }
@@ -335,15 +344,15 @@ const snapshotDate = ref('')
 const snapshotSaving = ref(false)
 const expanded = ref<Set<string>>(new Set())
 
-function openSnapshotForm(a: Account) {
-  snapshotFor.value = a.key
-  const last = lastPoint(a)
+function openSnapshotForm(account: Account) {
+  snapshotFor.value = account.key
+  const last = lastPoint(account)
   snapshotAmount.value = last ? String(last.amount) : ''
   snapshotDate.value = today.value
 }
 
-async function addSnapshot(a: Account) {
-  if (!a.entryId) return
+async function addSnapshot(account: Account) {
+  if (!account.entryId) return
   const amount = parseFloat(snapshotAmount.value.replace(',', '.'))
   if (!Number.isFinite(amount)) return
   snapshotSaving.value = true
@@ -351,9 +360,9 @@ async function addSnapshot(a: Account) {
     const created = await ctx.api.entries.create({
       kind: 'balance',
       source: 'finance_app',
-      title: `${a.name}: ${formatAmount(amount, a.currency)}`,
+      title: `${account.name}: ${formatAmount(amount, account.currency)}`,
       occurred_at: zonedToUtcISO(snapshotDate.value || today.value, '12:00'),
-      data: { account_id: a.entryId, amount, currency: a.currency }
+      data: { account_id: account.entryId, amount, currency: account.currency }
     })
     balanceEntries.value = [...balanceEntries.value, created]
     snapshotFor.value = null
@@ -364,15 +373,17 @@ async function addSnapshot(a: Account) {
   }
 }
 
-async function deleteSnapshot(b: Entry) {
+async function deleteSnapshot(snapshot: Entry) {
   const ok = await ctx.confirm.ask({
     message: 'Delete this snapshot?',
     danger: true
   })
   if (!ok) return
   try {
-    await ctx.api.entries.delete(b.id)
-    balanceEntries.value = balanceEntries.value.filter(x => x.id !== b.id)
+    await ctx.api.entries.delete(snapshot.id)
+    balanceEntries.value = balanceEntries.value.filter(
+      entry => entry.id !== snapshot.id
+    )
   } catch {
     // ignore
   }
@@ -384,8 +395,8 @@ function toggleExpanded(key: string) {
   expanded.value = new Set(expanded.value)
 }
 
-function snapshotDateLabel(b: Entry): string {
-  return b.occurred_at ? b.occurred_at.slice(0, 10) : ''
+function snapshotDateLabel(snapshot: Entry): string {
+  return snapshot.occurred_at ? snapshot.occurred_at.slice(0, 10) : ''
 }
 
 function deltaLabel(delta: number): string {
@@ -394,11 +405,11 @@ function deltaLabel(delta: number): string {
 }
 
 function onTxUpdated(updated: Entry) {
-  bankTxs.value = bankTxs.value.map(t => (t.id === updated.id ? updated : t))
+  bankTxs.value = bankTxs.value.map(tx => (tx.id === updated.id ? updated : tx))
 }
 
 function onTxDeleted(id: string) {
-  bankTxs.value = bankTxs.value.filter(t => t.id !== id)
+  bankTxs.value = bankTxs.value.filter(tx => tx.id !== id)
 }
 
 // ----- cryptos tab: token + quantity over wallet accounts and snapshots -----
@@ -408,7 +419,7 @@ const cryptoQty = ref('')
 const cryptoSaving = ref(false)
 
 const cryptoAccounts = computed(() =>
-  accounts.value.filter(a => a.universe === 'crypto')
+  accounts.value.filter(account => account.universe === 'crypto')
 )
 
 const parseQty = (raw: string) => {
@@ -436,7 +447,7 @@ async function addCrypto() {
     // One wallet account per asset; adding an existing token records a
     // new quantity instead of duplicating the account.
     const existing = cryptoAccounts.value.find(
-      a => a.entryId && a.currency === token
+      account => account.entryId && account.currency === token
     )
     if (existing?.entryId) {
       await upsertQty(existing, qty)
@@ -460,14 +471,14 @@ async function addCrypto() {
   }
 }
 
-async function updateQtyRecord(b: Entry, a: Account, qty: number) {
+async function updateQtyRecord(snapshot: Entry, account: Account, qty: number) {
   try {
-    const updated = await ctx.api.entries.update(b.id, {
-      title: `${a.name}: ${qty}`,
-      data: { ...b.data, amount: qty }
+    const updated = await ctx.api.entries.update(snapshot.id, {
+      title: `${account.name}: ${qty}`,
+      data: { ...snapshot.data, amount: qty }
     })
-    balanceEntries.value = balanceEntries.value.map(x =>
-      x.id === updated.id ? updated : x
+    balanceEntries.value = balanceEntries.value.map(entry =>
+      entry.id === updated.id ? updated : entry
     )
   } catch {
     // ignore
@@ -475,28 +486,29 @@ async function updateQtyRecord(b: Entry, a: Account, qty: number) {
 }
 
 // New record, or correction of the same day's figure (no stacking).
-async function upsertQty(a: Account, qty: number) {
-  const todays = manualSnapshots(a).find(
-    b => snapshotDateLabel(b) === today.value
+async function upsertQty(account: Account, qty: number) {
+  const todays = manualSnapshots(account).find(
+    snapshot => snapshotDateLabel(snapshot) === today.value
   )
-  if (todays) await updateQtyRecord(todays, a, qty)
-  else await recordQty(a.entryId!, a.currency, qty)
+  if (todays) await updateQtyRecord(todays, account, qty)
+  else await recordQty(account.entryId!, account.currency, qty)
 }
 
-async function setCryptoQty(a: Account, raw: string) {
+async function setCryptoQty(account: Account, raw: string) {
   const qty = parseQty(raw)
-  if (!a.entryId || qty == null || qty === lastPoint(a)?.amount) return
+  if (!account.entryId || qty == null || qty === lastPoint(account)?.amount)
+    return
   try {
-    await upsertQty(a, qty)
+    await upsertQty(account, qty)
   } catch {
     // ignore
   }
 }
 
-function editQtyRecord(b: Entry, a: Account, raw: string) {
+function editQtyRecord(snapshot: Entry, account: Account, raw: string) {
   const qty = parseQty(raw)
-  if (qty == null || qty === b.data.amount) return
-  void updateQtyRecord(b, a, qty)
+  if (qty == null || qty === snapshot.data.amount) return
+  void updateQtyRecord(snapshot, account, qty)
 }
 
 // ----- spot prices (display only; valuation stays on manual rates) -----
@@ -506,7 +518,7 @@ const cryptoPrices = ref<Record<string, number>>({})
 async function loadCryptoPrices() {
   try {
     cryptoPrices.value = await fetchCryptoPrices(
-      cryptoAccounts.value.map(a => a.currency),
+      cryptoAccounts.value.map(account => account.currency),
       refCurrency.value
     )
   } catch {
@@ -514,21 +526,21 @@ async function loadCryptoPrices() {
   }
 }
 
-watch(tab, t => {
-  if (t === 'cryptos') void loadCryptoPrices()
+watch(tab, next => {
+  if (next === 'cryptos') void loadCryptoPrices()
 })
 
 // Manual rate first (it feeds the curve); spot price as a fallback hint.
-function cryptoValue(a: Account): { text: string; spot: boolean } | null {
-  const point = lastPoint(a)
+function cryptoValue(account: Account): { text: string; spot: boolean } | null {
+  const point = lastPoint(account)
   if (!point) return null
-  const rate = rateFor(a.currency, refCurrency.value, rates.value)
+  const rate = rateFor(account.currency, refCurrency.value, rates.value)
   if (rate != null)
     return {
       text: formatAmount(point.amount * rate, refCurrency.value),
       spot: false
     }
-  const price = cryptoPrices.value[a.currency]
+  const price = cryptoPrices.value[account.currency]
   if (price != null)
     return {
       text: `≈ ${formatAmount(point.amount * price, refCurrency.value)}`,
@@ -539,35 +551,39 @@ function cryptoValue(a: Account): { text: string; spot: boolean } | null {
 
 // Unlike deleteAccount, deleting a token takes its history along: the
 // cryptos tab is a quantity sheet, not an archive.
-async function deleteCrypto(a: Account) {
-  if (!a.entryId) return
-  const snapshots = manualSnapshots(a)
+async function deleteCrypto(account: Account) {
+  if (!account.entryId) return
+  const snapshots = manualSnapshots(account)
   const ok = await ctx.confirm.ask({
-    message: `Delete ${a.name} and its ${snapshots.length} record(s)?`,
+    message: `Delete ${account.name} and its ${snapshots.length} record(s)?`,
     danger: true
   })
   if (!ok) return
   try {
-    for (const s of snapshots) await ctx.api.entries.delete(s.id)
-    await ctx.api.entries.delete(a.entryId)
+    for (const snapshot of snapshots) await ctx.api.entries.delete(snapshot.id)
+    await ctx.api.entries.delete(account.entryId)
     balanceEntries.value = balanceEntries.value.filter(
-      b => b.data.account_id !== a.entryId
+      snapshot => snapshot.data.account_id !== account.entryId
     )
-    accountEntries.value = accountEntries.value.filter(e => e.id !== a.entryId)
+    accountEntries.value = accountEntries.value.filter(
+      entry => entry.id !== account.entryId
+    )
   } catch {
     // partial deletes surface on reload
   }
 }
 
-async function patchAccount(a: Account, patch: Record<string, unknown>) {
-  const entry = accountEntries.value.find(e => e.id === a.entryId)
+async function patchAccount(account: Account, patch: Record<string, unknown>) {
+  const entry = accountEntries.value.find(
+    candidate => candidate.id === account.entryId
+  )
   if (!entry) return
   try {
     const updated = await ctx.api.entries.update(entry.id, {
       data: { ...entry.data, ...patch }
     })
-    accountEntries.value = accountEntries.value.map(e =>
-      e.id === updated.id ? updated : e
+    accountEntries.value = accountEntries.value.map(item =>
+      item.id === updated.id ? updated : item
     )
   } catch {
     // ignore
@@ -575,12 +591,12 @@ async function patchAccount(a: Account, patch: Record<string, unknown>) {
 }
 
 // Saved on change; empty clears it and the account matches by name again.
-function saveIdentifier(a: Account, raw: string) {
-  void patchAccount(a, { identifier: raw.trim() || null })
+function saveIdentifier(account: Account, raw: string) {
+  void patchAccount(account, { identifier: raw.trim() || null })
 }
 
-function saveShared(a: Account, shared: boolean) {
-  void patchAccount(a, { shared })
+function saveShared(account: Account, shared: boolean) {
+  void patchAccount(account, { shared })
 }
 </script>
 
@@ -595,13 +611,13 @@ function saveShared(a: Account, shared: boolean) {
     <template v-else>
       <div class="fin-tabs">
         <button
-          v-for="t in TABS"
-          :key="t.id"
+          v-for="option in TABS"
+          :key="option.id"
           class="fin-tab"
-          :class="{ 'fin-tab--active': tab === t.id }"
-          @click="tab = t.id"
+          :class="{ 'fin-tab--active': tab === option.id }"
+          @click="tab = option.id"
         >
-          {{ t.label }}
+          {{ option.label }}
         </button>
       </div>
 
@@ -662,68 +678,80 @@ function saveShared(a: Account, shared: boolean) {
         </p>
 
         <div v-else class="fin-accounts">
-          <div v-for="a in cryptoAccounts" :key="a.key" class="fin-account">
+          <div
+            v-for="account in cryptoAccounts"
+            :key="account.key"
+            class="fin-account"
+          >
             <div class="fin-account-row">
-              <span class="fin-account-caret" @click="toggleExpanded(a.key)">
-                {{ expanded.has(a.key) ? '▾' : '▸' }}
-              </span>
-              <span class="fin-crypto-name">{{ a.name }}</span>
               <span
-                v-if="cryptoPrices[a.currency] != null"
+                class="fin-account-caret"
+                @click="toggleExpanded(account.key)"
+              >
+                {{ expanded.has(account.key) ? '▾' : '▸' }}
+              </span>
+              <span class="fin-crypto-name">{{ account.name }}</span>
+              <span
+                v-if="cryptoPrices[account.currency] != null"
                 class="fin-crypto-price"
                 title="Spot price (CoinGecko / DexScreener)"
               >
-                {{ formatAmount(cryptoPrices[a.currency], refCurrency) }}
+                {{ formatAmount(cryptoPrices[account.currency], refCurrency) }}
               </span>
               <span class="fin-account-amount">
                 <input
-                  :key="`${a.key}-${lastPoint(a)?.amount ?? ''}`"
+                  :key="`${account.key}-${lastPoint(account)?.amount ?? ''}`"
                   class="fin-crypto-qty-input"
-                  :value="lastPoint(a)?.amount ?? ''"
+                  :value="lastPoint(account)?.amount ?? ''"
                   placeholder="quantity"
                   title="Type a new quantity to record it"
                   @change="
-                    setCryptoQty(a, ($event.target as HTMLInputElement).value)
+                    setCryptoQty(
+                      account,
+                      ($event.target as HTMLInputElement).value
+                    )
                   "
                 />
                 <span
-                  v-if="cryptoValue(a)"
+                  v-if="cryptoValue(account)"
                   class="fin-account-converted"
                   :title="
-                    cryptoValue(a)!.spot
+                    cryptoValue(account)!.spot
                       ? 'Spot estimate; set a rate (Accounts tab) to count it in the curve'
                       : ''
                   "
                 >
-                  {{ cryptoValue(a)!.text }}
+                  {{ cryptoValue(account)!.text }}
                 </span>
               </span>
               <button
-                v-if="a.entryId"
+                v-if="account.entryId"
                 class="fin-mini-del"
                 title="Delete token"
-                @click="deleteCrypto(a)"
+                @click="deleteCrypto(account)"
               >
                 ×
               </button>
             </div>
 
-            <div v-if="expanded.has(a.key)" class="fin-history">
+            <div v-if="expanded.has(account.key)" class="fin-history">
               <div
-                v-for="b in manualSnapshots(a)"
-                :key="b.id"
+                v-for="snapshot in manualSnapshots(account)"
+                :key="snapshot.id"
                 class="fin-history-row"
               >
-                <span class="fin-history-date">{{ snapshotDateLabel(b) }}</span>
+                <span class="fin-history-date">{{
+                  snapshotDateLabel(snapshot)
+                }}</span>
                 <input
-                  :key="`${b.id}-${b.data.amount}`"
+                  :key="`${snapshot.id}-${snapshot.data.amount}`"
                   class="fin-crypto-qty-input"
-                  :value="b.data.amount"
+                  :value="snapshot.data.amount"
                   title="Edit this record's quantity"
                   @change="
                     editQtyRecord(
-                      b,
-                      a,
+                      snapshot,
+                      account,
                       ($event.target as HTMLInputElement).value
                     )
                   "
@@ -731,12 +759,15 @@ function saveShared(a: Account, shared: boolean) {
                 <button
                   class="fin-mini-del"
                   title="Delete record"
-                  @click="deleteSnapshot(b)"
+                  @click="deleteSnapshot(snapshot)"
                 >
                   ×
                 </button>
               </div>
-              <p v-if="!manualSnapshots(a).length" class="fin-history-note">
+              <p
+                v-if="!manualSnapshots(account).length"
+                class="fin-history-note"
+              >
                 No records yet.
               </p>
             </div>
@@ -782,36 +813,40 @@ function saveShared(a: Account, shared: boolean) {
         </p>
 
         <section
-          v-for="u in universes"
-          v-show="u.accounts.length"
-          :key="u.universe"
+          v-for="universe in universes"
+          v-show="universe.accounts.length"
+          :key="universe.universe"
           class="fin-universe"
         >
           <div class="fin-universe-head">
             <!-- Tradfi is the default universe: its name adds nothing. -->
             <h2
-              v-if="u.universe !== 'tradfi'"
+              v-if="universe.universe !== 'tradfi'"
               class="fin-universe-title"
-              :style="{ color: u.color }"
+              :style="{ color: universe.color }"
             >
-              {{ u.label }}
+              {{ universe.label }}
             </h2>
             <span class="fin-total-caption">total balance</span>
             <span class="fin-total">{{
-              formatAmount(u.total, refCurrency)
+              formatAmount(universe.total, refCurrency)
             }}</span>
             <span
-              v-if="u.points.length"
+              v-if="universe.points.length"
               class="fin-delta"
-              :class="{ 'fin-delta--down': u.delta30 < 0 }"
+              :class="{ 'fin-delta--down': universe.delta30 < 0 }"
               title="Change over the last 30 days"
-              >{{ deltaLabel(u.delta30) }}</span
+              >{{ deltaLabel(universe.delta30) }}</span
             >
           </div>
-          <BalanceChart :points="u.points" :end-date="today" :color="u.color" />
-          <p v-if="u.excluded.length" class="fin-warn">
-            No {{ refCurrency }} rate for: {{ u.excluded.join(', ') }} (excluded
-            from the curve)
+          <BalanceChart
+            :points="universe.points"
+            :end-date="today"
+            :color="universe.color"
+          />
+          <p v-if="universe.excluded.length" class="fin-warn">
+            No {{ refCurrency }} rate for:
+            {{ universe.excluded.join(', ') }} (excluded from the curve)
           </p>
 
           <div class="fin-accounts">
@@ -832,61 +867,76 @@ function saveShared(a: Account, shared: boolean) {
               <span class="fin-account-amount fin-col-label">last balance</span>
               <span class="fin-account-actions"></span>
             </div>
-            <div v-for="a in u.accounts" :key="a.key" class="fin-account">
+            <div
+              v-for="account in universe.accounts"
+              :key="account.key"
+              class="fin-account"
+            >
               <div class="fin-account-row">
-                <span class="fin-account-caret" @click="toggleExpanded(a.key)">
-                  {{ expanded.has(a.key) ? '▾' : '▸' }}
+                <span
+                  class="fin-account-caret"
+                  @click="toggleExpanded(account.key)"
+                >
+                  {{ expanded.has(account.key) ? '▾' : '▸' }}
                 </span>
-                <span class="fin-account-name" @click="toggleExpanded(a.key)">
-                  {{ a.name }}
+                <span
+                  class="fin-account-name"
+                  @click="toggleExpanded(account.key)"
+                >
+                  {{ account.name }}
                   <span
-                    v-if="a.derived"
+                    v-if="account.derived"
                     class="fin-badge"
                     title="Reconstructed from bank imports; create an account with this name to claim it"
                     >imported</span
                   >
                 </span>
-                <span class="fin-account-type">{{ a.type }}</span>
+                <span class="fin-account-type">{{ account.type }}</span>
                 <span class="fin-tx-col">
                   <button
-                    v-if="txCount(a)"
+                    v-if="txCount(account)"
                     class="fin-tx-btn"
                     title="Show this account's transactions"
-                    @click="showTransactions(a)"
+                    @click="showTransactions(account)"
                   >
-                    {{ txCount(a) }}
+                    {{ txCount(account) }}
                   </button>
                   <template v-else>-</template>
                 </span>
                 <span
                   class="fin-fresh"
-                  :class="freshness(a).level"
+                  :class="freshness(account).level"
                   title="Age of the last observation"
-                  >{{ freshness(a).label }}</span
+                  >{{ freshness(account).label }}</span
                 >
                 <span class="fin-account-amount">
-                  <template v-if="lastPoint(a)">
-                    {{ formatAmount(lastPoint(a)!.amount, a.currency) }}
-                    <span v-if="converted(a)" class="fin-account-converted">
-                      {{ converted(a) }}
+                  <template v-if="lastPoint(account)">
+                    {{
+                      formatAmount(lastPoint(account)!.amount, account.currency)
+                    }}
+                    <span
+                      v-if="converted(account)"
+                      class="fin-account-converted"
+                    >
+                      {{ converted(account) }}
                     </span>
                   </template>
                   <template v-else>no data</template>
                 </span>
                 <span class="fin-account-actions">
                   <button
-                    v-if="a.entryId"
+                    v-if="account.entryId"
                     class="fin-mini-btn"
                     title="Record the balance you see at the bank today"
-                    @click="openSnapshotForm(a)"
+                    @click="openSnapshotForm(account)"
                   >
                     record balance
                   </button>
                   <button
-                    v-if="a.entryId"
+                    v-if="account.entryId"
                     class="fin-mini-del"
                     title="Delete account"
-                    @click="deleteAccount(a)"
+                    @click="deleteAccount(account)"
                   >
                     ×
                   </button>
@@ -894,14 +944,14 @@ function saveShared(a: Account, shared: boolean) {
               </div>
 
               <form
-                v-if="snapshotFor === a.key"
+                v-if="snapshotFor === account.key"
                 class="fin-snapshot-form"
-                @submit.prevent="addSnapshot(a)"
+                @submit.prevent="addSnapshot(account)"
               >
                 <input
                   v-model="snapshotAmount"
                   class="fin-snap-amount"
-                  :placeholder="`Amount (${a.currency})`"
+                  :placeholder="`Amount (${account.currency})`"
                   autofocus
                 />
                 <DateInput v-model="snapshotDate" class="fin-snap-date" />
@@ -921,33 +971,33 @@ function saveShared(a: Account, shared: boolean) {
                 </button>
               </form>
 
-              <div v-if="expanded.has(a.key)" class="fin-history">
-                <div v-if="a.entryId" class="fin-ident-row">
-                  <label class="fin-ident-label" :for="`ident-${a.key}`"
+              <div v-if="expanded.has(account.key)" class="fin-history">
+                <div v-if="account.entryId" class="fin-ident-row">
+                  <label class="fin-ident-label" :for="`ident-${account.key}`"
                     >tx account</label
                   >
                   <input
-                    :id="`ident-${a.key}`"
+                    :id="`ident-${account.key}`"
                     class="fin-ident-input"
-                    :value="a.identifier || ''"
+                    :value="account.identifier || ''"
                     placeholder="name carried by imported transactions"
                     title="Transactions whose account matches this name feed this account's balance"
                     @change="
                       saveIdentifier(
-                        a,
+                        account,
                         ($event.target as HTMLInputElement).value
                       )
                     "
-                  /><span v-if="!a.identifier" class="fin-ident-hint"
+                  /><span v-if="!account.identifier" class="fin-ident-hint"
                     >matches by account name when empty</span
                   >
                   <label class="fin-shared-toggle">
                     <input
                       type="checkbox"
-                      :checked="a.shared"
+                      :checked="account.shared"
                       @change="
                         saveShared(
-                          a,
+                          account,
                           ($event.target as HTMLInputElement).checked
                         )
                       "
@@ -956,30 +1006,36 @@ function saveShared(a: Account, shared: boolean) {
                   </label>
                 </div>
                 <div
-                  v-for="b in manualSnapshots(a)"
-                  :key="b.id"
+                  v-for="snapshot in manualSnapshots(account)"
+                  :key="snapshot.id"
                   class="fin-history-row"
                 >
                   <span class="fin-history-date">{{
-                    snapshotDateLabel(b)
+                    snapshotDateLabel(snapshot)
                   }}</span>
                   <span>{{
-                    formatAmount(b.data.amount as number, a.currency)
+                    formatAmount(
+                      snapshot.data.amount as number,
+                      account.currency
+                    )
                   }}</span>
                   <button
                     class="fin-mini-del"
                     title="Delete snapshot"
-                    @click="deleteSnapshot(b)"
+                    @click="deleteSnapshot(snapshot)"
                   >
                     ×
                   </button>
                 </div>
-                <p v-if="txObservationCount(a)" class="fin-history-note">
-                  + {{ txObservationCount(a) }} balance point(s) from bank
+                <p v-if="txObservationCount(account)" class="fin-history-note">
+                  + {{ txObservationCount(account) }} balance point(s) from bank
                   imports
                 </p>
                 <p
-                  v-if="!manualSnapshots(a).length && !txObservationCount(a)"
+                  v-if="
+                    !manualSnapshots(account).length &&
+                    !txObservationCount(account)
+                  "
                   class="fin-history-note"
                 >
                   No snapshots yet.
@@ -1061,13 +1117,13 @@ function saveShared(a: Account, shared: boolean) {
       <div class="fin-modal">
         <div class="fin-modal-header">Exchange rates</div>
         <div
-          v-for="c in foreignCurrencies"
-          :key="c"
+          v-for="currency in foreignCurrencies"
+          :key="currency"
           class="fin-modal-field fin-rate-row"
         >
-          <label>1 {{ c }} =</label>
+          <label>1 {{ currency }} =</label>
           <input
-            v-model="ratesDraft[c]"
+            v-model="ratesDraft[currency]"
             class="fin-rate-input"
             :placeholder="`? ${refCurrency}`"
           />

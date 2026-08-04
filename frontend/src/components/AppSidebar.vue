@@ -2,35 +2,35 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  Database,
+  Activity,
   Cable,
-  Settings,
-  LogOut,
-  CircleUserRound,
-  UserRound,
   CalendarDays,
+  CircleUserRound,
+  Database,
   FolderOpen,
   Image,
-  NotebookPen,
   ListChecks,
-  Activity,
-  Wallet,
-  Target,
+  LogOut,
+  NotebookPen,
   Puzzle,
+  Settings,
+  Target,
+  UserRound,
+  Wallet,
   Wrench
 } from 'lucide-vue-next'
 
-import { useAuthStore } from '../stores/auth'
-import { useAppsStore } from '../stores/apps'
-import { agentsEnabled } from '../apps/registry'
 import {
-  uploading as photosUploading,
-  uploadProgress as photosProgress
-} from '../apps/photos/uploadQueue'
-import {
-  uploading as filesUploading,
-  uploadProgress as filesProgress
+  uploadProgress as filesProgress,
+  uploading as filesUploading
 } from '../apps/files/uploadQueue'
+import {
+  uploadProgress as photosProgress,
+  uploading as photosUploading
+} from '../apps/photos/uploadQueue'
+import { agentsEnabled } from '../apps/registry'
+import { useAppsStore } from '../stores/apps'
+import { useAuthStore } from '../stores/auth'
 
 // An app declares its icon by name in the registry, which stays free of Vue
 // imports; the mapping to a component lives here, where they are rendered.
@@ -209,25 +209,6 @@ function handleLogout() {
   color: var(--text);
 }
 
-.sidebar-footer {
-  padding: 1rem 1.25rem;
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.sidebar-settings-link {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  color: var(--text-muted);
-  text-decoration: none;
-  font-size: 1rem;
-  padding: 0.6rem 1.25rem;
-  transition: color 0.15s;
-}
-
 /* Global photo-upload pulse: the queue keeps running across app switches */
 .sidebar-upload {
   display: block;
@@ -252,10 +233,29 @@ function handleLogout() {
   }
 }
 
+.sidebar-settings-link {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 1rem;
+  padding: 0.6rem 1.25rem;
+  transition: color 0.15s;
+}
+
 .sidebar-settings-link:hover,
 .sidebar-settings-link.router-link-active {
   color: var(--text);
   text-decoration: none;
+}
+
+.sidebar-footer {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .logout-btn {

@@ -5,11 +5,11 @@ import { Paperclip } from 'lucide-vue-next'
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
 
-import type { AppContext, Entry } from '../types'
 import { utcToZonedParts } from '../../lib/datetime'
 import { entryRoute } from '../../lib/entryRoute'
 import { safeUrl } from '../../lib/url'
 import { categoryColor, daysBetween, formatAmount } from './finance'
+import type { AppContext, Entry } from '../types'
 
 const props = defineProps<{
   ctx: AppContext
@@ -32,12 +32,12 @@ const accountFilter = ref(ALL_ACCOUNTS)
 const categoryFilter = ref(ALL_CATEGORIES)
 const flowFilter = ref(ALL_FLOWS)
 
-const categoryOf = (t: Entry) => ((t.data.category as string) || '').trim()
-const accountOf = (t: Entry) => ((t.data.account as string) || '').trim()
-const labelOf = (t: Entry) =>
-  ((t.data.description as string) || t.title || '').trim()
-const dateOf = (t: Entry) =>
-  t.occurred_at ? utcToZonedParts(t.occurred_at).date : ''
+const categoryOf = (tx: Entry) => ((tx.data.category as string) || '').trim()
+const accountOf = (tx: Entry) => ((tx.data.account as string) || '').trim()
+const labelOf = (tx: Entry) =>
+  ((tx.data.description as string) || tx.title || '').trim()
+const dateOf = (tx: Entry) =>
+  tx.occurred_at ? utcToZonedParts(tx.occurred_at).date : ''
 
 const accountOptions = computed(() => [
   ALL_ACCOUNTS,
@@ -56,15 +56,15 @@ const categoryOptions = computed(() => [
 const filtered = computed(() => {
   let list = props.txs
   if (accountFilter.value !== ALL_ACCOUNTS)
-    list = list.filter(t => accountOf(t) === accountFilter.value)
+    list = list.filter(tx => accountOf(tx) === accountFilter.value)
   if (categoryFilter.value === UNCATEGORIZED)
-    list = list.filter(t => !categoryOf(t))
+    list = list.filter(tx => !categoryOf(tx))
   else if (categoryFilter.value !== ALL_CATEGORIES)
-    list = list.filter(t => categoryOf(t) === categoryFilter.value)
+    list = list.filter(tx => categoryOf(tx) === categoryFilter.value)
   if (flowFilter.value === 'Incoming')
-    list = list.filter(t => ((t.data.amount as number) || 0) > 0)
+    list = list.filter(tx => ((tx.data.amount as number) || 0) > 0)
   else if (flowFilter.value === 'Outgoing')
-    list = list.filter(t => ((t.data.amount as number) || 0) < 0)
+    list = list.filter(tx => ((tx.data.amount as number) || 0) < 0)
   return [...list].sort((a, b) =>
     (b.occurred_at || '').localeCompare(a.occurred_at || '')
   )
@@ -78,11 +78,11 @@ watch([accountFilter, categoryFilter, flowFilter], () => {
 // casing exactly.
 watch(
   () => props.focusAccount,
-  v => {
-    if (!v) return
-    const key = v.trim().toLowerCase()
+  value => {
+    if (!value) return
+    const key = value.trim().toLowerCase()
     const match = accountOptions.value.find(
-      o => o !== ALL_ACCOUNTS && o.trim().toLowerCase() === key
+      option => option !== ALL_ACCOUNTS && option.trim().toLowerCase() === key
     )
     accountFilter.value = match || ALL_ACCOUNTS
   },
@@ -94,11 +94,11 @@ const visible = computed(() => filtered.value.slice(0, shown.value))
 // Month groups over the visible slice, newest first.
 const groups = computed(() => {
   const out: { month: string; txs: Entry[] }[] = []
-  for (const t of visible.value) {
-    const month = dateOf(t).slice(0, 7)
+  for (const tx of visible.value) {
+    const month = dateOf(tx).slice(0, 7)
     const last = out[out.length - 1]
-    if (last && last.month === month) last.txs.push(t)
-    else out.push({ month, txs: [t] })
+    if (last && last.month === month) last.txs.push(tx)
+    else out.push({ month, txs: [tx] })
   }
   return out
 })
@@ -109,25 +109,25 @@ const editingId = ref<string | null>(null)
 const draft = ref('')
 const saving = ref(false)
 
-function startEdit(t: Entry) {
-  editingId.value = t.id
-  draft.value = categoryOf(t)
+function startEdit(tx: Entry) {
+  editingId.value = tx.id
+  draft.value = categoryOf(tx)
   void nextTick(() => {
     document.querySelector<HTMLInputElement>('.ftx-cat-edit input')?.focus()
   })
 }
 
-async function saveCategory(t: Entry, value: string) {
+async function saveCategory(tx: Entry, value: string) {
   if (saving.value) return
   const category = value.trim()
-  if (category === categoryOf(t)) {
+  if (category === categoryOf(tx)) {
     editingId.value = null
     return
   }
   saving.value = true
   try {
-    const updated = await props.ctx.api.entries.update(t.id, {
-      data: { ...t.data, category: category || null }
+    const updated = await props.ctx.api.entries.update(tx.id, {
+      data: { ...tx.data, category: category || null }
     })
     emit('updated', updated)
     editingId.value = null
@@ -140,15 +140,15 @@ async function saveCategory(t: Entry, value: string) {
 
 // ----- linked document (invoice or file) -----
 
-const linkedTitle = (t: Entry) =>
-  ((t.data.linked_entry_title as string) || '').trim()
+const linkedTitle = (tx: Entry) =>
+  ((tx.data.linked_entry_title as string) || '').trim()
 
 const linkingId = ref<string | null>(null)
 // Candidates load once, on the first link attempt.
 const docOptions = ref<{ value: string; label: string }[] | null>(null)
 
-async function startLink(t: Entry) {
-  linkingId.value = t.id
+async function startLink(tx: Entry) {
+  linkingId.value = tx.id
   if (docOptions.value) return
   try {
     const [invoices, files] = await Promise.all([
@@ -156,15 +156,15 @@ async function startLink(t: Entry) {
       props.ctx.api.entries.list({ kind: 'file' })
     ])
     docOptions.value = [
-      ...invoices.map(e => ({
-        value: e.id,
-        label: `${e.title || '(untitled)'} - invoice`
+      ...invoices.map(entry => ({
+        value: entry.id,
+        label: `${entry.title || '(untitled)'} - invoice`
       })),
       ...files
-        .filter(e => !e.data.is_folder)
-        .map(e => ({
-          value: e.id,
-          label: `${(e.data.filename as string) || e.title || '(unnamed)'} - file`
+        .filter(entry => !entry.data.is_folder)
+        .map(entry => ({
+          value: entry.id,
+          label: `${(entry.data.filename as string) || entry.title || '(unnamed)'} - file`
         }))
     ].sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()))
   } catch {
@@ -172,11 +172,11 @@ async function startLink(t: Entry) {
   }
 }
 
-async function saveLink(t: Entry, id: string, title: string | null) {
+async function saveLink(tx: Entry, id: string, title: string | null) {
   try {
-    const updated = await props.ctx.api.entries.update(t.id, {
+    const updated = await props.ctx.api.entries.update(tx.id, {
       data: {
-        ...t.data,
+        ...tx.data,
         linked_entry_id: id || null,
         linked_entry_title: title
       }
@@ -188,11 +188,11 @@ async function saveLink(t: Entry, id: string, title: string | null) {
   linkingId.value = null
 }
 
-function pickDoc(t: Entry, id: string) {
-  const opt = docOptions.value?.find(o => o.value === id)
+function pickDoc(tx: Entry, id: string) {
+  const opt = docOptions.value?.find(option => option.value === id)
   if (!opt) return
   // Strip the " - invoice" / " - file" disambiguation suffix.
-  void saveLink(t, id, opt.label.replace(/ - (invoice|file)$/, ''))
+  void saveLink(tx, id, opt.label.replace(/ - (invoice|file)$/, ''))
 }
 
 // ----- bulk selection -----
@@ -206,7 +206,7 @@ function toggleSelect(id: string) {
 }
 
 function selectAllFiltered() {
-  selected.value = new Set(filtered.value.map(t => t.id))
+  selected.value = new Set(filtered.value.map(tx => tx.id))
 }
 
 const bulkDraft = ref('')
@@ -218,11 +218,11 @@ async function applyBulkCategory(value: string) {
   bulkApplying.value = true
   try {
     for (const id of selected.value) {
-      const t = props.txs.find(x => x.id === id)
-      if (!t || categoryOf(t) === category) continue
+      const tx = props.txs.find(item => item.id === id)
+      if (!tx || categoryOf(tx) === category) continue
       try {
-        const updated = await props.ctx.api.entries.update(t.id, {
-          data: { ...t.data, category }
+        const updated = await props.ctx.api.entries.update(tx.id, {
+          data: { ...tx.data, category }
         })
         emit('updated', updated)
       } catch {
@@ -257,25 +257,25 @@ const autoApplying = ref(false)
 function openAutoCat() {
   // Most frequent category per label key, learned from categorized txs.
   const counts = new Map<string, Map<string, number>>()
-  for (const t of props.txs) {
-    const category = categoryOf(t)
-    const key = guessKey(labelOf(t))
+  for (const tx of props.txs) {
+    const category = categoryOf(tx)
+    const key = guessKey(labelOf(tx))
     if (!category || !key) continue
-    const c = counts.get(key) || new Map<string, number>()
-    c.set(category, (c.get(category) || 0) + 1)
-    counts.set(key, c)
+    const perCategory = counts.get(key) || new Map<string, number>()
+    perCategory.set(category, (perCategory.get(category) || 0) + 1)
+    counts.set(key, perCategory)
   }
   const best = new Map<string, string>()
-  for (const [key, c] of counts) {
-    best.set(key, [...c.entries()].sort((a, b) => b[1] - a[1])[0][0])
+  for (const [key, perCategory] of counts) {
+    best.set(key, [...perCategory.entries()].sort((a, b) => b[1] - a[1])[0][0])
   }
 
   const byCat = new Map<string, Entry[]>()
-  for (const t of props.txs) {
-    if (categoryOf(t)) continue
-    const category = best.get(guessKey(labelOf(t)))
+  for (const tx of props.txs) {
+    if (categoryOf(tx)) continue
+    const category = best.get(guessKey(labelOf(tx)))
     if (!category) continue
-    byCat.set(category, [...(byCat.get(category) || []), t])
+    byCat.set(category, [...(byCat.get(category) || []), tx])
   }
   autoGroups.value = [...byCat.entries()]
     .map(([category, txs]) => ({ category, txs, checked: true }))
@@ -293,12 +293,12 @@ async function applyAutoCat() {
   if (autoApplying.value) return
   autoApplying.value = true
   try {
-    for (const g of autoGroups.value) {
-      if (!g.checked) continue
-      for (const t of g.txs) {
+    for (const group of autoGroups.value) {
+      if (!group.checked) continue
+      for (const tx of group.txs) {
         try {
-          const updated = await props.ctx.api.entries.update(t.id, {
-            data: { ...t.data, category: g.category }
+          const updated = await props.ctx.api.entries.update(tx.id, {
+            data: { ...tx.data, category: group.category }
           })
           emit('updated', updated)
         } catch {
@@ -325,53 +325,54 @@ const dupSelected = ref<Set<string>>(new Set())
 
 const dupGroups = computed(() => {
   const byAmount = new Map<number, Entry[]>()
-  for (const t of props.txs) {
-    const amount = t.data.amount
-    if (typeof amount !== 'number' || !t.occurred_at) continue
-    byAmount.set(amount, [...(byAmount.get(amount) || []), t])
+  for (const tx of props.txs) {
+    const amount = tx.data.amount
+    if (typeof amount !== 'number' || !tx.occurred_at) continue
+    byAmount.set(amount, [...(byAmount.get(amount) || []), tx])
   }
   const groups: Entry[][] = []
   for (const list of byAmount.values()) {
     if (list.length < 2) continue
     list.sort((a, b) => dateOf(a).localeCompare(dateOf(b)))
     let cluster = [list[0]]
-    for (const t of list.slice(1)) {
+    for (const tx of list.slice(1)) {
       if (
-        daysBetween(dateOf(cluster[cluster.length - 1]), dateOf(t)) <= DUP_DAYS
+        daysBetween(dateOf(cluster[cluster.length - 1]), dateOf(tx)) <= DUP_DAYS
       ) {
-        cluster.push(t)
+        cluster.push(tx)
       } else {
         if (cluster.length > 1) groups.push(cluster)
-        cluster = [t]
+        cluster = [tx]
       }
     }
     if (cluster.length > 1) groups.push(cluster)
   }
-  return groups.map(g =>
-    [...g].sort((a, b) => a.inserted_at.localeCompare(b.inserted_at))
+  return groups.map(group =>
+    [...group].sort((a, b) => a.inserted_at.localeCompare(b.inserted_at))
   )
 })
 
 // Twins worth preselecting: labels sharing a word, or two different sources
 // reporting the same movement. Same-source rows with unrelated labels stay
 // unchecked, those are probably two real purchases.
-function likelyDup(a: Entry, b: Entry): boolean {
-  if (a.source !== b.source) return true
-  const words = new Set(guessKey(labelOf(a)).split(' ').filter(Boolean))
-  return guessKey(labelOf(b))
+function likelyDup(txA: Entry, txB: Entry): boolean {
+  if (txA.source !== txB.source) return true
+  const words = new Set(guessKey(labelOf(txA)).split(' ').filter(Boolean))
+  return guessKey(labelOf(txB))
     .split(' ')
     .filter(Boolean)
-    .some(w => words.has(w))
+    .some(word => words.has(word))
 }
 
 // Keep one per group: prefer a tx carrying a balance (it feeds the curve),
 // else the oldest import; preselect the likely twins for deletion.
 function openDedup() {
   const selected = new Set<string>()
-  for (const g of dupGroups.value) {
-    const keep = g.find(t => typeof t.data.balance === 'number') || g[0]
-    for (const t of g)
-      if (t.id !== keep.id && likelyDup(t, keep)) selected.add(t.id)
+  for (const group of dupGroups.value) {
+    const keep =
+      group.find(tx => typeof tx.data.balance === 'number') || group[0]
+    for (const tx of group)
+      if (tx.id !== keep.id && likelyDup(tx, keep)) selected.add(tx.id)
   }
   dupSelected.value = selected
   dedupOpen.value = true
@@ -402,15 +403,15 @@ async function deleteDuplicates() {
   dedupOpen.value = false
 }
 
-async function deleteTx(t: Entry) {
+async function deleteTx(tx: Entry) {
   const ok = await props.ctx.confirm.ask({
-    message: `Delete "${labelOf(t)}"?`,
+    message: `Delete "${labelOf(tx)}"?`,
     danger: true
   })
   if (!ok) return
   try {
-    await props.ctx.api.entries.delete(t.id)
-    emit('deleted', t.id)
+    await props.ctx.api.entries.delete(tx.id)
+    emit('deleted', tx.id)
   } catch {
     // ignore
   }
@@ -418,8 +419,8 @@ async function deleteTx(t: Entry) {
 
 // Invoices open their provider URL when they have one; everything else
 // lands on its app surface.
-async function openLinked(t: Entry) {
-  const id = t.data.linked_entry_id as string
+async function openLinked(tx: Entry) {
+  const id = tx.data.linked_entry_id as string
   if (!id) return
   try {
     const doc = await props.ctx.api.entries.get(id)
@@ -480,19 +481,23 @@ async function openLinked(t: Entry) {
           Uncategorized transactions whose label matches one you already
           categorized.
         </p>
-        <label v-for="g in autoGroups" :key="g.category" class="ftx-auto-row">
-          <input v-model="g.checked" type="checkbox" />
+        <label
+          v-for="group in autoGroups"
+          :key="group.category"
+          class="ftx-auto-row"
+        >
+          <input v-model="group.checked" type="checkbox" />
           <span
             class="ftx-auto-dot"
-            :style="{ background: categoryColor(g.category) }"
+            :style="{ background: categoryColor(group.category) }"
           ></span>
-          <span class="ftx-auto-cat">{{ g.category }}</span>
-          <span class="ftx-auto-count">{{ g.txs.length }} tx</span>
-          <span class="ftx-auto-examples">{{ autoExamples(g.txs) }}</span>
+          <span class="ftx-auto-cat">{{ group.category }}</span>
+          <span class="ftx-auto-count">{{ group.txs.length }} tx</span>
+          <span class="ftx-auto-examples">{{ autoExamples(group.txs) }}</span>
         </label>
         <button
           class="ftx-dedup-btn ftx-auto-apply"
-          :disabled="autoApplying || autoGroups.every(g => !g.checked)"
+          :disabled="autoApplying || autoGroups.every(group => !group.checked)"
           @click="applyAutoCat"
         >
           {{ autoApplying ? 'Applying...' : 'Apply' }}
@@ -527,25 +532,29 @@ async function openLinked(t: Entry) {
           imports. Checked rows will be deleted; one per group is kept (the one
           carrying a balance when possible).
         </p>
-        <div v-for="(g, gi) in dupGroups" :key="gi" class="ftx-dedup-group">
-          <label v-for="t in g" :key="t.id" class="ftx-dedup-row">
+        <div
+          v-for="(group, groupIndex) in dupGroups"
+          :key="groupIndex"
+          class="ftx-dedup-group"
+        >
+          <label v-for="tx in group" :key="tx.id" class="ftx-dedup-row">
             <input
               type="checkbox"
-              :checked="dupSelected.has(t.id)"
-              @change="toggleDup(t.id)"
+              :checked="dupSelected.has(tx.id)"
+              @change="toggleDup(tx.id)"
             />
-            <span class="ftx-date">{{ dateOf(t) }}</span>
-            <span class="ftx-label">{{ labelOf(t) }}</span>
+            <span class="ftx-date">{{ dateOf(tx) }}</span>
+            <span class="ftx-label">{{ labelOf(tx) }}</span>
             <span class="ftx-dedup-meta"
-              >{{ accountOf(t) }} - {{ t.source
+              >{{ accountOf(tx) }} - {{ tx.source
               }}{{
-                typeof t.data.balance === 'number' ? ' - balance' : ''
+                typeof tx.data.balance === 'number' ? ' - balance' : ''
               }}</span
             >
             <span class="ftx-amount">{{
               formatAmount(
-                (t.data.amount as number) || 0,
-                (t.data.currency as string) || 'EUR'
+                (tx.data.amount as number) || 0,
+                (tx.data.currency as string) || 'EUR'
               )
             }}</span>
           </label>
@@ -562,25 +571,25 @@ async function openLinked(t: Entry) {
 
     <p v-if="!filtered.length" class="ftx-empty">No matching transactions.</p>
 
-    <template v-for="g in groups" :key="g.month">
-      <div class="ftx-month">{{ g.month }}</div>
-      <div v-for="t in g.txs" :key="t.id" class="ftx-row">
+    <template v-for="group in groups" :key="group.month">
+      <div class="ftx-month">{{ group.month }}</div>
+      <div v-for="tx in group.txs" :key="tx.id" class="ftx-row">
         <input
           type="checkbox"
           class="ftx-check"
-          :checked="selected.has(t.id)"
-          @change="toggleSelect(t.id)"
+          :checked="selected.has(tx.id)"
+          @change="toggleSelect(tx.id)"
         />
-        <span class="ftx-date">{{ dateOf(t).slice(8) }}</span>
-        <span class="ftx-label" :title="labelOf(t)">{{ labelOf(t) }}</span>
+        <span class="ftx-date">{{ dateOf(tx).slice(8) }}</span>
+        <span class="ftx-label" :title="labelOf(tx)">{{ labelOf(tx) }}</span>
         <span class="ftx-right">
-          <template v-if="linkingId === t.id">
+          <template v-if="linkingId === tx.id">
             <ComboBox
               class="ftx-doc-pick"
               model-value=""
               :options="docOptions || []"
               placeholder="Invoice or file..."
-              @update:model-value="v => pickDoc(t, v)"
+              @update:model-value="value => pickDoc(tx, value)"
             />
             <button
               class="ftx-doc-clear"
@@ -591,18 +600,18 @@ async function openLinked(t: Entry) {
             </button>
           </template>
           <span
-            v-else-if="linkedTitle(t)"
+            v-else-if="linkedTitle(tx)"
             class="ftx-doc"
-            :title="linkedTitle(t)"
+            :title="linkedTitle(tx)"
           >
             <Paperclip :size="11" />
-            <span class="ftx-doc-name" role="button" @click="openLinked(t)">{{
-              linkedTitle(t)
+            <span class="ftx-doc-name" role="button" @click="openLinked(tx)">{{
+              linkedTitle(tx)
             }}</span>
             <button
               class="ftx-doc-clear"
               title="Unlink"
-              @click="saveLink(t, '', null)"
+              @click="saveLink(tx, '', null)"
             >
               ×
             </button>
@@ -611,17 +620,17 @@ async function openLinked(t: Entry) {
             v-else
             class="ftx-linkbtn"
             title="Link an invoice or file"
-            @click="startLink(t)"
+            @click="startLink(tx)"
           >
             <Paperclip :size="12" />
           </button>
           <span
-            v-if="editingId !== t.id"
+            v-if="editingId !== tx.id"
             class="ftx-cat"
-            :class="{ 'ftx-cat--empty': !categoryOf(t) }"
+            :class="{ 'ftx-cat--empty': !categoryOf(tx) }"
             role="button"
-            @click="startEdit(t)"
-            >{{ categoryOf(t) || '+ category' }}</span
+            @click="startEdit(tx)"
+            >{{ categoryOf(tx) || '+ category' }}</span
           >
           <AutocompleteInput
             v-else
@@ -629,23 +638,23 @@ async function openLinked(t: Entry) {
             class="ftx-cat-edit"
             :options="categories"
             placeholder="category"
-            @select="v => saveCategory(t, v)"
+            @select="value => saveCategory(tx, value)"
             @keydown.escape="editingId = null"
           />
           <span
             class="ftx-amount"
-            :class="{ 'ftx-amount--in': ((t.data.amount as number) || 0) > 0 }"
+            :class="{ 'ftx-amount--in': ((tx.data.amount as number) || 0) > 0 }"
             >{{
               formatAmount(
-                (t.data.amount as number) || 0,
-                (t.data.currency as string) || 'EUR'
+                (tx.data.amount as number) || 0,
+                (tx.data.currency as string) || 'EUR'
               )
             }}</span
           >
           <button
             class="ftx-del"
             title="Delete transaction"
-            @click="deleteTx(t)"
+            @click="deleteTx(tx)"
           >
             ×
           </button>

@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
-  Play,
-  Pause,
-  Volume2,
-  VolumeX,
   Maximize,
-  Minimize
+  Minimize,
+  Pause,
+  Play,
+  Volume2,
+  VolumeX
 } from 'lucide-vue-next'
 
 import { formatDuration } from '../lib/datetime'
@@ -41,10 +41,10 @@ const timeLabel = computed(
 const idle = computed(() => playing.value && !controlsVisible.value)
 
 function togglePlay() {
-  const v = video.value
-  if (!v) return
-  if (v.paused) void v.play()
-  else v.pause()
+  const media = video.value
+  if (!media) return
+  if (media.paused) void media.play()
+  else media.pause()
   wake()
 }
 
@@ -87,19 +87,19 @@ function onTimeUpdate() {
   if (!scrubbing.value) currentTime.value = video.value?.currentTime || 0
 }
 function onLoadedMetadata() {
-  const d = video.value?.duration || 0
-  duration.value = Number.isFinite(d) ? d : 0
+  const seconds = video.value?.duration || 0
+  duration.value = Number.isFinite(seconds) ? seconds : 0
 }
 function onProgress() {
-  const v = video.value
-  if (v && v.buffered.length)
-    bufferedEnd.value = v.buffered.end(v.buffered.length - 1)
+  const media = video.value
+  if (media && media.buffered.length)
+    bufferedEnd.value = media.buffered.end(media.buffered.length - 1)
 }
 function onVolumeChange() {
-  const v = video.value
-  if (!v) return
-  volume.value = v.volume
-  muted.value = v.muted
+  const media = video.value
+  if (!media) return
+  volume.value = media.volume
+  muted.value = media.muted
 }
 
 // YouTube-style auto-hide: controls fade out after inactivity while playing,
@@ -119,37 +119,37 @@ function onMouseLeave() {
 
 // ----- seekbar scrubbing (click or drag anywhere on the bar) -----
 
-function barFraction(e: PointerEvent): number {
+function barFraction(event: PointerEvent): number {
   const rect = bar.value!.getBoundingClientRect()
-  return Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1)
+  return Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1)
 }
-function startScrub(e: PointerEvent) {
+function startScrub(event: PointerEvent) {
   if (!video.value || !duration.value) return
   scrubbing.value = true
-  ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-  currentTime.value = barFraction(e) * duration.value
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+  currentTime.value = barFraction(event) * duration.value
 }
-function moveScrub(e: PointerEvent) {
-  if (scrubbing.value) currentTime.value = barFraction(e) * duration.value
+function moveScrub(event: PointerEvent) {
+  if (scrubbing.value) currentTime.value = barFraction(event) * duration.value
 }
-function endScrub(e: PointerEvent) {
+function endScrub(event: PointerEvent) {
   if (!scrubbing.value) return
   scrubbing.value = false
-  if (video.value) video.value.currentTime = barFraction(e) * duration.value
+  if (video.value) video.value.currentTime = barFraction(event) * duration.value
   wake()
 }
 
 // ----- volume / fullscreen -----
 
 function toggleMute() {
-  const v = video.value
-  if (v) v.muted = !v.muted
+  const media = video.value
+  if (media) media.muted = !media.muted
 }
-function onVolumeInput(e: Event) {
-  const v = video.value
-  if (!v) return
-  v.volume = parseFloat((e.target as HTMLInputElement).value)
-  v.muted = v.volume === 0
+function onVolumeInput(event: Event) {
+  const media = video.value
+  if (!media) return
+  media.volume = parseFloat((event.target as HTMLInputElement).value)
+  media.muted = media.volume === 0
 }
 function toggleFullscreen() {
   if (document.fullscreenElement) void document.exitFullscreen()
@@ -160,16 +160,16 @@ function onFsChange() {
 }
 
 // Space / K toggle playback (unless typing somewhere).
-function onKeydown(e: KeyboardEvent) {
-  if (e.key !== ' ' && e.key !== 'k') return
-  const t = e.target as HTMLElement
+function onKeydown(event: KeyboardEvent) {
+  if (event.key !== ' ' && event.key !== 'k') return
+  const target = event.target as HTMLElement
   if (
-    t instanceof HTMLInputElement ||
-    t instanceof HTMLTextAreaElement ||
-    t.isContentEditable
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target.isContentEditable
   )
     return
-  e.preventDefault()
+  event.preventDefault()
   togglePlay()
 }
 

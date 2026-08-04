@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  Upload,
   ArrowLeft,
   Check,
-  X,
-  LoaderCircle,
   Copy,
+  LoaderCircle,
   RefreshCw,
   ToggleLeft,
   ToggleRight,
-  Trash2
+  Trash2,
+  Upload,
+  X
 } from 'lucide-vue-next'
 
 import ComboBox from '../components/ComboBox.vue'
@@ -27,13 +27,27 @@ import {
   syncConnector,
   updateConnector
 } from '../api/connectors'
-import { useAuthStore } from '../stores/auth'
-import type { ConnectorConfig, SyncLog, Schedule } from '../types'
-import { relativeTime } from '../lib/datetime'
-import { SCHEDULE_LABELS } from '../lib/connectors'
-import { formatDate, formatDateTime } from '../lib/datetime'
 import { getConnectorDef } from '../connectors'
 import { useConfirm } from '../composables/useConfirm'
+import { SCHEDULE_LABELS } from '../lib/connectors'
+import { formatDate, formatDateTime, relativeTime } from '../lib/datetime'
+import { useAuthStore } from '../stores/auth'
+import type { ConnectorConfig, Schedule, SyncLog } from '../types'
+
+const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
+
+const connector = ref<ConnectorConfig | null>(null)
+const logs = ref<SyncLog[]>([])
+const loading = ref(true)
+const logsLoading = ref(true)
+const syncing = ref(false)
+const actionFeedback = ref('')
+
+const connectorDef = computed(() =>
+  connector.value ? getConnectorDef(connector.value.connector_type) : null
+)
 
 const copiedId = ref<string | null>(null)
 function copyError(text: string, id: string) {
@@ -41,21 +55,6 @@ function copyError(text: string, id: string) {
   copiedId.value = id
   setTimeout(() => (copiedId.value = null), 1500)
 }
-
-const connectorDef = computed(() =>
-  connector.value ? getConnectorDef(connector.value.connector_type) : null
-)
-
-const route = useRoute()
-const router = useRouter()
-
-const connector = ref<ConnectorConfig | null>(null)
-const logs = ref<SyncLog[]>([])
-const auth = useAuthStore()
-const loading = ref(true)
-const logsLoading = ref(true)
-const syncing = ref(false)
-const actionFeedback = ref('')
 
 // CSV upload
 const uploading = ref(false)
@@ -96,8 +95,8 @@ async function uploadCSV(event: Event) {
     )
     await fetchConnector()
     await fetchLogs()
-  } catch (e: any) {
-    uploadError.value = e.message || 'Upload failed'
+  } catch (err: any) {
+    uploadError.value = err.message || 'Upload failed'
   } finally {
     uploading.value = false
     input.value = ''
@@ -132,9 +131,9 @@ async function ebConnect() {
       connectorId.value,
       ebRedirectUrl
     )
-  } catch (e) {
+  } catch (err) {
     ebError.value =
-      e instanceof Error ? e.message : 'Could not start the bank connection'
+      err instanceof Error ? err.message : 'Could not start the bank connection'
     ebConnecting.value = false
   }
 }
@@ -231,14 +230,14 @@ function showFeedback(msg: string) {
 }
 
 const scheduleOptions = computed(() =>
-  (Object.keys(SCHEDULE_LABELS) as Schedule[]).map(s => ({
-    value: s,
-    label: SCHEDULE_LABELS[s]
+  (Object.keys(SCHEDULE_LABELS) as Schedule[]).map(schedule => ({
+    value: schedule,
+    label: SCHEDULE_LABELS[schedule]
   }))
 )
 
-function onScheduleChange(v: string) {
-  void updateSchedule(v as Schedule)
+function onScheduleChange(value: string) {
+  void updateSchedule(value as Schedule)
 }
 
 async function updateSchedule(schedule: Schedule) {
@@ -717,7 +716,7 @@ onMounted(() => {
   font-size: 0.9rem;
   margin: 0.5rem 0;
   padding: 0.5rem 0.75rem;
-  background: rgba(240, 108, 108, 0.1);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
   border-radius: var(--radius);
 }
 
@@ -783,7 +782,7 @@ onMounted(() => {
 .action-btn--danger:hover {
   color: var(--danger);
   border-color: var(--danger);
-  background: rgba(240, 108, 108, 0.08);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
 
 .action-btn:disabled {
@@ -850,12 +849,12 @@ onMounted(() => {
 }
 
 .log-icon-completed {
-  background: rgba(92, 201, 138, 0.15);
+  background: color-mix(in srgb, var(--success) 15%, transparent);
   color: var(--success);
 }
 
 .log-icon-failed {
-  background: rgba(240, 108, 108, 0.15);
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
   color: var(--danger);
 }
 
@@ -968,12 +967,12 @@ onMounted(() => {
 
 .msg-success {
   color: var(--success);
-  background: rgba(92, 201, 138, 0.1);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
 }
 
 .msg-error {
   color: var(--danger);
-  background: rgba(240, 108, 108, 0.1);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
 }
 
 /* Enable Banking consent flow */

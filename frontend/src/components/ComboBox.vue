@@ -20,7 +20,9 @@ interface Option {
 }
 
 const opts = computed<Option[]>(() =>
-  props.options.map(o => (typeof o === 'string' ? { value: o, label: o } : o))
+  props.options.map(option =>
+    typeof option === 'string' ? { value: option, label: option } : option
+  )
 )
 
 const open = ref(false)
@@ -35,13 +37,16 @@ const searchEl = ref<HTMLInputElement | null>(null)
 const searchable = computed(() => opts.value.length > 12)
 
 const filtered = computed<Option[]>(() => {
-  const q = query.value.trim().toLowerCase()
-  if (!q) return opts.value
-  return opts.value.filter(o => o.label.toLowerCase().includes(q))
+  const needle = query.value.trim().toLowerCase()
+  if (!needle) return opts.value
+  return opts.value.filter(option =>
+    option.label.toLowerCase().includes(needle)
+  )
 })
 
 const currentLabel = computed(
-  () => opts.value.find(o => o.value === props.modelValue)?.label ?? ''
+  () =>
+    opts.value.find(option => option.value === props.modelValue)?.label ?? ''
 )
 
 watch(query, () => {
@@ -87,7 +92,9 @@ let swapping = false
 function openPanel() {
   open.value = true
   query.value = ''
-  activeIndex.value = opts.value.findIndex(o => o.value === props.modelValue)
+  activeIndex.value = opts.value.findIndex(
+    option => option.value === props.modelValue
+  )
   reposition()
   watchViewport(true)
   swapping = true
@@ -117,9 +124,9 @@ function select(option: Option) {
 }
 
 function move(delta: number) {
-  const n = filtered.value.length
-  if (!n) return
-  activeIndex.value = (activeIndex.value + delta + n) % n
+  const count = filtered.value.length
+  if (!count) return
+  activeIndex.value = (activeIndex.value + delta + count) % count
   void nextTick(scrollActiveIntoView)
 }
 
@@ -136,8 +143,8 @@ function typeahead(key: string) {
   typeBuffer += key.toLowerCase()
   if (typeTimer) clearTimeout(typeTimer)
   typeTimer = setTimeout(() => (typeBuffer = ''), 500)
-  const idx = filtered.value.findIndex(o =>
-    o.label.toLowerCase().startsWith(typeBuffer)
+  const idx = filtered.value.findIndex(option =>
+    option.label.toLowerCase().startsWith(typeBuffer)
   )
   if (idx === -1) return
   if (open.value) {
@@ -148,42 +155,42 @@ function typeahead(key: string) {
   }
 }
 
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-    e.preventDefault()
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault()
     if (!open.value) openPanel()
-    else move(e.key === 'ArrowDown' ? 1 : -1)
+    else move(event.key === 'ArrowDown' ? 1 : -1)
   } else if (
-    e.key === 'Enter' ||
-    (e.key === ' ' && !(searchable.value && open.value))
+    event.key === 'Enter' ||
+    (event.key === ' ' && !(searchable.value && open.value))
   ) {
     if (!open.value) {
-      e.preventDefault()
+      event.preventDefault()
       openPanel()
     } else if (activeIndex.value >= 0 && filtered.value[activeIndex.value]) {
-      e.preventDefault()
+      event.preventDefault()
       select(filtered.value[activeIndex.value])
     }
-  } else if (e.key === 'Escape') {
+  } else if (event.key === 'Escape') {
     if (open.value) {
-      e.stopPropagation()
+      event.stopPropagation()
       close()
       void nextTick(() => buttonEl.value?.focus())
     }
   } else if (
-    e.key.length === 1 &&
-    !e.ctrlKey &&
-    !e.metaKey &&
-    !e.altKey &&
+    event.key.length === 1 &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.altKey &&
     !(searchable.value && open.value)
   ) {
-    typeahead(e.key)
+    typeahead(event.key)
   }
 }
 
-function onFocusout(e: FocusEvent) {
+function onFocusout(event: FocusEvent) {
   if (swapping) return
-  if (!root.value?.contains(e.relatedTarget as Node)) close()
+  if (!root.value?.contains(event.relatedTarget as Node)) close()
 }
 </script>
 
@@ -225,17 +232,17 @@ function onFocusout(e: FocusEvent) {
       <div v-if="open" class="cb-panel" :style="panelStyle">
         <div ref="listEl" class="cb-list" role="listbox">
           <div
-            v-for="(option, i) in filtered"
+            v-for="(option, index) in filtered"
             :key="option.value"
             class="cb-option"
             :class="{
-              'cb-option--active': i === activeIndex,
+              'cb-option--active': index === activeIndex,
               'cb-option--selected': option.value === modelValue
             }"
             role="option"
             :aria-selected="option.value === modelValue"
             @mousedown.prevent="select(option)"
-            @mousemove="activeIndex = i"
+            @mousemove="activeIndex = index"
           >
             {{ option.label }}
           </div>

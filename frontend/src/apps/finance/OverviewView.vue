@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { Entry } from '../types'
-import { addDays } from '../calendar/recurrence'
+
 import BalanceChart from './BalanceChart.vue'
+
+import { addDays } from '../calendar/recurrence'
 import {
   categoryColor,
   formatAmount,
@@ -16,6 +17,7 @@ import {
   type Rates,
   type SnapshotPoint
 } from './finance'
+import type { Entry } from '../types'
 
 // The finance landing page: one number, one curve, and what needs doing.
 // Everything here is read-only; management lives in the Accounts tab.
@@ -54,7 +56,9 @@ function deltaLabel(delta: number): string {
 const splits = computed(() =>
   (['tradfi', 'crypto'] as const)
     .map(universe => {
-      const list = props.accounts.filter(a => a.universe === universe)
+      const list = props.accounts.filter(
+        account => account.universe === universe
+      )
       const { points } = universeCurve(
         list,
         props.seriesByKey,
@@ -67,7 +71,7 @@ const splits = computed(() =>
         total: valueAt(points, props.today)
       }
     })
-    .filter(s => s.count > 0)
+    .filter(split => split.count > 0)
 )
 
 // ----- this month's spending digest -----
@@ -84,13 +88,19 @@ const spending = computed(() =>
 const month = computed(() => props.today.slice(0, 7))
 
 const spentThisMonth = computed(() =>
-  spending.value.rows.reduce((sum, r) => sum + (r.byMonth[month.value] || 0), 0)
+  spending.value.rows.reduce(
+    (sum, row) => sum + (row.byMonth[month.value] || 0),
+    0
+  )
 )
 
 const topCategories = computed(() =>
   spending.value.rows
-    .map(r => ({ category: r.category, amount: r.byMonth[month.value] || 0 }))
-    .filter(c => c.amount > 0)
+    .map(row => ({
+      category: row.category,
+      amount: row.byMonth[month.value] || 0
+    }))
+    .filter(cat => cat.amount > 0)
     .sort((a, b) => b.amount - a.amount)
     .slice(0, 3)
 )
@@ -99,9 +109,9 @@ const topCategories = computed(() =>
 
 const staleAccounts = computed(() =>
   props.accounts.filter(
-    a =>
+    account =>
       freshnessLevel(
-        freshnessDays(props.seriesByKey.get(a.key) || [], props.today)
+        freshnessDays(props.seriesByKey.get(account.key) || [], props.today)
       ) !== 'ok'
   )
 )
@@ -122,7 +132,7 @@ const alerts = computed<Alert[]>(() => {
       label: `${stale.length} account(s) with no balance newer than 35 days`,
       detail: stale
         .slice(0, 3)
-        .map(a => a.name)
+        .map(account => account.name)
         .join(', '),
       tab: 'accounts'
     })
@@ -175,8 +185,8 @@ const alerts = computed<Alert[]>(() => {
           color="var(--primary)"
         />
         <p v-if="splits.length > 1" class="ov-splits">
-          <span v-for="s in splits" :key="s.universe" class="ov-split">
-            {{ s.universe }} {{ formatAmount(s.total, refCurrency) }}
+          <span v-for="split in splits" :key="split.universe" class="ov-split">
+            {{ split.universe }} {{ formatAmount(split.total, refCurrency) }}
           </span>
         </p>
       </section>
@@ -191,13 +201,17 @@ const alerts = computed<Alert[]>(() => {
             spent
           </p>
           <p v-if="topCategories.length" class="ov-topcats">
-            <span v-for="c in topCategories" :key="c.category" class="ov-cat">
+            <span
+              v-for="cat in topCategories"
+              :key="cat.category"
+              class="ov-cat"
+            >
               <span
                 class="ov-cat-dot"
-                :style="{ background: categoryColor(c.category) }"
+                :style="{ background: categoryColor(cat.category) }"
               ></span>
-              {{ c.category }}
-              {{ formatAmount(c.amount, refCurrency) }}
+              {{ cat.category }}
+              {{ formatAmount(cat.amount, refCurrency) }}
             </span>
           </p>
           <p v-else class="ov-quiet">No spending recorded this month.</p>
@@ -212,13 +226,13 @@ const alerts = computed<Alert[]>(() => {
             Everything fresh: all balances observed within 35 days.
           </p>
           <button
-            v-for="a in alerts"
-            :key="a.key"
+            v-for="alert in alerts"
+            :key="alert.key"
             class="ov-alert"
-            @click="emit('go', a.tab)"
+            @click="emit('go', alert.tab)"
           >
-            <span class="ov-alert-label">{{ a.label }}</span>
-            <span class="ov-alert-detail">{{ a.detail }}</span>
+            <span class="ov-alert-label">{{ alert.label }}</span>
+            <span class="ov-alert-detail">{{ alert.detail }}</span>
           </button>
         </section>
       </div>
@@ -261,7 +275,7 @@ const alerts = computed<Alert[]>(() => {
 .ov-delta {
   font-family: var(--font-mono);
   font-size: 0.8rem;
-  color: var(--success, #4fd674);
+  color: var(--success);
 }
 .ov-delta--down {
   color: var(--danger);

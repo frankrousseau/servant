@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Download, Trash2 } from 'lucide-vue-next'
 
 import VideoPlayer from '../components/VideoPlayer.vue'
 
 import { deleteEntry, getEntry } from '../api/entries'
-import { useFetchData } from '../composables/useFetchData'
 import { useConfirm } from '../composables/useConfirm'
-import type { Entry } from '../types'
-import { formatFileSize } from '../lib/filesize'
+import { useFetchData } from '../composables/useFetchData'
 import { formatDateTime } from '../lib/datetime'
+import { formatFileSize } from '../lib/filesize'
+import type { Entry } from '../types'
 
 const route = useRoute()
 const router = useRouter()
@@ -353,7 +353,7 @@ async function deletePhoto() {
 .action-btn--danger:hover {
   color: var(--danger);
   border-color: var(--danger);
-  background: rgba(240, 108, 108, 0.08);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
 
 .photo-permalink {

@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   ChevronLeft,
   ChevronRight,
-  X,
   Download,
-  Trash2,
-  ZoomIn,
-  ZoomOut,
   ExternalLink,
   Info,
-  Maximize2
+  Maximize2,
+  Trash2,
+  X,
+  ZoomIn,
+  ZoomOut
 } from 'lucide-vue-next'
 
 import VideoPlayer from './VideoPlayer.vue'
@@ -105,12 +105,18 @@ async function handleDelete() {
   if (ok) emit('delete', current.value.id)
 }
 
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') emit('close')
-  else if (e.key === 'ArrowLeft') prev()
-  else if (e.key === 'ArrowRight') next()
-  else if (e.key === '+' || e.key === '=') zoomIn()
-  else if (e.key === '-') zoomOut()
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') emit('close')
+  else if (event.key === 'ArrowLeft') prev()
+  else if (event.key === 'ArrowRight') next()
+  else if (event.key === '+' || event.key === '=') zoomIn()
+  else if (event.key === '-') zoomOut()
+}
+
+// OpenStreetMap permalink for a "lat, lon" meta value.
+function osmLink(location: string): string {
+  const [lat, lon] = location.split(', ')
+  return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=15/${lat}/${lon}`
 }
 
 onMounted(() => document.addEventListener('keydown', onKeydown))
@@ -246,7 +252,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             <span class="mv-info-label">{{ key }}</span>
             <span v-if="String(key) === 'Location'" class="mv-info-value">
               <a
-                :href="`https://www.openstreetmap.org/?mlat=${String(value).split(', ')[0]}&mlon=${String(value).split(', ')[1]}#map=15/${String(value).split(', ')[0]}/${String(value).split(', ')[1]}`"
+                :href="osmLink(String(value))"
                 target="_blank"
                 rel="noopener"
                 class="mv-info-link"
@@ -271,6 +277,40 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   flex-direction: column;
 }
 
+/* Stage: the media fills the space under the top bar */
+.mv-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.mv-image {
+  max-width: 90%;
+  max-height: 100%;
+  object-fit: contain;
+  transition: transform 0.2s;
+  user-select: none;
+}
+
+.mv-player {
+  width: 90%;
+  height: 92%;
+  background: transparent;
+}
+
+.mv-broken {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.9rem;
+}
+
+/* Top bar */
 .mv-topbar {
   display: flex;
   align-items: center;
@@ -335,42 +375,16 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   color: #fff;
 }
 
+.mv-btn--active {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
 .mv-btn--danger:hover {
   color: var(--danger);
 }
 
-.mv-stage {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  z-index: 1;
-}
-
-.mv-image {
-  max-width: 90%;
-  max-height: 100%;
-  object-fit: contain;
-  transition: transform 0.2s;
-  user-select: none;
-}
-
-.mv-player {
-  width: 90%;
-  height: 92%;
-  background: transparent;
-}
-
-.mv-broken {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-  color: rgba(255, 255, 255, 0.3);
-  font-size: 0.9rem;
-}
-
+/* Nav arrows */
 .mv-arrow {
   position: fixed;
   top: 50%;
@@ -398,11 +412,6 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 
 .mv-arrow--right {
   right: 1rem;
-}
-
-.mv-btn--active {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
 }
 
 /* Info panel */

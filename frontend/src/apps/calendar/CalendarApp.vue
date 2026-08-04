@@ -1,20 +1,20 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import flatpickr from 'flatpickr'
 
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
 
-import type { AppContext, Entry } from '../types'
-import type { Item as ChecklistItem } from '../checklists/markdown'
 import { birthdaySeed, contactField, contactName } from '../../lib/contact'
 import {
   formatTime,
-  zonedToUtcISO,
+  todayInUserTz,
   utcToZonedParts,
-  todayInUserTz
+  zonedToUtcISO
 } from '../../lib/datetime'
 import { nextOccurrence, occursOn, recurrenceOf } from './recurrence'
+import type { Item as ChecklistItem } from '../checklists/markdown'
+import type { AppContext, Entry } from '../types'
 
 import 'flatpickr/dist/flatpickr.min.css'
 
@@ -71,12 +71,12 @@ const contacts = ref<Entry[]>([])
 const birthdayPrefs = ref<Entry | null>(null)
 
 const contactByName = computed(() => {
-  const m = new Map<string, Entry>()
-  for (const c of contacts.value) {
-    const k = contactName(c).toLowerCase()
-    if (k !== '(unnamed)' && !m.has(k)) m.set(k, c)
+  const map = new Map<string, Entry>()
+  for (const contact of contacts.value) {
+    const key = contactName(contact).toLowerCase()
+    if (key !== '(unnamed)' && !map.has(key)) map.set(key, contact)
   }
-  return m
+  return map
 })
 
 const contactOptions = computed(() =>
@@ -85,8 +85,8 @@ const contactOptions = computed(() =>
     .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
 )
 
-function openEventContact(e: Entry) {
-  const id = e.data.contact_id as string | undefined
+function openEventContact(event: Entry) {
+  const id = event.data.contact_id as string | undefined
   if (id) props.ctx.navigate(`/contacts/${id}`)
 }
 
@@ -98,16 +98,16 @@ const birthdayEvents = computed<Entry[]>(() => {
     (birthdayPrefs.value?.data.contact_ids as string[]) || []
   )
   if (!optedIn.size) return []
-  return contacts.value.flatMap(c => {
-    if (!optedIn.has(c.id)) return []
-    const seed = birthdaySeed(contactField(c, 'birthday'))
+  return contacts.value.flatMap(contact => {
+    if (!optedIn.has(contact.id)) return []
+    const seed = birthdaySeed(contactField(contact, 'birthday'))
     if (!seed) return []
     return [
       {
-        ...c,
-        id: `birthday:${c.id}`,
+        ...contact,
+        id: `birthday:${contact.id}`,
         kind: 'event',
-        title: `🎂 ${contactName(c)}`,
+        title: `🎂 ${contactName(contact)}`,
         // Noon UTC keeps the civil date stable across user timezones.
         occurred_at: `${seed}T12:00:00Z`,
         data: {
@@ -127,8 +127,8 @@ const birthdayEvents = computed<Entry[]>(() => {
 // it from the calendar. Same mechanics as birthdays: never stored, own
 // hideable "Deadlines" agenda, click-through to the checklist.
 const deadlineEvents = computed<Entry[]>(() =>
-  checklists.value.flatMap(l => {
-    const items = (l.data.items as ChecklistItem[]) || []
+  checklists.value.flatMap(list => {
+    const items = (list.data.items as ChecklistItem[]) || []
     return items.flatMap((item, i) =>
       item.due && !item.done
         ? [
@@ -157,8 +157,8 @@ const deadlineEvents = computed<Entry[]>(() =>
 // synced events (iCal connectors) appear in the list too, without an entity
 // behind them. "Manual" is the ever-present default.
 
-const calendarOf = (e: Entry) =>
-  ((e.data.calendar as string) || 'Manual').trim() || 'Manual'
+const calendarOf = (event: Entry) =>
+  ((event.data.calendar as string) || 'Manual').trim() || 'Manual'
 
 const calendarEntities = ref<Entry[]>([])
 const manageOpen = ref(false)
@@ -166,19 +166,19 @@ const newCalName = ref('')
 const manageError = ref('')
 
 const calendarEntityByName = computed(() => {
-  const m = new Map<string, Entry>()
+  const map = new Map<string, Entry>()
   for (const c of calendarEntities.value) {
     const name = (c.title || '').trim()
     if (name && !m.has(name)) m.set(name, c)
   }
-  return m
+  return map
 })
 
 async function createCalendar() {
   const name = newCalName.value.trim()
   manageError.value = ''
   if (!name) return
-  if (calendars.value.some(c => c.name === name)) {
+  if (calendars.value.some(calendar => calendar.name === name)) {
     manageError.value = 'This calendar already exists.'
     return
   }
@@ -194,8 +194,8 @@ async function createCalendar() {
   newCalName.value = ''
 }
 
-async function setCalendarColor(name: string, e: Event) {
-  const color = (e.target as HTMLInputElement).value
+async function setCalendarColor(name: string, event: Event) {
+  const color = (event.target as HTMLInputElement).value
   const entity = calendarEntityByName.value.get(name)
   if (entity) {
     await props.ctx.api.entries.update(entity.id, {
@@ -221,7 +221,7 @@ async function deleteCalendar(name: string) {
   manageError.value = ''
   const entity = calendarEntityByName.value.get(name)
   if (!entity) return
-  const count = events.value.filter(e => calendarOf(e) === name).length
+  const count = events.value.filter(event => calendarOf(event) === name).length
   if (count > 0) {
     manageError.value = `"${name}" still has ${count} event(s). Move or delete them first.`
     return
@@ -253,27 +253,27 @@ function calColor(name: string): string {
     | string
     | undefined
   if (stored) return stored
-  let h = 5381
+  let hash = 5381
   for (let i = 0; i < name.length; i++)
-    h = ((h << 5) + h + name.charCodeAt(i)) | 0
-  return CAL_PALETTE[Math.abs(h) % CAL_PALETTE.length]
+    hash = ((hash << 5) + hash + name.charCodeAt(i)) | 0
+  return CAL_PALETTE[Math.abs(hash) % CAL_PALETTE.length]
 }
 
 // Per-chip CSS vars consumed by the stylesheet (rail, tint, time color).
-function calVars(e: Entry): Record<string, string> {
-  const hex = calColor(calendarOf(e))
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
-  return { '--cal-color': hex, '--cal-rgb': `${r}, ${g}, ${b}` }
+function calVars(event: Entry): Record<string, string> {
+  const hex = calColor(calendarOf(event))
+  const red = parseInt(hex.slice(1, 3), 16)
+  const green = parseInt(hex.slice(3, 5), 16)
+  const blue = parseInt(hex.slice(5, 7), 16)
+  return { '--cal-color': hex, '--cal-rgb': `${red}, ${green}, ${blue}` }
 }
 
 const calendars = computed(() => {
   const counts = new Map<string, number>()
   counts.set('Manual', 0)
   for (const name of calendarEntityByName.value.keys()) counts.set(name, 0)
-  for (const e of allEvents.value) {
-    const name = calendarOf(e)
+  for (const event of allEvents.value) {
+    const name = calendarOf(event)
     counts.set(name, (counts.get(name) || 0) + 1)
   }
   return Array.from(counts.entries())
@@ -310,7 +310,7 @@ const allEvents = computed(() => [
 ])
 
 const visibleEvents = computed(() =>
-  allEvents.value.filter(e => !hiddenCals.value.has(calendarOf(e)))
+  allEvents.value.filter(event => !hiddenCals.value.has(calendarOf(event)))
 )
 
 const titleInput = ref<HTMLInputElement | null>(null)
@@ -332,8 +332,8 @@ function formatISODate(date: Date): string {
 // Day header for the list view. `dateStr` is a civil date label; format it
 // without any tz shift (it's not an instant).
 function formatDateHeader(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -347,13 +347,13 @@ function eventDateStr(iso: string): string {
 }
 
 function eventsForDateStr(dateStr: string): Entry[] {
-  return visibleEvents.value.filter(e => {
-    if (!e.occurred_at) return false
-    const startDate = eventDateStr(e.occurred_at)
+  return visibleEvents.value.filter(event => {
+    if (!event.occurred_at) return false
+    const startDate = eventDateStr(event.occurred_at)
     // Recurring events repeat from their seed date on (single-day).
-    const rec = recurrenceOf(e.data)
+    const rec = recurrenceOf(event.data)
     if (rec) return occursOn(startDate, rec, dateStr)
-    const endStr = e.data.end_at as string | undefined
+    const endStr = event.data.end_at as string | undefined
     if (endStr && !isNaN(new Date(endStr).getTime())) {
       return startDate <= dateStr && eventDateStr(endStr) >= dateStr
     }
@@ -403,17 +403,17 @@ const upcomingDays = computed(() => {
   // expand the full horizon if that ever feels lacking.
   const today = todayInUserTz()
   const grouped: Record<string, Entry[]> = {}
-  for (const e of visibleEvents.value) {
-    const rec = recurrenceOf(e.data)
-    const key = !e.occurred_at
+  for (const event of visibleEvents.value) {
+    const rec = recurrenceOf(event.data)
+    const key = !event.occurred_at
       ? 'unknown'
       : rec
-        ? nextOccurrence(eventDateStr(e.occurred_at), rec, today)
-        : eventDateStr(e.occurred_at)
-    ;(grouped[key] ||= []).push(e)
+        ? nextOccurrence(eventDateStr(event.occurred_at), rec, today)
+        : eventDateStr(event.occurred_at)
+    ;(grouped[key] ||= []).push(event)
   }
   return Object.keys(grouped)
-    .filter(d => d >= today)
+    .filter(date => date >= today)
     .sort()
     .map(date => ({ date, events: grouped[date] }))
 })
@@ -502,7 +502,7 @@ function onEventClick(id: string | undefined) {
     props.ctx.navigate(`/apps/checklists?selected=${listId}`)
     return
   }
-  const entry = events.value.find(e => e.id === id)
+  const entry = events.value.find(event => event.id === id)
   if (entry) openEditModal(entry)
 }
 
@@ -646,10 +646,12 @@ async function reload() {
     events.value = evs
     calendarEntities.value = cals
     contacts.value = cts
-    birthdayPrefs.value = prefs.find(p => p.title === 'birthdays') || null
+    birthdayPrefs.value =
+      prefs.find(entry => entry.title === 'birthdays') || null
     checklists.value = lists
-  } catch (e) {
-    loadError.value = e instanceof Error ? e.message : 'Failed to load events'
+  } catch (err) {
+    loadError.value =
+      err instanceof Error ? err.message : 'Failed to load events'
   } finally {
     loading.value = false
   }
@@ -707,18 +709,23 @@ onUnmounted(destroyPickers)
 
     <div v-if="calendars.length > 1" class="cal-legend">
       <button
-        v-for="c in calendars"
-        :key="c.name"
+        v-for="calendar in calendars"
+        :key="calendar.name"
         class="cal-legend-item"
-        :class="{ 'cal-legend-item--off': hiddenCals.has(c.name) }"
+        :class="{ 'cal-legend-item--off': hiddenCals.has(calendar.name) }"
         :title="
-          hiddenCals.has(c.name) ? 'Show this agenda' : 'Hide this agenda'
+          hiddenCals.has(calendar.name)
+            ? 'Show this agenda'
+            : 'Hide this agenda'
         "
-        @click="toggleCalendar(c.name)"
+        @click="toggleCalendar(calendar.name)"
       >
-        <span class="cal-legend-swatch" :style="{ background: c.color }"></span>
-        {{ c.name }}
-        <span class="cal-legend-count">{{ c.count }}</span>
+        <span
+          class="cal-legend-swatch"
+          :style="{ background: calendar.color }"
+        ></span>
+        {{ calendar.name }}
+        <span class="cal-legend-count">{{ calendar.count }}</span>
       </button>
     </div>
 
@@ -727,8 +734,8 @@ onUnmounted(destroyPickers)
         {{ dh }}
       </div>
       <div
-        v-for="(cell, i) in calendarCells"
-        :key="i"
+        v-for="(cell, index) in calendarCells"
+        :key="index"
         class="cal-cell"
         :class="{
           'cal-cell--empty': cell.empty,
@@ -774,45 +781,45 @@ onUnmounted(destroyPickers)
       <div v-for="group in upcomingDays" :key="group.date" class="cal-day">
         <div class="cal-day-header">{{ formatDateHeader(group.date) }}</div>
         <div
-          v-for="e in group.events"
-          :key="e.id"
+          v-for="event in group.events"
+          :key="event.id"
           class="cal-event"
-          @click.stop="onEventClick(e.id)"
+          @click.stop="onEventClick(event.id)"
         >
           <div
             class="cal-event-time"
-            :style="{ color: calColor(calendarOf(e)) }"
+            :style="{ color: calColor(calendarOf(event)) }"
           >
             {{
-              e.data.all_day || !e.data.dtstart
+              event.data.all_day || !event.data.dtstart
                 ? 'All day'
-                : formatTime(e.occurred_at || '')
+                : formatTime(event.occurred_at || '')
             }}
           </div>
           <div class="cal-event-body">
             <span class="cal-event-title">
               <span
-                v-if="e.data.recurrence"
+                v-if="event.data.recurrence"
                 class="cal-event-rec"
                 title="Recurring"
                 >↻</span
               >
-              {{ e.title || 'Untitled' }}
+              {{ event.title || 'Untitled' }}
             </span>
-            <span v-if="e.data.location" class="cal-event-loc">{{
-              e.data.location
+            <span v-if="event.data.location" class="cal-event-loc">{{
+              event.data.location
             }}</span>
             <span
-              v-if="e.data.contact_name"
+              v-if="event.data.contact_name"
               class="cal-event-contact"
-              :title="e.data.contact_id ? 'Open contact' : undefined"
-              @click.stop="openEventContact(e)"
-              >👤 {{ e.data.contact_name }}</span
+              :title="event.data.contact_id ? 'Open contact' : undefined"
+              @click.stop="openEventContact(event)"
+              >👤 {{ event.data.contact_name }}</span
             >
             <span
               class="cal-event-cal"
-              :style="{ color: calColor(calendarOf(e)) }"
-              >{{ calendarOf(e) }}</span
+              :style="{ color: calColor(calendarOf(event)) }"
+              >{{ calendarOf(event) }}</span
             >
           </div>
         </div>
@@ -829,26 +836,30 @@ onUnmounted(destroyPickers)
       <div class="cal-modal">
         <div class="cal-modal-header">Calendars</div>
         <div class="cal-manage-list">
-          <div v-for="c in calendars" :key="c.name" class="cal-manage-row">
+          <div
+            v-for="calendar in calendars"
+            :key="calendar.name"
+            class="cal-manage-row"
+          >
             <input
               type="color"
               class="cal-color-input"
-              :value="c.color"
+              :value="calendar.color"
               title="Pick a color for this calendar"
-              @change="setCalendarColor(c.name, $event)"
+              @change="setCalendarColor(calendar.name, $event)"
             />
-            <span class="cal-manage-name">{{ c.name }}</span>
-            <span class="cal-manage-count">{{ c.count }} evt</span>
+            <span class="cal-manage-name">{{ calendar.name }}</span>
+            <span class="cal-manage-count">{{ calendar.count }} evt</span>
             <span
-              v-if="!c.owned && c.name !== 'Manual'"
+              v-if="!calendar.owned && calendar.name !== 'Manual'"
               class="cal-manage-synced"
               >synced</span
             >
             <button
-              v-if="c.owned"
+              v-if="calendar.owned"
               class="cal-manage-delete"
               title="Delete this calendar"
-              @click="deleteCalendar(c.name)"
+              @click="deleteCalendar(calendar.name)"
             >
               ✕
             </button>
@@ -925,7 +936,7 @@ onUnmounted(destroyPickers)
             <label>Calendar</label>
             <ComboBox
               v-model="modalCalendar"
-              :options="calendars.map(c => c.name)"
+              :options="calendars.map(calendar => calendar.name)"
             />
           </div>
           <div class="cal-modal-field">

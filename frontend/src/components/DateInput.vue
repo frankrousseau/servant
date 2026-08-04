@@ -34,15 +34,15 @@ onMounted(() => {
 
 watch(
   () => props.modelValue,
-  v => {
+  value => {
     if (!fp) return
-    if (!v) fp.clear(false)
-    else fp.setDate(v, false)
+    if (!value) fp.clear(false)
+    else fp.setDate(value, false)
   }
 )
 watch(
   () => props.max,
-  m => fp?.set('maxDate', m)
+  max => fp?.set('maxDate', max)
 )
 
 onBeforeUnmount(() => fp?.destroy())

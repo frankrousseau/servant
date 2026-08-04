@@ -1,23 +1,23 @@
 <script setup lang="ts">
-import { watch, onUnmounted } from 'vue'
+import { onUnmounted, watch } from 'vue'
 import { AlertTriangle } from 'lucide-vue-next'
 
 import { useConfirm } from '../composables/useConfirm'
 
 const { visible, title, message, confirmLabel, danger, resolve } = useConfirm()
 
-function onOverlayClick(e: MouseEvent) {
-  if (e.target === e.currentTarget) resolve(false)
+function onOverlayClick(event: MouseEvent) {
+  if (event.target === event.currentTarget) resolve(false)
 }
 
 // The overlay never gets focus, so a keydown bound to it never fires. Listen at
 // the document level (capture phase) while visible so Escape cancels the confirm,
 // and stop propagation so an underlying MediaViewer's Escape handler doesn't
 // also fire and close the layer beneath the dialog.
-function onKeydown(e: KeyboardEvent) {
+function onKeydown(event: KeyboardEvent) {
   if (!visible.value) return
-  if (e.key === 'Escape') {
-    e.stopPropagation()
+  if (event.key === 'Escape') {
+    event.stopPropagation()
     resolve(false)
   }
 }
@@ -59,7 +59,6 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
               class="confirm-btn"
               :class="danger ? 'confirm-btn--danger' : 'confirm-btn--primary'"
               @click="resolve(true)"
-              ref="confirmBtnRef"
             >
               {{ confirmLabel }}
             </button>
@@ -104,7 +103,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
 }
 
 .confirm-icon--danger {
-  background: rgba(240, 108, 108, 0.12);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
   color: var(--danger);
 }
 

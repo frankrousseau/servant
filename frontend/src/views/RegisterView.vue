@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { useAuthStore } from '../stores/auth'
 import { fetchRegistrationEnabled } from '../composables/authConfig'
+import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -26,8 +26,8 @@ async function handleRegister() {
   try {
     await auth.register(username.value, password.value, displayName.value)
     router.push('/')
-  } catch (e: any) {
-    error.value = e.message || 'Registration failed'
+  } catch (err: any) {
+    error.value = err.message || 'Registration failed'
   } finally {
     loading.value = false
   }

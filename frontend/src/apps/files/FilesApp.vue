@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   Eye,
   EyeOff,
-  Folder,
   File,
-  FileText,
   FileArchive,
+  FileText,
+  Folder,
   Image as ImageIcon,
   NotebookPen,
   Receipt,
@@ -15,9 +15,8 @@ import {
 
 import ComboBox from '../../components/ComboBox.vue'
 
-import type { AppContext, Entry } from '../types'
-import { formatFileSize } from '../../lib/filesize'
 import { formatDate } from '../../lib/datetime'
+import { formatFileSize } from '../../lib/filesize'
 import { safeUrl } from '../../lib/url'
 import {
   batchesDone,
@@ -27,6 +26,7 @@ import {
   uploadProgress,
   uploading
 } from './uploadQueue'
+import type { AppContext, Entry } from '../types'
 
 const props = defineProps<{ ctx: AppContext }>()
 
@@ -121,9 +121,9 @@ function vFolder(id: string, parent: string, name: string): Entry {
 function buildVirtual(kind: string, entries: Entry[]): Entry[] {
   const out: Entry[] = []
   const groups = new Set<string>()
-  for (const e of entries) {
+  for (const entry of entries) {
     if (kind === 'note') {
-      const folder = ((e.data.folder as string) || '').trim()
+      const folder = ((entry.data.folder as string) || '').trim()
       let path = ''
       for (const seg of folder.split('/').filter(Boolean)) {
         path = path ? `${path}/${seg}` : seg
@@ -131,74 +131,75 @@ function buildVirtual(kind: string, entries: Entry[]): Entry[] {
       }
       out.push(
         vEntry(
-          `v:note:${e.id}`,
+          `v:note:${entry.id}`,
           path ? `v:notes:f:${path}` : 'v:notes',
-          `${e.title || '(untitled)'}.md`,
+          `${entry.title || '(untitled)'}.md`,
           {
             v: 'note',
-            entry_id: e.id,
-            size: ((e.data.body as string) || '').length,
+            entry_id: entry.id,
+            size: ((entry.data.body as string) || '').length,
             mime_type: 'text/markdown'
           },
-          e
+          entry
         )
       )
     } else if (kind === 'photo') {
       // Shot year (EXIF date, else upload date), same date source as the
       // Photos app.
-      const year = (e.occurred_at || e.inserted_at || '').slice(0, 4)
+      const year = (entry.occurred_at || entry.inserted_at || '').slice(0, 4)
       if (year) groups.add(year)
       out.push(
         vEntry(
-          `v:photo:${e.id}`,
+          `v:photo:${entry.id}`,
           year ? `v:photos:y:${year}` : 'v:photos',
-          (e.data.filename as string) || '(unnamed)',
+          (entry.data.filename as string) || '(unnamed)',
           {
             v: 'photo',
-            size: e.data.size,
-            mime_type: e.data.mime_type,
-            path: e.data.path
+            size: entry.data.size,
+            mime_type: entry.data.mime_type,
+            path: entry.data.path
           },
-          e
+          entry
         )
       )
     } else {
-      const provider = ((e.data.provider as string) || '').trim()
+      const provider = ((entry.data.provider as string) || '').trim()
       if (provider) groups.add(provider)
       out.push(
         vEntry(
-          `v:invoice:${e.id}`,
+          `v:invoice:${entry.id}`,
           provider ? `v:invoices:p:${provider}` : 'v:invoices',
-          e.title || '(invoice)',
-          { v: 'invoice', url: e.data.url },
-          e
+          entry.title || '(invoice)',
+          { v: 'invoice', url: entry.data.url },
+          entry
         )
       )
     }
   }
-  for (const g of groups) {
+  for (const group of groups) {
     if (kind === 'note') {
-      const segs = g.split('/')
+      const segs = group.split('/')
       const parent = segs.slice(0, -1).join('/')
       out.push(
         vFolder(
-          `v:notes:f:${g}`,
+          `v:notes:f:${group}`,
           parent ? `v:notes:f:${parent}` : 'v:notes',
           segs[segs.length - 1]
         )
       )
     } else if (kind === 'photo') {
-      out.push(vFolder(`v:photos:y:${g}`, 'v:photos', g))
+      out.push(vFolder(`v:photos:y:${group}`, 'v:photos', group))
     } else {
-      out.push(vFolder(`v:invoices:p:${g}`, 'v:invoices', g))
+      out.push(vFolder(`v:invoices:p:${group}`, 'v:invoices', group))
     }
   }
   return out
 }
 
 const virtualKindOf = (folderId: string) =>
-  VIRTUAL_ROOTS.find(r => folderId === r.id || folderId.startsWith(r.id + ':'))
-    ?.kind
+  VIRTUAL_ROOTS.find(
+    root => folderId === root.id || folderId.startsWith(root.id + ':')
+  )?.kind
 
 // ponytail: loaded once per app mount, no live refresh; search only covers
 // mounts already visited
@@ -228,14 +229,16 @@ const invoiceUrl = (e: Entry) =>
     ? safeUrl(field<string>(e, 'url') || '')
     : null
 
-function openVirtualFile(f: Entry) {
-  const v = field<string>(f, 'v')
-  if (v === 'note') {
-    props.ctx.navigate(`/apps/notes?selected=${field<string>(f, 'entry_id')}`)
-  } else if (v === 'photo' && filePath(f)) {
-    window.open(filePath(f)!, '_blank')
+function openVirtualFile(file: Entry) {
+  const kind = field<string>(file, 'v')
+  if (kind === 'note') {
+    props.ctx.navigate(
+      `/apps/notes?selected=${field<string>(file, 'entry_id')}`
+    )
+  } else if (kind === 'photo' && filePath(file)) {
+    window.open(filePath(file)!, '_blank')
   } else if (v === 'invoice') {
-    const url = safeUrl(field<string>(f, 'url') || '')
+    const url = safeUrl(field<string>(file, 'url') || '')
     if (url) window.open(url, '_blank', 'noopener')
   }
 }
@@ -255,7 +258,7 @@ function fileIcon(e: Entry): typeof Folder {
 
 const currentItems = computed(() =>
   allItems.value
-    .filter(f => parentId(f) === currentFolder.value)
+    .filter(file => parentId(file) === currentFolder.value)
     .sort((a, b) => {
       const af = isFolder(a) ? 0 : 1
       const bf = isFolder(b) ? 0 : 1
@@ -308,7 +311,9 @@ function matchesType(e: Entry): boolean {
 
 // ----- folder paths (for search results and history restore) -----
 
-const byId = computed(() => new Map(allItems.value.map(f => [f.id, f])))
+const byId = computed(
+  () => new Map(allItems.value.map(file => [file.id, file]))
+)
 
 // Ancestor chain of a folder id, root first. The guard caps a corrupt
 // parent_id cycle.
@@ -332,15 +337,15 @@ function folderPathOf(e: Entry): string {
 // ----- folder stats (detail panel) -----
 
 const childrenByParent = computed(() => {
-  const m = new Map<string, Entry[]>()
-  for (const f of allItems.value) {
-    const p = parentId(f)
-    if (!p) continue
-    const list = m.get(p)
-    if (list) list.push(f)
-    else m.set(p, [f])
+  const map = new Map<string, Entry[]>()
+  for (const item of allItems.value) {
+    const parent = parentId(item)
+    if (!parent) continue
+    const list = map.get(parent)
+    if (list) list.push(item)
+    else map.set(parent, [item])
   }
-  return m
+  return map
 })
 
 interface FolderStats {
@@ -372,12 +377,12 @@ function folderStats(id: string): FolderStats {
 }
 
 const selectedStats = computed(() => {
-  const f = selected.value
-  if (!f || !isFolder(f)) return null
+  const file = selected.value
+  if (!file || !isFolder(file)) return null
   // A virtual mount only lists its children once opened: don't call it empty
   // before that.
-  if (isVirtual(f) && !childrenByParent.value.has(f.id)) return null
-  return folderStats(f.id)
+  if (isVirtual(file) && !childrenByParent.value.has(file.id)) return null
+  return folderStats(file.id)
 })
 
 const contentsLabel = computed(() => {
@@ -396,10 +401,10 @@ const displayed = computed(() => {
   if (q) {
     return allItems.value
       .filter(
-        f =>
-          !isFolder(f) &&
-          fileName(f).toLowerCase().includes(q) &&
-          matchesType(f)
+        file =>
+          !isFolder(file) &&
+          fileName(file).toLowerCase().includes(q) &&
+          matchesType(file)
       )
       .sort((a, b) =>
         fileName(a).toLowerCase().localeCompare(fileName(b).toLowerCase())
@@ -410,7 +415,7 @@ const displayed = computed(() => {
 
 const selected = computed(() =>
   selectedId.value
-    ? allFiles.value.find(f => f.id === selectedId.value) || null
+    ? allFiles.value.find(file => file.id === selectedId.value) || null
     : null
 )
 
@@ -418,8 +423,9 @@ async function reload() {
   loadError.value = ''
   try {
     allFiles.value = await props.ctx.api.entries.list({ kind: 'file' })
-  } catch (e) {
-    loadError.value = e instanceof Error ? e.message : 'Failed to load files'
+  } catch (err) {
+    loadError.value =
+      err instanceof Error ? err.message : 'Failed to load files'
   } finally {
     loading.value = false
   }
@@ -451,11 +457,11 @@ function navigateCrumb(idx: number) {
   setFolder(folderPath.value[idx].id, { push: true })
 }
 
-function openFolder(f: Entry) {
-  if (isFolder(f)) {
-    setFolder(f.id, { push: true })
-  } else if (isVirtual(f)) {
-    openVirtualFile(f)
+function openFolder(file: Entry) {
+  if (isFolder(file)) {
+    setFolder(file.id, { push: true })
+  } else if (isVirtual(file)) {
+    openVirtualFile(file)
   }
 }
 
@@ -487,15 +493,15 @@ async function newFolder() {
   await reload()
   selectedId.value = created.id
   creatingId.value = created.id
-  const f = byId.value.get(created.id)
-  if (f) startRename(f)
+  const file = byId.value.get(created.id)
+  if (file) startRename(file)
 }
 
 // Upload state and pipeline live in ./uploadQueue (module scope) so a batch
 // survives navigating to another app mid-upload. While mounted, insert each
 // created file as it lands and true-up with one reload when the queue drains.
 watch(lastCreated, created => {
-  if (created && !allFiles.value.some(f => f.id === created.id)) {
+  if (created && !allFiles.value.some(file => file.id === created.id)) {
     allFiles.value.push(created)
   }
 })
@@ -505,20 +511,20 @@ function uploadFiles(files: File[]) {
   enqueueUploads(files, props.ctx.api, currentFolder.value)
 }
 
-function onFileInput(e: Event) {
-  const input = e.target as HTMLInputElement
+function onFileInput(event: Event) {
+  const input = event.target as HTMLInputElement
   if (input.files?.length) uploadFiles(Array.from(input.files))
   // Reset so picking the same file(s) again re-triggers the change event.
   input.value = ''
 }
 
-function onDrop(e: DragEvent) {
+function onDrop(event: DragEvent) {
   dragover.value = false
   // An internal row drag that missed a folder target is a no-op, not an
   // upload; virtual mounts are read-only.
   if (draggingId.value || inVirtual.value) return
-  if (e.dataTransfer?.files.length)
-    uploadFiles(Array.from(e.dataTransfer.files))
+  if (event.dataTransfer?.files.length)
+    uploadFiles(Array.from(event.dataTransfer.files))
 }
 
 // ----- rename (files & folders) -----
@@ -540,10 +546,10 @@ let renameCancelled = false
 // Entry created by newFolder and still being named; aborting deletes it.
 const creatingId = ref<string | null>(null)
 
-function startRename(f: Entry) {
-  if (isVirtual(f)) return
-  renamingId.value = f.id
-  renameValue.value = fileName(f)
+function startRename(file: Entry) {
+  if (isVirtual(file)) return
+  renamingId.value = file.id
+  renameValue.value = fileName(file)
   nextTick(() => renameInput.value?.select())
 }
 
@@ -560,18 +566,18 @@ async function onRenameBlur() {
   renamingId.value = null
   const creating = creatingId.value === id
   creatingId.value = null
-  const f = id ? byId.value.get(id) : undefined
+  const file = id ? byId.value.get(id) : undefined
   const name = renameValue.value.trim()
-  if (!f) return
+  if (!file) return
   if (creating && (cancelled || !name)) {
-    await props.ctx.api.entries.delete(f.id)
+    await props.ctx.api.entries.delete(file.id)
     await reload()
     return
   }
-  if (cancelled || !name || name === fileName(f)) return
-  await props.ctx.api.entries.update(f.id, {
+  if (cancelled || !name || name === fileName(file)) return
+  await props.ctx.api.entries.update(file.id, {
     title: name,
-    data: { ...f.data, filename: name }
+    data: { ...file.data, filename: name }
   })
   await reload()
 }
@@ -592,11 +598,11 @@ function goUp() {
   setFolder(parentOfCurrent.value, { push: true })
 }
 
-function onRowDragStart(f: Entry, e: DragEvent) {
-  draggingId.value = f.id
-  if (e.dataTransfer) {
-    e.dataTransfer.setData('text/plain', f.id)
-    e.dataTransfer.effectAllowed = 'move'
+function onRowDragStart(file: Entry, event: DragEvent) {
+  draggingId.value = file.id
+  if (event.dataTransfer) {
+    event.dataTransfer.setData('text/plain', file.id)
+    event.dataTransfer.effectAllowed = 'move'
   }
 }
 
@@ -612,36 +618,36 @@ function canDropOn(target: Entry): boolean {
   if (!id || id === target.id || !isFolder(target) || isVirtual(target)) {
     return false
   }
-  return !chainTo(target.id).some(a => a.id === id)
+  return !chainTo(target.id).some(ancestor => ancestor.id === id)
 }
 
-function onRowDragOver(f: Entry, e: DragEvent) {
-  if (!canDropOn(f)) return
-  e.preventDefault()
-  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
-  dropTargetId.value = f.id
+function onRowDragOver(file: Entry, event: DragEvent) {
+  if (!canDropOn(file)) return
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  dropTargetId.value = file.id
 }
 
-function onRowDragLeave(f: Entry) {
-  if (dropTargetId.value === f.id) dropTargetId.value = null
+function onRowDragLeave(file: Entry) {
+  if (dropTargetId.value === file.id) dropTargetId.value = null
 }
 
-function onRowDrop(f: Entry, e: DragEvent) {
+function onRowDrop(file: Entry, event: DragEvent) {
   if (draggingId.value) {
-    if (canDropOn(f)) void moveTo(f.id)
+    if (canDropOn(file)) void moveTo(file.id)
     // Only clear the highlight here; draggingId lives until dragend:
     // clearing it now lets a stray dragover between drop and dragend
     // re-light the upload glow (visible blink).
     dropTargetId.value = null
   } else {
-    onDrop(e) // OS files dropped on a row upload into the current folder
+    onDrop(event) // OS files dropped on a row upload into the current folder
   }
 }
 
-function onUpDragOver(e: DragEvent) {
+function onUpDragOver(event: DragEvent) {
   if (!draggingId.value) return
-  e.preventDefault()
-  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
   dropTargetId.value = 'up'
 }
 
@@ -653,18 +659,18 @@ function onUpDrop() {
 async function moveTo(parent: string | null) {
   const id = draggingId.value
   if (!id) return
-  const f = byId.value.get(id)
-  if (!f || parentId(f) === parent) return
+  const file = byId.value.get(id)
+  if (!file || parentId(file) === parent) return
   await props.ctx.api.entries.update(id, {
-    data: { ...f.data, parent_id: parent }
+    data: { ...file.data, parent_id: parent }
   })
   await reload()
 }
 
-async function deleteItem(f: Entry) {
+async function deleteItem(file: Entry) {
   const ok = await props.ctx.confirm.ask({ message: 'Delete this item?' })
   if (!ok) return
-  await props.ctx.api.entries.delete(f.id)
+  await props.ctx.api.entries.delete(file.id)
   selectedId.value = null
   await reload()
 }
@@ -685,9 +691,11 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
     <div class="fs-main">
       <div class="fs-toolbar">
         <div class="fs-breadcrumbs">
-          <template v-for="(p, i) in folderPath" :key="i">
-            <span v-if="i > 0" class="fs-crumb-sep">/</span>
-            <span class="fs-crumb" @click="navigateCrumb(i)">{{ p.name }}</span>
+          <template v-for="(part, index) in folderPath" :key="index">
+            <span v-if="index > 0" class="fs-crumb-sep">/</span>
+            <span class="fs-crumb" @click="navigateCrumb(index)">{{
+              part.name
+            }}</span>
           </template>
         </div>
         <div class="fs-actions">
@@ -772,32 +780,32 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
           <span></span>
         </div>
         <div
-          v-for="f in displayed"
-          :key="f.id"
+          v-for="file in displayed"
+          :key="file.id"
           class="fs-row"
           :class="{
-            'fs-row--active': f.id === selectedId,
-            'fs-row--droptarget': dropTargetId === f.id,
-            'fs-row--dragging': draggingId === f.id
+            'fs-row--active': file.id === selectedId,
+            'fs-row--droptarget': dropTargetId === file.id,
+            'fs-row--dragging': draggingId === file.id
           }"
-          :draggable="renamingId !== f.id && !isVirtual(f)"
-          @click="selectedId = f.id"
-          @dblclick="openFolder(f)"
-          @dragstart="onRowDragStart(f, $event)"
+          :draggable="renamingId !== file.id && !isVirtual(file)"
+          @click="selectedId = file.id"
+          @dblclick="openFolder(file)"
+          @dragstart="onRowDragStart(file, $event)"
           @dragend="onRowDragEnd"
-          @dragover="onRowDragOver(f, $event)"
-          @dragleave="onRowDragLeave(f)"
-          @drop.stop.prevent="onRowDrop(f, $event)"
+          @dragover="onRowDragOver(file, $event)"
+          @dragleave="onRowDragLeave(file)"
+          @drop.stop.prevent="onRowDrop(file, $event)"
         >
           <span
             class="fs-row-icon"
-            :class="{ 'fs-row-icon--folder': isFolder(f) }"
+            :class="{ 'fs-row-icon--folder': isFolder(file) }"
           >
-            <component :is="fileIcon(f)" :size="16" />
+            <component :is="fileIcon(file)" :size="16" />
           </span>
           <span class="fs-name-cell">
             <input
-              v-if="renamingId === f.id"
+              v-if="renamingId === file.id"
               :ref="setRenameInput"
               v-model="renameValue"
               class="fs-name fs-name-input"
@@ -810,25 +818,27 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
             <span
               v-else
               class="fs-name"
-              :title="isVirtual(f) ? undefined : 'Double-click to rename'"
-              @dblclick.stop="isVirtual(f) ? openFolder(f) : startRename(f)"
-              >{{ fileName(f)
-              }}<span v-if="isFolder(f)" class="fs-slash">/</span></span
+              :title="isVirtual(file) ? undefined : 'Double-click to rename'"
+              @dblclick.stop="
+                isVirtual(file) ? openFolder(file) : startRename(file)
+              "
+              >{{ fileName(file)
+              }}<span v-if="isFolder(file)" class="fs-slash">/</span></span
             >
             <button
               v-if="searchQuery.trim()"
               class="fs-row-path"
               title="Go to folder"
-              @click.stop="goToFolderOf(f)"
+              @click.stop="goToFolderOf(file)"
             >
-              {{ folderPathOf(f) }}
+              {{ folderPathOf(file) }}
             </button>
           </span>
           <span class="fs-size fs-col-size">{{
-            isFolder(f) ? '-' : formatFileSize(fileSize(f))
+            isFolder(file) ? '-' : formatFileSize(fileSize(file))
           }}</span>
           <span class="fs-date">{{
-            f.inserted_at ? formatDate(f.inserted_at) : '-'
+            file.inserted_at ? formatDate(file.inserted_at) : '-'
           }}</span>
         </div>
         <p v-if="displayed.length === 0" class="fs-empty">

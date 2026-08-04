@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import ComboBox from '../../components/ComboBox.vue'
 import TrackerCard from './TrackerCard.vue'
 
-import type { AppContext, Entry } from '../types'
 import {
   todayInUserTz,
   utcToZonedParts,
   zonedToUtcISO
 } from '../../lib/datetime'
+import { addDays } from '../calendar/recurrence'
 import {
   TRACKER_TYPES,
   aggregateByDate,
@@ -18,7 +18,7 @@ import {
   weekMonday,
   type Tracker
 } from './trackers'
-import { addDays } from '../calendar/recurrence'
+import type { AppContext, Entry } from '../types'
 
 const props = defineProps<{ ctx: AppContext }>()
 const ctx = props.ctx
@@ -42,11 +42,11 @@ const windowEnd = ref(todayInUserTz())
 let resizeObs: ResizeObserver | null = null
 
 function measureWeeks() {
-  const w = layoutEl.value?.clientWidth || 0
-  if (w)
+  const width = layoutEl.value?.clientWidth || 0
+  if (width)
     weeksVisible.value = Math.min(
       104,
-      Math.max(8, Math.floor((w - CHROME) / CELL))
+      Math.max(8, Math.floor((width - CHROME) / CELL))
     )
 }
 
@@ -77,20 +77,23 @@ async function loadAggregates(trackers: Entry[]) {
   await Promise.all(
     trackers
       .map(trackerFromEntry)
-      .filter(t => t.type === 'entry' && t.entryKind)
-      .map(async t => {
-        const params: Record<string, string> = { kind: t.entryKind!, from }
-        if (t.agg === 'sum' && t.field) {
+      .filter(tracker => tracker.type === 'entry' && tracker.entryKind)
+      .map(async tracker => {
+        const params: Record<string, string> = {
+          kind: tracker.entryKind!,
+          from
+        }
+        if (tracker.agg === 'sum' && tracker.field) {
           params.agg = 'sum'
-          params.field = t.field
+          params.field = tracker.field
         }
         try {
           maps.set(
-            t.id,
+            tracker.id,
             aggregateByDate(await ctx.api.entries.aggregate(params))
           )
         } catch {
-          maps.set(t.id, new Map())
+          maps.set(tracker.id, new Map())
         }
       })
   )
@@ -133,23 +136,23 @@ const today = computed(() => todayInUserTz())
 const searchQuery = ref('')
 
 const trackers = computed<Tracker[]>(() => {
-  const q = searchQuery.value.trim().toLowerCase()
+  const needle = searchQuery.value.trim().toLowerCase()
   return trackerEntries.value
     .map(trackerFromEntry)
-    .filter(t => !q || t.name.toLowerCase().includes(q))
+    .filter(tracker => !needle || tracker.name.toLowerCase().includes(needle))
     .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
 })
 
 const mapsById = computed(() => {
-  const m = new Map<string, Map<string, number>>()
-  for (const t of trackers.value)
-    m.set(
-      t.id,
-      t.type === 'entry'
-        ? entryMaps.value.get(t.id) || new Map()
-        : logsByDate(logEntries.value, t.id)
+  const maps = new Map<string, Map<string, number>>()
+  for (const tracker of trackers.value)
+    maps.set(
+      tracker.id,
+      tracker.type === 'entry'
+        ? entryMaps.value.get(tracker.id) || new Map()
+        : logsByDate(logEntries.value, tracker.id)
     )
-  return m
+  return maps
 })
 
 // One log per tracker per day: update the day's entry when it exists,
@@ -163,10 +166,10 @@ async function setValue(tracker: Tracker, date: string, value: number) {
   if (inFlight.has(key)) return
   inFlight.add(key)
   const existing = logEntries.value.find(
-    l =>
-      l.data.tracker_id === tracker.id &&
-      l.occurred_at &&
-      utcToZonedParts(l.occurred_at).date === date
+    log =>
+      log.data.tracker_id === tracker.id &&
+      log.occurred_at &&
+      utcToZonedParts(log.occurred_at).date === date
   )
   try {
     if (existing) {
@@ -174,8 +177,8 @@ async function setValue(tracker: Tracker, date: string, value: number) {
         title: `${tracker.name}: ${value}`,
         data: { ...existing.data, value }
       })
-      logEntries.value = logEntries.value.map(l =>
-        l.id === updated.id ? updated : l
+      logEntries.value = logEntries.value.map(log =>
+        log.id === updated.id ? updated : log
       )
     } else {
       const created = await ctx.api.entries.create({
@@ -249,8 +252,8 @@ watch([draftKind, draftAgg], async ([kind, agg]) => {
     const body = (await res.json()) as { data?: Entry[] }
     const sample = body.data?.[0]?.data || {}
     fieldOptions.value = Object.entries(sample)
-      .filter(([, v]) => typeof v === 'number')
-      .map(([k]) => ({ value: k, label: k }))
+      .filter(([, value]) => typeof value === 'number')
+      .map(([key]) => ({ value: key, label: key }))
     if (fieldOptions.value.length === 1)
       draftField.value = fieldOptions.value[0].value
   } catch {
@@ -294,7 +297,9 @@ async function createTracker() {
 }
 
 async function removeTracker(tracker: Tracker) {
-  const logs = logEntries.value.filter(l => l.data.tracker_id === tracker.id)
+  const logs = logEntries.value.filter(
+    log => log.data.tracker_id === tracker.id
+  )
   const message =
     tracker.type === 'entry'
       ? `Delete "${tracker.name}"? The ${tracker.entryKind} entries it counts are kept.`
@@ -306,11 +311,13 @@ async function removeTracker(tracker: Tracker) {
   })
   if (!ok) return
   try {
-    for (const l of logs) await ctx.api.entries.delete(l.id)
+    for (const log of logs) await ctx.api.entries.delete(log.id)
     await ctx.api.entries.delete(tracker.id)
-    trackerEntries.value = trackerEntries.value.filter(e => e.id !== tracker.id)
+    trackerEntries.value = trackerEntries.value.filter(
+      entry => entry.id !== tracker.id
+    )
     logEntries.value = logEntries.value.filter(
-      l => l.data.tracker_id !== tracker.id
+      log => log.data.tracker_id !== tracker.id
     )
   } catch {
     void reload()
@@ -371,15 +378,15 @@ async function removeTracker(tracker: Tracker) {
 
       <div class="tk-grid">
         <TrackerCard
-          v-for="t in trackers"
-          :key="t.id"
-          :tracker="t"
-          :by-date="mapsById.get(t.id) || new Map()"
+          v-for="tracker in trackers"
+          :key="tracker.id"
+          :tracker="tracker"
+          :by-date="mapsById.get(tracker.id) || new Map()"
           :today="today"
           :weeks="weeksVisible"
           :window-end="windowEnd"
-          @set="(date, value) => setValue(t, date, value)"
-          @remove="removeTracker(t)"
+          @set="(date, value) => setValue(tracker, date, value)"
+          @remove="removeTracker(tracker)"
         />
       </div>
     </template>

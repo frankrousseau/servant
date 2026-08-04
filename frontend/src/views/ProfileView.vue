@@ -1,19 +1,19 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import QRCode from 'qrcode'
 import {
-  User as UserIcon,
-  KeyRound,
-  Info,
   Camera,
-  ShieldCheck
+  Info,
+  KeyRound,
+  ShieldCheck,
+  User as UserIcon
 } from 'lucide-vue-next'
 
 import ComboBox from '../components/ComboBox.vue'
 
-import { useAuthStore } from '../stores/auth'
 import * as api from '../api/auth'
 import { formatDate } from '../lib/datetime'
+import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
 
@@ -28,7 +28,7 @@ const timezones: string[] = (() => {
   try {
     const supported = (
       Intl as unknown as {
-        supportedValuesOf?: (k: string) => string[]
+        supportedValuesOf?: (key: string) => string[]
       }
     ).supportedValuesOf
     if (supported) return supported('timeZone')
@@ -82,8 +82,8 @@ async function startTotpSetup() {
       width: 220
     })
     totpCode.value = ''
-  } catch (e: any) {
-    totpError.value = e.message || 'Setup failed'
+  } catch (err: any) {
+    totpError.value = err.message || 'Setup failed'
   } finally {
     totpBusy.value = false
   }
@@ -99,8 +99,8 @@ async function confirmTotp() {
     totpSetup.value = null
     totpQr.value = ''
     totpCode.value = ''
-  } catch (e: any) {
-    totpError.value = e.message || 'Invalid code'
+  } catch (err: any) {
+    totpError.value = err.message || 'Invalid code'
   } finally {
     totpBusy.value = false
   }
@@ -113,8 +113,8 @@ async function disableTotp() {
     await api.disableTotp(totpDisableCode.value.trim())
     totpEnabled.value = false
     totpDisableCode.value = ''
-  } catch (e: any) {
-    totpError.value = e.message || 'Invalid code'
+  } catch (err: any) {
+    totpError.value = err.message || 'Invalid code'
   } finally {
     totpBusy.value = false
   }
@@ -156,8 +156,8 @@ async function saveProfile() {
     }
     profileSuccess.value = true
     setTimeout(() => (profileSuccess.value = false), 3000)
-  } catch (e: any) {
-    profileError.value = e.message || 'Failed to update profile'
+  } catch (err: any) {
+    profileError.value = err.message || 'Failed to update profile'
   } finally {
     profileSaving.value = false
   }
@@ -203,8 +203,8 @@ async function changePassword() {
     confirmPassword.value = ''
     passwordSuccess.value = true
     setTimeout(() => (passwordSuccess.value = false), 3000)
-  } catch (e: any) {
-    passwordError.value = e.message || 'Failed to change password'
+  } catch (err: any) {
+    passwordError.value = err.message || 'Failed to change password'
   } finally {
     passwordSaving.value = false
   }
@@ -438,11 +438,7 @@ async function changePassword() {
 </template>
 
 <style scoped>
-.field-hint {
-  margin: 0.35rem 0 0;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
+/* Cards (one per section) */
 .card {
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -483,30 +479,10 @@ async function changePassword() {
   margin: 0 0 0.5rem;
 }
 
-/* Info rows */
-.info-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.5rem 0;
-}
-
-.info-row + .info-row {
-  border-top: 1px solid var(--border);
-}
-
-.info-label {
+.field-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
   color: var(--text-muted);
-  font-size: 0.9rem;
-}
-
-.info-value {
-  font-weight: 500;
-}
-
-.info-value.mono {
-  font-family: var(--font-mono);
-  font-size: 0.9rem;
 }
 
 /* Messages */
@@ -519,12 +495,12 @@ async function changePassword() {
 
 .msg-error {
   color: var(--danger);
-  background: rgba(240, 108, 108, 0.1);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
 }
 
 .msg-success {
   color: var(--success);
-  background: rgba(92, 201, 138, 0.1);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
 }
 
 /* Avatar */
@@ -610,5 +586,31 @@ async function changePassword() {
   color: var(--text-muted);
   word-break: break-all;
   margin: 0 0 0.75rem;
+}
+
+/* Info rows (About card) */
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+}
+
+.info-row + .info-row {
+  border-top: 1px solid var(--border);
+}
+
+.info-label {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.info-value {
+  font-weight: 500;
+}
+
+.info-value.mono {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
 }
 </style>

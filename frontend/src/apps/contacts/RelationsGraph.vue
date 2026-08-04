@@ -15,18 +15,19 @@ const emit = defineEmits<{ select: [id: string] }>()
 const W = 900
 const H = 620
 
-const nameOf = (e: Entry) =>
+const nameOf = (contact: Entry) =>
   (
-    (e.data.display_name as string) ||
-    (e.title || '').split(/ - | — /)[0] ||
+    (contact.data.display_name as string) ||
+    (contact.title || '').split(/ - | — /)[0] ||
     ''
   ).trim() || 'Unnamed'
 
 // Same hash as the avatar tint, so a contact keeps its color here.
 function hueOf(name: string): number {
-  let h = 0
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 360
-  return h
+  let hash = 0
+  for (let i = 0; i < name.length; i++)
+    hash = (hash * 31 + name.charCodeAt(i)) % 360
+  return hash
 }
 
 interface Node {
@@ -37,17 +38,17 @@ interface Node {
   y: number
 }
 interface Edge {
-  a: string
-  b: string
+  from: string
+  to: string
   type: string
 }
 
 // Connected components, largest first (BFS over the edge adjacency).
 function componentsOf(ids: string[], edges: Edge[]): string[][] {
   const adj = new Map<string, string[]>()
-  for (const e of edges) {
-    adj.set(e.a, [...(adj.get(e.a) || []), e.b])
-    adj.set(e.b, [...(adj.get(e.b) || []), e.a])
+  for (const edge of edges) {
+    adj.set(edge.from, [...(adj.get(edge.from) || []), edge.to])
+    adj.set(edge.to, [...(adj.get(edge.to) || []), edge.from])
   }
   const seen = new Set<string>()
   const out: string[][] = []
@@ -72,24 +73,29 @@ function componentsOf(ids: string[], edges: Edge[]): string[][] {
 }
 
 const graph = computed(() => {
-  const byId = new Map(props.contacts.map(c => [c.id, c]))
+  const byId = new Map(props.contacts.map(contact => [contact.id, contact]))
   const edges: Edge[] = []
   const seen = new Set<string>()
-  for (const c of props.contacts) {
-    if (c.id === props.meId) continue
-    for (const r of relationsOf(c)) {
-      if (r.contact_id === props.meId || !byId.has(r.contact_id)) continue
+  for (const contact of props.contacts) {
+    if (contact.id === props.meId) continue
+    for (const relation of relationsOf(contact)) {
+      if (relation.contact_id === props.meId || !byId.has(relation.contact_id))
+        continue
       const key =
-        c.id < r.contact_id
-          ? `${c.id}|${r.contact_id}`
-          : `${r.contact_id}|${c.id}`
+        contact.id < relation.contact_id
+          ? `${contact.id}|${relation.contact_id}`
+          : `${relation.contact_id}|${contact.id}`
       if (seen.has(key)) continue
       seen.add(key)
-      edges.push({ a: c.id, b: r.contact_id, type: r.type })
+      edges.push({
+        from: contact.id,
+        to: relation.contact_id,
+        type: relation.type
+      })
     }
   }
 
-  const ids = [...new Set(edges.flatMap(e => [e.a, e.b]))]
+  const ids = [...new Set(edges.flatMap(edge => [edge.from, edge.to]))]
 
   // Disconnected groups each get their own patch of canvas (grid cell) and
   // gravitate toward its center, so unrelated families never pile up.
@@ -100,9 +106,9 @@ const graph = computed(() => {
   const cellH = H / rows
   const centers = new Map<string, { x: number; y: number }>()
   const nodes = new Map<string, Node>()
-  comps.forEach((comp, ci) => {
-    const cx = (ci % cols) * cellW + cellW / 2
-    const cy = Math.floor(ci / cols) * cellH + cellH / 2
+  comps.forEach((comp, compIndex) => {
+    const cx = (compIndex % cols) * cellW + cellW / 2
+    const cy = Math.floor(compIndex / cols) * cellH + cellH / 2
     const rmax = Math.max(40, Math.min(cellW, cellH) / 2 - 50)
     comp.forEach((id, i) => {
       const name = nameOf(byId.get(id)!)
@@ -120,50 +126,50 @@ const graph = computed(() => {
   })
 
   // Fixed-step relaxation: pair repulsion, edge springs, per-group gravity.
-  const arr = [...nodes.values()]
+  const placed = [...nodes.values()]
   for (let iter = 0; iter < 150; iter++) {
-    for (let i = 0; i < arr.length; i++) {
-      for (let j = i + 1; j < arr.length; j++) {
-        const a = arr[i]
-        const b = arr[j]
-        const dx = a.x - b.x
+    for (let i = 0; i < placed.length; i++) {
+      for (let j = i + 1; j < placed.length; j++) {
+        const nodeA = placed[i]
+        const nodeB = placed[j]
+        const dx = nodeA.x - nodeB.x
         // The name sits under the disc, so a node is taller than it is wide
         // and vertical crowding is what actually collides: distance is
         // measured on a squashed axis, which spreads neighbours more in y.
-        const dy = (a.y - b.y) * 1.6
-        const d2 = dx * dx + dy * dy || 1
-        const d = Math.sqrt(d2)
-        const f = 3600 / d2
-        a.x += (dx / d) * f
-        a.y += (dy / d) * f
-        b.x -= (dx / d) * f
-        b.y -= (dy / d) * f
+        const dy = (nodeA.y - nodeB.y) * 1.6
+        const distSq = dx * dx + dy * dy || 1
+        const dist = Math.sqrt(distSq)
+        const force = 3600 / distSq
+        nodeA.x += (dx / dist) * force
+        nodeA.y += (dy / dist) * force
+        nodeB.x -= (dx / dist) * force
+        nodeB.y -= (dy / dist) * force
       }
     }
-    for (const e of edges) {
-      const a = nodes.get(e.a)!
-      const b = nodes.get(e.b)!
-      const dx = b.x - a.x
-      const dy = b.y - a.y
-      const d = Math.sqrt(dx * dx + dy * dy) || 1
-      const f = (d - 130) * 0.02
-      a.x += (dx / d) * f
-      a.y += (dy / d) * f
-      b.x -= (dx / d) * f
-      b.y -= (dy / d) * f
+    for (const edge of edges) {
+      const nodeA = nodes.get(edge.from)!
+      const nodeB = nodes.get(edge.to)!
+      const dx = nodeB.x - nodeA.x
+      const dy = nodeB.y - nodeA.y
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1
+      const force = (dist - 130) * 0.02
+      nodeA.x += (dx / dist) * force
+      nodeA.y += (dy / dist) * force
+      nodeB.x -= (dx / dist) * force
+      nodeB.y -= (dy / dist) * force
     }
-    for (const n of arr) {
-      const c = centers.get(n.id)!
-      n.x += (c.x - n.x) * 0.02
-      n.y += (c.y - n.y) * 0.02
+    for (const node of placed) {
+      const center = centers.get(node.id)!
+      node.x += (center.x - node.x) * 0.02
+      node.y += (center.y - node.y) * 0.02
     }
   }
-  for (const n of arr) {
-    n.x = Math.min(W - 70, Math.max(70, n.x))
-    n.y = Math.min(H - 45, Math.max(45, n.y))
+  for (const node of placed) {
+    node.x = Math.min(W - 70, Math.max(70, node.x))
+    node.y = Math.min(H - 45, Math.max(45, node.y))
   }
 
-  return { nodes: arr, byId: nodes, edges }
+  return { nodes: placed, byId: nodes, edges }
 })
 
 const NODE_R = 14
@@ -171,29 +177,30 @@ const NODE_R = 14
 // Endpoint moved off a node's border along the tangent at that end, which for
 // a quadratic curve points at the control point. Keeps the arc clear of the
 // discs it connects.
-function pullBack(n: Node, cx: number, cy: number, off: number) {
-  const dx = cx - n.x
-  const dy = cy - n.y
-  const d = Math.sqrt(dx * dx + dy * dy) || 1
-  return { x: n.x + (dx / d) * off, y: n.y + (dy / d) * off }
+function pullBack(node: Node, cx: number, cy: number, off: number) {
+  const dx = cx - node.x
+  const dy = cy - node.y
+  const dist = Math.sqrt(dx * dx + dy * dy) || 1
+  return { x: node.x + (dx / dist) * off, y: node.y + (dy / dist) * off }
 }
 
 // Edges are shallow arcs, not straight lines: two relations leaving the same
 // contact at a close angle would lie on top of each other, and a straight edge
 // passing behind an unrelated node reads as attached to it. The bow side comes
 // from the pair key, so it is stable across renders and neighbours bow apart.
-function edgePath(e: Edge): string {
-  const a = graph.value.byId.get(e.a)!
-  const b = graph.value.byId.get(e.b)!
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  const d = Math.sqrt(dx * dx + dy * dy) || 1
-  const bow = Math.min(24, d * 0.12) * (hueOf(e.a + e.b) % 2 ? 1 : -1)
-  const cx = (a.x + b.x) / 2 - (dy / d) * bow
-  const cy = (a.y + b.y) / 2 + (dx / d) * bow
+function edgePath(edge: Edge): string {
+  const nodeA = graph.value.byId.get(edge.from)!
+  const nodeB = graph.value.byId.get(edge.to)!
+  const dx = nodeB.x - nodeA.x
+  const dy = nodeB.y - nodeA.y
+  const dist = Math.sqrt(dx * dx + dy * dy) || 1
+  const bow =
+    Math.min(24, dist * 0.12) * (hueOf(edge.from + edge.to) % 2 ? 1 : -1)
+  const cx = (nodeA.x + nodeB.x) / 2 - (dy / dist) * bow
+  const cy = (nodeA.y + nodeB.y) / 2 + (dx / dist) * bow
   const off = NODE_R + 3
-  const start = pullBack(a, cx, cy, off)
-  const end = pullBack(b, cx, cy, off)
+  const start = pullBack(nodeA, cx, cy, off)
+  const end = pullBack(nodeB, cx, cy, off)
   return `M ${start.x} ${start.y} Q ${cx} ${cy} ${end.x} ${end.y}`
 }
 </script>
@@ -212,32 +219,34 @@ function edgePath(e: Edge): string {
       aria-label="Contact relations graph"
     >
       <path
-        v-for="e in graph.edges"
-        :key="`${e.a}|${e.b}`"
+        v-for="edge in graph.edges"
+        :key="`${edge.from}|${edge.to}`"
         class="rg-edge"
-        :d="edgePath(e)"
+        :d="edgePath(edge)"
       >
-        <title>{{ relationLabel(e.type) }}</title>
+        <title>{{ relationLabel(edge.type) }}</title>
       </path>
       <g
-        v-for="n in graph.nodes"
-        :key="n.id"
+        v-for="node in graph.nodes"
+        :key="node.id"
         class="rg-node"
         role="button"
         tabindex="0"
-        @click="emit('select', n.id)"
-        @keydown.enter="emit('select', n.id)"
+        @click="emit('select', node.id)"
+        @keydown.enter="emit('select', node.id)"
       >
         <!-- Opaque underlay: edges passing by never show through the disc. -->
-        <circle :cx="n.x" :cy="n.y" :r="NODE_R" class="rg-node-bg" />
+        <circle :cx="node.x" :cy="node.y" :r="NODE_R" class="rg-node-bg" />
         <circle
-          :cx="n.x"
-          :cy="n.y"
+          :cx="node.x"
+          :cy="node.y"
           :r="NODE_R"
-          :fill="`hsla(${n.hue}, 55%, 60%, 0.22)`"
-          :stroke="`hsl(${n.hue}, 45%, 55%)`"
+          :fill="`hsla(${node.hue}, 55%, 60%, 0.22)`"
+          :stroke="`hsl(${node.hue}, 45%, 55%)`"
         />
-        <text class="rg-label" :x="n.x" :y="n.y + 28">{{ n.name }}</text>
+        <text class="rg-label" :x="node.x" :y="node.y + 28">
+          {{ node.name }}
+        </text>
       </g>
     </svg>
   </div>

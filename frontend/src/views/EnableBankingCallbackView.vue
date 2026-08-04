@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { enableBankingExchange } from '../api/connectors'
@@ -29,8 +29,8 @@ onMounted(async () => {
   try {
     await enableBankingExchange(configId, code)
     await router.replace(`/connectors/${configId}`)
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Bank connection failed.'
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Bank connection failed.'
   }
 })
 </script>

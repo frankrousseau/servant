@@ -98,11 +98,11 @@ const todayLocal = todayLocalStr()
 const todaysEvents = computed(() => {
   const today = todayInUserTz()
   return events.value
-    .filter(e => {
-      if (!e.occurred_at) return false
-      const start = utcToZonedParts(e.occurred_at).date
-      const rec = recurrenceOf(e.data)
-      return rec ? occursOn(start, rec, today) : start === today
+    .filter(event => {
+      if (!event.occurred_at) return false
+      const start = utcToZonedParts(event.occurred_at).date
+      const recurrence = recurrenceOf(event.data)
+      return recurrence ? occursOn(start, recurrence, today) : start === today
     })
     .sort((a, b) =>
       utcToZonedParts(a.occurred_at!).time.localeCompare(
@@ -116,19 +116,19 @@ const todaysEvents = computed(() => {
 const upcomingDeadlines = computed<Entry[]>(() => {
   const horizon = addDays(todayLocal, 7)
   const out: Entry[] = []
-  for (const l of checklists.value) {
-    const items = (l.data.items as ChecklistItem[]) || []
-    items.forEach((it, i) => {
-      if (it.done || !it.due) return
-      if (it.due < todayLocal || it.due > horizon) return
+  for (const list of checklists.value) {
+    const items = (list.data.items as ChecklistItem[]) || []
+    items.forEach((item, index) => {
+      if (item.done || !item.due) return
+      if (item.due < todayLocal || item.due > horizon) return
       out.push({
-        ...l,
-        id: `deadline:${l.id}:${i}`,
+        ...list,
+        id: `deadline:${list.id}:${index}`,
         kind: 'event',
-        title: `⏰ ${it.text}`,
-        occurred_at: `${it.due}T12:00:00Z`,
+        title: `⏰ ${item.text}`,
+        occurred_at: `${item.due}T12:00:00Z`,
         // Open until the end of its civil day, so it stays "next" all day.
-        data: { all_day: true, end_at: `${it.due}T23:59:59Z` }
+        data: { all_day: true, end_at: `${item.due}T23:59:59Z` }
       } as Entry)
     })
   }
@@ -142,22 +142,28 @@ const nextEvent = computed(() => {
   const now = new Date().toISOString()
   const { date: today, time: nowTime } = utcToZonedParts(now)
   const upcoming = [...events.value, ...upcomingDeadlines.value]
-    .map(e => {
-      const rec = recurrenceOf(e.data)
-      if (!rec || !e.occurred_at) return e
-      const { date, time } = utcToZonedParts(e.occurred_at)
-      const occ = upcomingOccurrence(date, rec, today, time, nowTime)
+    .map(event => {
+      const recurrence = recurrenceOf(event.data)
+      if (!recurrence || !event.occurred_at) return event
+      const { date, time } = utcToZonedParts(event.occurred_at)
+      const occurrence = upcomingOccurrence(
+        date,
+        recurrence,
+        today,
+        time,
+        nowTime
+      )
       // end_at belongs to the seed occurrence; drop it on the projection.
       return {
-        ...e,
-        occurred_at: zonedToUtcISO(occ, time),
-        data: { ...e.data, end_at: undefined }
+        ...event,
+        occurred_at: zonedToUtcISO(occurrence, time),
+        data: { ...event.data, end_at: undefined }
       }
     })
     .filter(
-      e =>
-        e.occurred_at &&
-        ((e.data.end_at as string) || (e.occurred_at as string)) >= now
+      event =>
+        event.occurred_at &&
+        ((event.data.end_at as string) || (event.occurred_at as string)) >= now
     )
     .sort((a, b) =>
       (a.occurred_at as string) < (b.occurred_at as string) ? -1 : 1
@@ -168,16 +174,19 @@ const nextEvent = computed(() => {
 // Time only if the next event is today, weekday + time otherwise; all-day
 // items (deadlines) carry no meaningful time.
 const nextEventStamp = computed(() => {
-  const e = nextEvent.value
-  if (!e?.occurred_at) return ''
-  const isToday = utcToZonedParts(e.occurred_at).date === todayInUserTz()
-  if (e.data.all_day) {
+  const event = nextEvent.value
+  if (!event?.occurred_at) return ''
+  const isToday = utcToZonedParts(event.occurred_at).date === todayInUserTz()
+  if (event.data.all_day) {
     if (isToday) return 'today'
-    return formatDateTime(e.occurred_at, { weekday: 'short', day: 'numeric' })
+    return formatDateTime(event.occurred_at, {
+      weekday: 'short',
+      day: 'numeric'
+    })
   }
   return isToday
-    ? formatTime(e.occurred_at)
-    : formatDateTime(e.occurred_at, {
+    ? formatTime(event.occurred_at)
+    : formatDateTime(event.occurred_at, {
         weekday: 'short',
         day: 'numeric',
         hour: '2-digit',
@@ -191,21 +200,21 @@ const pendingItems = computed(() => {
   const out: {
     listId: string
     index: number
-    list: string
+    listTitle: string
     text: string
     due?: string
   }[] = []
-  for (const l of checklists.value) {
-    if (l.data.show_on_dashboard !== true) continue
-    const items = (l.data.items as ChecklistItem[]) || []
-    items.forEach((it, index) => {
-      if (!it.done)
+  for (const list of checklists.value) {
+    if (list.data.show_on_dashboard !== true) continue
+    const items = (list.data.items as ChecklistItem[]) || []
+    items.forEach((item, index) => {
+      if (!item.done)
         out.push({
-          listId: l.id,
+          listId: list.id,
           index,
-          list: l.title || 'Untitled',
-          text: it.text,
-          due: it.due
+          listTitle: list.title || 'Untitled',
+          text: item.text,
+          due: item.due
         })
     })
   }
@@ -217,25 +226,25 @@ const pendingItems = computed(() => {
 })
 
 // Clicking a pending item opens its checklist (checking off happens there).
-function openChecklist(p: { listId: string }) {
-  router.push(`/apps/checklists?selected=${p.listId}`)
+function openChecklist({ listId }: { listId: string }) {
+  router.push(`/apps/checklists?selected=${listId}`)
 }
 
 // Backend daily stats use UTC days; so does this key.
 const entriesToday = computed(() => {
   const key = new Date().toISOString().slice(0, 10)
   return Object.values(dailyStats.value).reduce(
-    (n, perDay) => n + (perDay[key] || 0),
+    (total, perDay) => total + (perDay[key] || 0),
     0
   )
 })
 
 const lastSyncAt = computed(() => {
-  const ts = connectors.value
-    .map(c => c.last_synced_at)
-    .filter((t): t is string => !!t)
+  const stamps = connectors.value
+    .map(connector => connector.last_synced_at)
+    .filter((stamp): stamp is string => !!stamp)
     .sort()
-  return ts.length ? ts[ts.length - 1] : null
+  return stamps.length ? stamps[stamps.length - 1] : null
 })
 
 // Errored connectors first (they need attention), then most recently
@@ -247,7 +256,10 @@ const sortedConnectors = computed(() =>
       if (!!a.error !== !!b.error) return a.error ? -1 : 1
       return (b.last_synced_at ?? '').localeCompare(a.last_synced_at ?? '')
     })
-    .map(c => ({ ...c, def: getConnectorDef(c.connector_type) }))
+    .map(connector => ({
+      ...connector,
+      def: getConnectorDef(connector.connector_type)
+    }))
 )
 
 // Timestamp for a log line: time-of-day if today, short date otherwise.
@@ -257,8 +269,8 @@ function logStamp(iso: string): string {
     : formatDate(iso, { month: 'short', day: 'numeric' })
 }
 
-function goToConnector(c: ConnectorConfig) {
-  router.push(`/connectors/${c.id}`)
+function goToConnector(connector: ConnectorConfig) {
+  router.push(`/connectors/${connector.id}`)
 }
 
 // ----- Sparklines (30 UTC days, bars normalized per kind) -----
@@ -268,15 +280,15 @@ const SPARK_DAYS = 30
 function sparkBars(
   counts: Record<string, number> | undefined
 ): { x: number; h: number }[] {
-  const vals: number[] = []
+  const values: number[] = []
   for (let i = SPARK_DAYS - 1; i >= 0; i--) {
     const day = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10)
-    vals.push(counts?.[day] || 0)
+    values.push(counts?.[day] || 0)
   }
-  const max = Math.max(...vals, 1)
-  return vals.map((v, i) => ({
-    x: i * 3,
-    h: v === 0 ? 0.75 : Math.max(1.5, (v / max) * 14)
+  const max = Math.max(...values, 1)
+  return values.map((value, index) => ({
+    x: index * 3,
+    h: value === 0 ? 0.75 : Math.max(1.5, (value / max) * 14)
   }))
 }
 
@@ -336,10 +348,10 @@ onMounted(fetchData)
         </div>
         <div v-if="todaysEvents.length" class="motd-line">
           today:
-          <template v-for="(e, i) in todaysEvents" :key="e.id">
-            <template v-if="i"> &middot; </template>
-            <span class="motd-num">{{ formatTime(e.occurred_at) }}</span>
-            {{ e.title || e.data.summary }}
+          <template v-for="(event, index) in todaysEvents" :key="event.id">
+            <template v-if="index"> &middot; </template>
+            <span class="motd-num">{{ formatTime(event.occurred_at) }}</span>
+            {{ event.title || event.data.summary }}
           </template>
         </div>
         <div class="motd-line">
@@ -363,21 +375,21 @@ onMounted(fetchData)
               >
             </div>
             <div
-              v-for="it in pendingItems.slice(0, 5)"
-              :key="it.listId + ':' + it.index"
+              v-for="item in pendingItems.slice(0, 5)"
+              :key="item.listId + ':' + item.index"
               class="today-item today-item--clickable"
-              :title="`Open ${it.list}`"
-              @click="openChecklist(it)"
+              :title="`Open ${item.listTitle}`"
+              @click="openChecklist(item)"
             >
               <span class="today-box">☐</span>
-              <span class="today-item-text">{{ it.text }}</span>
+              <span class="today-item-text">{{ item.text }}</span>
               <span
-                v-if="it.due"
+                v-if="item.due"
                 class="today-due"
-                :class="{ 'today-due--overdue': it.due < todayLocal }"
-                >{{ formatDue(it.due) }}</span
+                :class="{ 'today-due--overdue': item.due < todayLocal }"
+                >{{ formatDue(item.due) }}</span
               >
-              <span class="today-list-name">{{ it.list }}</span>
+              <span class="today-list-name">{{ item.listTitle }}</span>
             </div>
             <router-link
               v-if="pendingItems.length > 5"
@@ -397,36 +409,40 @@ onMounted(fetchData)
             </div>
             <div v-if="sortedConnectors.length" class="connector-status-list">
               <div
-                v-for="c in sortedConnectors"
-                :key="c.id"
+                v-for="connector in sortedConnectors"
+                :key="connector.id"
                 class="connector-status-item connector-status-item--clickable"
-                :class="{ 'connector-status-item--error': !!c.error }"
-                @click="goToConnector(c)"
+                :class="{ 'connector-status-item--error': !!connector.error }"
+                @click="goToConnector(connector)"
                 v-click-key
                 role="button"
                 tabindex="0"
               >
                 <span
-                  v-if="c.def"
+                  v-if="connector.def"
                   class="connector-mini-logo"
-                  v-html="c.def.logo || ''"
+                  v-html="connector.def.logo || ''"
                 ></span>
                 <span
                   class="connector-dot"
-                  :class="{ active: c.enabled, error: c.error }"
+                  :class="{ active: connector.enabled, error: connector.error }"
                 ></span>
                 <span class="connector-status-name">
-                  {{ c.name || c.def?.name || c.connector_type }}
+                  {{
+                    connector.name ||
+                    connector.def?.name ||
+                    connector.connector_type
+                  }}
                 </span>
                 <span
-                  v-if="c.error"
+                  v-if="connector.error"
                   class="connector-status-meta connector-status-meta--error"
-                  :title="c.error"
-                  >{{ c.error }}</span
+                  :title="connector.error"
+                  >{{ connector.error }}</span
                 >
                 <span v-else class="connector-status-meta">
-                  <template v-if="c.last_synced_at">
-                    {{ relativeTime(c.last_synced_at) }}
+                  <template v-if="connector.last_synced_at">
+                    {{ relativeTime(connector.last_synced_at) }}
                   </template>
                   <template v-else>Never synced</template>
                 </span>
@@ -478,12 +494,12 @@ onMounted(fetchData)
                     aria-hidden="true"
                   >
                     <rect
-                      v-for="(b, i) in card.bars"
-                      :key="i"
-                      :x="b.x"
-                      :y="14 - b.h"
+                      v-for="(bar, index) in card.bars"
+                      :key="index"
+                      :x="bar.x"
+                      :y="14 - bar.h"
                       width="2"
-                      :height="b.h"
+                      :height="bar.h"
                     />
                   </svg>
                 </div>

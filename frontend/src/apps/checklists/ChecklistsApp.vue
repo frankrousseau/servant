@@ -1,20 +1,20 @@
 <script setup lang="ts">
 import {
-  ref,
-  reactive,
   computed,
   nextTick,
+  onBeforeUnmount,
   onMounted,
-  onBeforeUnmount
+  reactive,
+  ref
 } from 'vue'
 
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import DateInput from '../../components/DateInput.vue'
 
-import type { AppContext, Entry } from '../types'
 import { formatDue, todayLocalStr } from '../../lib/datetime'
 import { createFolderOrder } from '../folderOrder'
 import { itemsToMarkdown, parseListText, type Item } from './markdown'
+import type { AppContext, Entry } from '../types'
 
 const props = defineProps<{ ctx: AppContext }>()
 const ctx = props.ctx
@@ -23,15 +23,16 @@ const folderOrder = createFolderOrder(ctx, 'checklists')
 
 // ----- helpers -----
 
-const folderOf = (l: Entry) => ((l.data.folder as string) || '').trim()
-const itemsOf = (l: Entry) => (l.data.items as Item[]) || []
-const doneCount = (l: Entry) => itemsOf(l).filter(i => i.done).length
-const isRecurring = (l: Entry) => l.data.recurring === true
-const isOnDashboard = (l: Entry) => l.data.show_on_dashboard === true
+const folderOf = (list: Entry) => ((list.data.folder as string) || '').trim()
+const itemsOf = (list: Entry) => (list.data.items as Item[]) || []
+const doneCount = (list: Entry) =>
+  itemsOf(list).filter(item => item.done).length
+const isRecurring = (list: Entry) => list.data.recurring === true
+const isOnDashboard = (list: Entry) => list.data.show_on_dashboard === true
 
-function ensureItems(l: Entry): Item[] {
-  if (!Array.isArray(l.data.items)) l.data.items = []
-  return l.data.items as Item[]
+function ensureItems(list: Entry): Item[] {
+  if (!Array.isArray(list.data.items)) list.data.items = []
+  return list.data.items as Item[]
 }
 
 // ----- reactive state -----
@@ -46,7 +47,7 @@ const saveState = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
 const saveError = ref('')
 
 const selected = computed(
-  () => lists.value.find(l => l.id === selectedId.value) || null
+  () => lists.value.find(list => list.id === selectedId.value) || null
 )
 const items = computed(() => (selected.value ? itemsOf(selected.value) : []))
 const recurring = computed(
@@ -58,19 +59,19 @@ const onDashboard = computed(
 
 const editTitle = computed({
   get: () => selected.value?.title || '',
-  set: (v: string) => {
-    if (selected.value) selected.value.title = v
+  set: (value: string) => {
+    if (selected.value) selected.value.title = value
   }
 })
 const editFolder = computed({
   get: () => (selected.value?.data.folder as string) || '',
-  set: (v: string) => {
-    if (selected.value) selected.value.data.folder = v
+  set: (value: string) => {
+    if (selected.value) selected.value.data.folder = value
   }
 })
 
-function onFolderInput(v: string) {
-  editFolder.value = v
+function onFolderInput(value: string) {
+  editFolder.value = value
   scheduleSave()
 }
 
@@ -82,13 +83,13 @@ const saveStatusLabel = computed(() => {
 // ----- sidebar rows (single-level folders) -----
 
 const filtered = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return lists.value
-  return lists.value.filter(l =>
-    [l.title || '', folderOf(l), ...itemsOf(l).map(i => i.text)]
+  const needle = searchQuery.value.trim().toLowerCase()
+  if (!needle) return lists.value
+  return lists.value.filter(list =>
+    [list.title || '', folderOf(list), ...itemsOf(list).map(item => item.text)]
       .join(' ')
       .toLowerCase()
-      .includes(q)
+      .includes(needle)
   )
 })
 
@@ -103,10 +104,10 @@ interface Row {
 const rows = computed<Row[]>(() => {
   const searching = !!searchQuery.value.trim()
   const byFolder = new Map<string, Entry[]>()
-  for (const l of filtered.value) {
-    const f = folderOf(l)
-    if (!byFolder.has(f)) byFolder.set(f, [])
-    byFolder.get(f)!.push(l)
+  for (const list of filtered.value) {
+    const folder = folderOf(list)
+    if (!byFolder.has(folder)) byFolder.set(folder, [])
+    byFolder.get(folder)!.push(list)
   }
   const sortLists = (ls: Entry[]) =>
     [...ls].sort((a, b) =>
@@ -114,19 +115,19 @@ const rows = computed<Row[]>(() => {
     )
 
   const out: Row[] = []
-  for (const l of sortLists(byFolder.get('') || [])) {
-    out.push({ kind: 'list', name: l.title || 'Untitled', list: l, depth: 0 })
+  for (const list of sortLists(byFolder.get('') || [])) {
+    out.push({ kind: 'list', name: list.title || 'Untitled', list, depth: 0 })
   }
   const folders = [...byFolder.keys()].filter(Boolean).sort(folderOrder.compare)
-  for (const f of folders) {
-    const isCollapsed = !searching && collapsed.has(f)
-    out.push({ kind: 'folder', name: f, collapsed: isCollapsed, depth: 0 })
+  for (const folder of folders) {
+    const isCollapsed = !searching && collapsed.has(folder)
+    out.push({ kind: 'folder', name: folder, collapsed: isCollapsed, depth: 0 })
     if (!isCollapsed) {
-      for (const l of sortLists(byFolder.get(f)!)) {
+      for (const list of sortLists(byFolder.get(folder)!)) {
         out.push({
           kind: 'list',
-          name: l.title || 'Untitled',
-          list: l,
+          name: list.title || 'Untitled',
+          list,
           depth: 1
         })
       }
@@ -161,9 +162,11 @@ function commitRenameFolder() {
   const to = renameValue.value.trim()
   renamingFolder.value = null
   if (!from || !to || to === from) return
-  for (const l of lists.value.filter(x => folderOf(x) === from)) {
-    l.data.folder = to
-    void save(l)
+  for (const list of lists.value.filter(
+    candidate => folderOf(candidate) === from
+  )) {
+    list.data.folder = to
+    void save(list)
   }
   folderOrder.rename(from, to)
 }
@@ -181,16 +184,16 @@ const allFolders = computed(() =>
   )
 )
 
-function onDragStart(l: Entry, e: DragEvent) {
-  draggingId.value = l.id
-  e.dataTransfer?.setData('text/plain', l.id)
-  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
+function onDragStart(list: Entry, event: DragEvent) {
+  draggingId.value = list.id
+  event.dataTransfer?.setData('text/plain', list.id)
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
 }
 
-function onFolderDragStart(name: string, e: DragEvent) {
+function onFolderDragStart(name: string, event: DragEvent) {
   draggingFolder.value = name
-  e.dataTransfer?.setData('text/plain', name)
-  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer?.setData('text/plain', name)
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
 }
 
 function onDrop(target: string) {
@@ -202,18 +205,18 @@ function onDrop(target: string) {
     const from = draggingFolder.value
     draggingFolder.value = null
     if (from === target) return
-    const seq = allFolders.value.filter(f => f !== from)
+    const seq = allFolders.value.filter(folder => folder !== from)
     const idx = target ? seq.indexOf(target) : seq.length
     seq.splice(idx === -1 ? seq.length : idx, 0, from)
     folderOrder.setGroup(seq)
     return
   }
 
-  const l = lists.value.find(x => x.id === draggingId.value)
+  const list = lists.value.find(candidate => candidate.id === draggingId.value)
   draggingId.value = null
-  if (!l || folderOf(l) === target.trim()) return
-  l.data.folder = target
-  void save(l)
+  if (!list || folderOf(list) === target.trim()) return
+  list.data.folder = target
+  void save(list)
 }
 
 // ----- save (debounced for text edits, immediate for structural ones, serialized) -----
@@ -222,17 +225,19 @@ let saveTimer: ReturnType<typeof setTimeout> | undefined
 let pending: Entry | null = null
 let saveChain: Promise<void> = Promise.resolve()
 
-function save(l: Entry): Promise<void> {
+function save(list: Entry): Promise<void> {
   saveState.value = 'saving'
   saveChain = saveChain
-    .then(() => ctx.api.entries.update(l.id, { title: l.title, data: l.data }))
+    .then(() =>
+      ctx.api.entries.update(list.id, { title: list.title, data: list.data })
+    )
     .then(() => {
       saveState.value = 'saved'
       saveError.value = ''
     })
-    .catch(e => {
+    .catch(err => {
       saveState.value = 'error'
-      saveError.value = e instanceof Error ? e.message : 'Save failed'
+      saveError.value = err instanceof Error ? err.message : 'Save failed'
     })
   return saveChain
 }
@@ -241,9 +246,9 @@ function flushPending() {
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = undefined
   if (pending) {
-    const l = pending
+    const list = pending
     pending = null
-    void save(l)
+    void save(list)
   }
 }
 
@@ -284,7 +289,9 @@ function onPopState() {
 }
 
 function uniqueTitle(base: string): string {
-  const existing = new Set(lists.value.map(l => (l.title || '').toLowerCase()))
+  const existing = new Set(
+    lists.value.map(list => (list.title || '').toLowerCase())
+  )
   if (!existing.has(base.toLowerCase())) return base
   let i = 2
   while (existing.has(`${base} ${i}`.toLowerCase())) i++
@@ -312,19 +319,19 @@ async function createList(folder = '') {
 }
 
 async function deleteSelected() {
-  const l = selected.value
-  if (!l) return
+  const list = selected.value
+  if (!list) return
   const ok = await ctx.confirm.ask({
     title: 'Delete checklist',
-    message: `Delete "${l.title || 'Untitled'}"? This cannot be undone.`,
+    message: `Delete "${list.title || 'Untitled'}"? This cannot be undone.`,
     confirmLabel: 'Delete',
     danger: true
   })
   if (!ok) return
   try {
-    await ctx.api.entries.delete(l.id)
-    lists.value = lists.value.filter(x => x.id !== l.id)
-    if (selectedId.value === l.id) {
+    await ctx.api.entries.delete(list.id)
+    lists.value = lists.value.filter(candidate => candidate.id !== list.id)
+    if (selectedId.value === list.id) {
       selectedId.value = null
       history.replaceState(null, '', '/apps/checklists')
     }
@@ -336,18 +343,18 @@ async function deleteSelected() {
 // ----- item / recurring actions -----
 
 function addItem() {
-  const l = selected.value
+  const list = selected.value
   const text = newItemText.value.trim()
-  if (!l || !text) return
-  ensureItems(l).push({ text, done: false })
+  if (!list || !text) return
+  ensureItems(list).push({ text, done: false })
   newItemText.value = ''
   saveNow()
 }
 
 function removeItem(index: number) {
-  const l = selected.value
-  if (!l) return
-  ensureItems(l).splice(index, 1)
+  const list = selected.value
+  if (!list) return
+  ensureItems(list).splice(index, 1)
   saveNow()
 }
 
@@ -399,7 +406,7 @@ function onItemDragStart(i: number, e: DragEvent) {
 
 function onItemDragOver(i: number, e: DragEvent) {
   if (dragIndex.value === null) return
-  e.preventDefault()
+  event.preventDefault()
   if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
   dropIndex.value = i
 }
@@ -407,9 +414,9 @@ function onItemDragOver(i: number, e: DragEvent) {
 function onItemDrop(i: number) {
   const from = dragIndex.value
   dropIndex.value = null
-  const l = selected.value
-  if (from === null || from === i || !l) return
-  const arr = ensureItems(l)
+  const list = selected.value
+  if (from === null || from === i || !list) return
+  const arr = ensureItems(list)
   const [moved] = arr.splice(from, 1)
   arr.splice(i, 0, moved)
   saveNow()
@@ -426,29 +433,29 @@ const copied = ref(false)
 let copiedTimer: ReturnType<typeof setTimeout> | undefined
 
 function exportJson() {
-  const l = selected.value
-  if (!l) return
+  const list = selected.value
+  if (!list) return
   const payload = {
-    title: l.title || 'Untitled',
-    folder: folderOf(l),
-    recurring: isRecurring(l),
-    items: itemsOf(l)
+    title: list.title || 'Untitled',
+    folder: folderOf(list),
+    recurring: isRecurring(list),
+    items: itemsOf(list)
   }
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: 'application/json'
   })
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
-  a.download = `${(l.title || 'checklist').replace(/[/\\:*?"<>|]/g, '_')}.json`
+  a.download = `${(list.title || 'checklist').replace(/[/\\:*?"<>|]/g, '_')}.json`
   a.click()
   URL.revokeObjectURL(a.href)
 }
 
 async function copyMarkdown() {
-  const l = selected.value
-  if (!l) return
+  const list = selected.value
+  if (!list) return
   try {
-    await navigator.clipboard.writeText(itemsToMarkdown(itemsOf(l)))
+    await navigator.clipboard.writeText(itemsToMarkdown(itemsOf(list)))
   } catch {
     return
   }
@@ -459,42 +466,45 @@ async function copyMarkdown() {
 
 // Pasting a bullet / checkbox list into the add field imports one item per
 // line; anything that is not a list pastes normally.
-function onAddPaste(e: ClipboardEvent) {
-  const l = selected.value
-  const parsed = parseListText(e.clipboardData?.getData('text/plain') || '')
-  if (!l || !parsed) return
-  e.preventDefault()
-  ensureItems(l).push(...parsed)
+function onAddPaste(event: ClipboardEvent) {
+  const list = selected.value
+  const parsed = parseListText(event.clipboardData?.getData('text/plain') || '')
+  if (!list || !parsed) return
+  event.preventDefault()
+  ensureItems(list).push(...parsed)
   saveNow()
 }
 
 function resetList() {
-  const l = selected.value
-  if (!l) return
-  for (const item of ensureItems(l)) item.done = false
+  const list = selected.value
+  if (!list) return
+  for (const item of ensureItems(list)) item.done = false
   saveNow()
 }
 
 // Stable partition: pending items keep their order, done ones sink.
 function sortDoneLast() {
-  const l = selected.value
-  if (!l) return
-  const arr = ensureItems(l)
-  l.data.items = [...arr.filter(i => !i.done), ...arr.filter(i => i.done)]
+  const list = selected.value
+  if (!list) return
+  const arr = ensureItems(list)
+  list.data.items = [
+    ...arr.filter(item => !item.done),
+    ...arr.filter(item => item.done)
+  ]
   saveNow()
 }
 
-function toggleRecurring(e: Event) {
-  const l = selected.value
-  if (!l) return
-  l.data.recurring = (e.target as HTMLInputElement).checked
+function toggleRecurring(event: Event) {
+  const list = selected.value
+  if (!list) return
+  list.data.recurring = (event.target as HTMLInputElement).checked
   saveNow()
 }
 
-function toggleOnDashboard(e: Event) {
-  const l = selected.value
-  if (!l) return
-  l.data.show_on_dashboard = (e.target as HTMLInputElement).checked
+function toggleOnDashboard(event: Event) {
+  const list = selected.value
+  if (!list) return
+  list.data.show_on_dashboard = (event.target as HTMLInputElement).checked
   saveNow()
 }
 
@@ -510,7 +520,7 @@ onMounted(async () => {
     loadState.value = 'error'
   }
   const initial = new URLSearchParams(window.location.search).get('selected')
-  if (initial && lists.value.some(l => l.id === initial)) {
+  if (initial && lists.value.some(list => list.id === initial)) {
     selectList(initial, { push: false })
   }
 })
@@ -729,25 +739,25 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
             {{ doneCount(selected) }}/{{ items.length }} done
           </div>
           <div
-            v-for="(item, i) in items"
-            :key="i"
+            v-for="(item, index) in items"
+            :key="index"
             class="cl-item"
             :class="{
               'cl-item--done': item.done,
               'cl-item--sub': !!item.indent,
-              'cl-item--dragging': dragIndex === i,
-              'cl-item--droptarget': dropIndex === i && dragIndex !== i
+              'cl-item--dragging': dragIndex === index,
+              'cl-item--droptarget': dropIndex === index && dragIndex !== index
             }"
-            @dragover="onItemDragOver(i, $event)"
-            @dragleave="dropIndex === i && (dropIndex = null)"
-            @drop.prevent="onItemDrop(i)"
+            @dragover="onItemDragOver(index, $event)"
+            @dragleave="dropIndex === index && (dropIndex = null)"
+            @drop.prevent="onItemDrop(index)"
           >
             <span
               class="cl-item-grip"
               draggable="true"
               title="Drag to reorder"
               aria-label="Drag to reorder"
-              @dragstart="onItemDragStart(i, $event)"
+              @dragstart="onItemDragStart(index, $event)"
               @dragend="onItemDragEnd"
               >⋮⋮</span
             >
@@ -758,7 +768,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
               @input="scheduleSave()"
               @keydown.tab.prevent="setIndent(item, $event)"
             />
-            <template v-if="dueEditIndex === i">
+            <template v-if="dueEditIndex === index">
               <DateInput
                 class="cl-due-input"
                 :model-value="item.due || ''"
@@ -778,7 +788,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
               class="cl-due-chip"
               :class="{ 'cl-due-chip--overdue': overdue(item) }"
               :title="'Deadline ' + item.due"
-              @click="dueEditIndex = i"
+              @click="dueEditIndex = index"
             >
               {{ formatDue(item.due) }}
             </button>
@@ -786,14 +796,14 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
               v-else
               class="cl-item-due-btn"
               title="Set a deadline"
-              @click="dueEditIndex = i"
+              @click="dueEditIndex = index"
             >
               🗓
             </button>
             <button
               class="cl-item-del"
               title="Remove item"
-              @click="removeItem(i)"
+              @click="removeItem(index)"
             >
               ×
             </button>

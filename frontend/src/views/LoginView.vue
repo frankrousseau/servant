@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, nextTick, onMounted } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { useAuthStore } from '../stores/auth'
 import { fetchRegistrationEnabled } from '../composables/authConfig'
+import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -17,6 +17,7 @@ const registrationEnabled = ref(true)
 // Second factor step (accounts with TOTP enabled).
 const totpTicket = ref<string | null>(null)
 const totpCode = ref('')
+const totpInput = ref<HTMLInputElement | null>(null)
 
 onMounted(async () => {
   registrationEnabled.value = await fetchRegistrationEnabled()
@@ -35,14 +36,12 @@ async function handleLogin() {
     } else {
       router.push('/')
     }
-  } catch (e: any) {
-    error.value = e.message || 'Login failed'
+  } catch (err: any) {
+    error.value = err.message || 'Login failed'
   } finally {
     loading.value = false
   }
 }
-
-const totpInput = ref<HTMLInputElement | null>(null)
 
 async function handleTotp() {
   if (!totpTicket.value) return
@@ -51,8 +50,8 @@ async function handleTotp() {
   try {
     await auth.verifyTotp(totpTicket.value, totpCode.value.trim())
     router.push('/')
-  } catch (e: any) {
-    error.value = e.message || 'Invalid code'
+  } catch (err: any) {
+    error.value = err.message || 'Invalid code'
   } finally {
     loading.value = false
   }

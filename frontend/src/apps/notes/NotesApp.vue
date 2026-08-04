@@ -1,21 +1,21 @@
 <script setup lang="ts">
 import {
-  ref,
-  reactive,
   computed,
-  onMounted,
-  onBeforeUnmount,
   nextTick,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
   watch
 } from 'vue'
 import { Star } from 'lucide-vue-next'
 
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 
-import type { AppContext, Entry } from '../types'
-import { todayInUserTz, formatDate } from '../../lib/datetime'
-import { renderMarkdown, canon, continueListEdit } from './render'
+import { formatDate, todayInUserTz } from '../../lib/datetime'
 import { createFolderOrder } from '../folderOrder'
+import { canon, continueListEdit, renderMarkdown } from './render'
+import type { AppContext, Entry } from '../types'
 
 const props = defineProps<{ ctx: AppContext }>()
 const ctx = props.ctx
@@ -32,35 +32,35 @@ interface Mentionable {
 
 // ----- pure helpers (mirror the backend) -----
 
-const noteFolder = (n: Note) => ((n.data.folder as string) || '').trim()
-const noteBody = (n: Note) => (n.data.body as string) || ''
-const noteTags = (n: Note) => (n.data.tags as string[]) || []
-const noteFavorite = (n: Note) => n.data.favorite === true
+const noteFolder = (note: Note) => ((note.data.folder as string) || '').trim()
+const noteBody = (note: Note) => (note.data.body as string) || ''
+const noteTags = (note: Note) => (note.data.tags as string[]) || []
+const noteFavorite = (note: Note) => note.data.favorite === true
 const fullPath = (folder: string, title: string) =>
   folder ? `${folder}/${title}` : title
 
 // A note is reachable as `[[title]]` or `[[folder/title]]`.
-function noteKeys(n: Note): string[] {
-  const title = n.title || ''
-  return [canon(title), canon(fullPath(noteFolder(n), title))]
+function noteKeys(note: Note): string[] {
+  const title = note.title || ''
+  return [canon(title), canon(fullPath(noteFolder(note), title))]
 }
 
 // vcard contact titles look like "Name - org - email" (pre-July 2026 entries
 // used " — "); prefer the display name.
-function mentionName(e: Entry): string {
+function mentionName(entry: Entry): string {
   return (
-    (e.data.display_name as string) ||
-    (e.title || '').split(/ - | — /)[0] ||
+    (entry.data.display_name as string) ||
+    (entry.title || '').split(/ - | — /)[0] ||
     ''
   ).trim()
 }
 
 function dedupeByName(list: Mentionable[]): Mentionable[] {
   const seen = new Set<string>()
-  return list.filter(m => {
-    const k = canon(m.name)
-    if (!m.name || seen.has(k)) return false
-    seen.add(k)
+  return list.filter(mention => {
+    const key = canon(mention.name)
+    if (!mention.name || seen.has(key)) return false
+    seen.add(key)
     return true
   })
 }
@@ -89,7 +89,7 @@ const saveError = ref('')
 const bodyRef = ref<HTMLTextAreaElement | null>(null)
 
 const selected = computed(
-  () => notes.value.find(n => n.id === selectedId.value) || null
+  () => notes.value.find(note => note.id === selectedId.value) || null
 )
 
 const createdLabel = computed(() =>
@@ -133,22 +133,27 @@ async function apiBacklinks(id: string): Promise<Note[]> {
 // ----- derived: tree, search, resolution -----
 
 function resolveTargetNote(target: string): Note | null {
-  const c = canon(target)
-  return notes.value.find(n => noteKeys(n).includes(c)) || null
+  const key = canon(target)
+  return notes.value.find(note => noteKeys(note).includes(key)) || null
 }
 function resolveMention(target: string): Mentionable | null {
-  const c = canon(target)
-  return mentionables.value.find(m => canon(m.name) === c) || null
+  const key = canon(target)
+  return mentionables.value.find(mention => canon(m.name) === c) || null
 }
 
 const filteredNotes = computed(() => {
   if (!searchQuery.value.trim()) return notes.value
-  const q = searchQuery.value.toLowerCase()
-  return notes.value.filter(n =>
-    [n.title || '', noteFolder(n), noteBody(n), noteTags(n).join(' ')]
+  const needle = searchQuery.value.toLowerCase()
+  return notes.value.filter(note =>
+    [
+      note.title || '',
+      noteFolder(note),
+      noteBody(note),
+      noteTags(note).join(' ')
+    ]
       .join(' ')
       .toLowerCase()
-      .includes(q)
+      .includes(needle)
   )
 })
 
@@ -178,21 +183,21 @@ const emptyNode = (name: string, path: string): TreeNode => ({
 
 function buildTree(list: Note[]): TreeNode {
   const root = emptyNode('', '')
-  for (const n of list) {
+  for (const note of list) {
     let cur = root
-    const folder = noteFolder(n)
+    const folder = noteFolder(note)
     if (folder) {
       let path = ''
       for (const seg of folder
         .split('/')
-        .map(s => s.trim())
+        .map(segment => segment.trim())
         .filter(Boolean)) {
         path = path ? `${path}/${seg}` : seg
         if (!cur.folders.has(seg)) cur.folders.set(seg, emptyNode(seg, path))
         cur = cur.folders.get(seg)!
       }
     }
-    cur.notes.push(n)
+    cur.notes.push(note)
   }
   return root
 }
@@ -228,14 +233,14 @@ const treeRows = computed<TreeRow[]>(() => {
       })
       if (!isCollapsed) walk(f, depth + 1)
     }
-    for (const n of sortNotes(node.notes)) {
+    for (const note of sortNotes(node.notes)) {
       rows.push({
         kind: 'note',
         depth,
-        name: n.title || 'Untitled',
-        id: n.id,
+        name: note.title || 'Untitled',
+        id: note.id,
         folder: node.path,
-        favorite: noteFavorite(n)
+        favorite: noteFavorite(note)
       })
     }
   }
@@ -246,8 +251,8 @@ const treeRows = computed<TreeRow[]>(() => {
 const previewHtml = computed(() =>
   renderMarkdown(
     editBody.value,
-    t => resolveTargetNote(t)?.id ?? null,
-    t => resolveMention(t)?.kind ?? null
+    target => resolveTargetNote(target)?.id ?? null,
+    target => resolveMention(target)?.kind ?? null
   )
 )
 
@@ -274,18 +279,18 @@ const parentOf = (p: string) =>
 
 // Every folder path present in the tree (including intermediate segments).
 const allFolderPaths = computed(() => {
-  const s = new Set<string>()
-  for (const n of notes.value) {
+  const paths = new Set<string>()
+  for (const note of notes.value) {
     let path = ''
-    for (const seg of noteFolder(n)
+    for (const seg of noteFolder(note)
       .split('/')
-      .map(x => x.trim())
+      .map(segment => segment.trim())
       .filter(Boolean)) {
       path = path ? `${path}/${seg}` : seg
-      s.add(path)
+      paths.add(path)
     }
   }
-  return [...s]
+  return [...paths]
 })
 
 const folderOptions = computed(() =>
@@ -333,16 +338,16 @@ async function commitRenameFolder() {
   const newPath = parent ? `${parent}/${seg}` : seg
   if (newPath === path) return
   await flushSave()
-  const affected = notes.value.filter(n => {
-    const f = noteFolder(n)
+  const affected = notes.value.filter(note => {
+    const f = noteFolder(note)
     return f === path || f.startsWith(path + '/')
   })
   try {
-    for (const n of affected) {
-      await apiUpdate(n.id, {
-        title: n.title || '',
-        folder: newPath + noteFolder(n).slice(path.length),
-        body: noteBody(n)
+    for (const note of affected) {
+      await apiUpdate(note.id, {
+        title: note.title || '',
+        folder: newPath + noteFolder(note).slice(path.length),
+        body: noteBody(note)
       })
     }
   } catch {
@@ -352,24 +357,28 @@ async function commitRenameFolder() {
   await reloadNotes()
 }
 
-function onNoteDragStart(id: string, e: DragEvent) {
+function onNoteDragStart(id: string, event: DragEvent) {
   draggingNoteId.value = id
-  e.dataTransfer?.setData('text/plain', id)
-  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer?.setData('text/plain', id)
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
 }
 
-function onFolderDragStart(path: string, e: DragEvent) {
+function onFolderDragStart(path: string, event: DragEvent) {
   draggingFolderPath.value = path
-  e.dataTransfer?.setData('text/plain', path)
-  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer?.setData('text/plain', path)
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
 }
 
 async function moveNoteToFolder(id: string, folder: string) {
-  const n = notes.value.find(x => x.id === id)
-  if (!n || noteFolder(n) === folder) return
+  const note = notes.value.find(candidate => candidate.id === id)
+  if (!note || noteFolder(note) === folder) return
   await flushSave()
   try {
-    await apiUpdate(n.id, { title: n.title || '', folder, body: noteBody(n) })
+    await apiUpdate(note.id, {
+      title: note.title || '',
+      folder,
+      body: noteBody(note)
+    })
   } catch {
     return
   }
@@ -383,7 +392,7 @@ function reorderFolder(from: string, target: string) {
   const parent = parentOf(from)
   if (target ? parentOf(target) !== parent : parent !== '') return
   const seq = allFolderPaths.value
-    .filter(p => parentOf(p) === parent && p !== from)
+    .filter(path => parentOf(path) === parent && path !== from)
     .sort(folderOrder.compare)
   const idx = target ? seq.indexOf(target) : seq.length
   seq.splice(idx === -1 ? seq.length : idx, 0, from)
@@ -448,13 +457,15 @@ async function save() {
       // so we don't hold (and later save back) stale bodies.
       notes.value = await apiList()
     } else {
-      notes.value = notes.value.map(n => (n.id === updated.id ? updated : n))
+      notes.value = notes.value.map(note =>
+        note.id === updated.id ? updated : note
+      )
     }
     saveState.value = 'saved'
     saveError.value = ''
-  } catch (e) {
+  } catch (err) {
     saveState.value = 'error'
-    saveError.value = e instanceof Error ? e.message : 'Save failed'
+    saveError.value = err instanceof Error ? err.message : 'Save failed'
   }
 }
 
@@ -479,14 +490,20 @@ function noteHref(id: string): string {
 }
 
 // True when the browser should handle the click itself (new tab or window).
-function opensNewTab(e: MouseEvent): boolean {
+function opensNewTab(event: MouseEvent): boolean {
   // `> 0` and not `!== 0`: a synthetic click may leave `button` undefined.
-  return e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button > 0
+  return (
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey ||
+    event.button > 0
+  )
 }
 
-function onNoteLinkClick(id: string, e: MouseEvent) {
-  if (opensNewTab(e)) return
-  e.preventDefault()
+function onNoteLinkClick(id: string, event: MouseEvent) {
+  if (opensNewTab(event)) return
+  event.preventDefault()
   void selectNote(id)
 }
 
@@ -520,7 +537,9 @@ function onPopState() {
 }
 
 function uniqueTitle(base: string): string {
-  const existing = new Set(notes.value.map(n => (n.title || '').toLowerCase()))
+  const existing = new Set(
+    notes.value.map(note => (note.title || '').toLowerCase())
+  )
   if (!existing.has(base.toLowerCase())) return base
   let i = 2
   while (existing.has(`${base} ${i}`.toLowerCase())) i++
@@ -567,7 +586,7 @@ async function createNamedNote(title: string) {
 async function openTodayNote() {
   const title = todayInUserTz()
   const existing = notes.value.find(
-    n => (n.title || '') === title && noteFolder(n) === 'Journal'
+    note => (note.title || '') === title && noteFolder(note) === 'Journal'
   )
   if (existing) {
     void selectNote(existing.id)
@@ -589,7 +608,9 @@ async function toggleFavorite() {
   await flushSave()
   try {
     const updated = await apiUpdate(note.id, { favorite: !noteFavorite(note) })
-    notes.value = notes.value.map(n => (n.id === updated.id ? updated : n))
+    notes.value = notes.value.map(note =>
+      note.id === updated.id ? updated : note
+    )
   } catch {
     // ignore
   }
@@ -607,7 +628,7 @@ async function deleteSelected() {
   if (!ok) return
   try {
     await apiDelete(note.id)
-    notes.value = notes.value.filter(n => n.id !== note.id)
+    notes.value = notes.value.filter(candidate => candidate.id !== note.id)
     if (selectedId.value === note.id) {
       selectedId.value = null
       backlinks.value = []
@@ -619,11 +640,11 @@ async function deleteSelected() {
 
 // ----- preview clicks (wikilinks / mentions) -----
 
-function onPreviewClick(e: MouseEvent) {
-  const target = e.target as HTMLElement
+function onPreviewClick(event: MouseEvent) {
+  const target = event.target as HTMLElement
   const mention = target.closest('.nt-mention') as HTMLElement | null
   if (mention) {
-    e.preventDefault()
+    event.preventDefault()
     const item = resolveMention(mention.dataset.target || '')
     if (item?.kind === 'contact') ctx.navigate(`/contacts/${item.id}`)
     else if (item?.kind === 'event') ctx.navigate('/apps/calendar')
@@ -632,8 +653,8 @@ function onPreviewClick(e: MouseEvent) {
   const link = target.closest('.nt-wikilink') as HTMLElement | null
   if (!link) return
   // A resolved wikilink carries an href: let the browser open the new tab.
-  if (opensNewTab(e) && link.getAttribute('href')) return
-  e.preventDefault()
+  if (opensNewTab(event) && link.getAttribute('href')) return
+  event.preventDefault()
   const t = link.dataset.target || ''
   const existing = resolveTargetNote(t)
   if (existing) void selectNote(existing.id)
@@ -660,11 +681,11 @@ function hideAutocomplete() {
 }
 
 function mentionItems(query: string, close: boolean): AcItem[] {
-  const q = query.toLowerCase()
+  const needle = query.toLowerCase()
   return mentionables.value
-    .filter(m => m.name.toLowerCase().includes(q))
+    .filter(mention => m.name.toLowerCase().includes(needle))
     .slice(0, 8)
-    .map(m => ({
+    .map(mention => ({
       label: m.name,
       icon: m.kind === 'event' ? '📅' : '👤',
       text: close ? `${m.name}]]` : `@[[${m.name}]]`
@@ -733,16 +754,18 @@ async function updateAutocomplete() {
 
   let items: AcItem[]
   if (wiki) {
-    const q = wiki[1].toLowerCase()
+    const needle = wiki[1].toLowerCase()
     acReplaceLen = wiki[1].length
     items = sortNotes(
-      notes.value.filter(n => (n.title || '').toLowerCase().includes(q))
+      notes.value.filter(note =>
+        (note.title || '').toLowerCase().includes(needle)
+      )
     )
       .slice(0, 8)
-      .map(n => ({
-        label: n.title || '',
+      .map(note => ({
+        label: note.title || '',
         icon: '',
-        text: `${n.title || ''}]]`
+        text: `${note.title || ''}]]`
       }))
   } else if (openMention) {
     acReplaceLen = openMention[1].length
@@ -798,41 +821,41 @@ function applyCompletion(item: AcItem) {
 }
 
 // Enter inside a list line continues the list (Shift+Enter keeps the plain newline).
-function onEnterInList(e: KeyboardEvent) {
+function onEnterInList(event: KeyboardEvent) {
   const ta = bodyRef.value
   if (!ta || ta.selectionStart !== ta.selectionEnd) return
   const edit = continueListEdit(ta.value, ta.selectionStart)
   if (!edit) return
-  e.preventDefault()
+  event.preventDefault()
   editBody.value = edit.value
   nextTick(() => ta.setSelectionRange(edit.pos, edit.pos))
   scheduleSave()
 }
 
-function onBodyKeydown(e: KeyboardEvent) {
+function onBodyKeydown(event: KeyboardEvent) {
   if (!acVisible.value || !acItems.value.length) {
     if (
-      e.key === 'Enter' &&
-      !e.shiftKey &&
-      !e.ctrlKey &&
-      !e.metaKey &&
-      !e.altKey
+      event.key === 'Enter' &&
+      !event.shiftKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
     ) {
-      onEnterInList(e)
+      onEnterInList(event)
     }
     return
   }
-  if (e.key === 'Escape') {
+  if (event.key === 'Escape') {
     hideAutocomplete()
-  } else if (e.key === 'ArrowDown') {
-    e.preventDefault()
+  } else if (event.key === 'ArrowDown') {
+    event.preventDefault()
     acIndex.value = (acIndex.value + 1) % acItems.value.length
-  } else if (e.key === 'ArrowUp') {
-    e.preventDefault()
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault()
     acIndex.value =
       (acIndex.value - 1 + acItems.value.length) % acItems.value.length
-  } else if (e.key === 'Enter' || e.key === 'Tab') {
-    e.preventDefault()
+  } else if (event.key === 'Enter' || event.key === 'Tab') {
+    event.preventDefault()
     applyCompletion(acItems.value[acIndex.value])
   }
 }
@@ -878,7 +901,7 @@ onMounted(async () => {
   const initial = new URLSearchParams(window.location.search).get('selected')
   const lastOpen = localStorage.getItem(LAST_OPEN_KEY)
   const target = [initial, lastOpen].find(
-    id => id && notes.value.some(n => n.id === id)
+    id => id && notes.value.some(note => note.id === id)
   )
   if (target) void selectNote(target, { push: false })
 
@@ -890,10 +913,10 @@ onMounted(async () => {
     ])
     const contactItems = dedupeByName(
       contacts
-        .map(c => ({
-          id: c.id,
+        .map(contact => ({
+          id: contact.id,
           kind: 'contact' as const,
-          name: mentionName(c)
+          name: mentionName(contact)
         }))
         .sort((a, b) =>
           a.name.toLowerCase().localeCompare(b.name.toLowerCase())
@@ -906,10 +929,10 @@ onMounted(async () => {
         .sort((a, b) =>
           (b.occurred_at || '').localeCompare(a.occurred_at || '')
         )
-        .map(e => ({
-          id: e.id,
+        .map(entry => ({
+          id: entry.id,
           kind: 'event' as const,
-          name: (e.title || '').trim()
+          name: (entry.title || '').trim()
         }))
     )
     mentionables.value = [...contactItems, ...eventItems]
@@ -940,15 +963,15 @@ onBeforeUnmount(() => {
         <template v-if="favoriteNotes.length">
           <div class="nt-fav-head">Favorites</div>
           <a
-            v-for="n in favoriteNotes"
-            :key="'fav:' + n.id"
+            v-for="note in favoriteNotes"
+            :key="'fav:' + note.id"
             class="nt-note nt-note--fav"
-            :class="{ 'nt-note--active': n.id === selectedId }"
-            :href="noteHref(n.id)"
-            @click="onNoteLinkClick(n.id, $event)"
+            :class="{ 'nt-note--active': note.id === selectedId }"
+            :href="noteHref(note.id)"
+            @click="onNoteLinkClick(note.id, $event)"
           >
             <Star :size="11" class="nt-star" fill="currentColor" />
-            <span class="nt-note-title">{{ n.title || 'Untitled' }}</span>
+            <span class="nt-note-title">{{ note.title || 'Untitled' }}</span>
           </a>
         </template>
         <template v-if="treeRows.length">
@@ -1115,13 +1138,13 @@ onBeforeUnmount(() => {
             >
             <div class="nt-view-toggle">
               <button
-                v-for="m in viewModes"
-                :key="m"
+                v-for="mode in viewModes"
+                :key="mode"
                 class="nt-vb"
-                :class="{ 'nt-vb--active': viewMode === m }"
-                @click="viewMode = m"
+                :class="{ 'nt-vb--active': viewMode === mode }"
+                @click="viewMode = mode"
               >
-                {{ m }}
+                {{ mode }}
               </button>
             </div>
           </div>
@@ -1149,12 +1172,12 @@ onBeforeUnmount(() => {
         <div class="nt-backlinks" v-if="backlinks.length">
           <div class="nt-bl-title">Linked from</div>
           <a
-            v-for="n in backlinks"
-            :key="n.id"
+            v-for="note in backlinks"
+            :key="note.id"
             class="nt-bl-item"
-            :href="noteHref(n.id)"
-            @click="onNoteLinkClick(n.id, $event)"
-            >{{ n.title || 'Untitled' }}</a
+            :href="noteHref(note.id)"
+            @click="onNoteLinkClick(note.id, $event)"
+            >{{ note.title || 'Untitled' }}</a
           >
         </div>
       </template>
@@ -1163,10 +1186,10 @@ onBeforeUnmount(() => {
     <Teleport to="body">
       <div v-if="acVisible" class="nt-ac" :style="acStyle">
         <div
-          v-for="(item, i) in acItems"
-          :key="i"
+          v-for="(item, index) in acItems"
+          :key="index"
           class="nt-ac-item"
-          :class="{ 'nt-ac-item--active': i === acIndex }"
+          :class="{ 'nt-ac-item--active': index === acIndex }"
           @mousedown.prevent="applyCompletion(item)"
         >
           <template v-if="item.icon">{{ item.icon }} </template>{{ item.label }}
