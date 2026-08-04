@@ -236,11 +236,13 @@ const lastSyncAt = computed(() => {
   return ts.length ? ts[ts.length - 1] : null
 })
 
-// Newest activation first (inserted_at = when the connector was set up).
-const connectorsByActivation = computed(() =>
-  [...connectors.value].sort((a, b) =>
-    a.inserted_at < b.inserted_at ? 1 : a.inserted_at > b.inserted_at ? -1 : 0
-  )
+// Errored connectors first (they need attention), then most recently
+// synced first; never-synced ones sink to the bottom.
+const sortedConnectors = computed(() =>
+  [...connectors.value].sort((a, b) => {
+    if (!!a.error !== !!b.error) return a.error ? -1 : 1
+    return (b.last_synced_at ?? '').localeCompare(a.last_synced_at ?? '')
+  })
 )
 
 // Timestamp for a log line: time-of-day if today, short date otherwise.
@@ -314,14 +316,6 @@ onMounted(fetchData)
           />
           Hello {{ auth.user?.display_name || auth.user?.username }}
         </div>
-        <div class="motd-line">
-          next:
-          <template v-if="nextEvent">
-            <span class="motd-num">{{ nextEventStamp }}</span>
-            {{ nextEvent.title || nextEvent.data.summary }}
-          </template>
-          <template v-else>nothing scheduled</template>
-        </div>
         <div v-if="todaysEvents.length" class="motd-line">
           today:
           <template v-for="(e, i) in todaysEvents" :key="e.id">
@@ -329,6 +323,14 @@ onMounted(fetchData)
             <span class="motd-num">{{ formatTime(e.occurred_at) }}</span>
             {{ e.title || e.data.summary }}
           </template>
+        </div>
+        <div class="motd-line">
+          next:
+          <template v-if="nextEvent">
+            <span class="motd-num">{{ nextEventStamp }}</span>
+            {{ nextEvent.title || nextEvent.data.summary }}
+          </template>
+          <template v-else>nothing scheduled</template>
         </div>
       </div>
 
@@ -375,11 +377,12 @@ onMounted(fetchData)
                 >Manage</router-link
               >
             </div>
-            <div v-if="connectorsByActivation.length" class="connector-status-list">
+            <div v-if="sortedConnectors.length" class="connector-status-list">
               <div
-                v-for="c in connectorsByActivation"
+                v-for="c in sortedConnectors"
                 :key="c.id"
                 class="connector-status-item connector-status-item--clickable"
+                :class="{ 'connector-status-item--error': !!c.error }"
                 @click="goToConnector(c)"
                 v-click-key
                 role="button"
@@ -401,9 +404,14 @@ onMounted(fetchData)
                     c.connector_type
                   }}
                 </span>
-                <span class="connector-status-meta">
-                  <template v-if="c.error">Error</template>
-                  <template v-else-if="c.last_synced_at">
+                <span
+                  v-if="c.error"
+                  class="connector-status-meta connector-status-meta--error"
+                  :title="c.error"
+                  >{{ c.error }}</span
+                >
+                <span v-else class="connector-status-meta">
+                  <template v-if="c.last_synced_at">
                     {{ relativeTime(c.last_synced_at) }}
                   </template>
                   <template v-else>Never synced</template>
@@ -638,8 +646,10 @@ onMounted(fetchData)
 }
 
 /* The dashboard owns the viewport: header fixed on top, then three
-   independently scrolling columns. */
+   independently scrolling columns. Full width (overrides the global
+   960px cap meant for narrow settings-style views). */
 .view {
+  max-width: none;
   height: calc(100vh - 4rem);
   display: flex;
   flex-direction: column;
@@ -890,12 +900,33 @@ onMounted(fetchData)
 
 .connector-status-name {
   font-weight: 500;
+  flex-shrink: 0;
 }
 
 .connector-status-meta {
   color: var(--text-muted);
   margin-left: auto;
   font-size: 0.85rem;
+}
+
+/* Errored connectors: red-tinted card, message shown in place of the
+   sync time (full text in the tooltip). */
+.connector-status-item--error {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 7%, var(--bg-surface));
+}
+
+.connector-status-item--error:hover {
+  border-color: var(--danger-hover);
+}
+
+.connector-status-meta--error {
+  color: var(--danger);
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Activity feed as terminal log lines */
