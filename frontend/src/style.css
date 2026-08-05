@@ -640,6 +640,13 @@ dd {
 
 /* ----- 8. Modal ----- */
 
+/* The reset's `margin: 0` (an author rule) beats the UA's `margin: auto` on
+   <dialog>, which is what centers a modal between the insets it is stretched
+   between. Give it back to every dialog, ours are all centered boxes. */
+dialog {
+  margin: auto;
+}
+
 /* Native <dialog> frame: a transparent full-width strip in the top layer,
    centered by the UA; the visible box is the child (.modal, .detail-panel).
    Clicks that land on the dialog element itself (backdrop included, the
