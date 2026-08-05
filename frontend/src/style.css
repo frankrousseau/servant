@@ -355,10 +355,11 @@ button {
   transition: background 0.15s;
 }
 
-/* The hover repaints the text too: a component button styled by a bare
-   class (0-1-0) loses both properties to this rule (0-1-1), so changing
-   only the background would put muted text on a primary background. */
-button:hover {
+/* :where keeps this at element specificity (0-0-1): a component button
+   styled by a bare class (0-1-0, e.g. in an unscoped style block like
+   NotesApp's) keeps its own background and color on hover instead of
+   getting the primary repaint under its unchanged text color. */
+button:where(:hover) {
   background: var(--primary-hover);
   color: var(--primary-contrast);
 }

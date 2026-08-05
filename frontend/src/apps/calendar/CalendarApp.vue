@@ -1064,6 +1064,10 @@ onUnmounted(destroyPickers)
   background: var(--primary);
   color: var(--primary-contrast);
 }
+/* :hover (0-2-1) outranks the modifier (0-2-0); keep the contrast text. */
+.cal-toggle-btn--active:hover {
+  color: var(--primary-contrast);
+}
 .cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
