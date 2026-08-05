@@ -17,12 +17,15 @@ import {
 
 import { kindColor } from '../lib/kind'
 
+// Decorative by default (the icon usually sits next to the kind's name);
+// pass a label when the icon stands alone so assistive tech announces it.
 const props = withDefaults(
   defineProps<{
     kind: string
     size?: number
+    label?: string
   }>(),
-  { size: 16 }
+  { size: 16, label: undefined }
 )
 
 // The lucide component per kind is render-layer knowledge and stays here;
@@ -48,6 +51,9 @@ const color = computed(() => kindColor(props.kind))
 <template>
   <span
     class="kind-icon"
+    :role="label ? 'img' : undefined"
+    :aria-label="label"
+    :aria-hidden="label ? undefined : 'true'"
     :style="{
       background: color,
       width: size + 12 + 'px',

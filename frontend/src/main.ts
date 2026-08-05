@@ -6,6 +6,7 @@ import App from './App.vue'
 
 import { useAuthStore } from './stores/auth'
 import { applyTheme, storedTheme } from './lib/theme'
+import { vAutofocus } from './lib/autofocus'
 import { reportClientError, messageOf } from './lib/reportError'
 import { vClickKey } from './lib/clickKey'
 
@@ -19,6 +20,7 @@ const app = createApp(App)
 app.use(pinia)
 app.use(router)
 app.directive('click-key', vClickKey)
+app.directive('autofocus', vAutofocus)
 
 // Surface otherwise-silent client failures in the Audit error log.
 app.config.errorHandler = (err, _instance, info) => {

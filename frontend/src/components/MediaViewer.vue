@@ -38,6 +38,7 @@ const emit = defineEmits<{
   delete: [id: string]
 }>()
 
+const dialogRef = ref<HTMLDialogElement | null>(null)
 const currentIndex = ref(props.startIndex ?? 0)
 const zoom = ref(1)
 const imgError = ref(false)
@@ -105,9 +106,13 @@ async function handleDelete() {
   if (ok) emit('delete', current.value.id)
 }
 
+// Escape prevents the dialog's native cancel too, so closing goes through
+// the parent's v-if unmount in a single deterministic path.
 function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') emit('close')
-  else if (event.key === 'ArrowLeft') prev()
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    emit('close')
+  } else if (event.key === 'ArrowLeft') prev()
   else if (event.key === 'ArrowRight') next()
   else if (event.key === '+' || event.key === '=') zoomIn()
   else if (event.key === '-') zoomOut()
@@ -119,13 +124,24 @@ function osmLink(location: string): string {
   return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=15/${lat}/${lon}`
 }
 
-onMounted(() => document.addEventListener('keydown', onKeydown))
+// The viewer exists only while open (parent v-if), so the dialog goes
+// modal on mount: focus trap and focus restoration come with it.
+onMounted(() => {
+  dialogRef.value?.showModal()
+  document.addEventListener('keydown', onKeydown)
+})
 onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>
   <Teleport to="body">
-    <div class="mv-overlay" @click.self="emit('close')">
+    <dialog
+      ref="dialogRef"
+      class="mv-overlay"
+      aria-label="Media viewer"
+      @click.self="emit('close')"
+      @cancel.prevent="emit('close')"
+    >
       <!-- Main image / video. The stage fills the overlay, so a click beside
            the media must close too, not only one on the overlay itself. -->
       <div class="mv-stage" @click.self="emit('close')">
@@ -178,10 +194,20 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
         </div>
         <div class="mv-top-actions">
           <template v-if="!current?.video">
-            <button class="mv-btn" @click="zoomOut" title="Zoom out">
+            <button
+              class="mv-btn"
+              @click="zoomOut"
+              title="Zoom out"
+              aria-label="Zoom out"
+            >
               <ZoomOut :size="18" />
             </button>
-            <button class="mv-btn" @click="zoomIn" title="Zoom in">
+            <button
+              class="mv-btn"
+              @click="zoomIn"
+              title="Zoom in"
+              aria-label="Zoom in"
+            >
               <ZoomIn :size="18" />
             </button>
           </template>
@@ -191,6 +217,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             :class="{ 'mv-btn--active': showFull }"
             @click="showFull = !showFull"
             :title="showFull ? 'Back to fit size' : 'Load full resolution'"
+            :aria-label="showFull ? 'Back to fit size' : 'Load full resolution'"
           >
             <Maximize2 :size="18" />
           </button>
@@ -201,6 +228,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             download
             target="_blank"
             title="Download original"
+            aria-label="Download original"
             ><Download :size="18"
           /></a>
           <router-link
@@ -208,6 +236,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             class="mv-btn"
             :to="`/photos/${current.id}`"
             title="Permalink"
+            aria-label="Permalink"
             @click="emit('close')"
             ><ExternalLink :size="18"
           /></router-link>
@@ -217,6 +246,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             :class="{ 'mv-btn--active': showInfo }"
             @click="showInfo = !showInfo"
             title="Info"
+            aria-label="Info"
           >
             <Info :size="18" />
           </button>
@@ -224,20 +254,36 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             class="mv-btn mv-btn--danger"
             @click="handleDelete"
             title="Delete"
+            aria-label="Delete"
           >
             <Trash2 :size="18" />
           </button>
-          <button class="mv-btn" @click="emit('close')" title="Close">
+          <button
+            class="mv-btn"
+            @click="emit('close')"
+            title="Close"
+            aria-label="Close"
+          >
             <X :size="20" />
           </button>
         </div>
       </div>
 
       <!-- Nav arrows -->
-      <button v-if="hasPrev" class="mv-arrow mv-arrow--left" @click="prev">
+      <button
+        v-if="hasPrev"
+        class="mv-arrow mv-arrow--left"
+        aria-label="Previous media"
+        @click="prev"
+      >
         <ChevronLeft :size="32" />
       </button>
-      <button v-if="hasNext" class="mv-arrow mv-arrow--right" @click="next">
+      <button
+        v-if="hasNext"
+        class="mv-arrow mv-arrow--right"
+        aria-label="Next media"
+        @click="next"
+      >
         <ChevronRight :size="32" />
       </button>
 
@@ -263,16 +309,27 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           </div>
         </div>
       </Transition>
-    </div>
+    </dialog>
   </Teleport>
 </template>
 
 <style scoped>
+/* Fullscreen dialog in the top layer (no z-index needed): the dialog is
+   the dark surface itself, its backdrop stays unused. The [open] guard
+   keeps the UA's display: none while the dialog is not open yet. */
 .mv-overlay {
   position: fixed;
   inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  border: none;
   background: rgba(0, 0, 0, 0.92);
-  z-index: 9999;
+}
+
+.mv-overlay[open] {
   display: flex;
   flex-direction: column;
 }

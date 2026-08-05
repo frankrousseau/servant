@@ -139,6 +139,27 @@ function endScrub(event: PointerEvent) {
   wake()
 }
 
+// Keyboard scrubbing on the seek slider. stopPropagation keeps the arrows
+// local: inside a MediaViewer they would otherwise also switch media.
+function onSeekKeydown(event: KeyboardEvent) {
+  const media = video.value
+  if (!media || !duration.value) return
+  if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+    media.currentTime = Math.min(media.currentTime + 5, duration.value)
+  } else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+    media.currentTime = Math.max(media.currentTime - 5, 0)
+  } else if (event.key === 'Home') {
+    media.currentTime = 0
+  } else if (event.key === 'End') {
+    media.currentTime = duration.value
+  } else {
+    return
+  }
+  event.preventDefault()
+  event.stopPropagation()
+  wake()
+}
+
 // ----- volume / fullscreen -----
 
 function toggleMute() {
@@ -226,10 +247,18 @@ onUnmounted(() => {
         ref="bar"
         class="vp-seek"
         :class="{ 'vp-seek--active': scrubbing }"
+        role="slider"
+        tabindex="0"
+        aria-label="Seek"
+        aria-valuemin="0"
+        :aria-valuemax="Math.round(duration)"
+        :aria-valuenow="Math.round(currentTime)"
+        :aria-valuetext="timeLabel"
         @pointerdown="startScrub"
         @pointermove="moveScrub"
         @pointerup="endScrub"
         @pointercancel="endScrub"
+        @keydown="onSeekKeydown"
       >
         <div class="vp-seek-bg"></div>
         <div
@@ -244,6 +273,7 @@ onUnmounted(() => {
         <button
           class="vp-btn"
           :title="playing ? 'Pause' : 'Play'"
+          :aria-label="playing ? 'Pause' : 'Play'"
           @click="togglePlay"
         >
           <Pause v-if="playing" :size="20" /><Play v-else :size="20" />
@@ -251,6 +281,7 @@ onUnmounted(() => {
         <button
           class="vp-btn"
           :title="muted ? 'Unmute' : 'Mute'"
+          :aria-label="muted ? 'Unmute' : 'Mute'"
           @click="toggleMute"
         >
           <VolumeX v-if="muted || volume === 0" :size="20" /><Volume2
@@ -265,6 +296,7 @@ onUnmounted(() => {
           max="1"
           step="0.05"
           :value="muted ? 0 : volume"
+          aria-label="Volume"
           @input="onVolumeInput"
         />
         <span class="vp-time">{{ timeLabel }}</span>
@@ -272,6 +304,7 @@ onUnmounted(() => {
         <button
           class="vp-btn"
           :title="fullscreen ? 'Exit full screen' : 'Full screen'"
+          :aria-label="fullscreen ? 'Exit full screen' : 'Full screen'"
           @click="toggleFullscreen"
         >
           <Minimize v-if="fullscreen" :size="20" /><Maximize

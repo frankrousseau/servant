@@ -1,83 +1,120 @@
 <script setup lang="ts">
-import { onUnmounted, watch } from 'vue'
+import { onUnmounted, ref, watch } from 'vue'
 import { AlertTriangle } from 'lucide-vue-next'
 
 import { useConfirm } from '../composables/useConfirm'
 
 const { visible, title, message, confirmLabel, danger, resolve } = useConfirm()
 
-function onOverlayClick(event: MouseEvent) {
-  if (event.target === event.currentTarget) resolve(false)
+const dialog = ref<HTMLDialogElement | null>(null)
+
+// The dialog element is only hit by clicks on its backdrop: the padding
+// lives on the inner .confirm-modal wrapper, so any click inside the box
+// targets that wrapper instead.
+function onDialogClick(event: MouseEvent) {
+  if (event.target === dialog.value) resolve(false)
 }
 
-// The overlay never gets focus, so a keydown bound to it never fires. Listen at
-// the document level (capture phase) while visible so Escape cancels the confirm,
-// and stop propagation so an underlying MediaViewer's Escape handler doesn't
-// also fire and close the layer beneath the dialog.
+// Escape is handled at the document level (capture phase) instead of the
+// dialog's native cancel event so it can stop propagation: an underlying
+// MediaViewer's document-level Escape handler must not also fire and close
+// the layer beneath the confirm. preventDefault suppresses native cancel,
+// which would otherwise close the dialog a second time.
 function onKeydown(event: KeyboardEvent) {
   if (!visible.value) return
   if (event.key === 'Escape') {
+    event.preventDefault()
     event.stopPropagation()
     resolve(false)
   }
 }
 
-watch(visible, isVisible => {
-  if (isVisible) {
-    document.addEventListener('keydown', onKeydown, true)
-  } else {
-    document.removeEventListener('keydown', onKeydown, true)
-  }
-})
+// flush: 'post' so showModal() runs after the autofocus attributes have
+// been re-rendered for this ask(); the browser reads them at open time.
+watch(
+  visible,
+  isVisible => {
+    if (isVisible) {
+      document.addEventListener('keydown', onKeydown, true)
+      dialog.value?.showModal()
+    } else {
+      document.removeEventListener('keydown', onKeydown, true)
+      dialog.value?.close()
+    }
+  },
+  { flush: 'post' }
+)
 
 onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
 </script>
 
 <template>
   <Teleport to="body">
-    <Transition name="confirm-fade">
-      <div
-        v-if="visible"
-        class="confirm-overlay"
-        @click="onOverlayClick"
-        @keydown="onKeydown"
-      >
-        <div class="confirm-modal" role="alertdialog">
-          <div class="confirm-icon" :class="{ 'confirm-icon--danger': danger }">
-            <AlertTriangle :size="24" />
-          </div>
-          <h3 class="confirm-title">{{ title }}</h3>
-          <p class="confirm-message">{{ message }}</p>
-          <div class="confirm-actions">
-            <button
-              class="confirm-btn confirm-btn--cancel"
-              @click="resolve(false)"
-            >
-              Cancel
-            </button>
-            <button
-              class="confirm-btn"
-              :class="danger ? 'confirm-btn--danger' : 'confirm-btn--primary'"
-              @click="resolve(true)"
-            >
-              {{ confirmLabel }}
-            </button>
-          </div>
+    <dialog
+      ref="dialog"
+      class="confirm-dialog"
+      role="alertdialog"
+      aria-labelledby="confirm-title"
+      aria-describedby="confirm-message"
+      @click="onDialogClick"
+      @close="resolve(false)"
+    >
+      <div class="confirm-modal">
+        <div class="confirm-icon" :class="{ 'confirm-icon--danger': danger }">
+          <AlertTriangle :size="24" />
+        </div>
+        <h3 id="confirm-title" class="confirm-title">{{ title }}</h3>
+        <p id="confirm-message" class="confirm-message">{{ message }}</p>
+        <div class="confirm-actions">
+          <button
+            class="confirm-btn confirm-btn--cancel"
+            :autofocus="danger"
+            @click="resolve(false)"
+          >
+            Cancel
+          </button>
+          <button
+            class="confirm-btn"
+            :class="danger ? 'confirm-btn--danger' : 'confirm-btn--primary'"
+            :autofocus="!danger"
+            @click="resolve(true)"
+          >
+            {{ confirmLabel }}
+          </button>
         </div>
       </div>
-    </Transition>
+    </dialog>
   </Teleport>
 </template>
 
 <style scoped>
-.confirm-overlay {
-  position: fixed;
-  inset: 0;
+/* The <dialog> is a bare, transparent frame in the top layer (no z-index
+   needed); the visible box is the inner wrapper. */
+.confirm-dialog {
+  padding: 0;
+  border: none;
+  background: transparent;
+  width: 100%;
+  max-width: 380px;
+}
+
+.confirm-dialog::backdrop {
   background: rgba(0, 0, 0, 0.6);
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+}
+
+/* Opening fade; closing is instant (display transitions would need
+   allow-discrete for little gain). */
+.confirm-dialog,
+.confirm-dialog::backdrop {
+  opacity: 1;
+  transition: opacity 0.15s;
+}
+
+@starting-style {
+  .confirm-dialog[open],
+  .confirm-dialog[open]::backdrop {
+    opacity: 0;
+  }
 }
 
 .confirm-modal {
@@ -85,8 +122,6 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1.5rem;
-  width: 100%;
-  max-width: 380px;
   text-align: center;
 }
 
@@ -166,15 +201,5 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
 .confirm-btn--primary:hover {
   background: var(--primary-hover);
   border-color: var(--primary-hover);
-}
-
-.confirm-fade-enter-active,
-.confirm-fade-leave-active {
-  transition: opacity 0.15s;
-}
-
-.confirm-fade-enter-from,
-.confirm-fade-leave-to {
-  opacity: 0;
 }
 </style>

@@ -205,7 +205,9 @@ function handleLogout() {
   color: var(--text);
 }
 
-.sidebar-nav li a.router-link-active {
+/* vue-router stamps aria-current="page" on the exact active link; styling
+   the attribute keeps the announced and visible states in sync. */
+.sidebar-nav li a[aria-current='page'] {
   color: var(--text);
 }
 
@@ -244,7 +246,10 @@ function handleLogout() {
   transition: color 0.15s;
 }
 
+/* aria-current covers the exact page; .router-link-active stays for the
+   ancestor case, it keeps Sources lit on a child page (/connectors/:id). */
 .sidebar-settings-link:hover,
+.sidebar-settings-link[aria-current='page'],
 .sidebar-settings-link.router-link-active {
   color: var(--text);
   text-decoration: none;

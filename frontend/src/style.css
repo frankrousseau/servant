@@ -204,6 +204,21 @@ a:hover {
   outline-offset: 2px;
 }
 
+/* All animation in the app is decorative (fades, hover transitions, the
+   auth-card glow); none of it carries information, so it can be disabled
+   wholesale for users who ask for reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after,
+  *::backdrop {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* ----- 3. Layout shell ----- */
 
 .app-layout {
@@ -623,6 +638,28 @@ dd {
 }
 
 /* ----- 8. Modal ----- */
+
+/* Native <dialog> frame: a transparent full-width strip in the top layer,
+   centered by the UA; the visible box is the child (.modal, .detail-panel).
+   Clicks that land on the dialog element itself (backdrop included, the
+   browser retargets them) mean "outside the box". The [open] guard keeps
+   the UA's display: none while closed. */
+.modal-dialog {
+  width: 100%;
+  max-width: none;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.modal-dialog[open] {
+  display: flex;
+  justify-content: center;
+}
+
+.modal-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
 
 .modal-overlay {
   position: fixed;

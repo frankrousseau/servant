@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { listEntriesPage } from '../api/entries'
@@ -16,7 +16,7 @@ const open = ref(false)
 const query = ref('')
 const results = ref<Entry[]>([])
 const activeIndex = ref(0)
-const inputRef = ref<HTMLInputElement | null>(null)
+const dialogRef = ref<HTMLDialogElement | null>(null)
 
 const appsStore = useAppsStore()
 const auth = useAuthStore()
@@ -100,11 +100,27 @@ function openPalette() {
   query.value = ''
   results.value = []
   activeIndex.value = 0
-  void nextTick(() => inputRef.value?.focus())
 }
 
 function close() {
   open.value = false
+}
+
+// showModal() gives the palette a focus trap and puts the autofocus on the
+// search input; flush: 'post' so the dialog is rendered open-ready first.
+watch(
+  open,
+  isOpen => {
+    if (isOpen) dialogRef.value?.showModal()
+    else dialogRef.value?.close()
+  },
+  { flush: 'post' }
+)
+
+// Backdrop clicks target the dialog element itself; clicks inside the box
+// hit the inner panel (the dialog carries no padding of its own).
+function onDialogClick(event: MouseEvent) {
+  if (event.target === dialogRef.value) close()
 }
 
 function go(item: Item) {
@@ -151,15 +167,22 @@ onBeforeUnmount(() => {
 
 <template>
   <Teleport to="body">
-    <div v-if="open" class="cp-overlay" @click.self="close">
+    <dialog
+      ref="dialogRef"
+      class="cp-dialog"
+      aria-label="Command palette"
+      @click="onDialogClick"
+      @close="open = false"
+    >
       <div class="cp-panel">
         <input
-          ref="inputRef"
           v-model="query"
           class="cp-input"
           type="text"
           placeholder="Search everything, jump to a page…"
+          aria-label="Search entries and pages"
           spellcheck="false"
+          autofocus
         />
         <div class="cp-list">
           <div
@@ -182,25 +205,24 @@ onBeforeUnmount(() => {
         </div>
         <div class="cp-footer">↑↓ navigate · ↵ open · esc close</div>
       </div>
-    </div>
+    </dialog>
   </Teleport>
 </template>
 
 <style scoped>
-.cp-overlay {
-  position: fixed;
-  inset: 0;
+/* Bare top-layer frame near the top of the viewport; the visible box is
+   the inner panel. */
+.cp-dialog {
+  width: min(560px, calc(100% - 2rem));
+  margin: 12vh auto auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+.cp-dialog::backdrop {
   background: rgba(0, 0, 0, 0.55);
-  z-index: 200;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding-top: 12vh;
 }
 .cp-panel {
-  width: 100%;
-  max-width: 560px;
-  margin: 0 1rem;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -218,8 +240,11 @@ onBeforeUnmount(() => {
   font-size: 1rem;
   font-family: var(--font-mono);
 }
+/* The default focus ring would hug the input inside the panel; the visible
+   focus indicator is the accent border under the field instead. */
 .cp-input:focus {
   outline: none;
+  border-bottom-color: var(--primary);
 }
 .cp-list {
   max-height: 46vh;
