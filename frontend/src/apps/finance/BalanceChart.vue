@@ -15,7 +15,8 @@ const W = 600
 const H = 150
 const PAD_X = 4
 const PAD_TOP = 14
-const PAD_BOTTOM = 18
+// Room under the plot for two stacked rows: the low value, then the dates.
+const PAD_BOTTOM = 26
 
 const dayMs = (date: string) => {
   const [year, month, day] = date.split('-').map(Number)
@@ -101,7 +102,7 @@ const stroke = computed(() => props.color || 'var(--primary)')
         <title>{{ dot.title }}</title>
       </circle>
       <text class="bc-label" :x="PAD_X" y="9">{{ geometry.maxLabel }}</text>
-      <text class="bc-label" :x="PAD_X" :y="H - PAD_BOTTOM + 12">
+      <text class="bc-label" :x="PAD_X" :y="H - PAD_BOTTOM + 8">
         {{ geometry.minLabel }}
       </text>
       <text class="bc-label bc-label--end" :x="W - PAD_X" :y="H - 4">
