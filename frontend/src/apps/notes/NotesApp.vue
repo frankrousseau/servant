@@ -1478,28 +1478,24 @@ onBeforeUnmount(() => {
   border-color: var(--primary);
   color: var(--primary-contrast);
 }
-.nt-fav-btn {
+.nt-fav-btn,
+.nt-delete {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text-muted);
   border-radius: 8px;
-  padding: 0.35rem 0.5rem;
   cursor: pointer;
-  display: flex;
-  align-items: center;
 }
 .nt-fav-btn:hover,
 .nt-fav-btn--active {
   border-color: #ffb454;
   color: #ffb454;
-}
-.nt-delete {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  border-radius: 8px;
-  padding: 0.35rem 0.5rem;
-  cursor: pointer;
 }
 .nt-delete:hover {
   border-color: var(--danger);
