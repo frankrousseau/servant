@@ -9,6 +9,7 @@ import {
   Image,
   Landmark,
   Link,
+  ListChecks,
   Mail,
   Receipt,
   StickyNote,
@@ -19,13 +20,16 @@ import { kindColor } from '../lib/kind'
 
 // Decorative by default (the icon usually sits next to the kind's name);
 // pass a label when the icon stands alone so assistive tech announces it.
+// `plain` drops the kind-colored tile and draws the glyph in the current
+// text color, for hosts that theme the surrounding badge themselves.
 const props = withDefaults(
   defineProps<{
     kind: string
     size?: number
     label?: string
+    plain?: boolean
   }>(),
-  { size: 16, label: undefined }
+  { size: 16, label: undefined, plain: false }
 )
 
 // The lucide component per kind is render-layer knowledge and stays here;
@@ -41,7 +45,8 @@ const iconMap: Record<string, typeof ArrowLeftRight> = {
   note: StickyNote,
   event: CalendarDays,
   invoice: Receipt,
-  health: Heart
+  health: Heart,
+  checklist: ListChecks
 }
 
 const icon = computed(() => iconMap[props.kind] || CircleDot)
@@ -54,13 +59,17 @@ const color = computed(() => kindColor(props.kind))
     :role="label ? 'img' : undefined"
     :aria-label="label"
     :aria-hidden="label ? undefined : 'true'"
-    :style="{
-      background: color,
-      width: size + 12 + 'px',
-      height: size + 12 + 'px'
-    }"
+    :style="
+      plain
+        ? undefined
+        : {
+            background: color,
+            width: size + 12 + 'px',
+            height: size + 12 + 'px'
+          }
+    "
   >
-    <component :is="icon" :size="size" color="#fff" />
+    <component :is="icon" :size="size" :color="plain ? undefined : '#fff'" />
   </span>
 </template>
 

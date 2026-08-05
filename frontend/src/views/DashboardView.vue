@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { Sigma } from 'lucide-vue-next'
 
 import KindIcon from '../components/KindIcon.vue'
 
@@ -456,59 +457,7 @@ onMounted(fetchData)
           </section>
         </div>
 
-        <!-- Middle: Statistics -->
-        <aside class="dashboard-stats">
-          <section class="sidebar-section">
-            <h2>Statistics</h2>
-            <p class="stats-meta">
-              <span class="stats-num">{{ entriesToday }}</span> entries today
-              <template v-if="lastSyncAt">
-                &middot; last sync {{ relativeTime(lastSyncAt) }}
-              </template>
-            </p>
-            <div class="sidebar-stats">
-              <div
-                v-for="card in statCards"
-                :key="card.kind ?? 'total'"
-                class="stat-card"
-                :class="{ 'stat-card--total': !card.kind }"
-                @click="goToData(card.kind ?? undefined)"
-                v-click-key
-                role="button"
-                tabindex="0"
-              >
-                <div
-                  class="stat-icon-badge"
-                  :class="{ 'stat-icon-badge--total': !card.kind }"
-                >
-                  <span v-if="!card.kind" class="stat-icon-text">&Sigma;</span>
-                  <KindIcon v-else :kind="card.kind" :size="18" />
-                </div>
-                <div class="stat-content">
-                  <span class="stat-count">{{ card.count }}</span>
-                  <span class="stat-label">{{ card.label }}</span>
-                  <svg
-                    class="stat-spark"
-                    viewBox="0 0 89 14"
-                    preserveAspectRatio="none"
-                    aria-hidden="true"
-                  >
-                    <rect
-                      v-for="(bar, index) in card.bars"
-                      :key="index"
-                      :x="bar.x"
-                      :y="14 - bar.h"
-                      width="2"
-                      :height="bar.h"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </section>
-        </aside>
-
-        <!-- Right: Recent activity (fills the leftover width) -->
+        <!-- Middle: Recent activity (fills the leftover width) -->
         <aside class="dashboard-activity">
           <section class="dashboard-section dashboard-section--fill">
             <div class="section-header">
@@ -540,6 +489,58 @@ onMounted(fetchData)
             </p>
           </section>
         </aside>
+
+        <!-- Right: Statistics -->
+        <aside class="dashboard-stats">
+          <section class="sidebar-section">
+            <h2>Statistics</h2>
+            <p class="stats-meta">
+              <span class="stats-num">{{ entriesToday }}</span> entries today
+              <template v-if="lastSyncAt">
+                &middot; last sync {{ relativeTime(lastSyncAt) }}
+              </template>
+            </p>
+            <div class="sidebar-stats">
+              <div
+                v-for="card in statCards"
+                :key="card.kind ?? 'total'"
+                class="stat-card"
+                :class="{ 'stat-card--total': !card.kind }"
+                @click="goToData(card.kind ?? undefined)"
+                v-click-key
+                role="button"
+                tabindex="0"
+              >
+                <div
+                  class="stat-icon-badge"
+                  :class="{ 'stat-icon-badge--total': !card.kind }"
+                >
+                  <Sigma v-if="!card.kind" :size="18" />
+                  <KindIcon v-else :kind="card.kind" :size="18" plain />
+                </div>
+                <div class="stat-content">
+                  <span class="stat-count">{{ card.count }}</span>
+                  <span class="stat-label">{{ card.label }}</span>
+                  <svg
+                    class="stat-spark"
+                    viewBox="0 0 89 14"
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                  >
+                    <rect
+                      v-for="(bar, index) in card.bars"
+                      :key="index"
+                      :x="bar.x"
+                      :y="14 - bar.h"
+                      width="2"
+                      :height="bar.h"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </section>
+        </aside>
       </div>
     </template>
   </div>
@@ -563,7 +564,7 @@ onMounted(fetchData)
 
 .dashboard-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px minmax(0, 1.15fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) 300px;
   gap: 1.5rem;
   flex: 1;
   min-height: 0;
@@ -586,12 +587,20 @@ onMounted(fetchData)
   overflow: hidden;
 }
 
+/* Two columns: stats keep their place next to the checklists, the activity
+   feed takes the full width underneath (explicit placement, the DOM order
+   would otherwise leave a hole). */
 @media (max-width: 1100px) {
   .dashboard-layout {
     grid-template-columns: minmax(0, 1fr) 280px;
   }
+  .dashboard-stats {
+    grid-column: 2;
+    grid-row: 1;
+  }
   .dashboard-activity {
     grid-column: 1 / -1;
+    grid-row: 2;
   }
 }
 
@@ -607,8 +616,10 @@ onMounted(fetchData)
   .dashboard-activity {
     overflow-y: visible;
   }
+  .dashboard-stats,
   .dashboard-activity {
     grid-column: auto;
+    grid-row: auto;
   }
 }
 
@@ -912,12 +923,6 @@ onMounted(fetchData)
 .stat-icon-badge--total {
   background: linear-gradient(135deg, var(--primary), var(--primary-hover));
   color: var(--primary-contrast);
-}
-
-.stat-icon-text {
-  font-size: 1.1rem;
-  font-weight: 700;
-  line-height: 1;
 }
 
 .stat-content {
