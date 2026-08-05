@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, reactive, nextTick, onMounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, watch } from 'vue'
 
 import ComboBox from '../../components/ComboBox.vue'
 import DateInput from '../../components/DateInput.vue'
@@ -40,13 +40,14 @@ const CRYPTO_COLOR = '#6ccec9'
 
 // ----- data -----
 
-type Tab = 'overview' | 'accounts' | 'spending' | 'cryptos'
+type Tab = 'overview' | 'accounts' | 'spending' | 'cryptos' | 'taxes'
 const tab = ref<Tab>('overview')
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'accounts', label: 'Accounts' },
   { id: 'spending', label: 'Spending' },
-  { id: 'cryptos', label: 'Cryptos' }
+  { id: 'cryptos', label: 'Cryptos' },
+  { id: 'taxes', label: 'Taxes' }
 ]
 
 const accountEntries = ref<Entry[]>([])
@@ -76,7 +77,7 @@ async function reload() {
 
 onMounted(reload)
 
-// ----- preferences (reference currency + manual rates) -----
+// ----- preferences (reference currency + saved rates) -----
 
 const refCurrency = computed(() =>
   ((prefs.value?.data.reference_currency as string) || 'EUR').toUpperCase()
@@ -111,44 +112,7 @@ const refCurrencyOptions = computed(() => {
   return [...set].sort()
 })
 
-// ----- rates editor -----
-
-const ratesOpen = ref(false)
-const ratesDraft = reactive<Record<string, string>>({})
-
-// Includes portfolio snapshot currencies too: a refCurrency change can
-// strand a snapshot stored in a currency no account carries, and it still
-// needs a rate to become convertible again.
-const foreignCurrencies = computed(() => {
-  const accountCurrencies = accounts.value.map(account => account.currency)
-  const snapshotCurrencies = portfolioSnapshots.value
-    .map(snapshot => ((snapshot.data.currency as string) || '').toUpperCase())
-    .filter(currency => currency)
-  return [...new Set([...accountCurrencies, ...snapshotCurrencies])]
-    .filter(currency => currency !== refCurrency.value)
-    .sort()
-})
-
-function openRates() {
-  for (const key of Object.keys(ratesDraft)) delete ratesDraft[key]
-  for (const currency of foreignCurrencies.value) {
-    ratesDraft[currency] =
-      rates.value[currency] != null ? String(rates.value[currency]) : ''
-  }
-  ratesOpen.value = true
-}
-
-async function saveRates() {
-  const next: Rates = {}
-  for (const [currency, raw] of Object.entries(ratesDraft)) {
-    const value = parseFloat(raw.replace(',', '.'))
-    if (Number.isFinite(value) && value > 0) next[currency] = value
-  }
-  await savePrefs({ rates: next })
-  ratesOpen.value = false
-}
-
-// ----- taxes editor (overview-only adjustments) -----
+// ----- taxes tab (overview-only adjustments) -----
 
 const taxProvision = computed(
   () => Number(prefs.value?.data.tax_provision) || 0
@@ -157,24 +121,13 @@ const cryptoTaxPct = computed(
   () => Number(prefs.value?.data.crypto_tax_pct) || 0
 )
 
-const taxesOpen = ref(false)
-const taxProvisionDraft = ref('')
-const cryptoTaxDraft = ref('')
-
-function openTaxes() {
-  taxProvisionDraft.value = taxProvision.value ? String(taxProvision.value) : ''
-  cryptoTaxDraft.value = cryptoTaxPct.value ? String(cryptoTaxPct.value) : ''
-  taxesOpen.value = true
-}
-
-async function saveTaxes() {
-  const provision = parseFloat(taxProvisionDraft.value.replace(',', '.'))
-  const pct = parseFloat(cryptoTaxDraft.value.replace(',', '.'))
-  await savePrefs({
-    tax_provision: Number.isFinite(provision) && provision > 0 ? provision : 0,
-    crypto_tax_pct: Number.isFinite(pct) && pct > 0 ? Math.min(pct, 100) : 0
+// Saved on change, like the other inline finance edits.
+function saveTax(field: 'tax_provision' | 'crypto_tax_pct', raw: string) {
+  const value = parseFloat(raw.replace(',', '.'))
+  const clean = Number.isFinite(value) && value > 0 ? value : 0
+  void savePrefs({
+    [field]: field === 'crypto_tax_pct' ? Math.min(clean, 100) : clean
   })
-  taxesOpen.value = false
 }
 
 // ----- accounts / curves -----
@@ -776,6 +729,56 @@ function saveShared(account: Account, shared: boolean) {
         />
       </template>
 
+      <template v-else-if="tab === 'taxes'">
+        <section class="fin-universe fin-taxes">
+          <div class="fin-modal-field">
+            <label for="fin-tax-provision"
+              >Taxes owed ({{ refCurrency }})</label
+            >
+            <input
+              id="fin-tax-provision"
+              class="fin-tax-input"
+              :value="taxProvision || ''"
+              inputmode="decimal"
+              placeholder="0"
+              @change="
+                saveTax(
+                  'tax_provision',
+                  ($event.target as HTMLInputElement).value
+                )
+              "
+            />
+            <p class="fin-modal-hint">
+              Fixed amount you still owe the tax office, deducted from the
+              tradfi total in the overview.
+            </p>
+          </div>
+          <div class="fin-modal-field">
+            <label for="fin-crypto-tax">Crypto tax rate (%)</label>
+            <input
+              id="fin-crypto-tax"
+              class="fin-tax-input"
+              :value="cryptoTaxPct || ''"
+              inputmode="decimal"
+              placeholder="0"
+              @change="
+                saveTax(
+                  'crypto_tax_pct',
+                  ($event.target as HTMLInputElement).value
+                )
+              "
+            />
+            <p class="fin-modal-hint">
+              Share of the crypto value withheld in the overview, as if it were
+              all taxable gain (France flat tax in 2026: 31.4).
+            </p>
+          </div>
+          <p class="fin-modal-hint">
+            Display only: balances, history and the other tabs stay untouched.
+          </p>
+        </section>
+      </template>
+
       <template v-else-if="tab === 'cryptos'">
         <form class="fin-crypto-add" @submit.prevent="addCrypto">
           <input
@@ -861,8 +864,8 @@ function saveShared(account: Account, shared: boolean) {
         </div>
 
         <p v-if="!cryptoAccounts.length" class="fin-empty">
-          No tokens yet. Enter a token and the quantity you hold; set its rate
-          (Accounts tab) to value it.
+          No tokens yet. Enter a token and the quantity you hold; its spot price
+          values it, snapshot the total to feed the curve.
         </p>
 
         <div v-else class="fin-accounts">
@@ -905,7 +908,7 @@ function saveShared(account: Account, shared: boolean) {
                   class="fin-account-converted"
                   :title="
                     cryptoValue(account)!.spot
-                      ? 'Spot estimate; set a rate (Accounts tab) to count it in the curve'
+                      ? 'Spot estimate; snapshot the total to count it in the curve'
                       : ''
                   "
                 >
@@ -974,21 +977,6 @@ function saveShared(account: Account, shared: boolean) {
               @update:model-value="onRefCurrencyChange"
             />
           </label>
-          <button
-            v-if="foreignCurrencies.length"
-            class="fin-btn"
-            title="Manual exchange rates to the reference currency"
-            @click="openRates"
-          >
-            Rates
-          </button>
-          <button
-            class="fin-btn"
-            title="Tax adjustments applied to the overview totals"
-            @click="openTaxes"
-          >
-            Taxes
-          </button>
           <span class="fin-toolbar-spacer"></span>
           <button class="fin-btn fin-btn--primary" @click="openAccountModal">
             + Account
@@ -1306,92 +1294,6 @@ function saveShared(account: Account, shared: boolean) {
         </div>
       </div>
     </dialog>
-
-    <dialog
-      v-if="ratesOpen"
-      :ref="openDialog"
-      class="modal-dialog"
-      aria-labelledby="fin-rates-title"
-      @click.self="ratesOpen = false"
-      @cancel="ratesOpen = false"
-    >
-      <div class="fin-modal">
-        <div id="fin-rates-title" class="fin-modal-header">Exchange rates</div>
-        <div
-          v-for="currency in foreignCurrencies"
-          :key="currency"
-          class="fin-modal-field fin-rate-row"
-        >
-          <label>1 {{ currency }} =</label>
-          <input
-            v-model="ratesDraft[currency]"
-            class="fin-rate-input"
-            :placeholder="`? ${refCurrency}`"
-          />
-          <span class="fin-rate-unit">{{ refCurrency }}</span>
-        </div>
-        <p class="fin-modal-hint">
-          Rates are entered by hand and dated by you; totals are only as fresh
-          as these numbers.
-        </p>
-        <div class="fin-modal-actions">
-          <span class="fin-modal-spacer"></span>
-          <button class="fin-btn" @click="ratesOpen = false">Cancel</button>
-          <button class="fin-btn fin-btn--primary" @click="saveRates">
-            Save
-          </button>
-        </div>
-      </div>
-    </dialog>
-
-    <dialog
-      v-if="taxesOpen"
-      :ref="openDialog"
-      class="modal-dialog"
-      aria-labelledby="fin-taxes-title"
-      @click.self="taxesOpen = false"
-      @cancel="taxesOpen = false"
-    >
-      <div class="fin-modal">
-        <div id="fin-taxes-title" class="fin-modal-header">Taxes</div>
-        <div class="fin-modal-field">
-          <label>Taxes owed ({{ refCurrency }})</label>
-          <input
-            v-model="taxProvisionDraft"
-            inputmode="decimal"
-            placeholder="0"
-            @keydown.enter="saveTaxes"
-          />
-          <p class="fin-modal-hint">
-            Fixed amount you still owe the tax office, deducted from the tradfi
-            total in the overview.
-          </p>
-        </div>
-        <div class="fin-modal-field">
-          <label>Crypto tax rate (%)</label>
-          <input
-            v-model="cryptoTaxDraft"
-            inputmode="decimal"
-            placeholder="0"
-            @keydown.enter="saveTaxes"
-          />
-          <p class="fin-modal-hint">
-            Share of the crypto value withheld in the overview, as if it were
-            all taxable gain (France flat tax in 2026: 31.4).
-          </p>
-        </div>
-        <p class="fin-modal-hint">
-          Display only: balances, history and the other tabs stay untouched.
-        </p>
-        <div class="fin-modal-actions">
-          <span class="fin-modal-spacer"></span>
-          <button class="fin-btn" @click="taxesOpen = false">Cancel</button>
-          <button class="fin-btn fin-btn--primary" @click="saveTaxes">
-            Save
-          </button>
-        </div>
-      </div>
-    </dialog>
   </Teleport>
 </template>
 
@@ -1691,6 +1593,14 @@ function saveShared(account: Account, shared: boolean) {
   font-size: 0.88rem;
   flex-shrink: 0;
 }
+/* The account list is a table: every column but the name is a fixed width,
+   so the name absorbs the slack and the cells line up row to row (header
+   included). The crypto tab has its own row shape and keeps auto widths. */
+.fin-universe .fin-account-amount {
+  width: 175px;
+  text-align: right;
+  white-space: nowrap;
+}
 .fin-account-converted {
   color: var(--text-muted);
   font-size: 0.75rem;
@@ -1850,23 +1760,13 @@ function saveShared(account: Account, shared: boolean) {
 .fin-modal-spacer {
   flex: 1;
 }
-.fin-rate-row {
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5rem;
+
+/* ----- Taxes tab ----- */
+.fin-taxes {
+  max-width: 420px;
 }
-.fin-rate-row label {
-  width: 70px;
-  flex-shrink: 0;
+.fin-tax-input {
+  width: 160px;
   font-family: var(--font-mono);
-}
-.fin-rate-input {
-  flex: 1;
-  min-width: 0;
-}
-.fin-rate-unit {
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
 }
 </style>

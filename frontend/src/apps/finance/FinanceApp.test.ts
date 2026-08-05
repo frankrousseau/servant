@@ -108,7 +108,8 @@ describe('FinanceApp tabs', () => {
       'Overview',
       'Accounts',
       'Spending',
-      'Cryptos'
+      'Cryptos',
+      'Taxes'
     ])
     // The landing tab answers "where am I", management waits in Accounts.
     expect(wrapper.find('.ov-hero').exists()).toBe(true)
@@ -360,41 +361,20 @@ describe('FinanceApp tabs', () => {
     expect(row.find('.fin-history-amount').text()).toMatch(/^9.999 EUR$/)
   })
 
-  it('surfaces a snapshot currency in the rates editor after the reference currency moves away from it', async () => {
+  it('saves a tax rate from the taxes tab on change', async () => {
     const ctx = makeCtx()
-    const prefs = entry('prefs', {
-      id: 'p1',
-      title: 'finance',
-      data: { reference_currency: 'USD' }
-    })
-    const snapshot = entry('balance', {
-      id: 's1',
-      occurred_at: '2026-07-15T12:00:00Z',
-      data: { universe: 'crypto', amount: 9999, currency: 'EUR' }
-    })
-    ctx.api.entries.list = vi.fn(async (filters?: Record<string, string>) => {
-      if (filters?.kind === 'prefs') return [prefs]
-      if (filters?.kind === 'balance') return [snapshot]
-      if (filters?.kind === 'account') return []
-      if (filters?.kind === 'bank_tx') return []
-      return STORE[filters?.kind || ''] || []
-    })
     const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
     await flushPromises()
-    await wrapper.findAll('.fin-tab')[1].trigger('click')
+    await wrapper.findAll('.fin-tab')[4].trigger('click')
 
-    const ratesButton = wrapper
-      .findAll('button')
-      .find(button => button.text() === 'Rates')
-    expect(ratesButton?.exists()).toBe(true)
-    await ratesButton!.trigger('click')
+    const input = wrapper.find('#fin-crypto-tax')
+    expect(input.exists()).toBe(true)
+    await input.setValue('31,4')
+    await input.trigger('change')
     await flushPromises()
 
-    // EUR only ever shows up via the snapshot's currency here: accounts and
-    // bank_tx are both empty in this scenario.
-    const row = wrapper
-      .findAll('.fin-rate-row')
-      .find(candidate => candidate.text().includes('EUR'))
-    expect(row?.exists()).toBe(true)
+    const call = (ctx.api.entries.create as ReturnType<typeof vi.fn>).mock
+      .calls[0][0]
+    expect(call.data.crypto_tax_pct).toBe(31.4)
   })
 })
