@@ -24,6 +24,14 @@ All Vue code follows the [official Vue.js style guide](https://fr.vuejs.org/styl
 - **Name bindings with words**: no single-letter variables (`entry`, `list`, `connector`, never `e`, `l`, `c`), in arrow functions and `v-for` included; the accepted exceptions are a numeric loop index `i` and the `(a, b)` pair of a sort comparator
 - **Derive in computeds, not in the template**: anything involving a loop, `Date`/`Intl` work, or a lookup per row goes through a `computed` (or is attached to the items of an existing one), so it is cached instead of recomputed on every render (`cd frontend && npm run format`; config in `frontend/.prettierrc.json`: no semicolons, single quotes, no trailing commas, `arrowParens: avoid`). Run it before committing frontend changes.
 
+### Accessibility
+
+- **Modals are native `<dialog>` elements** opened with `showModal()`: the browser then provides the focus trap, Escape handling and focus restoration for free. Point `aria-labelledby` at the modal title, give an icon-only close button an `aria-label`, put `autofocus` on the primary action, and keep a text close button alongside an icon one. Never rebuild a modal out of an overlay `<div>`
+- **The active nav link is `[aria-current="page"]`**: vue-router already sets that attribute on the exact-active `RouterLink`, so style the attribute selector rather than `.router-link-active`; the state announced to assistive tech and the state shown on screen then cannot diverge
+- **Every informative image gets a real, descriptive `alt`** (a photo uses its entry title, a chart says what it shows: "Crypto portfolio value over six months"; never a filename or "image"); purely decorative images get `alt=""`, and commentary longer than a description belongs in a `<figcaption>`, not in the alt
+- **Default focus lands on the search field** when the page has one (`autofocus`, or a focus on mount when the field renders asynchronously); without a search field, it lands on a navigation button. A page never opens with the focus stranded on `<body>`
+- **Keyboard and zoom fundamentals**: `lang` on `<html>` and `hreflang` on links to content in another language; the viewport meta never disables zoom; every interactive element keeps a visible `:focus-visible` style (the global outline in `style.css` counts, do not `outline: none` it away without a replacement); non-essential animations are disabled under `@media (prefers-reduced-motion: reduce)`
+
 ## Elixir style
 
 All Elixir code follows [The Elixir Style Guide](https://github.com/christopheradams/elixir_style_guide). `mix format` covers layout; the rules it does **not** enforce and that we apply here:
