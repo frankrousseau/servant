@@ -12,6 +12,7 @@ import {
 import { CONNECTOR_DEFS, getConnectorDef } from '../connectors'
 import { SCHEDULE_LABELS } from '../lib/connectors'
 import { relativeTime } from '../lib/datetime'
+import { openDialog } from '../lib/dialog'
 import type { ConnectorDef } from '../connectors'
 import type { ConnectorConfig, Schedule } from '../types'
 
@@ -204,9 +205,11 @@ onMounted(fetchConnectors)
         <h2 class="section-title">Add a Source</h2>
         <input
           v-model="catalogSearch"
+          v-autofocus
           type="text"
           class="catalog-search"
           placeholder="Search sources..."
+          aria-label="Search sources"
         />
         <div
           v-for="group in catalogGroups"
@@ -236,12 +239,19 @@ onMounted(fetchConnectors)
     </template>
 
     <!-- Setup modal -->
-    <div v-if="setupDef" class="modal-overlay" @click.self="closeSetup">
+    <dialog
+      v-if="setupDef"
+      :ref="openDialog"
+      class="modal-dialog"
+      aria-labelledby="setup-title"
+      @click.self="closeSetup"
+      @cancel="closeSetup"
+    >
       <div class="setup-modal">
         <div class="setup-header">
           <div class="setup-logo" v-html="setupDef.logo"></div>
           <div>
-            <h2>{{ setupDef.name }}</h2>
+            <h2 id="setup-title">{{ setupDef.name }}</h2>
             <p class="setup-desc">{{ setupDef.description }}</p>
           </div>
         </div>
@@ -311,7 +321,7 @@ onMounted(fetchConnectors)
           </div>
         </form>
       </div>
-    </div>
+    </dialog>
   </div>
 </template>
 

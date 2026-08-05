@@ -66,7 +66,15 @@ watch(() => [props.src, props.box], draw)
 </script>
 
 <template>
-  <canvas ref="canvas" class="face-chip" :width="SIZE" :height="SIZE" />
+  <!-- An unnamed face crop has no useful description to announce: the
+       adjacent name input is the interactive part of the row. -->
+  <canvas
+    ref="canvas"
+    class="face-chip"
+    :width="SIZE"
+    :height="SIZE"
+    aria-hidden="true"
+  />
 </template>
 
 <style scoped>

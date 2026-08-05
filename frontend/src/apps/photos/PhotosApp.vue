@@ -12,6 +12,7 @@ import {
   utcToZonedParts,
   zonedToUtcISO
 } from '../../lib/datetime'
+import { openDialog } from '../../lib/dialog'
 import { formatFileSize } from '../../lib/filesize'
 import {
   clusterFaces,
@@ -1241,13 +1242,16 @@ onUnmounted(() => {
   </div>
 
   <Teleport to="body">
-    <div
+    <dialog
       v-if="faceModalActive"
-      class="ph-modal-overlay"
+      :ref="openDialog"
+      class="modal-dialog"
+      aria-labelledby="ph-faces-title"
       @click.self="faceModalActive = false"
+      @cancel="faceModalActive = false"
     >
       <div class="ph-modal ph-modal--faces">
-        <h3 class="ph-modal-title">Faces</h3>
+        <h3 id="ph-faces-title" class="ph-modal-title">Faces</h3>
         <p v-if="!faceRows.length" class="ph-faces-empty">
           No unnamed faces.
           {{
@@ -1294,14 +1298,17 @@ onUnmounted(() => {
           <button class="ph-btn" @click="faceModalActive = false">Close</button>
         </div>
       </div>
-    </div>
-    <div
+    </dialog>
+    <dialog
       v-if="dateModalActive"
-      class="ph-modal-overlay"
+      :ref="openDialog"
+      class="modal-dialog"
+      aria-labelledby="ph-date-title"
       @click.self="closeDateModal"
+      @cancel="closeDateModal"
     >
       <div class="ph-modal">
-        <h3 class="ph-modal-title">Date taken</h3>
+        <h3 id="ph-date-title" class="ph-modal-title">Date taken</h3>
         <div class="ph-modal-section-label">
           Applies to {{ selCount }} selected
           {{ selCount === 1 ? 'photo' : 'photos' }}
@@ -1332,14 +1339,17 @@ onUnmounted(() => {
           </button>
         </div>
       </div>
-    </div>
-    <div
+    </dialog>
+    <dialog
       v-if="tagModalActive"
-      class="ph-modal-overlay"
+      :ref="openDialog"
+      class="modal-dialog"
+      aria-labelledby="ph-tags-title"
       @click.self="closeTagModal"
+      @cancel="closeTagModal"
     >
       <div class="ph-modal">
-        <h3 class="ph-modal-title">Tags</h3>
+        <h3 id="ph-tags-title" class="ph-modal-title">Tags</h3>
         <template v-if="currentTags.length">
           <div class="ph-modal-section-label">Current tags</div>
           <div class="ph-modal-current-tags">
@@ -1387,7 +1397,7 @@ onUnmounted(() => {
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   </Teleport>
 </template>
 
@@ -1843,15 +1853,6 @@ onUnmounted(() => {
 .ph-empty-hint {
   font-family: var(--font-mono);
   font-size: 0.88rem;
-}
-.ph-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 .ph-modal {
   background: var(--bg-surface);

@@ -693,10 +693,11 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
       <div class="ct-search-wrap">
         <input
           ref="searchInput"
+          v-model="searchQuery"
           class="ct-search"
           type="text"
           placeholder="Search contacts..."
-          v-model="searchQuery"
+          aria-label="Search contacts"
           @input="onSearch"
         />
       </div>

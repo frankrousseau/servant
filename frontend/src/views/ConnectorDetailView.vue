@@ -305,7 +305,12 @@ onMounted(() => {
   <div class="view">
     <div class="view-header">
       <div class="back-title">
-        <router-link to="/connectors" class="back-link">
+        <router-link
+          v-autofocus
+          to="/connectors"
+          class="back-link"
+          aria-label="Back to sources"
+        >
           <ArrowLeft :size="22" />
         </router-link>
         <div

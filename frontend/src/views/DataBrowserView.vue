@@ -19,6 +19,7 @@ import {
 import { useConfirm } from '../composables/useConfirm'
 import { debounce, useSocket } from '../composables/useSocket'
 import { formatDateTime, relativeTime } from '../lib/datetime'
+import { openDialog } from '../lib/dialog'
 import type { Entry, PaginationMeta } from '../types'
 
 const route = useRoute()
@@ -302,7 +303,7 @@ onMounted(() => {
     <div class="browser-head">
       <div class="view-header">
         <h1>Data Browser</h1>
-        <button @click="openCreate">+ New Entry</button>
+        <button v-autofocus @click="openCreate">+ New Entry</button>
       </div>
 
       <p v-if="pageError" class="error-banner" role="alert">
@@ -409,16 +410,21 @@ onMounted(() => {
     <p v-else class="empty">No entries found.</p>
 
     <!-- Detail panel -->
-    <div
+    <dialog
       v-if="showDetail && selectedEntry"
-      class="modal-overlay"
+      :ref="openDialog"
+      class="modal-dialog"
+      aria-labelledby="detail-title"
       @click.self="closeDetail"
+      @cancel="closeDetail"
     >
       <div class="detail-panel">
         <div class="detail-header">
           <div>
             <KindIcon :kind="selectedEntry.kind" :size="18" />
-            <h2>{{ selectedEntry.title || selectedEntry.kind }}</h2>
+            <h2 id="detail-title">
+              {{ selectedEntry.title || selectedEntry.kind }}
+            </h2>
           </div>
           <button class="small" @click="closeDetail">Close</button>
         </div>
@@ -474,12 +480,21 @@ onMounted(() => {
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
 
     <!-- Create/Edit Modal -->
-    <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
+    <dialog
+      v-if="showModal"
+      :ref="openDialog"
+      class="modal-dialog"
+      aria-labelledby="entry-form-title"
+      @click.self="showModal = false"
+      @cancel="showModal = false"
+    >
       <div class="modal">
-        <h2>{{ editingEntry ? 'Edit Entry' : 'New Entry' }}</h2>
+        <h2 id="entry-form-title">
+          {{ editingEntry ? 'Edit Entry' : 'New Entry' }}
+        </h2>
         <form @submit.prevent="saveEntry">
           <div class="field">
             <label>Kind</label>
@@ -512,7 +527,7 @@ onMounted(() => {
           </div>
         </form>
       </div>
-    </div>
+    </dialog>
   </div>
 </template>
 

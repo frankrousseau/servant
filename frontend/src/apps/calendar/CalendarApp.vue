@@ -12,6 +12,7 @@ import {
   utcToZonedParts,
   zonedToUtcISO
 } from '../../lib/datetime'
+import { openDialog } from '../../lib/dialog'
 import { nextOccurrence, occursOn, recurrenceOf } from './recurrence'
 import type { Item as ChecklistItem } from '../checklists/markdown'
 import type { AppContext, Entry } from '../types'
@@ -828,13 +829,16 @@ onUnmounted(destroyPickers)
   </div>
 
   <Teleport to="body">
-    <div
+    <dialog
       v-if="manageOpen"
-      class="cal-modal-overlay"
+      :ref="openDialog"
+      class="modal-dialog"
+      aria-labelledby="cal-manage-title"
       @click.self="manageOpen = false"
+      @cancel="manageOpen = false"
     >
       <div class="cal-modal">
-        <div class="cal-modal-header">Calendars</div>
+        <div id="cal-manage-title" class="cal-modal-header">Calendars</div>
         <div class="cal-manage-list">
           <div
             v-for="calendar in calendars"
@@ -887,11 +891,18 @@ onUnmounted(destroyPickers)
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
 
-    <div v-if="modalOpen" class="cal-modal-overlay" @click.self="closeModal">
+    <dialog
+      v-if="modalOpen"
+      :ref="openDialog"
+      class="modal-dialog"
+      aria-labelledby="cal-event-title"
+      @click.self="closeModal"
+      @cancel="closeModal"
+    >
       <div class="cal-modal">
-        <div class="cal-modal-header">
+        <div id="cal-event-title" class="cal-modal-header">
           {{ modalEditId ? 'Edit event' : 'New event' }}
         </div>
         <div class="cal-modal-field">
@@ -971,7 +982,7 @@ onUnmounted(destroyPickers)
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   </Teleport>
 </template>
 
@@ -1359,15 +1370,6 @@ onUnmounted(destroyPickers)
   margin: 0;
   flex-shrink: 0;
   accent-color: var(--primary);
-}
-.cal-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 .cal-modal {
   background: var(--bg-surface);

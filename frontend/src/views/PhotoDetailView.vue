@@ -69,7 +69,12 @@ async function deletePhoto() {
 <template>
   <div class="view photo-detail">
     <div class="photo-topbar">
-      <router-link to="/apps/photos" class="back-link">
+      <router-link
+        v-autofocus
+        to="/apps/photos"
+        class="back-link"
+        aria-label="Back to photos"
+      >
         <ArrowLeft :size="20" />
       </router-link>
       <h1 v-if="entry">{{ entry.title || filename || 'Photo' }}</h1>

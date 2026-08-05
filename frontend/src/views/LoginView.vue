@@ -95,6 +95,7 @@ function backToPassword() {
           <input
             id="username"
             v-model="username"
+            v-autofocus
             type="text"
             required
             autocomplete="username"

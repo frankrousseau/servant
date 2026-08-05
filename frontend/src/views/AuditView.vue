@@ -175,12 +175,15 @@ const ms = (us: number) =>
   <div class="view au-view">
     <h1>Audit</h1>
 
-    <div class="au-tabs">
+    <div class="au-tabs" role="tablist">
       <button
-        v-for="option in TABS"
+        v-for="(option, index) in TABS"
         :key="option.id"
+        v-autofocus="index === 0"
         class="au-tab"
         :class="{ 'au-tab--active': tab === option.id }"
+        role="tab"
+        :aria-selected="tab === option.id"
         @click="selectTab(option.id)"
       >
         {{ option.label }}

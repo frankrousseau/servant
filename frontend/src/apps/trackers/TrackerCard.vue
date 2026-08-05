@@ -136,7 +136,12 @@ function onDatePick(value: string) {
       <span class="tk-swatch" :style="{ background: tracker.color }"></span>
       <h2 class="tk-name">{{ tracker.name }}</h2>
       <span class="tk-stat">{{ statLabel }}</span>
-      <button class="tk-del" title="Delete tracker" @click="emit('remove')">
+      <button
+        class="tk-del"
+        title="Delete tracker"
+        aria-label="Delete tracker"
+        @click="emit('remove')"
+      >
         ×
       </button>
     </div>

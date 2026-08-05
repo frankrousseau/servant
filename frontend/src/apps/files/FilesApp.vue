@@ -701,9 +701,11 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
         <div class="fs-actions">
           <input
             v-model="searchQuery"
+            v-autofocus
             class="fs-search"
             type="text"
             placeholder="Search files..."
+            aria-label="Search files"
           />
           <ComboBox
             v-model="typeFilter"

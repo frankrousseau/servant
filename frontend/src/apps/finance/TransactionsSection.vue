@@ -605,12 +605,18 @@ async function openLinked(tx: Entry) {
             :title="linkedTitle(tx)"
           >
             <Paperclip :size="11" />
-            <span class="ftx-doc-name" role="button" @click="openLinked(tx)">{{
-              linkedTitle(tx)
-            }}</span>
+            <span
+              class="ftx-doc-name"
+              role="button"
+              tabindex="0"
+              v-click-key
+              @click="openLinked(tx)"
+              >{{ linkedTitle(tx) }}</span
+            >
             <button
               class="ftx-doc-clear"
               title="Unlink"
+              aria-label="Unlink document"
               @click="saveLink(tx, '', null)"
             >
               ×
@@ -620,6 +626,7 @@ async function openLinked(tx: Entry) {
             v-else
             class="ftx-linkbtn"
             title="Link an invoice or file"
+            aria-label="Link an invoice or file"
             @click="startLink(tx)"
           >
             <Paperclip :size="12" />
@@ -629,6 +636,8 @@ async function openLinked(tx: Entry) {
             class="ftx-cat"
             :class="{ 'ftx-cat--empty': !categoryOf(tx) }"
             role="button"
+            tabindex="0"
+            v-click-key
             @click="startEdit(tx)"
             >{{ categoryOf(tx) || '+ category' }}</span
           >

@@ -435,6 +435,7 @@ onMounted(() => {
 
       <div class="tabs" role="tablist">
         <button
+          v-autofocus
           role="tab"
           :aria-selected="tab === 'recurrents'"
           :class="{ active: tab === 'recurrents' }"
@@ -666,6 +667,7 @@ onMounted(() => {
               class="report-search"
               type="search"
               placeholder="Search reports..."
+              aria-label="Search reports"
               @input="onReportSearch"
             />
             <template v-for="agent in agents" :key="agent.id">

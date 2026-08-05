@@ -9,6 +9,7 @@ import {
   utcToZonedParts,
   zonedToUtcISO
 } from '../../lib/datetime'
+import { openDialog } from '../../lib/dialog'
 import { addDays } from '../calendar/recurrence'
 import {
   TRACKER_TYPES,
@@ -393,13 +394,16 @@ async function removeTracker(tracker: Tracker) {
   </div>
 
   <Teleport to="body">
-    <div
+    <dialog
       v-if="modalOpen"
-      class="tk-modal-overlay"
+      :ref="openDialog"
+      class="modal-dialog"
+      aria-labelledby="tk-modal-title"
       @click.self="modalOpen = false"
+      @cancel="modalOpen = false"
     >
       <div class="tk-modal">
-        <div class="tk-modal-header">New tracker</div>
+        <div id="tk-modal-title" class="tk-modal-header">New tracker</div>
         <div class="tk-modal-field">
           <label>Name</label>
           <input
@@ -454,7 +458,7 @@ async function removeTracker(tracker: Tracker) {
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   </Teleport>
 </template>
 
@@ -559,15 +563,6 @@ async function removeTracker(tracker: Tracker) {
   gap: 0.9rem;
 }
 
-.tk-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 .tk-modal {
   background: var(--bg-surface);
   border: 1px solid var(--border);

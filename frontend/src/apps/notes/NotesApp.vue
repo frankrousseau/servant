@@ -953,10 +953,12 @@ onBeforeUnmount(() => {
     <div class="nt-sidebar">
       <div class="nt-side-head">
         <input
+          v-model="searchQuery"
+          v-autofocus
           class="nt-search"
           type="text"
           placeholder="Search notes..."
-          v-model="searchQuery"
+          aria-label="Search notes"
         />
       </div>
       <div class="nt-tree" @dragover.prevent @drop.prevent="onTreeDrop('')">

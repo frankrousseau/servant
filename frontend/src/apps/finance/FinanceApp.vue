@@ -9,6 +9,7 @@ import SpendingView from './SpendingView.vue'
 import TransactionsSection from './TransactionsSection.vue'
 
 import { todayInUserTz, zonedToUtcISO } from '../../lib/datetime'
+import { openDialog } from '../../lib/dialog'
 import { addDays } from '../calendar/recurrence'
 import { fetchCryptoPrices } from './cryptoPrices'
 import {
@@ -1209,13 +1210,16 @@ function saveShared(account: Account, shared: boolean) {
   </div>
 
   <Teleport to="body">
-    <div
+    <dialog
       v-if="accountModalOpen"
-      class="fin-modal-overlay"
+      :ref="openDialog"
+      class="modal-dialog"
+      aria-labelledby="fin-account-title"
       @click.self="accountModalOpen = false"
+      @cancel="accountModalOpen = false"
     >
       <div class="fin-modal">
-        <div class="fin-modal-header">New account</div>
+        <div id="fin-account-title" class="fin-modal-header">New account</div>
         <div class="fin-modal-field">
           <label>Name</label>
           <input
@@ -1263,15 +1267,18 @@ function saveShared(account: Account, shared: boolean) {
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
 
-    <div
+    <dialog
       v-if="ratesOpen"
-      class="fin-modal-overlay"
+      :ref="openDialog"
+      class="modal-dialog"
+      aria-labelledby="fin-rates-title"
       @click.self="ratesOpen = false"
+      @cancel="ratesOpen = false"
     >
       <div class="fin-modal">
-        <div class="fin-modal-header">Exchange rates</div>
+        <div id="fin-rates-title" class="fin-modal-header">Exchange rates</div>
         <div
           v-for="currency in foreignCurrencies"
           :key="currency"
@@ -1297,7 +1304,7 @@ function saveShared(account: Account, shared: boolean) {
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   </Teleport>
 </template>
 
@@ -1713,15 +1720,6 @@ function saveShared(account: Account, shared: boolean) {
 }
 
 /* Modals */
-.fin-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 .fin-modal {
   background: var(--bg-surface);
   border: 1px solid var(--border);

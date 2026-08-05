@@ -532,10 +532,12 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
     <div class="cl-sidebar">
       <div class="cl-side-head">
         <input
+          v-model="searchQuery"
+          v-autofocus
           class="cl-search"
           type="text"
           placeholder="Search checklists..."
-          v-model="searchQuery"
+          aria-label="Search checklists"
         />
       </div>
       <div class="cl-tree" @dragover.prevent @drop.prevent="onDrop('')">
