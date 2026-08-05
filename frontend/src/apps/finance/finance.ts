@@ -221,6 +221,21 @@ export function sumCurves(curves: SnapshotPoint[][]): SnapshotPoint[] {
   }))
 }
 
+// Overview-only display adjustment: scale a curve (crypto tax haircut, as
+// if the whole value were taxable gain), then shift it by a flat amount
+// (a fixed tax provision owed). Stored balances stay untouched.
+export function adjustCurve(
+  points: SnapshotPoint[],
+  scale: number,
+  shift: number
+): SnapshotPoint[] {
+  if (scale === 1 && shift === 0) return points
+  return points.map(point => ({
+    date: point.date,
+    amount: point.amount * scale + shift
+  }))
+}
+
 // Forward-filled total across accounts, in the reference currency: one point
 // per date where any account changes. Accounts whose currency has no rate
 // are excluded (and reported) rather than silently counted at zero.

@@ -148,6 +148,35 @@ async function saveRates() {
   ratesOpen.value = false
 }
 
+// ----- taxes editor (overview-only adjustments) -----
+
+const taxProvision = computed(
+  () => Number(prefs.value?.data.tax_provision) || 0
+)
+const cryptoTaxPct = computed(
+  () => Number(prefs.value?.data.crypto_tax_pct) || 0
+)
+
+const taxesOpen = ref(false)
+const taxProvisionDraft = ref('')
+const cryptoTaxDraft = ref('')
+
+function openTaxes() {
+  taxProvisionDraft.value = taxProvision.value ? String(taxProvision.value) : ''
+  cryptoTaxDraft.value = cryptoTaxPct.value ? String(cryptoTaxPct.value) : ''
+  taxesOpen.value = true
+}
+
+async function saveTaxes() {
+  const provision = parseFloat(taxProvisionDraft.value.replace(',', '.'))
+  const pct = parseFloat(cryptoTaxDraft.value.replace(',', '.'))
+  await savePrefs({
+    tax_provision: Number.isFinite(provision) && provision > 0 ? provision : 0,
+    crypto_tax_pct: Number.isFinite(pct) && pct > 0 ? Math.min(pct, 100) : 0
+  })
+  taxesOpen.value = false
+}
+
 // ----- accounts / curves -----
 
 const accounts = computed(() =>
@@ -725,6 +754,8 @@ function saveShared(account: Account, shared: boolean) {
         :rates="rates"
         :ref-currency="refCurrency"
         :today="today"
+        :tax-provision="taxProvision"
+        :crypto-tax-pct="cryptoTaxPct"
         @go="tab = $event"
       />
 
@@ -950,6 +981,13 @@ function saveShared(account: Account, shared: boolean) {
             @click="openRates"
           >
             Rates
+          </button>
+          <button
+            class="fin-btn"
+            title="Tax adjustments applied to the overview totals"
+            @click="openTaxes"
+          >
+            Taxes
           </button>
           <span class="fin-toolbar-spacer"></span>
           <button class="fin-btn fin-btn--primary" @click="openAccountModal">
@@ -1300,6 +1338,55 @@ function saveShared(account: Account, shared: boolean) {
           <span class="fin-modal-spacer"></span>
           <button class="fin-btn" @click="ratesOpen = false">Cancel</button>
           <button class="fin-btn fin-btn--primary" @click="saveRates">
+            Save
+          </button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog
+      v-if="taxesOpen"
+      :ref="openDialog"
+      class="modal-dialog"
+      aria-labelledby="fin-taxes-title"
+      @click.self="taxesOpen = false"
+      @cancel="taxesOpen = false"
+    >
+      <div class="fin-modal">
+        <div id="fin-taxes-title" class="fin-modal-header">Taxes</div>
+        <div class="fin-modal-field">
+          <label>Taxes owed ({{ refCurrency }})</label>
+          <input
+            v-model="taxProvisionDraft"
+            inputmode="decimal"
+            placeholder="0"
+            @keydown.enter="saveTaxes"
+          />
+          <p class="fin-modal-hint">
+            Fixed amount you still owe the tax office, deducted from the tradfi
+            total in the overview.
+          </p>
+        </div>
+        <div class="fin-modal-field">
+          <label>Crypto tax rate (%)</label>
+          <input
+            v-model="cryptoTaxDraft"
+            inputmode="decimal"
+            placeholder="0"
+            @keydown.enter="saveTaxes"
+          />
+          <p class="fin-modal-hint">
+            Share of the crypto value withheld in the overview, as if it were
+            all taxable gain (France flat tax in 2026: 31.4).
+          </p>
+        </div>
+        <p class="fin-modal-hint">
+          Display only: balances, history and the other tabs stay untouched.
+        </p>
+        <div class="fin-modal-actions">
+          <span class="fin-modal-spacer"></span>
+          <button class="fin-btn" @click="taxesOpen = false">Cancel</button>
+          <button class="fin-btn fin-btn--primary" @click="saveTaxes">
             Save
           </button>
         </div>

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 
 import {
+  adjustCurve,
   buildAccounts,
   cryptoCurve,
   cryptoSpotTotal,
@@ -361,6 +362,28 @@ describe('sumCurves', () => {
   it('returns an empty curve for no input', () => {
     expect(sumCurves([])).toEqual([])
     expect(sumCurves([[]])).toEqual([])
+  })
+})
+
+describe('adjustCurve', () => {
+  const points = [
+    { date: '2026-01-01', amount: 1000 },
+    { date: '2026-02-01', amount: 1500 }
+  ]
+
+  it('returns the same array untouched for the neutral adjustment', () => {
+    expect(adjustCurve(points, 1, 0)).toBe(points)
+  })
+
+  it('scales then shifts every point', () => {
+    expect(adjustCurve(points, 0.7, -100)).toEqual([
+      { date: '2026-01-01', amount: 600 },
+      { date: '2026-02-01', amount: 950 }
+    ])
+  })
+
+  it('handles an empty curve', () => {
+    expect(adjustCurve([], 0.7, -100)).toEqual([])
   })
 })
 

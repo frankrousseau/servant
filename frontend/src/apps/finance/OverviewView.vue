@@ -5,6 +5,7 @@ import BalanceChart from './BalanceChart.vue'
 
 import { addDays } from '../calendar/recurrence'
 import {
+  adjustCurve,
   categoryColor,
   cryptoCurve,
   formatAmount,
@@ -32,6 +33,8 @@ const props = defineProps<{
   rates: Rates
   refCurrency: string
   today: string
+  taxProvision?: number
+  cryptoTaxPct?: number
 }>()
 
 const emit = defineEmits<{ go: [tab: 'accounts' | 'spending'] }>()
@@ -55,11 +58,27 @@ const cryptoUniverseCurve = computed(() =>
   )
 )
 
+// Tax adjustments (Accounts, Taxes): the tradfi curve carries the fixed
+// provision as a flat shift (the 30d delta is unaffected), the crypto
+// curve is scaled by the configured haircut. Defaults leave both alone.
+const tradfiNetPoints = computed(() =>
+  adjustCurve(tradfiCurve.value.points, 1, -(props.taxProvision ?? 0))
+)
+
+const cryptoNetPoints = computed(() =>
+  adjustCurve(
+    cryptoUniverseCurve.value.points,
+    1 - (props.cryptoTaxPct ?? 0) / 100,
+    0
+  )
+)
+
+const taxAdjusted = computed(
+  () => (props.taxProvision ?? 0) !== 0 || (props.cryptoTaxPct ?? 0) !== 0
+)
+
 const combined = computed(() => ({
-  points: sumCurves([
-    tradfiCurve.value.points,
-    cryptoUniverseCurve.value.points
-  ]),
+  points: sumCurves([tradfiNetPoints.value, cryptoNetPoints.value]),
   excluded: [
     ...tradfiCurve.value.excluded,
     ...cryptoUniverseCurve.value.excluded
@@ -80,15 +99,15 @@ function deltaLabel(delta: number): string {
 const splits = computed(() =>
   (
     [
-      ['tradfi', tradfiCurve.value],
-      ['crypto', cryptoUniverseCurve.value]
+      ['tradfi', tradfiNetPoints.value],
+      ['crypto', cryptoNetPoints.value]
     ] as const
   )
-    .map(([universe, curve]) => ({
+    .map(([universe, points]) => ({
       universe,
       count: props.accounts.filter(account => account.universe === universe)
         .length,
-      total: valueAt(curve.points, props.today)
+      total: valueAt(points, props.today)
     }))
     .filter(split => split.count > 0)
 )
@@ -187,7 +206,10 @@ const alerts = computed<Alert[]>(() => {
 
     <template v-else>
       <section class="ov-hero">
-        <span class="ov-caption">all accounts, {{ refCurrency }}</span>
+        <span class="ov-caption"
+          >all accounts, {{ refCurrency
+          }}{{ taxAdjusted ? ', net of taxes' : '' }}</span
+        >
         <div class="ov-hero-line">
           <span class="ov-total">{{ formatAmount(total, refCurrency) }}</span>
           <span

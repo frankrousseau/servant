@@ -53,7 +53,8 @@ function mountOverview(
   entities: Entry[],
   balances: Entry[],
   txs: Entry[],
-  rates: Record<string, number> = {}
+  rates: Record<string, number> = {},
+  extraProps: Record<string, unknown> = {}
 ) {
   const accounts = buildAccounts(entities, txs)
   const seriesByKey = new Map(
@@ -67,7 +68,8 @@ function mountOverview(
       txs,
       rates,
       refCurrency: 'EUR',
-      today: '2026-07-15'
+      today: '2026-07-15',
+      ...extraProps
     }
   })
 }
@@ -89,6 +91,32 @@ describe('OverviewView', () => {
     // Fresh balance, every currency rated: nothing to do.
     expect(wrapper.findAll('.ov-alert')).toHaveLength(0)
     expect(wrapper.text()).toContain('Everything fresh')
+  })
+
+  it('deducts the tax provision from the tradfi total and flags the caption', () => {
+    const wrapper = mountOverview(
+      [accountEntry('a1', 'Bank')],
+      [balanceEntry('a1', '2026-07-10', 900)],
+      [],
+      {},
+      { taxProvision: 250 }
+    )
+
+    expect(wrapper.find('.ov-total').text()).toBe('650 EUR')
+    expect(wrapper.find('.ov-caption').text()).toContain('net of taxes')
+    // The provision shifts the whole curve; this curve starts inside the
+    // 30d window (0 before its first point), so the delta shows the net
+    // level. On a curve older than 30d the flat shift cancels out.
+    expect(wrapper.find('.ov-delta').text()).toBe('+650 EUR / 30d')
+  })
+
+  it('keeps the caption plain without tax adjustments', () => {
+    const wrapper = mountOverview(
+      [accountEntry('a1', 'Bank')],
+      [balanceEntry('a1', '2026-07-10', 900)],
+      []
+    )
+    expect(wrapper.find('.ov-caption').text()).not.toContain('net of taxes')
   })
 
   it('lists actionable alerts and navigates on click', async () => {
