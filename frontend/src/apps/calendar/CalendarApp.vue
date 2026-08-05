@@ -13,7 +13,7 @@ import {
   zonedToUtcISO
 } from '../../lib/datetime'
 import { openDialog } from '../../lib/dialog'
-import { nextOccurrence, occursOn, recurrenceOf } from './recurrence'
+import { addDays, nextOccurrence, occursOn, recurrenceOf } from './recurrence'
 import type { Item as ChecklistItem } from '../checklists/markdown'
 import type { AppContext, Entry } from '../types'
 
@@ -507,6 +507,72 @@ function onEventClick(id: string | undefined) {
   if (entry) openEditModal(entry)
 }
 
+// All-day events use date-only dtstart/dtend (iCal convention).
+function icalStamp(dateStr: string, timeStr: string, allDay: boolean): string {
+  const date = dateStr.replace(/-/g, '')
+  return allDay ? date : `${date}T${timeStr.replace(':', '')}00`
+}
+
+// ----- drag and drop: move an event to another day -----
+
+const draggedId = ref<string | null>(null)
+const dragOverDate = ref<string | null>(null)
+
+// Virtual events (birthdays, checklist deadlines) are derived, not stored:
+// there is nothing to move, so they stay undraggable.
+function draggable(entry: Entry): boolean {
+  return !entry.id.startsWith('birthday:') && !entry.id.startsWith('deadline:')
+}
+
+function onEventDragStart(entry: Entry, event: DragEvent) {
+  draggedId.value = entry.id
+  event.dataTransfer?.setData('text/plain', entry.id)
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+}
+
+function onEventDragEnd() {
+  draggedId.value = null
+  dragOverDate.value = null
+}
+
+// Drop moves start and end by the same number of days, keeping both times.
+// A recurring event moves by its seed, so the whole series follows.
+async function moveEventTo(dateStr: string) {
+  const entry = events.value.find(event => event.id === draggedId.value)
+  onEventDragEnd()
+  if (!entry?.occurred_at) return
+  const start = utcToZonedParts(entry.occurred_at)
+  if (start.date === dateStr) return
+
+  const allDay = entry.data.all_day === true
+  const endStr = entry.data.end_at as string | undefined
+  const end =
+    endStr && !isNaN(new Date(endStr).getTime())
+      ? utcToZonedParts(endStr)
+      : null
+  const delta = Math.round(
+    (Date.parse(dateStr) - Date.parse(start.date)) / 86_400_000
+  )
+  const endDateStr = end ? addDays(end.date, delta) : null
+
+  try {
+    await props.ctx.api.entries.update(entry.id, {
+      occurred_at: zonedToUtcISO(dateStr, start.time),
+      data: {
+        ...entry.data,
+        dtstart: icalStamp(dateStr, start.time, allDay),
+        dtend: endDateStr
+          ? icalStamp(endDateStr, end!.time, allDay)
+          : undefined,
+        end_at: endDateStr ? zonedToUtcISO(endDateStr, end!.time) : undefined
+      }
+    })
+    events.value = await props.ctx.api.entries.list({ kind: 'event' })
+  } catch {
+    // the event stays where it was
+  }
+}
+
 async function saveEvent() {
   if (!modalDate.value || !modalTitle.value.trim()) return
   modalSaving.value = true
@@ -515,16 +581,8 @@ async function saveEvent() {
   const allDay = modalAllDay.value
   const startTimeStr = allDay ? '00:00' : modalTime.value
   const endTimeStr = allDay ? '23:59' : modalEndTime.value || '23:59'
-  // All-day events use date-only dtstart/dtend (iCal convention).
-  const dtstart = allDay
-    ? modalDate.value.replace(/-/g, '')
-    : modalDate.value.replace(/-/g, '') +
-      'T' +
-      modalTime.value.replace(':', '') +
-      '00'
-  const dtend = allDay
-    ? endDateStr.replace(/-/g, '')
-    : endDateStr.replace(/-/g, '') + 'T' + endTimeStr.replace(':', '') + '00'
+  const dtstart = icalStamp(modalDate.value, startTimeStr, allDay)
+  const dtend = icalStamp(endDateStr, endTimeStr, allDay)
   // Interpret the picked wall-clock time in the user's timezone, store as UTC.
   const occurredAt = zonedToUtcISO(modalDate.value, startTimeStr)
   const endAt = zonedToUtcISO(endDateStr, endTimeStr)
@@ -740,10 +798,13 @@ onUnmounted(destroyPickers)
         class="cal-cell"
         :class="{
           'cal-cell--empty': cell.empty,
-          'cal-cell--today': cell.isToday
+          'cal-cell--today': cell.isToday,
+          'cal-cell--drop': !cell.empty && dragOverDate === cell.dateStr
         }"
         :data-date="cell.empty ? undefined : cell.dateStr"
         @click="!cell.empty && cell.dateStr && openModal(cell.dateStr)"
+        @dragover.prevent="dragOverDate = cell.empty ? null : cell.dateStr"
+        @drop.prevent="!cell.empty && cell.dateStr && moveEventTo(cell.dateStr)"
       >
         <template v-if="!cell.empty">
           <span class="cal-day-num">{{ cell.day }}</span>
@@ -751,9 +812,18 @@ onUnmounted(destroyPickers)
             v-for="ev in (cell.events || []).slice(0, 3)"
             :key="ev.id"
             class="cal-cell-event"
-            :class="{ 'cal-cell-event--allday': ev.data?.all_day }"
+            :class="{
+              'cal-cell-event--allday': ev.data?.all_day,
+              'cal-cell-event--dragging': draggedId === ev.id
+            }"
             :style="calVars(ev)"
+            :draggable="draggable(ev)"
+            :title="
+              draggable(ev) ? 'Drag to another day to move it' : undefined
+            "
             @click.stop="onEventClick(ev.id)"
+            @dragstart.stop="onEventDragStart(ev, $event)"
+            @dragend="onEventDragEnd"
           >
             <span
               v-if="!ev.data?.all_day && ev.occurred_at"
@@ -1111,6 +1181,11 @@ onUnmounted(destroyPickers)
   color: var(--primary);
   font-weight: 700;
 }
+/* Drop target while an event is dragged over it */
+.cal-cell--drop {
+  background: rgba(var(--primary-rgb), 0.18);
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
 .cal-day-num {
   font-family: var(--font-mono);
   font-size: 0.8rem;
@@ -1137,6 +1212,9 @@ onUnmounted(destroyPickers)
 }
 .cal-cell-event:hover {
   background: rgba(var(--cal-rgb, var(--primary-rgb)), 0.25);
+}
+.cal-cell-event--dragging {
+  opacity: 0.4;
 }
 /* All-day: a solid band, no rail, no time */
 .cal-cell-event--allday {
