@@ -47,9 +47,11 @@ const searchQuery = ref('')
 // Several tags can be active at once, and they narrow: a contact must carry
 // all of them. Clicking an active chip drops it again.
 const activeTags = ref<string[]>([])
-const selectedId = ref<string | null>(
-  new URLSearchParams(window.location.search).get('selected')
-)
+const query = new URLSearchParams(window.location.search)
+const selectedId = ref<string | null>(query.get('selected'))
+// The detail column shows one view at a time and the URL says which, so a
+// reload or a shared link lands where you left off.
+const graphOpen = ref(query.get('view') === 'graph')
 const loading = ref(true)
 const loadError = ref('')
 
@@ -167,20 +169,36 @@ const websiteHref = computed(() =>
   selected.value ? safeUrl(fld(selected.value, 'url')) : null
 )
 
+// Query for the current view; the detail column can only show one, so the
+// selected contact wins over the graph and the creation form.
+function syncUrl() {
+  const view = selectedId.value
+    ? `?selected=${selectedId.value}`
+    : graphOpen.value
+      ? '?view=graph'
+      : mode.value === 'create'
+        ? '?view=new'
+        : ''
+  history.replaceState(null, '', '/apps/contacts' + view)
+}
+
+// Picking a contact is always the way out of the graph and of the form:
+// the click means "show me this one".
 function selectContact(id: string) {
   selectedId.value = id
+  graphOpen.value = false
   mode.value = 'view'
   formError.value = ''
   newTag.value = ''
   newRelId.value = ''
-  history.replaceState(null, '', '/apps/contacts?selected=' + id)
+  syncUrl()
   void loadLinked()
 }
 
 function onSearch() {
   selectedId.value = null
   mode.value = 'view'
-  history.replaceState(null, '', '/apps/contacts')
+  syncUrl()
 }
 
 // ----- linked data (events, note mentions) + dashboard-birthday opt-in -----
@@ -278,11 +296,15 @@ const meId = computed(() => (mePrefs.value?.data.contact_id as string) || null)
 
 // ----- relations graph view -----
 
-const graphOpen = ref(false)
-
-function onGraphSelect(id: string) {
-  graphOpen.value = false
-  selectContact(id)
+// The graph takes the whole detail column: opening it drops what was on
+// screen, so the URL never claims a contact the view is not showing.
+function toggleGraph() {
+  graphOpen.value = !graphOpen.value
+  if (graphOpen.value) {
+    selectedId.value = null
+    mode.value = 'view'
+  }
+  syncUrl()
 }
 
 async function toggleMe() {
@@ -497,8 +519,9 @@ function openCreate() {
   form.photo = ''
   formError.value = ''
   selectedId.value = null
-  history.replaceState(null, '', '/apps/contacts')
+  graphOpen.value = false
   mode.value = 'create'
+  syncUrl()
   nextTick(() => nameInput.value?.focus())
 }
 
@@ -527,6 +550,7 @@ function openEdit() {
 function cancelForm() {
   mode.value = 'view'
   formError.value = ''
+  syncUrl()
 }
 
 function addEmail() {
@@ -647,7 +671,7 @@ async function deleteContact() {
       }
     }
     selectedId.value = null
-    history.replaceState(null, '', '/apps/contacts')
+    syncUrl()
   } catch {
     // the contact stays listed; a retry goes through the same button
   }
@@ -681,6 +705,8 @@ onMounted(() => {
   document.addEventListener('keydown', onKeydown)
   reload()
   if (selectedId.value) void loadLinked()
+  // ?view=new opens the form with its blank rows, same as the button.
+  if (query.get('view') === 'new') openCreate()
 })
 onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 </script>
@@ -786,7 +812,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           class="ct-graph-btn"
           :class="{ 'ct-graph-btn--active': graphOpen }"
           title="Relations between contacts (links to you left out)"
-          @click="graphOpen = !graphOpen"
+          @click="toggleGraph"
         >
           Graph
         </button>
@@ -812,7 +838,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           v-if="graphOpen"
           :contacts="allContacts"
           :me-id="meId"
-          @select="onGraphSelect"
+          @select="selectContact"
         />
         <!-- Create / edit -->
         <form

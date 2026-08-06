@@ -418,6 +418,40 @@ describe('ContactsApp', () => {
     )
   })
 
+  it('puts the graph and the creation form in the URL, and leaves them on a contact click', async () => {
+    const { ctx } = makeCtx([contact('a', 'Alice')])
+    const wrapper = mount(ContactsApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+
+    await wrapper.find('.ct-graph-btn').trigger('click')
+    expect(window.location.search).toBe('?view=graph')
+    expect(wrapper.findComponent({ name: 'RelationsGraph' }).exists()).toBe(
+      true
+    )
+
+    await selectContact(wrapper, 'Alice')
+    expect(window.location.search).toBe('?selected=a')
+    expect(wrapper.findComponent({ name: 'RelationsGraph' }).exists()).toBe(
+      false
+    )
+
+    await wrapper.find('.ct-add-contact-btn').trigger('click')
+    expect(window.location.search).toBe('?view=new')
+    await selectContact(wrapper, 'Alice')
+    expect(window.location.search).toBe('?selected=a')
+    expect(wrapper.find('.ct-form').exists()).toBe(false)
+  })
+
+  it('opens on the view named in the URL', async () => {
+    window.history.replaceState(null, '', '/apps/contacts?view=graph')
+    const { ctx } = makeCtx([contact('a', 'Alice')])
+    const wrapper = mount(ContactsApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'RelationsGraph' }).exists()).toBe(
+      true
+    )
+  })
+
   it('marks a contact as me via a singleton prefs entry', async () => {
     const alice = contact('a', 'Alice')
     const { ctx, create } = makeCtx([alice])
