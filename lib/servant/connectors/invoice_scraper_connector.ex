@@ -132,22 +132,28 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
     # `System.cmd/3` has no `:timeout` option (it was silently ignored), so a
     # hung Playwright script would block this worker forever. Run it in a Task
     # and enforce the timeout with Task.yield/2 + Task.shutdown/2.
+    #
+    # stderr is folded into stdout: the script writes every diagnostic there
+    # (including the one line that says what actually broke), and letting it
+    # go to the OS's stderr put it out of reach of both the UI and the audit
+    # log. The JSON payload is the script's last write and holds no newline,
+    # so `parse_output/1` still finds it under the log lines.
     task =
       Task.async(fn ->
         try do
-          {:ok, System.cmd(node, args, stderr_to_stdout: false, env: env)}
+          {:ok, System.cmd(node, args, stderr_to_stdout: true, env: env)}
         rescue
           e -> {:error, Exception.message(e)}
         end
       end)
 
     case Task.yield(task, @cmd_timeout) || Task.shutdown(task) do
-      {:ok, {:ok, {stdout, 0}}} ->
-        parse_output(stdout)
+      {:ok, {:ok, {output, 0}}} ->
+        parse_output(output)
 
-      {:ok, {:ok, {_stdout, exit_code}}} ->
-        # The scraper logs its errors to stderr, which flows to the server logs
-        {:error, "Scraper failed (exit code #{exit_code}), details in the server logs"}
+      {:ok, {:ok, {output, exit_code}}} ->
+        Logger.error("Invoice scraper output [#{state.provider}]:\n#{output}")
+        {:error, "Scraper failed (exit #{exit_code}): #{diagnostic(output)}"}
 
       {:ok, {:error, message}} ->
         {:error, "Failed to run scraper: #{message}"}
@@ -162,9 +168,10 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
     end
   end
 
+  # The payload is the script's last write; everything above it is log lines.
   @doc false
-  def parse_output(json_string) do
-    case Jason.decode(String.trim(json_string)) do
+  def parse_output(output) do
+    case Jason.decode(last_line(output)) do
       {:ok, %{"invoices" => invoices}} when is_list(invoices) ->
         {:ok, invoices}
 
@@ -172,8 +179,40 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
         {:error, "Unexpected JSON structure from scraper"}
 
       {:error, _} ->
-        {:error, "Failed to parse scraper output"}
+        {:error, "Scraper produced no invoices: #{diagnostic(output)}"}
     end
+  end
+
+  # What to show the user out of a failed run: the line the script flagged as
+  # the error, or the tail of its log when it died without flagging one.
+  @max_diagnostic 300
+
+  @doc false
+  def diagnostic(output) do
+    lines =
+      output
+      |> String.split("\n", trim: true)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+
+    message =
+      case Enum.filter(lines, &String.contains?(&1, "ERROR:")) do
+        [] -> Enum.join(Enum.take(lines, -3), " | ")
+        errors -> List.last(errors)
+      end
+
+    case String.trim(message) do
+      "" -> "no output from the scraper"
+      text -> String.slice(text, 0, @max_diagnostic)
+    end
+  end
+
+  defp last_line(output) do
+    output
+    |> String.split("\n", trim: true)
+    |> List.last()
+    |> Kernel.||("")
+    |> String.trim()
   end
 
   # Prefix common currencies with their symbol, otherwise suffix the code

@@ -106,13 +106,14 @@ defmodule Servant.Connectors.Worker do
         schedule_sync(%{state | state: new_connector_state})
 
       {:error, reason, new_connector_state} ->
-        Logger.error("Connector sync error [#{sync_context(state)}]: #{inspect(reason)}")
-        Connectors.fail_sync_log(sync_log, inspect(reason))
+        message = format_reason(reason)
+        Logger.error("Connector sync error [#{sync_context(state)}]: #{message}")
+        Connectors.fail_sync_log(sync_log, message)
         # Persist the returned state too: a connector may have rotated a
         # refresh_token before the failing step, and losing it (until the next
         # successful sync) would break the connector on the next restart.
         persist_cursor(state, new_connector_state)
-        update_sync_status(state.config_id, inspect(reason))
+        update_sync_status(state.config_id, message)
         schedule_sync(%{state | state: new_connector_state})
     end
   rescue
@@ -132,6 +133,11 @@ defmodule Servant.Connectors.Worker do
       state.connector_module.persisted_config(connector_state)
     )
   end
+
+  # A connector that took the trouble to write a sentence gets shown as one:
+  # inspect/1 would hand the UI an escaped, quoted blob.
+  defp format_reason(reason) when is_binary(reason), do: reason
+  defp format_reason(reason), do: inspect(reason)
 
   defp sync_context(%__MODULE__{} = state) do
     "#{state.connector_module.id()} config=#{state.config_id} user=#{state.user_id}"

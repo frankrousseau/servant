@@ -50,12 +50,65 @@ defmodule Servant.Connectors.InvoiceScraperConnectorTest do
       assert inv["amount"] == "142.50"
     end
 
+    # stderr is folded into stdout so the diagnostics survive; the payload is
+    # still the last thing the script writes.
+    test "reads the payload under the scraper's log lines" do
+      output = """
+      [scraper] Starting scraper for provider: OVH
+      [scraper] Logging in...
+      [ovh] Session API returned 2 bills
+      {"invoices": [{"id": "ovh-1", "date": "2026-03-01", "amount": "12.00"}]}\
+      """
+
+      assert {:ok, [inv]} = InvoiceScraperConnector.parse_output(output)
+      assert inv["id"] == "ovh-1"
+    end
+
     test "returns error for invalid JSON" do
       assert {:error, _} = InvoiceScraperConnector.parse_output("not json")
     end
 
     test "returns error for unexpected structure" do
       assert {:error, _} = InvoiceScraperConnector.parse_output(~s({"data": []}))
+    end
+  end
+
+  describe "diagnostic/1" do
+    # Verbatim from a run whose browser was missing: the actionable sentence
+    # sits on the ERROR line, above six lines of Playwright's banner.
+    test "picks the error line out of a real failing run" do
+      output = """
+      [scraper] Starting scraper for provider: OVH
+      [scraper] ERROR: browserType.launch: Executable doesn't exist at /opt/playwright/chromium_headless_shell-1208/chrome-headless-shell
+      ╔════════════════════════════════════════╗
+      ║ Please run the following command:      ║
+      ║     npx playwright install             ║
+      ╚════════════════════════════════════════╝
+      """
+
+      message = InvoiceScraperConnector.diagnostic(output)
+      assert message =~ "browserType.launch"
+      assert message =~ "Executable doesn't exist"
+    end
+
+    test "keeps the last error when several are logged" do
+      output = "[scraper] ERROR: first\n[ovh] ERROR: 2FA required but no totp_secret provided\n"
+      assert InvoiceScraperConnector.diagnostic(output) =~ "2FA required"
+    end
+
+    test "falls back to the tail when nothing is flagged as an error" do
+      output = "[scraper] Logging in...\n[ovh] Session API failed (GET /me/bill -> 403)\n"
+      message = InvoiceScraperConnector.diagnostic(output)
+      assert message =~ "403"
+    end
+
+    test "says so when the scraper printed nothing" do
+      assert InvoiceScraperConnector.diagnostic("  \n\n") == "no output from the scraper"
+    end
+
+    test "caps a runaway log" do
+      assert String.length(InvoiceScraperConnector.diagnostic(String.duplicate("x", 5_000))) ==
+               300
     end
   end
 
