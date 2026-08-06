@@ -195,18 +195,35 @@ const cell = (row: { byPeriod: Record<string, number> }, period: string) =>
 
 const W = 1000
 const H = 260
-const PAD_TOP = 18
-const PAD_BOTTOM = 22
+const PAD_TOP = 22
+const PAD_BOTTOM = 26
 const PAD_LEFT = 8
 const PAD_RIGHT = 8
+const BAR_RADIUS = 4
+// Hairline of panel background between two stacked slices.
+const SLICE_GAP = 1
 
-interface Segment {
-  x: number
-  y: number
-  width: number
-  height: number
+interface Slice {
+  category: string
+  value: number
+  amount: string
+  pct: number
   color: string
-  title: string
+  y: number
+  height: number
+}
+
+interface Column {
+  period: string
+  label: string
+  total: number
+  totalText: string
+  totalY: number
+  centerX: number
+  hitX: number
+  hitWidth: number
+  capD: string
+  slices: Slice[]
 }
 
 // A readable step near max/4: 1, 2, 2.5 or 5 times a power of ten.
@@ -220,6 +237,17 @@ function tickStep(max: number): number {
   )
 }
 
+// Clip for one stack: square at the baseline, rounded where it ends.
+function barCapPath(x: number, y: number, w: number, h: number): string {
+  const r = Math.min(BAR_RADIUS, w / 2, h)
+  const round = (value: number) => value.toFixed(1)
+  return (
+    `M ${round(x)} ${round(y + r)} A ${r} ${r} 0 0 1 ${round(x + r)} ${round(y)} ` +
+    `H ${round(x + w - r)} A ${r} ${r} 0 0 1 ${round(x + w)} ${round(y + r)} ` +
+    `V ${round(y + h)} H ${round(x)} Z`
+  )
+}
+
 const chart = computed(() => {
   const periodList = periods.value
   if (!periodList.length || !rows.value.length) return null
@@ -228,45 +256,81 @@ const chart = computed(() => {
   const top = Math.ceil(maxTotal / step) * step
   const innerW = W - PAD_LEFT - PAD_RIGHT
   const slot = innerW / periodList.length
-  const barWidth = Math.min(slot * 0.66, 72)
+  const barWidth = Math.min(slot * 0.6, 64)
   const scale = (H - PAD_TOP - PAD_BOTTOM) / top
+  const baseline = H - PAD_BOTTOM
 
   const gridlines = []
   for (let tick = step; tick <= top; tick += step) {
-    gridlines.push({
-      y: H - PAD_BOTTOM - tick * scale,
-      label: fmt(tick)
-    })
+    gridlines.push({ y: baseline - tick * scale, label: fmt(tick) })
   }
 
-  const segments: Segment[] = []
-  const labels = periodList.map((period, index) => ({
-    x: PAD_LEFT + index * slot + slot / 2,
-    text: periodLabel(period)
-  }))
-  periodList.forEach((period, index) => {
-    let y = H - PAD_BOTTOM
+  const columns: Column[] = periodList.map((period, index) => {
+    const total = periodTotal(period)
+    const x = PAD_LEFT + index * slot + (slot - barWidth) / 2
+    const slices: Slice[] = []
+    let y = baseline
     for (const row of rows.value) {
       const value = row.byPeriod[period] || 0
       if (!value) continue
       const height = value * scale
       y -= height
-      segments.push({
-        x: PAD_LEFT + index * slot + (slot - barWidth) / 2,
-        y,
-        width: barWidth,
-        height,
+      slices.push({
+        category: row.category,
+        value,
+        amount: fmt(value),
+        pct: total ? Math.round((value / total) * 100) : 0,
         color: categoryColor(row.category),
-        title: `${period} ${row.category}: ${fmt(value)}`
+        y,
+        // The gap belongs to the slice above, so the stack still sits on
+        // the baseline.
+        height: Math.max(slices.length ? height - SLICE_GAP : height, 1)
       })
     }
+    return {
+      period,
+      label: periodLabel(period),
+      total,
+      totalText: fmt(total),
+      totalY: baseline - total * scale - 6,
+      centerX: PAD_LEFT + index * slot + slot / 2,
+      hitX: PAD_LEFT + index * slot,
+      hitWidth: slot,
+      capD: barCapPath(x, y, barWidth, baseline - y),
+      slices
+    }
   })
-  const totals = periodList.map((period, index) => ({
-    x: PAD_LEFT + index * slot + slot / 2,
-    y: H - PAD_BOTTOM - periodTotal(period) * scale - 5,
-    text: fmt(periodTotal(period))
-  }))
-  return { segments, labels, totals, gridlines }
+
+  return { columns, gridlines, baseline }
+})
+
+// ----- hover readout -----
+// One readout at a time: the column under the pointer, plus the slice when
+// the pointer is on one. The chart is role="img" and stays out of the tab
+// order: the table below carries the same numbers for keyboard and AT.
+const hover = ref<{ period: string; category: string | null } | null>(null)
+
+const READOUT_ROWS = 7
+
+const readout = computed(() => {
+  const target = hover.value
+  if (!target || !chart.value) return null
+  const column = chart.value.columns.find(item => item.period === target.period)
+  if (!column?.slices.length) return null
+  const ranked = [...column.slices].sort((a, b) => b.value - a.value)
+  const rest = ranked.slice(READOUT_ROWS)
+  return {
+    // Full period here, not the axis's short label: the readout names what
+    // it reads in the same words as the range selector.
+    period: column.period,
+    total: column.totalText,
+    rows: ranked.slice(0, READOUT_ROWS),
+    restCount: rest.length,
+    restAmount: fmt(rest.reduce((sum, slice) => sum + slice.value, 0)),
+    category: target.category,
+    // Sit opposite the column being read, so the bar stays visible.
+    side: column.centerX > W / 2 ? 'left' : 'right'
+  }
 })
 
 // ----- pie geometry -----
@@ -312,9 +376,9 @@ const pie = computed(() => {
     const path = slicePath(PIE_R0, PIE_R, angle, angle + sweep)
     angle += sweep
     return {
+      category: part.category,
       d: path,
-      color: categoryColor(part.category),
-      title: `${part.category}: ${fmt(part.value)}`
+      color: categoryColor(part.category)
     }
   })
   const breakdown = parts.map(part => ({
@@ -324,6 +388,19 @@ const pie = computed(() => {
     pct: Math.round((part.value / total) * 100)
   }))
   return { slices, breakdown, total: fmt(total) }
+})
+
+// Hovering a slice (or its breakdown row) swaps what the donut reads.
+const pieHover = ref<string | null>(null)
+
+const pieCenter = computed(() => {
+  if (!pie.value) return null
+  const part = pie.value.breakdown.find(
+    item => item.category === pieHover.value
+  )
+  return part
+    ? { value: part.amount, label: `${part.category} · ${part.pct}%` }
+    : { value: pie.value.total, label: piePeriod.value }
 })
 </script>
 
@@ -422,28 +499,33 @@ const pie = computed(() => {
           viewBox="0 0 200 200"
           role="img"
           :aria-label="`Spending by category, ${piePeriod}`"
+          @pointerleave="pieHover = null"
         >
           <path
-            v-for="(slice, index) in pie.slices"
-            :key="index"
-            class="sp-seg"
+            v-for="slice in pie.slices"
+            :key="slice.category"
+            class="sp-slice"
+            :class="{
+              'sp-slice--dim': pieHover && pieHover !== slice.category
+            }"
             :d="slice.d"
             :fill="slice.color"
-          >
-            <title>{{ slice.title }}</title>
-          </path>
+            @pointerenter="pieHover = slice.category"
+          />
           <text class="sp-pie-total" x="100" y="97" text-anchor="middle">
-            {{ pie.total }}
+            {{ pieCenter?.value }}
           </text>
           <text class="sp-pie-period" x="100" y="112" text-anchor="middle">
-            {{ piePeriod }}
+            {{ pieCenter?.label }}
           </text>
         </svg>
-        <div class="sp-breakdown">
+        <div class="sp-breakdown" @pointerleave="pieHover = null">
           <div
             v-for="part in pie.breakdown"
             :key="part.category"
             class="sp-breakdown-row"
+            :class="{ 'sp-breakdown-row--on': pieHover === part.category }"
+            @pointerenter="pieHover = part.category"
           >
             <span class="sp-dot" :style="{ background: part.color }"></span>
             <span class="sp-breakdown-cat">{{ part.category }}</span>
@@ -453,59 +535,137 @@ const pie = computed(() => {
         </div>
       </div>
 
-      <svg
-        v-else-if="chart"
-        class="sp-chart"
-        :viewBox="`0 0 ${W} ${H}`"
-        role="img"
-        aria-label="Monthly spending by category"
-      >
-        <g v-for="line in chart.gridlines" :key="line.y">
+      <div v-else-if="chart" class="sp-chart-wrap">
+        <svg
+          class="sp-chart"
+          :viewBox="`0 0 ${W} ${H}`"
+          role="img"
+          aria-label="Spending by category over the selected range"
+          @pointerleave="hover = null"
+        >
+          <defs>
+            <clipPath
+              v-for="column in chart.columns"
+              :id="`sp-cap-${column.period}`"
+              :key="column.period"
+            >
+              <path :d="column.capD" />
+            </clipPath>
+          </defs>
+
+          <g v-for="line in chart.gridlines" :key="line.y">
+            <line
+              class="sp-grid"
+              :x1="PAD_LEFT"
+              :x2="W - PAD_RIGHT"
+              :y1="line.y"
+              :y2="line.y"
+            />
+            <text class="sp-chart-label" :x="PAD_LEFT" :y="line.y - 4">
+              {{ line.label }}
+            </text>
+          </g>
           <line
-            class="sp-grid"
+            class="sp-axis"
             :x1="PAD_LEFT"
             :x2="W - PAD_RIGHT"
-            :y1="line.y"
-            :y2="line.y"
+            :y1="chart.baseline"
+            :y2="chart.baseline"
           />
-          <text class="sp-chart-label" :x="PAD_LEFT" :y="line.y - 3">
-            {{ line.label }}
-          </text>
-        </g>
-        <rect
-          v-for="(segment, index) in chart.segments"
-          :key="index"
-          class="sp-seg"
-          :x="segment.x"
-          :y="segment.y"
-          :width="segment.width"
-          :height="segment.height"
-          :fill="segment.color"
-          rx="1.5"
+
+          <!-- Catches the space around a stack, so the whole column reads. -->
+          <rect
+            v-for="column in chart.columns"
+            :key="'hit' + column.period"
+            class="sp-hit"
+            :x="column.hitX"
+            :width="column.hitWidth"
+            :y="PAD_TOP"
+            :height="chart.baseline - PAD_TOP"
+            @pointerenter="hover = { period: column.period, category: null }"
+          />
+
+          <g
+            v-for="column in chart.columns"
+            :key="column.period"
+            class="sp-col"
+            :class="{
+              'sp-col--dim': !!hover && hover.period !== column.period
+            }"
+          >
+            <g :clip-path="`url(#sp-cap-${column.period})`">
+              <rect
+                v-for="slice in column.slices"
+                :key="slice.category"
+                class="sp-slice"
+                :class="{
+                  'sp-slice--dim':
+                    hover?.period === column.period &&
+                    !!hover.category &&
+                    hover.category !== slice.category
+                }"
+                :x="column.hitX"
+                :width="column.hitWidth"
+                :y="slice.y"
+                :height="slice.height"
+                :fill="slice.color"
+                @pointerenter="
+                  hover = { period: column.period, category: slice.category }
+                "
+              />
+            </g>
+            <text
+              class="sp-chart-label sp-chart-label--total"
+              :class="{
+                'sp-chart-label--live': hover?.period === column.period
+              }"
+              :x="column.centerX"
+              :y="column.totalY"
+              text-anchor="middle"
+            >
+              {{ column.totalText }}
+            </text>
+            <text
+              class="sp-chart-label"
+              :x="column.centerX"
+              :y="H - 8"
+              text-anchor="middle"
+            >
+              {{ column.label }}
+            </text>
+          </g>
+        </svg>
+
+        <div
+          v-if="readout"
+          class="sp-readout"
+          :class="`sp-readout--${readout.side}`"
         >
-          <title>{{ segment.title }}</title>
-        </rect>
-        <text
-          v-for="total in chart.totals"
-          :key="'t' + total.x"
-          class="sp-chart-label sp-chart-label--total"
-          :x="total.x"
-          :y="total.y"
-          text-anchor="middle"
-        >
-          {{ total.text }}
-        </text>
-        <text
-          v-for="label in chart.labels"
-          :key="'l' + label.x"
-          class="sp-chart-label"
-          :x="label.x"
-          :y="H - 6"
-          text-anchor="middle"
-        >
-          {{ label.text }}
-        </text>
-      </svg>
+          <div class="sp-readout-head">
+            <span class="sp-readout-period">{{ readout.period }}</span>
+            <span class="sp-readout-total">{{ readout.total }}</span>
+          </div>
+          <div
+            v-for="row in readout.rows"
+            :key="row.category"
+            class="sp-readout-row"
+            :class="{ 'sp-readout-row--on': readout.category === row.category }"
+          >
+            <span class="sp-readout-rail" :style="{ background: row.color }" />
+            <span class="sp-readout-cat">{{ row.category }}</span>
+            <span class="sp-readout-amount">{{ row.amount }}</span>
+            <span class="sp-readout-pct">{{ row.pct }}%</span>
+          </div>
+          <div v-if="readout.restCount" class="sp-readout-row sp-readout-rest">
+            <span class="sp-readout-rail" />
+            <span class="sp-readout-cat"
+              >{{ readout.restCount }} more categories</span
+            >
+            <span class="sp-readout-amount">{{ readout.restAmount }}</span>
+            <span class="sp-readout-pct"></span>
+          </div>
+        </div>
+      </div>
 
       <div class="sp-table-wrap">
         <table class="sp-table">
@@ -608,15 +768,23 @@ const pie = computed(() => {
   max-width: 100%;
   flex-shrink: 0;
 }
+/* Shared by the donut slices and the stacked-bar slices: whatever is not
+   being read steps back. */
+.sp-slice {
+  transition: opacity 0.15s ease;
+}
+.sp-slice--dim {
+  opacity: 0.32;
+}
 .sp-pie-total {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: 15px;
   fill: var(--text);
 }
 .sp-pie-period {
   font-family: var(--font-mono);
   font-size: 9px;
+  letter-spacing: 0.06em;
   fill: var(--text-muted);
 }
 .sp-breakdown {
@@ -631,7 +799,15 @@ const pie = computed(() => {
   gap: 0.5rem;
   font-family: var(--font-mono);
   font-size: 0.82rem;
-  padding: 0.12rem 0;
+  padding: 0.12rem 0.4rem;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: default;
+}
+/* Hovered anywhere (row or slice): the pair lights up together. */
+.sp-breakdown-row--on {
+  background: var(--bg-hover);
+  color: var(--text);
 }
 .sp-breakdown-cat {
   min-width: 0;
@@ -741,24 +917,36 @@ const pie = computed(() => {
   color: var(--text-muted);
   border-style: dashed;
 }
+.sp-chart-wrap {
+  position: relative;
+  margin-bottom: 1rem;
+}
 .sp-chart {
   display: block;
   width: 100%;
   height: auto;
-  margin-bottom: 1rem;
 }
 .sp-grid {
   stroke: var(--border);
   stroke-width: 1;
-  stroke-dasharray: 2 4;
+  stroke-dasharray: 2 5;
+  opacity: 0.7;
 }
-.sp-seg {
-  stroke: var(--bg-surface);
+.sp-axis {
+  stroke: var(--border);
   stroke-width: 1;
-  transition: opacity 0.1s;
 }
-.sp-seg:hover {
-  opacity: 0.8;
+.sp-hit {
+  fill: transparent;
+  pointer-events: all;
+}
+/* Reading one column dims the others: the stack under the pointer is the
+   only lit channel, the rest stays as context. */
+.sp-col {
+  transition: opacity 0.15s ease;
+}
+.sp-col--dim {
+  opacity: 0.22;
 }
 .sp-chart-label {
   font-family: var(--font-mono);
@@ -766,7 +954,99 @@ const pie = computed(() => {
   fill: var(--text-muted);
 }
 .sp-chart-label--total {
+  font-size: 11px;
   fill: var(--text);
+}
+.sp-chart-label--live {
+  fill: var(--primary);
+  font-weight: 600;
+}
+
+/* ----- Hover readout ----- */
+
+.sp-readout {
+  position: absolute;
+  top: 0;
+  width: 15rem;
+  max-width: 45%;
+  padding: 0.6rem 0.7rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  pointer-events: none;
+}
+.sp-readout--left {
+  left: 0;
+}
+.sp-readout--right {
+  right: 0;
+}
+.sp-readout-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding-bottom: 0.4rem;
+  margin-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border);
+}
+.sp-readout-period {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+.sp-readout-total {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  margin-left: auto;
+}
+.sp-readout-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  padding: 0.1rem 0;
+}
+.sp-readout-rail {
+  width: 3px;
+  height: 0.85em;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.sp-readout-cat {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-readout-amount {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.sp-readout-pct {
+  width: 2.6em;
+  text-align: right;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+/* The slice actually under the pointer, called out among its column. */
+.sp-readout-row--on {
+  color: var(--text);
+  font-weight: 600;
+}
+.sp-readout-rest .sp-readout-rail {
+  background: var(--border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sp-col,
+  .sp-slice {
+    transition: none;
+  }
 }
 .sp-table-wrap {
   overflow-x: auto;

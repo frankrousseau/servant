@@ -121,6 +121,46 @@ describe('SpendingView', () => {
     expect(rows[1]).toContain('21%')
   })
 
+  it('reads the hovered column, then the hovered slice inside it', async () => {
+    const wrapper = mountView()
+    // One hit area per period in range: June and July 2026.
+    const columns = wrapper.findAll('.sp-hit')
+    expect(columns.length).toBe(2)
+
+    await columns[0].trigger('pointerenter')
+    const readout = wrapper.find('.sp-readout')
+    expect(readout.find('.sp-readout-total').text()).toBe('190 EUR')
+    expect(readout.findAll('.sp-readout-row').map(row => row.text())).toEqual([
+      'rent150 EUR79%',
+      'food40 EUR21%'
+    ])
+    // Nothing is called out until the pointer is on a slice.
+    expect(readout.find('.sp-readout-row--on').exists()).toBe(false)
+
+    await wrapper
+      .findAll('.sp-col')[0]
+      .findAll('.sp-slice')[1]
+      .trigger('pointerenter')
+    expect(wrapper.find('.sp-readout-row--on').text()).toContain('food')
+
+    await wrapper.find('.sp-chart').trigger('pointerleave')
+    expect(wrapper.find('.sp-readout').exists()).toBe(false)
+  })
+
+  it('swaps the donut center for the hovered category', async () => {
+    const wrapper = mountView()
+    const chartType = wrapper.findAllComponents({ name: 'ComboBox' }).at(0)!
+    await chartType.vm.$emit('update:modelValue', 'Pie')
+    const period = wrapper.findAllComponents({ name: 'ComboBox' }).at(1)!
+    await period.vm.$emit('update:modelValue', '2026-06')
+
+    expect(wrapper.find('.sp-pie-total').text()).toBe('190 EUR')
+    await wrapper.findAll('.sp-pie .sp-slice')[1].trigger('pointerenter')
+    expect(wrapper.find('.sp-pie-total').text()).toBe('40 EUR')
+    expect(wrapper.find('.sp-pie-period').text()).toBe('food · 21%')
+    expect(wrapper.find('.sp-breakdown-row--on').text()).toContain('food')
+  })
+
   it('lists the transactions excluded for a missing rate', async () => {
     const chf = tx('2026-06-12', -80, 'travel')
     chf.data.currency = 'CHF'
