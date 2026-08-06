@@ -1092,7 +1092,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 .cl-item-grip {
   cursor: grab;
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: 0.95rem;
   letter-spacing: -2px;
   user-select: none;
   flex-shrink: 0;
@@ -1119,13 +1119,13 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 .cl-recurring-toggle input {
   appearance: none;
   -webkit-appearance: none;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   margin: 0;
   flex-shrink: 0;
   border: 1.5px solid var(--border);
-  border-radius: 4px;
+  border-radius: 5px;
   background: var(--bg);
   cursor: pointer;
   transition:
@@ -1142,7 +1142,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   border-color: var(--primary);
   background-color: var(--primary);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%2305070f' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E");
-  background-size: 12px;
+  background-size: 15px;
   background-position: center;
   background-repeat: no-repeat;
   box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.4);
