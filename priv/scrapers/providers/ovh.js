@@ -36,19 +36,24 @@ module.exports = {
       await consent.click().catch(() => {});
     }
 
+    // www.ovh.com/auth/ redirects to auth.eu.ovhcloud.com/signin/, whose form
+    // randomizes the `name` of every field on each load ("58d6136e") and ships
+    // a hidden forgot-password form whose input still carries name="account".
+    // Match the stable ids, and only ever something visible: a name-based
+    // selector resolves to that hidden field and fill() waits out its timeout.
     const accountInput = page
-      .locator('input[name="account"], input[name="login"], input[type="email"], #account-login')
+      .locator('#account:visible, #account-login:visible, input[type="email"]:visible')
       .first();
     await accountInput.fill(credentials.email);
 
     const passwordInput = page
-      .locator('input[name="password"], input[type="password"]')
+      .locator('#password:visible, input[type="password"]:visible')
       .first();
     await passwordInput.fill(credentials.password);
 
     const submitBtn = page
       .locator(
-        'button[type="submit"], input[type="submit"], button:has-text("Log in"), button:has-text("Connexion"), button:has-text("Se connecter")',
+        '#login-submit:visible, button[type="submit"]:visible, input[type="submit"]:visible, button:visible:has-text("Log in"), button:visible:has-text("Se connecter")',
       )
       .first();
     await submitBtn.click();
@@ -58,7 +63,7 @@ module.exports = {
     // 2FA (TOTP) step, when enabled on the account.
     const totpInput = page
       .locator(
-        'input[name="codeValue"], input[name="code"], input[autocomplete="one-time-code"], input[inputmode="numeric"]',
+        'input[autocomplete="one-time-code"]:visible, input[inputmode="numeric"]:visible, input[name="codeValue"]:visible, input[name="code"]:visible',
       )
       .first();
     const totpVisible = await totpInput.isVisible().catch(() => false);
@@ -74,15 +79,22 @@ module.exports = {
 
       const verifyBtn = page
         .locator(
-          'button[type="submit"], button:has-text("Verify"), button:has-text("Valider"), button:has-text("Confirmer")',
+          'button[type="submit"]:visible, button:visible:has-text("Verify"), button:visible:has-text("Valider"), button:visible:has-text("Confirmer")',
         )
         .first();
       await verifyBtn.click();
       await page.waitForLoadState("networkidle", { timeout: 20000 });
     }
 
-    if (page.url().includes("/auth")) {
-      throw new Error("Login failed (still on the auth page)");
+    // A password field still on screen means the form rejected us. Sturdier
+    // than reading the URL: the sign-in host itself contains "auth".
+    const stillSignedOut = await page
+      .locator('#password:visible, input[type="password"]:visible')
+      .first()
+      .isVisible()
+      .catch(() => false);
+    if (stillSignedOut) {
+      throw new Error(`Login failed, still on the sign-in form (${page.url()})`);
     }
   },
 
