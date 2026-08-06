@@ -89,6 +89,42 @@ describe('RelationsGraph', () => {
     expect(ds[0]).not.toBe(ds[1])
   })
 
+  // Signed distance from the chord's midpoint to the arc's control point:
+  // how far, and which way, an edge bows.
+  function bowOf(d: string): number {
+    const [x0, y0, cx, cy, x1, y1] = d.match(/-?\d+(\.\d+)?/g)!.map(Number)
+    const vx = x1 - x0
+    const vy = y1 - y0
+    const length = Math.hypot(vx, vy) || 1
+    return (vx * (cy - (y0 + y1) / 2) - vy * (cx - (x0 + x1) / 2)) / length
+  }
+
+  it('gives every edge of a fan its own bow, so none can stack', () => {
+    const spokes = ['b', 'c', 'd', 'e']
+    const contacts = [
+      contact(
+        'a',
+        'Alice',
+        spokes.map(id => ({ contact_id: id, type: 'friend' }))
+      ),
+      ...spokes.map(id =>
+        contact(id, id.toUpperCase(), [{ contact_id: 'a', type: 'friend' }])
+      )
+    ]
+    const wrapper = mount(RelationsGraph, { props: { contacts, meId: null } })
+
+    const bows = wrapper
+      .findAll('.rg-edge')
+      .map(edge => bowOf(edge.attributes('d')!))
+    expect(bows).toHaveLength(4)
+    // Slots are centered (-1.5, -0.5, +0.5, +1.5): two edges bow each way,
+    // and the outer pair bows about three times as wide as the inner one.
+    // Picking a side per edge instead would give every edge the same width.
+    expect(bows.filter(bow => bow > 0)).toHaveLength(2)
+    const widths = bows.map(Math.abs)
+    expect(Math.max(...widths) / Math.min(...widths)).toBeGreaterThan(2)
+  })
+
   it('explains itself when no inter-contact relation exists', () => {
     const wrapper = mount(RelationsGraph, {
       props: {

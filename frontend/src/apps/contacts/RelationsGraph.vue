@@ -169,14 +169,72 @@ const graph = computed(() => {
     node.y = Math.min(H - 45, Math.max(45, node.y))
   }
 
-  return { nodes: placed, byId: nodes, edges }
+  const slots = fanSlots(edges, nodes)
+
+  return {
+    nodes: placed,
+    byId: nodes,
+    edges: edges.map(edge => ({
+      key: pairKey(edge),
+      label: relationLabel(edge.type),
+      d: edgePath(edge, nodes, slots.get(pairKey(edge)) || 0)
+    }))
+  }
 })
 
 const NODE_R = 14
+// Gap between two neighbouring strokes in a fan, at the arc's widest point.
+const BOW_STEP = 26
+
+const pairKey = (edge: Edge) => `${edge.from}|${edge.to}`
+
+// Edges leaving one contact fan out instead of stacking: each edge takes a
+// slot in the fan of its two endpoints (incident edges ordered by the angle
+// they leave at), and the slot decides which way and how far its arc bows.
+// Two relations from the same contact can no longer share a stroke, however
+// close their directions are, and the middle one of a fan stays straight.
+function fanSlots(
+  edges: Edge[],
+  nodes: Map<string, Node>
+): Map<string, number> {
+  const incident = new Map<string, Edge[]>()
+  for (const edge of edges) {
+    incident.set(edge.from, [...(incident.get(edge.from) || []), edge])
+    incident.set(edge.to, [...(incident.get(edge.to) || []), edge])
+  }
+
+  const slots = new Map<string, number>()
+  for (const [id, list] of incident) {
+    const origin = nodes.get(id)!
+    const ranked = [...list].sort(
+      (a, b) => leaveAngle(origin, a, nodes) - leaveAngle(origin, b, nodes)
+    )
+    ranked.forEach((edge, index) => {
+      const slot = index - (ranked.length - 1) / 2
+      // The arc's normal runs from -> to, so a slot read at the far end is
+      // mirrored. The busier endpoint, where crowding is worst, wins.
+      const signed = edge.from === id ? slot : -slot
+      const key = pairKey(edge)
+      if (Math.abs(signed) > Math.abs(slots.get(key) ?? 0)) {
+        slots.set(key, signed)
+      }
+    })
+  }
+  return slots
+}
+
+function leaveAngle(
+  origin: Node,
+  edge: Edge,
+  nodes: Map<string, Node>
+): number {
+  const other = nodes.get(edge.from === origin.id ? edge.to : edge.from)!
+  return Math.atan2(other.y - origin.y, other.x - origin.x)
+}
 
 // Endpoint moved off a node's border along the tangent at that end, which for
 // a quadratic curve points at the control point. Keeps the arc clear of the
-// discs it connects.
+// discs it connects, and spreads a fan's attachment points around the rim.
 function pullBack(node: Node, cx: number, cy: number, off: number) {
   const dx = cx - node.x
   const dy = cy - node.y
@@ -184,18 +242,17 @@ function pullBack(node: Node, cx: number, cy: number, off: number) {
   return { x: node.x + (dx / dist) * off, y: node.y + (dy / dist) * off }
 }
 
-// Edges are shallow arcs, not straight lines: two relations leaving the same
-// contact at a close angle would lie on top of each other, and a straight edge
-// passing behind an unrelated node reads as attached to it. The bow side comes
-// from the pair key, so it is stable across renders and neighbours bow apart.
-function edgePath(edge: Edge): string {
-  const nodeA = graph.value.byId.get(edge.from)!
-  const nodeB = graph.value.byId.get(edge.to)!
+// Shallow arc from disc to disc. A straight edge passing behind an unrelated
+// node would read as attached to it, so even a lone pair keeps the curve form
+// (slot 0 simply bows by nothing).
+function edgePath(edge: Edge, nodes: Map<string, Node>, slot: number): string {
+  const nodeA = nodes.get(edge.from)!
+  const nodeB = nodes.get(edge.to)!
   const dx = nodeB.x - nodeA.x
   const dy = nodeB.y - nodeA.y
   const dist = Math.sqrt(dx * dx + dy * dy) || 1
-  const bow =
-    Math.min(24, dist * 0.12) * (hueOf(edge.from + edge.to) % 2 ? 1 : -1)
+  // Short edges bow proportionally less, or the arc balloons past its nodes.
+  const bow = slot * Math.min(BOW_STEP, dist * 0.25)
   const cx = (nodeA.x + nodeB.x) / 2 - (dy / dist) * bow
   const cy = (nodeA.y + nodeB.y) / 2 + (dx / dist) * bow
   const off = NODE_R + 3
@@ -220,11 +277,11 @@ function edgePath(edge: Edge): string {
     >
       <path
         v-for="edge in graph.edges"
-        :key="`${edge.from}|${edge.to}`"
+        :key="edge.key"
         class="rg-edge"
-        :d="edgePath(edge)"
+        :d="edge.d"
       >
-        <title>{{ relationLabel(edge.type) }}</title>
+        <title>{{ edge.label }}</title>
       </path>
       <g
         v-for="node in graph.nodes"
