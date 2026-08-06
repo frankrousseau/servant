@@ -15,30 +15,100 @@ export function userTimeZone(): string | undefined {
   }
 }
 
+// Display preferences (Settings > Appearance), stored on the account beside
+// the timezone. Unset on either side means "render like the browser does",
+// which is the default and what every call did before this existed.
+export type TimeFormat = '24h' | '12h'
+export type DateFormat = 'dmy' | 'mdy' | 'iso'
+
+export const TIME_FORMATS: { id: TimeFormat; label: string }[] = [
+  { id: '24h', label: '24-hour' },
+  { id: '12h', label: '12-hour' }
+]
+export const DATE_FORMATS: { id: DateFormat; label: string }[] = [
+  { id: 'dmy', label: '31/12/2026' },
+  { id: 'mdy', label: '12/31/2026' },
+  { id: 'iso', label: '2026-12-31' }
+]
+
+export function userTimeFormat(): TimeFormat | undefined {
+  try {
+    return (useAuthStore().user?.time_format as TimeFormat) || undefined
+  } catch {
+    return undefined
+  }
+}
+
+export function userDateFormat(): DateFormat | undefined {
+  try {
+    return (useAuthStore().user?.date_format as DateFormat) || undefined
+  } catch {
+    return undefined
+  }
+}
+
+// Set only when the user picked a side: left alone, the browser decides.
+// hourCycle rather than hour12, which renders midnight as "24:00" in some
+// locales.
+function hourCycleOpts(): Intl.DateTimeFormatOptions {
+  const format = userTimeFormat()
+  if (!format) return {}
+  return { hourCycle: format === '12h' ? 'h12' : 'h23' }
+}
+
+// Numeric parts read in the user's timezone, assembled in the chosen order.
+function renderDate(date: Date, format: DateFormat): string {
+  const parts: Record<string, string> = {}
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: userTimeZone(),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  })
+  for (const part of fmt.formatToParts(date)) {
+    if (part.type !== 'literal') parts[part.type] = part.value
+  }
+  if (format === 'iso') return `${parts.year}-${parts.month}-${parts.day}`
+  if (format === 'mdy') return `${parts.month}/${parts.day}/${parts.year}`
+  return `${parts.day}/${parts.month}/${parts.year}`
+}
+
 function toDate(iso: string | null | undefined): Date | null {
   if (!iso) return null
   const d = new Date(iso)
   return isNaN(d.getTime()) ? null : d
 }
 
+// The date preference applies to the default rendering only. A caller asking
+// for a shape of its own ("Mar 3", a weekday) means it, and a global setting
+// has no business rewriting a deliberately compact label.
 export function formatDateTime(
   iso: string | null | undefined,
-  opts: Intl.DateTimeFormatOptions = { dateStyle: 'medium', timeStyle: 'short' }
+  opts?: Intl.DateTimeFormatOptions
 ): string {
   const d = toDate(iso)
-  return d
-    ? d.toLocaleString(undefined, { timeZone: userTimeZone(), ...opts })
-    : ''
+  if (!d) return ''
+  const format = userDateFormat()
+  if (!opts && format) return `${renderDate(d, format)} ${formatTime(iso)}`
+  return d.toLocaleString(undefined, {
+    timeZone: userTimeZone(),
+    ...hourCycleOpts(),
+    ...(opts || { dateStyle: 'medium', timeStyle: 'short' })
+  })
 }
 
 export function formatDate(
   iso: string | null | undefined,
-  opts: Intl.DateTimeFormatOptions = { dateStyle: 'medium' }
+  opts?: Intl.DateTimeFormatOptions
 ): string {
   const d = toDate(iso)
-  return d
-    ? d.toLocaleDateString(undefined, { timeZone: userTimeZone(), ...opts })
-    : ''
+  if (!d) return ''
+  const format = userDateFormat()
+  if (!opts && format) return renderDate(d, format)
+  return d.toLocaleDateString(undefined, {
+    timeZone: userTimeZone(),
+    ...(opts || { dateStyle: 'medium' })
+  })
 }
 
 export function formatTime(
@@ -47,7 +117,11 @@ export function formatTime(
 ): string {
   const d = toDate(iso)
   return d
-    ? d.toLocaleTimeString(undefined, { timeZone: userTimeZone(), ...opts })
+    ? d.toLocaleTimeString(undefined, {
+        timeZone: userTimeZone(),
+        ...hourCycleOpts(),
+        ...opts
+      })
     : ''
 }
 

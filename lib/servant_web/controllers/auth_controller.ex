@@ -416,6 +416,8 @@ defmodule ServantWeb.AuthController do
                  avatar_path: %Schema{type: :string, nullable: true},
                  timezone: %Schema{type: :string},
                  theme: %Schema{type: :string},
+                 time_format: %Schema{type: :string, nullable: true},
+                 date_format: %Schema{type: :string, nullable: true},
                  enabled_apps: %Schema{
                    type: :array,
                    items: %Schema{type: :string},
@@ -450,6 +452,8 @@ defmodule ServantWeb.AuthController do
         avatar_path: user.avatar_path,
         timezone: user.timezone,
         theme: user.theme,
+        time_format: user.time_format,
+        date_format: user.date_format,
         enabled_apps: user.enabled_apps,
         totp_enabled: Accounts.totp_enabled?(user),
         admin: user.admin,
@@ -472,6 +476,18 @@ defmodule ServantWeb.AuthController do
            theme: %Schema{
              type: :string,
              enum: ["night", "graphite", "day", "cyanotype", "sepia", "rosewood"]
+           },
+           time_format: %Schema{
+             type: :string,
+             enum: ["24h", "12h"],
+             nullable: true,
+             description: "null renders times the way the browser does"
+           },
+           date_format: %Schema{
+             type: :string,
+             enum: ["dmy", "mdy", "iso"],
+             nullable: true,
+             description: "null renders dates the way the browser does"
            },
            enabled_apps: %Schema{
              type: :array,
@@ -496,6 +512,8 @@ defmodule ServantWeb.AuthController do
                  avatar_path: %Schema{type: :string, nullable: true},
                  timezone: %Schema{type: :string},
                  theme: %Schema{type: :string},
+                 time_format: %Schema{type: :string, nullable: true},
+                 date_format: %Schema{type: :string, nullable: true},
                  enabled_apps: %Schema{
                    type: :array,
                    items: %Schema{type: :string},
@@ -525,6 +543,8 @@ defmodule ServantWeb.AuthController do
             avatar_path: user.avatar_path,
             timezone: user.timezone,
             theme: user.theme,
+            time_format: user.time_format,
+            date_format: user.date_format,
             enabled_apps: user.enabled_apps
           }
         })

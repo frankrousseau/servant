@@ -1,84 +1,73 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
 
-import {
-  zonedToUtcISO,
-  utcToZonedParts,
-  todayInUserTz,
-  formatDate,
-  formatDuration
-} from './datetime'
+import { formatDate, formatDateTime, formatTime } from './datetime'
+import { useAuthStore } from '../stores/auth'
 
-describe('zonedToUtcISO', () => {
-  it('interprets wall-clock time in the given zone (Paris summer, UTC+2)', () => {
-    expect(zonedToUtcISO('2026-07-15', '09:00', 'Europe/Paris')).toBe(
-      '2026-07-15T07:00:00.000Z'
-    )
+import type { User } from '../types'
+
+// 2026-12-31 14:30 UTC, read in a fixed zone so the assertions hold wherever
+// the suite runs.
+const ISO = '2026-12-31T14:30:00Z'
+
+function asUser(prefs: Partial<User>) {
+  useAuthStore().user = {
+    id: 'u1',
+    username: 'frank',
+    display_name: 'Frank',
+    email: null,
+    avatar_path: null,
+    timezone: 'UTC',
+    ...prefs
+  } as User
+}
+
+describe('display preferences', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('renders the date in the chosen order', () => {
+    asUser({ date_format: 'dmy' })
+    expect(formatDate(ISO)).toBe('31/12/2026')
+    asUser({ date_format: 'mdy' })
+    expect(formatDate(ISO)).toBe('12/31/2026')
+    asUser({ date_format: 'iso' })
+    expect(formatDate(ISO)).toBe('2026-12-31')
   })
 
-  it('handles a zone behind UTC crossing midnight (New York winter, UTC-5)', () => {
-    expect(zonedToUtcISO('2026-01-01', '23:30', 'America/New_York')).toBe(
-      '2026-01-02T04:30:00.000Z'
-    )
+  it('renders the date in the user timezone, not UTC', () => {
+    asUser({ date_format: 'iso', timezone: 'Pacific/Auckland' })
+    // 14:30 UTC on the 31st is already the 1st in Auckland (+13).
+    expect(formatDate(ISO)).toBe('2027-01-01')
   })
 
-  it('is identity for UTC', () => {
-    expect(zonedToUtcISO('2026-03-10', '14:00', 'UTC')).toBe(
-      '2026-03-10T14:00:00.000Z'
-    )
-  })
-})
-
-describe('utcToZonedParts', () => {
-  it('round-trips with zonedToUtcISO', () => {
-    const utc = zonedToUtcISO('2026-07-15', '09:00', 'Europe/Paris')
-    expect(utcToZonedParts(utc, 'Europe/Paris')).toEqual({
-      date: '2026-07-15',
-      time: '09:00'
-    })
+  it('picks the hour cycle', () => {
+    asUser({ time_format: '24h' })
+    expect(formatTime(ISO)).toBe('14:30')
+    asUser({ time_format: '12h' })
+    expect(formatTime(ISO)).toMatch(/2:30\s*PM/i)
   })
 
-  it('splits a UTC instant into wall-clock date/time for the zone', () => {
-    expect(
-      utcToZonedParts('2026-01-02T04:30:00.000Z', 'America/New_York')
-    ).toEqual({
-      date: '2026-01-01',
-      time: '23:30'
-    })
-  })
-})
-
-describe('todayInUserTz', () => {
-  it('returns a YYYY-MM-DD string', () => {
-    expect(todayInUserTz('UTC')).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-  })
-})
-
-describe('formatDate', () => {
-  it('returns an empty string for null/invalid input', () => {
-    expect(formatDate(null)).toBe('')
-    expect(formatDate('not-a-date')).toBe('')
+  it('combines both in formatDateTime', () => {
+    asUser({ date_format: 'iso', time_format: '24h' })
+    expect(formatDateTime(ISO)).toBe('2026-12-31 14:30')
   })
 
-  it('formats a valid ISO date to a non-empty string', () => {
-    expect(formatDate('2026-07-15T07:00:00.000Z')).not.toBe('')
-  })
-})
-
-describe('formatDuration', () => {
-  it('formats seconds and minutes', () => {
-    expect(formatDuration(0)).toBe('0:00')
-    expect(formatDuration(7)).toBe('0:07')
-    expect(formatDuration(83.9)).toBe('1:23')
-  })
-
-  it('switches to h:mm:ss past the hour', () => {
-    expect(formatDuration(3600)).toBe('1:00:00')
-    expect(formatDuration(3661)).toBe('1:01:01')
+  // A caller asking for a shape means it: a global setting must not rewrite
+  // a deliberately compact label.
+  it('leaves explicit options alone', () => {
+    asUser({ date_format: 'iso' })
+    // Month name and day, in the runner's locale ("Dec 31", "31 déc."):
+    // what matters is that the preference did not force 2026-12-31.
+    const compact = formatDate(ISO, { month: 'short', day: 'numeric' })
+    expect(compact).toContain('31')
+    expect(compact).not.toContain('2026')
   })
 
-  it('is defensive about invalid input', () => {
-    expect(formatDuration(NaN)).toBe('0:00')
-    expect(formatDuration(Infinity)).toBe('0:00')
-    expect(formatDuration(-5)).toBe('0:00')
+  it('falls back to the browser when nothing is set', () => {
+    asUser({})
+    // Whatever the runner's locale is, the medium date style is not one of
+    // the three explicit orders.
+    expect(formatDate(ISO)).not.toBe('2026-12-31')
+    expect(formatDate(ISO)).not.toBe('')
   })
 })

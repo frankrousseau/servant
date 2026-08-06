@@ -12,6 +12,9 @@ export interface User {
   avatar_path: string | null
   timezone?: string | null
   theme?: string | null
+  // null on either means "render like the browser does"
+  time_format?: string | null
+  date_format?: string | null
   enabled_apps?: string[] | null
   totp_enabled?: boolean
   admin?: boolean

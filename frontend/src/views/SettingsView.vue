@@ -23,7 +23,12 @@ import {
   buildScopes,
   type AccessLevel
 } from '../lib/apiTokenScopes'
-import { formatDate } from '../lib/datetime'
+import {
+  DATE_FORMATS,
+  TIME_FORMATS,
+  formatDate,
+  formatTime
+} from '../lib/datetime'
 import { THEMES, applyTheme, storedTheme, type ThemeId } from '../lib/theme'
 import { useAppsStore } from '../stores/apps'
 import { useAuthStore } from '../stores/auth'
@@ -95,6 +100,52 @@ async function selectTheme(id: ThemeId) {
   } catch {
     currentTheme.value = previous
     applyTheme(previous)
+  }
+}
+
+// ----- Date and time display -----
+// Stored on the account beside the timezone; every app formats through
+// lib/datetime, so one save re-renders all of them.
+
+const BROWSER = 'Browser default'
+
+const timeOptions = [BROWSER, ...TIME_FORMATS.map(format => format.label)]
+const dateOptions = [BROWSER, ...DATE_FORMATS.map(format => format.label)]
+
+const labelOf = (
+  formats: { id: string; label: string }[],
+  id: string | null | undefined
+) => formats.find(format => format.id === id)?.label || BROWSER
+
+const timeFormat = computed(() => labelOf(TIME_FORMATS, auth.user?.time_format))
+const dateFormat = computed(() => labelOf(DATE_FORMATS, auth.user?.date_format))
+
+// The sample under each picker: today, rendered the way the pickers are set.
+const nowIso = new Date().toISOString()
+const timeSample = computed(() => {
+  void auth.user?.time_format
+  return formatTime(nowIso)
+})
+const dateSample = computed(() => {
+  void auth.user?.date_format
+  return formatDate(nowIso)
+})
+
+// Applied on change, like the theme; rolled back if the save fails.
+async function saveFormat(
+  field: 'time_format' | 'date_format',
+  formats: { id: string; label: string }[],
+  label: string
+) {
+  if (!auth.user) return
+  const previous = auth.user[field]
+  const next = formats.find(format => format.label === label)?.id || null
+  if (next === previous) return
+  auth.user[field] = next
+  try {
+    await updateProfile({ [field]: next })
+  } catch {
+    auth.user[field] = previous
   }
 }
 
@@ -358,6 +409,38 @@ onMounted(() => {
             <span class="theme-name">{{ theme.name }}</span>
           </button>
         </div>
+
+        <div class="format-row">
+          <div class="field">
+            <label id="time-format-label">Time</label>
+            <ComboBox
+              :model-value="timeFormat"
+              :options="timeOptions"
+              aria-labelledby="time-format-label"
+              @update:model-value="
+                label => saveFormat('time_format', TIME_FORMATS, label)
+              "
+            />
+            <p class="field-hint">Now: {{ timeSample }}</p>
+          </div>
+          <div class="field">
+            <label id="date-format-label">Date</label>
+            <ComboBox
+              :model-value="dateFormat"
+              :options="dateOptions"
+              aria-labelledby="date-format-label"
+              @update:model-value="
+                label => saveFormat('date_format', DATE_FORMATS, label)
+              "
+            />
+            <p class="field-hint">Today: {{ dateSample }}</p>
+          </div>
+        </div>
+        <p class="field-hint">
+          Applies everywhere dates and times are shown: Calendar, Contacts, the
+          dashboard. Your timezone lives in
+          <RouterLink to="/profile">Profile</RouterLink>.
+        </p>
       </div>
     </section>
 
@@ -805,6 +888,27 @@ onMounted(() => {
   font-size: 1.05rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+/* Date and time display, under the theme picker */
+.format-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1.5rem;
+}
+
+.format-row .field {
+  flex: 1;
+  min-width: 180px;
+  max-width: 240px;
+  margin-bottom: 0;
+}
+
+.field-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
 }
 
 /* Messages */

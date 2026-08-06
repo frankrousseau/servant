@@ -109,6 +109,41 @@ defmodule Servant.AccountsTest do
     end
   end
 
+  describe "update_profile/2 display formats" do
+    setup do
+      %{user: user_fixture(%{"username" => "fmtuser", "password" => "password123"})}
+    end
+
+    # nil is the "render like the browser does" default, so nothing is set
+    # until the user picks something.
+    test "start unset", %{user: user} do
+      assert user.time_format == nil
+      assert user.date_format == nil
+    end
+
+    test "accept the offered formats", %{user: user} do
+      assert {:ok, updated} =
+               Accounts.update_profile(user, %{"time_format" => "12h", "date_format" => "iso"})
+
+      assert updated.time_format == "12h"
+      assert updated.date_format == "iso"
+    end
+
+    test "go back to the browser default on nil", %{user: user} do
+      {:ok, user} = Accounts.update_profile(user, %{"date_format" => "dmy"})
+      assert {:ok, updated} = Accounts.update_profile(user, %{"date_format" => nil})
+      assert updated.date_format == nil
+    end
+
+    test "reject anything else", %{user: user} do
+      assert {:error, changeset} = Accounts.update_profile(user, %{"time_format" => "36h"})
+      assert %{time_format: ["is invalid"]} = errors_on(changeset)
+
+      assert {:error, changeset} = Accounts.update_profile(user, %{"date_format" => "ymd"})
+      assert %{date_format: ["is invalid"]} = errors_on(changeset)
+    end
+  end
+
   describe "ai_config" do
     test "defaults to disabled with the local base URL" do
       user = user_fixture()

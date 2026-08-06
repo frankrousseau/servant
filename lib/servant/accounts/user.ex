@@ -1,7 +1,10 @@
 defmodule Servant.Accounts.User do
-  @moduledoc "User schema: credentials, profile, timezone and theme preferences."
+  @moduledoc "User schema: credentials, profile, timezone and display preferences."
 
   @themes ~w(night graphite day cyanotype sepia rosewood)
+  # nil on either means "render like the browser does".
+  @time_formats ~w(24h 12h)
+  @date_formats ~w(dmy mdy iso)
 
   use Ecto.Schema
   import Ecto.Changeset
@@ -16,6 +19,8 @@ defmodule Servant.Accounts.User do
     field :avatar_path, :string
     field :timezone, :string, default: "UTC"
     field :theme, :string, default: "night"
+    field :time_format, :string
+    field :date_format, :string
     # nil means "the default set" (DEFAULT_ENABLED_APPS in the frontend
     # registry); ids are opaque here, the frontend owns the app list
     field :enabled_apps, {:array, :string}
@@ -43,10 +48,20 @@ defmodule Servant.Accounts.User do
 
   def profile_changeset(user, attrs) do
     user
-    |> cast(attrs, [:display_name, :email, :timezone, :theme, :enabled_apps])
+    |> cast(attrs, [
+      :display_name,
+      :email,
+      :timezone,
+      :theme,
+      :enabled_apps,
+      :time_format,
+      :date_format
+    ])
     |> validate_length(:display_name, max: 100)
     |> validate_format(:email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "must be a valid email")
     |> validate_inclusion(:theme, @themes)
+    |> validate_inclusion(:time_format, @time_formats)
+    |> validate_inclusion(:date_format, @date_formats)
     |> validate_enabled_apps()
     |> validate_timezone()
   end
