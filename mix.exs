@@ -82,10 +82,14 @@ defmodule Servant.MixProject do
         # which ecto/ecto_sqlite3 don't yet allow. Revisit when ecto supports it.
         "deps.audit --ignore-advisory-ids GHSA-rhv4-8758-jx7v",
         "format",
-        "test"
+        "test",
+        # The frontend half: same commands the Docker image runs, so a type
+        # error or a broken bundle fails here instead of at deploy time.
+        "cmd npm --prefix frontend run test",
+        "cmd npm --prefix frontend run build"
       ],
       "assets.deploy": [
-        "cmd npm run build --prefix=../frontend"
+        "cmd npm --prefix frontend run build"
       ]
     ]
   end
