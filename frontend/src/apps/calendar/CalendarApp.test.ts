@@ -63,7 +63,8 @@ describe('CalendarApp drag and drop', () => {
     await target!.trigger('drop')
     await flushPromises()
 
-    const [id, attrs] = ctx.api.entries.update.mock.calls[0] as [
+    expect(ctx.api.entries.update).toHaveBeenCalled()
+    const [id, attrs] = ctx.api.entries.update.mock.calls[0] as unknown as [
       string,
       { occurred_at: string; data: Record<string, unknown> }
     ]

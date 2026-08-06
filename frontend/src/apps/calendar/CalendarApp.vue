@@ -803,7 +803,7 @@ onUnmounted(destroyPickers)
         }"
         :data-date="cell.empty ? undefined : cell.dateStr"
         @click="!cell.empty && cell.dateStr && openModal(cell.dateStr)"
-        @dragover.prevent="dragOverDate = cell.empty ? null : cell.dateStr"
+        @dragover.prevent="dragOverDate = cell.empty ? null : (cell.dateStr ?? null)"
         @drop.prevent="!cell.empty && cell.dateStr && moveEventTo(cell.dateStr)"
       >
         <template v-if="!cell.empty">
