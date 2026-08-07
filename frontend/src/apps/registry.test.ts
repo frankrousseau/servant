@@ -4,7 +4,8 @@ import {
   BUILTIN_APPS,
   DEFAULT_ENABLED_APPS,
   enabledBuiltins,
-  agentsEnabled
+  agentsEnabled,
+  cryptoEnabled
 } from './registry'
 
 describe('enabledBuiltins', () => {
@@ -39,5 +40,18 @@ describe('agentsEnabled', () => {
   it('follows the enabled list', () => {
     expect(agentsEnabled(['agents'])).toBe(true)
     expect(agentsEnabled(['notes'])).toBe(false)
+  })
+})
+
+describe('cryptoEnabled', () => {
+  it('is off by default (unset preference)', () => {
+    expect(cryptoEnabled(null)).toBe(false)
+    expect(cryptoEnabled(undefined)).toBe(false)
+    expect(DEFAULT_ENABLED_APPS).not.toContain('crypto')
+  })
+
+  it('follows the enabled list', () => {
+    expect(cryptoEnabled(['crypto'])).toBe(true)
+    expect(cryptoEnabled(['agents'])).toBe(false)
   })
 })

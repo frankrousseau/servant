@@ -78,3 +78,11 @@ export function enabledBuiltins(ids: string[] | null | undefined): AppDef[] {
 export function agentsEnabled(ids: string[] | null | undefined): boolean {
   return (ids ?? DEFAULT_ENABLED_APPS).includes('agents')
 }
+
+// Crypto is a slice across the app rather than an app: the blockchain
+// connectors and the crypto side of Finance. Toggled the same way, and off
+// until the user opts in. Configured connectors keep syncing when it is off,
+// they are only hidden; the Settings copy says so.
+export function cryptoEnabled(ids: string[] | null | undefined): boolean {
+  return (ids ?? DEFAULT_ENABLED_APPS).includes('crypto')
+}

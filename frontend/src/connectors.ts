@@ -565,3 +565,11 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
 export function getConnectorDef(id: string): ConnectorDef | undefined {
   return CONNECTOR_DEFS.find(c => c.id === id)
 }
+
+// The wallet connectors, hidden along with the rest of crypto when the user
+// has not opted in (Settings > Apps).
+export const BLOCKCHAIN_CATEGORY = 'Blockchain'
+
+export function blockchainConnector(id: string): boolean {
+  return getConnectorDef(id)?.category === BLOCKCHAIN_CATEGORY
+}

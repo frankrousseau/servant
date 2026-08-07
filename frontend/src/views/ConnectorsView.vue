@@ -9,10 +9,17 @@ import {
   createConnector,
   listConnectors
 } from '../api/connectors'
-import { CONNECTOR_DEFS, getConnectorDef } from '../connectors'
+import { cryptoEnabled } from '../apps/registry'
+import {
+  BLOCKCHAIN_CATEGORY,
+  CONNECTOR_DEFS,
+  blockchainConnector,
+  getConnectorDef
+} from '../connectors'
 import { SCHEDULE_LABELS } from '../lib/connectors'
 import { relativeTime } from '../lib/datetime'
 import { openDialog } from '../lib/dialog'
+import { useAuthStore } from '../stores/auth'
 import type { ConnectorDef } from '../connectors'
 import type { ConnectorConfig, Schedule } from '../types'
 
@@ -20,6 +27,14 @@ const router = useRouter()
 
 const connectors = ref<ConnectorConfig[]>([])
 const loading = ref(true)
+
+// Crypto is opt-in (Settings > Apps): with it off, the wallet connectors
+// leave both the catalog and the list. Configured ones keep syncing, they
+// are only out of sight.
+const auth = useAuthStore()
+const showCrypto = computed(() => cryptoEnabled(auth.user?.enabled_apps))
+const visibleDef = (def: ConnectorDef) =>
+  showCrypto.value || def.category !== BLOCKCHAIN_CATEGORY
 
 // Setup modal
 const setupDef = ref<ConnectorDef | null>(null)
@@ -31,10 +46,15 @@ const saving = ref(false)
 
 // The def rides along so the template resolves it once per connector.
 const connectorsWithDef = computed(() =>
-  connectors.value.map(connector => ({
-    ...connector,
-    def: getConnectorDef(connector.connector_type)
-  }))
+  connectors.value
+    .filter(
+      connector =>
+        showCrypto.value || !blockchainConnector(connector.connector_type)
+    )
+    .map(connector => ({
+      ...connector,
+      def: getConnectorDef(connector.connector_type)
+    }))
 )
 
 const scheduleOptions = computed(() =>
@@ -54,6 +74,7 @@ const catalogGroups = computed(() => {
   const needle = catalogSearch.value.toLowerCase().trim()
   const defs = [...CONNECTOR_DEFS]
     .sort((a, b) => a.name.localeCompare(b.name))
+    .filter(visibleDef)
     .filter(
       def =>
         !needle ||

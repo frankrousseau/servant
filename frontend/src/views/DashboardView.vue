@@ -17,8 +17,9 @@ import {
   recurrenceOf,
   upcomingOccurrence
 } from '../apps/calendar/recurrence'
+import { cryptoEnabled } from '../apps/registry'
 import { debounce, useSocket } from '../composables/useSocket'
-import { getConnectorDef } from '../connectors'
+import { blockchainConnector, getConnectorDef } from '../connectors'
 import {
   formatDate,
   formatDateTime,
@@ -250,9 +251,15 @@ const lastSyncAt = computed(() => {
 
 // Errored connectors first (they need attention), then most recently
 // synced first; never-synced ones sink to the bottom. The def rides along
-// so the template resolves it once per connector.
+// so the template resolves it once per connector. Wallet connectors are out
+// while crypto is off (Settings > Apps).
 const sortedConnectors = computed(() =>
-  [...connectors.value]
+  connectors.value
+    .filter(
+      connector =>
+        cryptoEnabled(auth.user?.enabled_apps) ||
+        !blockchainConnector(connector.connector_type)
+    )
     .sort((a, b) => {
       if (!!a.error !== !!b.error) return a.error ? -1 : 1
       return (b.last_synced_at ?? '').localeCompare(a.last_synced_at ?? '')

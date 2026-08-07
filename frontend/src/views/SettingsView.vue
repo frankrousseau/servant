@@ -58,8 +58,13 @@ async function loadApiVersion() {
 // Mirrors the user's preference; null on the account means the default set.
 const enabledApps = ref<string[]>([...DEFAULT_ENABLED_APPS])
 
-// Agents keeps its own /agents route but toggles like a built-in app.
-const toggleableApps = [{ id: 'agents', name: 'Agents' }, ...BUILTIN_APPS]
+// Agents keeps its own /agents route and Crypto is a slice across the app
+// rather than an app, but both toggle like a built-in one.
+const toggleableApps = [
+  { id: 'agents', name: 'Agents' },
+  { id: 'crypto', name: 'Crypto' },
+  ...BUILTIN_APPS
+]
 
 watch(
   () => auth.user?.enabled_apps,
@@ -586,6 +591,11 @@ onMounted(() => {
             {{ app.name }}
           </label>
         </div>
+        <p class="tk-hint">
+          Crypto covers the blockchain connectors and the crypto side of
+          Finance. Turning it off hides them; a wallet connector already set up
+          keeps syncing in the background until you disable it in Connectors.
+        </p>
 
         <h3 class="app-subhead">Installed apps</h3>
         <p class="tk-hint">

@@ -23,6 +23,11 @@ export function createAppContext(viewer: ViewerAPI): AppContext {
     navigate(path: string) {
       router.push(path)
     },
+    // Read through on every access: a toggle in Settings reaches a mounted
+    // app without remounting it.
+    get enabledApps() {
+      return auth.user?.enabled_apps ?? null
+    },
     api: {
       // The app-facing surface is the shared entries client, nothing more.
       entries: {

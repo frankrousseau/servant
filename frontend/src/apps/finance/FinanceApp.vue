@@ -11,6 +11,7 @@ import TransactionsSection from './TransactionsSection.vue'
 import { todayInUserTz, zonedToUtcISO } from '../../lib/datetime'
 import { openDialog } from '../../lib/dialog'
 import { addDays } from '../calendar/recurrence'
+import { cryptoEnabled } from '../registry'
 import { fetchCryptoPrices } from './cryptoPrices'
 import {
   ACCOUNT_TYPES,
@@ -42,13 +43,18 @@ const CRYPTO_COLOR = '#6ccec9'
 
 type Tab = 'overview' | 'accounts' | 'spending' | 'cryptos' | 'taxes'
 const tab = ref<Tab>('overview')
-const TABS: Array<{ id: Tab; label: string }> = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'accounts', label: 'Accounts' },
-  { id: 'spending', label: 'Spending' },
-  { id: 'cryptos', label: 'Cryptos' },
-  { id: 'taxes', label: 'Taxes' }
-]
+
+// Crypto is opt-in (Settings > Apps). With it off this app is tradfi only:
+// no Cryptos tab, no wallet accounts, no crypto line in the totals.
+const showCrypto = computed(() => cryptoEnabled(ctx.enabledApps))
+
+const TABS = computed<Array<{ id: Tab; label: string }>>(() => [
+  { id: 'overview' as Tab, label: 'Overview' },
+  { id: 'accounts' as Tab, label: 'Accounts' },
+  { id: 'spending' as Tab, label: 'Spending' },
+  ...(showCrypto.value ? [{ id: 'cryptos' as Tab, label: 'Cryptos' }] : []),
+  { id: 'taxes' as Tab, label: 'Taxes' }
+])
 
 const accountEntries = ref<Entry[]>([])
 const balanceEntries = ref<Entry[]>([])
@@ -132,8 +138,26 @@ function saveTax(field: 'tax_provision' | 'crypto_tax_pct', raw: string) {
 
 // ----- accounts / curves -----
 
-const accounts = computed(() =>
-  buildAccounts(accountEntries.value, bankTxs.value)
+const accounts = computed(() => {
+  const all = buildAccounts(accountEntries.value, bankTxs.value)
+  return showCrypto.value
+    ? all
+    : all.filter(account => account.universe !== 'crypto')
+})
+
+// Portfolio snapshots go with them: cryptoCurve treats a snapshot as the
+// curve even with no wallet account left, which would keep crypto money
+// inside the overview total while its split row was gone.
+const visibleBalances = computed(() =>
+  showCrypto.value
+    ? balanceEntries.value
+    : balanceEntries.value.filter(entry => entry.data.universe !== 'crypto')
+)
+
+const accountTypeOptions = computed(() =>
+  showCrypto.value
+    ? [...ACCOUNT_TYPES]
+    : ACCOUNT_TYPES.filter(type => type !== 'wallet')
 )
 
 const seriesByKey = computed(() => {
@@ -171,7 +195,7 @@ function buildUniverse(
       ? cryptoCurve(
           list,
           seriesByKey.value,
-          balanceEntries.value,
+          visibleBalances.value,
           rates.value,
           refCurrency.value
         )
@@ -190,16 +214,22 @@ function buildUniverse(
   }
 }
 
-const universes = computed<UniverseView[]>(() => [
-  buildUniverse('tradfi', 'Tradfi', 'var(--primary)'),
-  buildUniverse('crypto', 'Crypto', CRYPTO_COLOR)
-])
+const universes = computed<UniverseView[]>(() =>
+  showCrypto.value
+    ? [
+        buildUniverse('tradfi', 'Tradfi', 'var(--primary)'),
+        buildUniverse('crypto', 'Crypto', CRYPTO_COLOR)
+      ]
+    : [buildUniverse('tradfi', 'Tradfi', 'var(--primary)')]
+)
 
 const grandTotal = computed(() =>
   universes.value.reduce((sum, universe) => sum + universe.total, 0)
 )
-const bothUniversesLive = computed(() =>
-  universes.value.every(universe => universe.points.length > 0)
+const bothUniversesLive = computed(
+  () =>
+    universes.value.length > 1 &&
+    universes.value.every(universe => universe.points.length > 0)
 )
 
 // ----- per-account helpers -----
@@ -702,7 +732,7 @@ function saveShared(account: Account, shared: boolean) {
         v-if="tab === 'overview'"
         :accounts="accounts"
         :series-by-key="seriesByKey"
-        :balance-entries="balanceEntries"
+        :balance-entries="visibleBalances"
         :txs="bankTxs"
         :rates="rates"
         :ref-currency="refCurrency"
@@ -753,7 +783,7 @@ function saveShared(account: Account, shared: boolean) {
               tradfi total in the overview.
             </p>
           </div>
-          <div class="fin-modal-field">
+          <div v-if="showCrypto" class="fin-modal-field">
             <label for="fin-crypto-tax">Crypto tax rate (%)</label>
             <input
               id="fin-crypto-tax"
@@ -1257,7 +1287,7 @@ function saveShared(account: Account, shared: boolean) {
         <div class="fin-modal-row">
           <div class="fin-modal-field">
             <label>Type</label>
-            <ComboBox v-model="accountType" :options="ACCOUNT_TYPES" />
+            <ComboBox v-model="accountType" :options="accountTypeOptions" />
           </div>
           <div class="fin-modal-field">
             <label>Currency / asset</label>
@@ -1275,9 +1305,9 @@ function saveShared(account: Account, shared: boolean) {
           <input v-model="accountShared" type="checkbox" />
           Shared account (spending counts half)
         </label>
-        <p class="fin-modal-hint">
+        <p v-if="showCrypto" class="fin-modal-hint">
           Wallets live in the crypto universe; use the asset as currency (one
-          account per asset) and set its rate to value it.
+          account per asset), valued from its spot price.
         </p>
         <div class="fin-modal-actions">
           <span class="fin-modal-spacer"></span>

@@ -61,6 +61,9 @@ export interface ConfirmAPI {
 
 export interface AppContext {
   navigate(path: string): void
+  // What the user kept enabled in Settings > Apps; null means the default
+  // set. A getter on the context object, so it stays live.
+  readonly enabledApps: string[] | null
   confirm: ConfirmAPI
   api: {
     entries: EntriesAPI

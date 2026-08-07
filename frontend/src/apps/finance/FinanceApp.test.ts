@@ -77,6 +77,8 @@ function makeCtx() {
   })
   return {
     navigate: vi.fn(),
+    // Crypto is opt-in; these cases exercise it, so the fixture opts in.
+    enabledApps: ['crypto'],
     confirm: { ask: vi.fn().mockResolvedValue(true) },
     api: {
       entries: {
@@ -121,6 +123,64 @@ describe('FinanceApp tabs', () => {
     expect(wrapper.find('.sp-chart').exists()).toBe(true)
     expect(wrapper.find('.sp-table').exists()).toBe(true)
     expect(wrapper.findAll('.ftx-row').length).toBe(2)
+  })
+
+  // Crypto off (the default): the app is tradfi only, and a wallet account
+  // plus a portfolio snapshot must leave no trace, including in the totals.
+  it('drops everything crypto when the user has not opted in', async () => {
+    const ctx = makeCtx()
+    ctx.enabledApps = []
+    const wallet = entry('account', {
+      id: 'w1',
+      title: 'Ledger',
+      data: { type: 'wallet', currency: 'ETH' }
+    })
+    const bank = entry('account', {
+      id: 'b1',
+      title: 'Livret',
+      data: { type: 'livret', currency: 'EUR' }
+    })
+    const snapshot = entry('balance', {
+      id: 's1',
+      occurred_at: '2026-07-15T12:00:00Z',
+      data: { universe: 'crypto', amount: 9999, currency: 'EUR' }
+    })
+    const bankBalance = entry('balance', {
+      id: 's2',
+      occurred_at: '2026-07-15T12:00:00Z',
+      data: { account_id: 'b1', amount: 500 }
+    })
+    ctx.api.entries.list = vi.fn(async (filters?: Record<string, string>) => {
+      if (filters?.kind === 'account') return [wallet, bank]
+      if (filters?.kind === 'balance') return [snapshot, bankBalance]
+      if (filters?.kind === 'bank_tx') return []
+      return STORE[filters?.kind || ''] || []
+    })
+    const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+
+    const tabs = wrapper.findAll('.fin-tab')
+    expect(tabs.map(t => t.text())).toEqual([
+      'Overview',
+      'Accounts',
+      'Spending',
+      'Taxes'
+    ])
+
+    // The 9 999 EUR portfolio snapshot must not sneak into the headline.
+    expect(wrapper.find('.ov-total').text()).toContain('500')
+    expect(wrapper.text()).not.toContain('9 999')
+    // One universe left, so the per-universe split line has nothing to say.
+    expect(wrapper.find('.ov-splits').exists()).toBe(false)
+
+    await tabs[1].trigger('click')
+    const names = wrapper.findAll('.fin-account-name').map(n => n.text())
+    expect(names.some(name => name.includes('Livret'))).toBe(true)
+    expect(names.some(name => name.includes('Ledger'))).toBe(false)
+    expect(wrapper.text()).not.toContain('Crypto')
+
+    await tabs[3].trigger('click')
+    expect(wrapper.find('#fin-crypto-tax').exists()).toBe(false)
   })
 
   it('jumps from an account row to its transactions', async () => {
