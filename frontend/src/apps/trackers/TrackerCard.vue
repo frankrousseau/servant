@@ -3,6 +3,8 @@ import { computed, ref, watch } from 'vue'
 
 import DateInput from '../../components/DateInput.vue'
 
+import { weekdayName } from '../../lib/datetime'
+
 import {
   heatmapWeeks,
   lastValue,
@@ -117,7 +119,7 @@ function saveValue() {
 
 function cellTitle(date: string, value: number): string {
   const unit = props.tracker.unit ? ` ${props.tracker.unit}` : ''
-  return `${date}: ${value}${unit}`
+  return `${weekdayName(date)} ${date}: ${value}${unit}`
 }
 
 function onCellClick(date: string) {

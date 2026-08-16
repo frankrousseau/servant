@@ -235,6 +235,15 @@ export function todayLocalStr(): string {
   return `${d.getFullYear()}-${m}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+// A civil date's weekday name ("2026-08-14" -> "Friday"). English on
+// purpose: the UI copy around it is English.
+export function weekdayName(civilDate: string): string {
+  return new Date(`${civilDate}T12:00:00Z`).toLocaleDateString('en-US', {
+    weekday: 'long',
+    timeZone: 'UTC'
+  })
+}
+
 // A civil date as a short "Aug 12" due-chip label.
 export function formatDue(due: string): string {
   const [y, m, d] = due.split('-').map(Number)
