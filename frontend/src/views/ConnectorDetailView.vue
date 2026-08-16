@@ -61,11 +61,18 @@ const uploading = ref(false)
 const uploadResult = ref<{ imported: number; skipped: number } | null>(null)
 const uploadError = ref('')
 
-const importableTypes: Record<string, { accept: string; label: string }> = {
-  bank_csv: { accept: '.csv', label: 'CSV' },
-  ical: { accept: '.ics,.ical', label: 'iCal (.ics)' },
-  vcard: { accept: '.vcf,.vcard', label: 'vCard (.vcf)' },
-  apple_health: { accept: '.xml', label: 'Apple Health export (XML)' }
+const importableTypes: Record<
+  string,
+  { accept: string; label: string; items: string }
+> = {
+  bank_csv: { accept: '.csv', label: 'CSV', items: 'transactions' },
+  ical: { accept: '.ics,.ical', label: 'iCal (.ics)', items: 'events' },
+  vcard: { accept: '.vcf,.vcard', label: 'vCard (.vcf)', items: 'contacts' },
+  apple_health: {
+    accept: '.xml',
+    label: 'Apple Health export (XML)',
+    items: 'records'
+  }
 }
 
 const isImportable = computed(() =>
@@ -445,8 +452,8 @@ onMounted(() => {
           </label>
 
           <div v-if="uploadResult" class="upload-result msg-success">
-            Imported {{ uploadResult.imported }} transactions<template
-              v-if="uploadResult.skipped"
+            Imported {{ uploadResult.imported }} {{ importConfig.items
+            }}<template v-if="uploadResult.skipped"
               >, {{ uploadResult.skipped }} skipped (duplicates)</template
             >.
           </div>

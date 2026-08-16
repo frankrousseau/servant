@@ -308,7 +308,8 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
   {
     id: 'vcard',
     name: 'Contacts (vCard)',
-    description: 'Import your contacts from a vCard (.vcf) file or URL.',
+    description:
+      'Import your contacts from a vCard (.vcf) file, or subscribe to a URL. An imported file joins your address book and syncs to your phone; a URL stays a read-only feed.',
     category: 'Contacts',
     logo: VCARD_LOGO,
     configFields: [

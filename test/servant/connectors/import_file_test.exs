@@ -9,6 +9,7 @@ defmodule Servant.Connectors.ImportFileTest do
   VERSION:3.0
   FN:John Doe
   EMAIL:john@example.com
+  PHOTO;ENCODING=b;TYPE=JPEG:/9j/4AAQSkZJRgABAQ==
   UID:john-1
   END:VCARD
   """
@@ -55,6 +56,77 @@ defmodule Servant.Connectors.ImportFileTest do
     assert [log] = Connectors.list_sync_logs(config.id)
     assert log.status == "completed"
     assert log.entries_count == 1
+  end
+
+  test "an imported contact reaches the CardDAV address book" do
+    user = user_fixture()
+
+    {:ok, config} =
+      Connectors.create_connector_config(user.id, %{
+        "connector_type" => "vcard",
+        "name" => "Contacts"
+      })
+
+    upload = %Plug.Upload{
+      path: write_tmp(@vcf),
+      filename: "contacts.vcf",
+      content_type: "text/vcard"
+    }
+
+    assert {:ok, _} = Connectors.import_file(user.id, config.id, upload)
+
+    assert [contact] = Servant.CardDAV.contacts(user.id)
+    assert contact.source == "manual"
+    assert contact.data["display_name"] == "John Doe"
+
+    # The card is served back as it was imported, photo included: a synthesized
+    # card carries no PHOTO line at all.
+    assert Servant.CardDAV.VCard.to_vcf(contact) =~ "PHOTO;ENCODING=b;TYPE=JPEG:"
+  end
+
+  test "an imported photo becomes the contact avatar" do
+    user = user_fixture()
+
+    {:ok, config} =
+      Connectors.create_connector_config(user.id, %{
+        "connector_type" => "vcard",
+        "name" => "Contacts"
+      })
+
+    upload = %Plug.Upload{
+      path: write_tmp(@vcf),
+      filename: "contacts.vcf",
+      content_type: "text/vcard"
+    }
+
+    assert {:ok, _} = Connectors.import_file(user.id, config.id, upload)
+
+    assert [contact] = Servant.CardDAV.contacts(user.id)
+    assert "/files/" <> relative = contact.data["photo"]
+    assert String.ends_with?(relative, ".jpg")
+    assert File.exists?(Servant.Storage.join_files([relative]))
+  end
+
+  test "re-importing the same file does not duplicate contacts" do
+    user = user_fixture()
+
+    {:ok, config} =
+      Connectors.create_connector_config(user.id, %{
+        "connector_type" => "vcard",
+        "name" => "Contacts"
+      })
+
+    for _ <- 1..2 do
+      upload = %Plug.Upload{
+        path: write_tmp(@vcf),
+        filename: "contacts.vcf",
+        content_type: "text/vcard"
+      }
+
+      assert {:ok, _} = Connectors.import_file(user.id, config.id, upload)
+    end
+
+    assert Data.count_entries(user.id) == 1
   end
 
   test "rejects an unsupported connector type" do

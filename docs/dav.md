@@ -32,10 +32,19 @@ them.
   agenda name your own events reference (agendas without an entity).
 - **Contacts**: a single `contacts` address book.
 - Only user-authored entries are exposed (source `manual`, `caldav` or
-  `carddav`). Connector-synced events and contacts (iCal feeds, vCard
-  imports) are excluded: they are re-fetched on a schedule and don't keep a
-  phone's raw ICS/vCard payload, so editing them over DAV would drop that
-  payload on the next sync. Subscribe to those feeds directly on the phone.
+  `carddav`). Feeds polled on a schedule (iCal URLs, vCard URLs) are
+  excluded: the next sync would undo whatever the phone edited. Subscribe to
+  those feeds directly on the phone.
+- **Importing an address book**: a `.vcf` dropped on the vCard connector
+  (Sources > Contacts (vCard) > Import) is a one-shot hand-off, not a feed,
+  so its contacts land as `manual` ones and show up on the phone at the next
+  sync. Each card is stored verbatim, so photos and structured names survive,
+  and an inline (base64) photo is also decoded into a stored file so it becomes
+  the contact's avatar in the app; editing such a contact in Servant
+  regenerates its card from the app's fields and drops the extras the app
+  doesn't model, same as for a contact created on the phone. This is the
+  way to move an existing address book in, since neither iOS nor Android can
+  move a contact from one account to another.
 - Items created on the phone keep their raw ICS/vCard payload, so
   alarms, attendees, complex RRULEs, photos and structured names survive
   round-trips even though the apps only understand their simple fields.

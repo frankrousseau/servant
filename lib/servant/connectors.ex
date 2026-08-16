@@ -271,11 +271,16 @@ defmodule Servant.Connectors do
             {:ok, state} ->
               {:ok, sync_log} = create_sync_log(config.id)
 
+              # Importers get the user id on top of their own state: turning
+              # something embedded in the file into a stored file (a vCard
+              # photo) needs to know whose storage to write to.
+              import_state = Map.put(state, :user_id, user_id)
+
               run_import(
                 module,
                 import_fn,
                 content,
-                state,
+                import_state,
                 sync_log,
                 user_id,
                 config_id,

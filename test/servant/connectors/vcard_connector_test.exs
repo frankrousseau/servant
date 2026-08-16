@@ -28,6 +28,15 @@ defmodule Servant.Connectors.VCardConnectorTest do
   END:VCARD
   """
 
+  @photo_vcf """
+  BEGIN:VCARD
+  VERSION:3.0
+  FN:Photo Owner
+  PHOTO;ENCODING=b;TYPE=JPEG:/9j/4AAQSkZJRgABAQ==
+  UID:photo-1
+  END:VCARD
+  """
+
   describe "parse_vcards/1" do
     test "parses multiple vCards" do
       contacts = VCardConnector.parse_vcards(@sample_vcf)
@@ -74,6 +83,27 @@ defmodule Servant.Connectors.VCardConnectorTest do
       [_, jane] = VCardConnector.parse_vcards(@sample_vcf)
       assert jane.uid == "Jane Smith"
     end
+
+    test "reads an inline photo, folded over several lines" do
+      vcf =
+        "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Photo Owner\r\nPHOTO;ENCODING=b;TYPE=JPEG:/9j/4AAQ\r\n SkZJRgABAQ==\r\nEND:VCARD"
+
+      [contact] = VCardConnector.parse_vcards(vcf)
+      assert contact.photo == "/9j/4AAQSkZJRgABAQ=="
+    end
+
+    test "reads a vCard 4.0 data URI photo" do
+      vcf =
+        "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Photo Owner\r\nPHOTO:data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ==\r\nEND:VCARD"
+
+      [contact] = VCardConnector.parse_vcards(vcf)
+      assert contact.photo == "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ=="
+    end
+
+    test "is nil when the card carries no photo" do
+      [john | _] = VCardConnector.parse_vcards(@sample_vcf)
+      assert john.photo == nil
+    end
   end
 
   describe "import_vcard/2" do
@@ -85,11 +115,68 @@ defmodule Servant.Connectors.VCardConnectorTest do
       [john, _] = entries
 
       assert john["kind"] == "contact"
-      assert john["source"] == "vcard"
       assert john["external_id"] == "john-doe-123"
       assert String.contains?(john["title"], "John Doe")
       assert john["data"]["display_name"] == "John Doe"
       assert john["data"]["source_name"] == "Test"
+    end
+
+    test "imports as manual contacts, the source CardDAV exposes" do
+      {:ok, state} = VCardConnector.init(%{}, %{})
+      {:ok, entries} = VCardConnector.import_vcard(@sample_vcf, state)
+
+      assert Enum.all?(entries, &(&1["source"] == "manual"))
+    end
+
+    test "keeps each card verbatim so a phone gets its extras back" do
+      {:ok, state} = VCardConnector.init(%{}, %{})
+      {:ok, [john, jane]} = VCardConnector.import_vcard(@sample_vcf, state)
+
+      assert john["data"]["carddav_vcf"] =~ "FN:John Doe"
+      assert john["data"]["carddav_vcf"] =~ "UID:john-doe-123"
+      refute john["data"]["carddav_vcf"] =~ "Jane Smith"
+      assert {:ok, _, _} = DateTime.from_iso8601(john["data"]["carddav_vcf_at"])
+      assert jane["data"]["carddav_vcf"] =~ "FN:Jane Smith"
+    end
+
+    test "keeps a photo in the raw card, which no synthesized card carries" do
+      {:ok, state} = VCardConnector.init(%{}, %{})
+      {:ok, [contact]} = VCardConnector.import_vcard(@photo_vcf, state)
+
+      assert contact["data"]["carddav_vcf"] =~ "PHOTO;ENCODING=b;TYPE=JPEG:/9j/4AAQSkZJRgABAQ=="
+    end
+
+    test "leaves the avatar alone when the importer has no user to store it for" do
+      {:ok, state} = VCardConnector.init(%{}, %{})
+      {:ok, [contact]} = VCardConnector.import_vcard(@photo_vcf, state)
+
+      refute Map.has_key?(contact["data"], "photo")
+    end
+  end
+
+  describe "parse_vcards_with_raw/1" do
+    test "pairs every contact with its own card" do
+      pairs = VCardConnector.parse_vcards_with_raw(@sample_vcf)
+
+      assert [{john, john_raw}, {jane, jane_raw}] = pairs
+      assert john.display_name == "John Doe"
+      assert john_raw =~ "BEGIN:VCARD"
+      assert john_raw =~ "END:VCARD"
+      assert jane.display_name == "Jane Smith"
+      assert jane_raw =~ "FN:Jane Smith"
+    end
+
+    test "keeps the original folding in the raw card" do
+      vcf =
+        "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Test\r\nNOTE:This is a long\r\n  note that wraps\r\nUID:fold-test\r\nEND:VCARD"
+
+      assert [{contact, raw}] = VCardConnector.parse_vcards_with_raw(vcf)
+      assert contact.note == "This is a long note that wraps"
+      assert raw =~ "NOTE:This is a long\r\n  note that wraps"
+    end
+
+    test "drops a card left without its END line" do
+      assert [] = VCardConnector.parse_vcards_with_raw("BEGIN:VCARD\r\nFN:Truncated\r\n")
     end
   end
 
