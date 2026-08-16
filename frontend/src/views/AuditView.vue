@@ -500,7 +500,7 @@ const ms = (us: number) =>
 }
 .au-method {
   color: var(--primary);
-  width: 4.5ch;
+  width: 8.5ch;
   flex-shrink: 0;
 }
 .au-path {
