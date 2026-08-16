@@ -1,8 +1,14 @@
 defmodule Servant.Media.Exif do
   @moduledoc """
-  Extracts EXIF metadata from JPEG images: date taken, GPS coordinates,
+  Extracts EXIF metadata from images: date taken, GPS coordinates,
   camera info. Returns nil values gracefully when data is missing.
+
+  JPEG files go through `ExifParser`; anything else falls back to the
+  `exif-*` header fields libvips exposes through Vix (libexif build),
+  which covers HEIC photos coming from phones over WebDAV.
   """
+
+  alias Vix.Vips.Image
 
   @doc """
   Extracts EXIF data from a file path.
@@ -22,10 +28,79 @@ defmodule Servant.Media.Exif do
         }
 
       {:error, _} ->
-        %{}
+        extract_via_vips(path)
     end
   rescue
     _ -> %{}
+  end
+
+  # libvips renders each EXIF entry as "value (value, type, n components,
+  # n bytes)"; strip the parenthesized suffix to get the value back.
+  defp extract_via_vips(path) do
+    with {:ok, img} <- Image.new_from_file(path),
+         {:ok, fields} <- Image.header_field_names(img),
+         true <- Enum.any?(fields, &String.starts_with?(&1, "exif-ifd")) do
+      %{
+        date_taken: parse_exif_date(vips_field(img, "exif-ifd2-DateTimeOriginal")),
+        gps: vips_gps(img),
+        camera_make: vips_field(img, "exif-ifd0-Make"),
+        camera_model: vips_field(img, "exif-ifd0-Model"),
+        orientation: vips_orientation(img),
+        width: Image.width(img),
+        height: Image.height(img)
+      }
+    else
+      _ -> %{}
+    end
+  rescue
+    _ -> %{}
+  end
+
+  defp vips_field(img, name) do
+    case Image.header_value(img, name) do
+      {:ok, value} when is_binary(value) ->
+        String.replace(value, ~r/ \([^)]*\)$/, "")
+
+      _ ->
+        nil
+    end
+  end
+
+  defp vips_gps(img) do
+    lat = vips_field(img, "exif-ifd3-GPSLatitude")
+    lat_ref = vips_field(img, "exif-ifd3-GPSLatitudeRef")
+    lon = vips_field(img, "exif-ifd3-GPSLongitude")
+    lon_ref = vips_field(img, "exif-ifd3-GPSLongitudeRef")
+
+    with [_ | _] = lat_dms <- parse_rationals(lat),
+         [_ | _] = lon_dms <- parse_rationals(lon) do
+      %{
+        latitude: dms_to_decimal(lat_dms, lat_ref),
+        longitude: dms_to_decimal(lon_dms, lon_ref)
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  # "47/1 30/1 1234/100" -> [47.0, 30.0, 12.34]
+  defp parse_rationals(nil), do: nil
+
+  defp parse_rationals(value) do
+    for part <- String.split(value, " ", trim: true),
+        [n, d] <- [String.split(part, "/", parts: 2)],
+        {num, ""} <- [Integer.parse(n)],
+        {den, ""} <- [Integer.parse(d)],
+        den > 0 do
+      num / den
+    end
+  end
+
+  defp vips_orientation(img) do
+    case Image.header_value(img, "orientation") do
+      {:ok, orientation} when is_integer(orientation) -> orientation
+      _ -> nil
+    end
   end
 
   defp extract_date(exif) do
