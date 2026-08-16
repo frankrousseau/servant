@@ -25,6 +25,7 @@ defmodule ServantWeb.DavController do
   alias Servant.CardDAV.VCard
   alias Servant.Dav
   alias Servant.FilesDav
+  alias Servant.PhotosDav
   alias Servant.Storage
 
   @dav_compliance "1, 3, calendar-access, addressbook"
@@ -74,6 +75,9 @@ defmodule ServantWeb.DavController do
 
         ["files" | _] ->
           Scopes.can?(scopes, "files", action)
+
+        ["photos" | _] ->
+          Scopes.can?(scopes, "photos", action)
 
         # Root and principal serve the discovery of both trees.
         _ ->
@@ -235,6 +239,45 @@ defmodule ServantWeb.DavController do
     end
   end
 
+  defp propfind(conn, ["photos" | rest]) do
+    u = user(conn)
+    photos = PhotosDav.photos(u.id)
+
+    case PhotosDav.resolve(photos, rest) do
+      {:folder, prefix} ->
+        self_name = if prefix, do: Path.basename(prefix), else: "photos"
+        self_resp = [response_xml(photos_href(rest, true), folder_props(self_name))]
+
+        children =
+          if depth(conn) > 0 do
+            folders =
+              for name <- PhotosDav.child_folders(photos, prefix) do
+                response_xml(photos_href(rest ++ [name], true), folder_props(name))
+              end
+
+            files =
+              for entry <- PhotosDav.photos_in(photos, prefix) do
+                name = PhotosDav.filename(entry)
+                response_xml(photos_href(rest ++ [name], false), binary_props(name, entry))
+              end
+
+            folders ++ files
+          else
+            []
+          end
+
+        multistatus(conn, self_resp ++ children)
+
+      {:file, entry} ->
+        multistatus(conn, [
+          response_xml(photos_href(rest, false), binary_props(PhotosDav.filename(entry), entry))
+        ])
+
+      :not_found ->
+        send_resp(conn, 404, "")
+    end
+  end
+
   defp propfind(conn, _), do: send_resp(conn, 404, "")
 
   # ----- REPORT (multiget / query) -----
@@ -342,6 +385,16 @@ defmodule ServantWeb.DavController do
     end
   end
 
+  defp get_resource(conn, ["photos" | rest]) do
+    u = user(conn)
+
+    case PhotosDav.resolve(PhotosDav.photos(u.id), rest) do
+      {:file, entry} -> send_stored_file(conn, u.id, entry)
+      {:folder, _} -> conn |> put_resp_header("allow", @allow) |> send_resp(405, "")
+      :not_found -> send_resp(conn, 404, "")
+    end
+  end
+
   defp get_resource(conn, _), do: send_resp(conn, 404, "")
 
   defp send_stored_file(conn, user_id, entry) do
@@ -415,7 +468,54 @@ defmodule ServantWeb.DavController do
     end
   end
 
+  defp put_resource(conn, ["photos" | rest]) when rest != [] do
+    u = user(conn)
+    mtime = oc_mtime(conn)
+
+    case stream_body_to_tmp(conn, u.id) do
+      {:ok, tmp, conn} ->
+        result = PhotosDav.put_photo(u.id, PhotosDav.photos(u.id), rest, tmp, mtime: mtime)
+        Storage.cleanup_tmp(Path.dirname(tmp))
+
+        case result do
+          {:ok, :created, entry} ->
+            conn |> photo_put_headers(entry, mtime) |> send_resp(201, "")
+
+          {:ok, :updated, entry} ->
+            conn |> photo_put_headers(entry, mtime) |> send_resp(204, "")
+
+          {:error, _} ->
+            send_resp(conn, 400, "")
+        end
+
+      {:too_large, tmp, conn} ->
+        Storage.cleanup_tmp(Path.dirname(tmp))
+        send_resp(conn, 413, "")
+
+      {:read_error, tmp, conn} ->
+        Storage.cleanup_tmp(Path.dirname(tmp))
+        send_resp(conn, 400, "")
+    end
+  end
+
   defp put_resource(conn, _), do: send_resp(conn, 404, "")
+
+  # X-OC-MTime (Nextcloud dialect, unix seconds): the capture-date fallback
+  # for media without EXIF; PhotoSync and rclone both send it.
+  defp oc_mtime(conn) do
+    with [value] <- get_req_header(conn, "x-oc-mtime"),
+         {seconds, ""} <- Integer.parse(value),
+         {:ok, dt} <- DateTime.from_unix(seconds) do
+      dt
+    else
+      _ -> nil
+    end
+  end
+
+  defp photo_put_headers(conn, entry, mtime) do
+    conn = put_resp_header(conn, "etag", Dav.etag(entry))
+    if mtime, do: put_resp_header(conn, "x-oc-mtime", "accepted"), else: conn
+  end
 
   # Bodies can be large (photos, videos): stream chunks to a tmp file
   # instead of the single 8MB read the ICS/vCard paths get away with.
@@ -507,6 +607,20 @@ defmodule ServantWeb.DavController do
     end
   end
 
+  defp delete_resource(conn, ["photos" | rest]) when rest != [] do
+    u = user(conn)
+    photos = PhotosDav.photos(u.id)
+
+    case PhotosDav.resolve(photos, rest) do
+      :not_found ->
+        send_resp(conn, 404, "")
+
+      resolved ->
+        PhotosDav.delete(u.id, photos, resolved)
+        send_resp(conn, 204, "")
+    end
+  end
+
   defp delete_resource(conn, _), do: send_resp(conn, 404, "")
 
   defp mkcol(conn, ["files" | rest]) when rest != [] do
@@ -515,6 +629,15 @@ defmodule ServantWeb.DavController do
       {:error, :exists} -> send_resp(conn, 405, "")
       {:error, :conflict} -> send_resp(conn, 409, "")
       {:error, _} -> send_resp(conn, 400, "")
+    end
+  end
+
+  defp mkcol(conn, ["photos" | rest]) when rest != [] do
+    # Albums are virtual: answer 201 without persisting anything; resolve/2
+    # treats unknown extensionless paths as empty albums afterwards.
+    case PhotosDav.mkcol_status(PhotosDav.photos(user(conn).id), rest) do
+      :created -> send_resp(conn, 201, "")
+      :exists -> send_resp(conn, 405, "")
     end
   end
 
@@ -588,6 +711,11 @@ defmodule ServantWeb.DavController do
     if collection? and segments != [], do: base <> "/", else: base
   end
 
+  defp photos_href(segments, collection?) do
+    base = "/dav/photos/" <> Enum.map_join(segments, "/", &encode_segment/1)
+    if collection? and segments != [], do: base <> "/", else: base
+  end
+
   defp folder_props(name) do
     [
       "<d:displayname>",
@@ -600,24 +728,29 @@ defmodule ServantWeb.DavController do
     if FilesDav.folder?(entry) do
       folder_props(FilesDav.name(entry))
     else
-      [
-        "<d:displayname>",
-        xml_escape(FilesDav.name(entry)),
-        "</d:displayname><d:resourcetype/>",
-        "<d:getcontentlength>",
-        to_string(entry.data["size"] || 0),
-        "</d:getcontentlength>",
-        "<d:getcontenttype>",
-        xml_escape(entry.data["mime_type"] || "application/octet-stream"),
-        "</d:getcontenttype>",
-        "<d:getlastmodified>",
-        http_date(entry.updated_at),
-        "</d:getlastmodified>",
-        "<d:getetag>",
-        xml_escape(Dav.etag(entry)),
-        "</d:getetag>"
-      ]
+      binary_props(FilesDav.name(entry), entry)
     end
+  end
+
+  # Non-collection props shared by the files and photos trees.
+  defp binary_props(name, entry) do
+    [
+      "<d:displayname>",
+      xml_escape(name),
+      "</d:displayname><d:resourcetype/>",
+      "<d:getcontentlength>",
+      to_string(entry.data["size"] || 0),
+      "</d:getcontentlength>",
+      "<d:getcontenttype>",
+      xml_escape(entry.data["mime_type"] || "application/octet-stream"),
+      "</d:getcontenttype>",
+      "<d:getlastmodified>",
+      http_date(entry.updated_at),
+      "</d:getlastmodified>",
+      "<d:getetag>",
+      xml_escape(Dav.etag(entry)),
+      "</d:getetag>"
+    ]
   end
 
   defp http_date(%DateTime{} = dt), do: Calendar.strftime(dt, "%a, %d %b %Y %H:%M:%S GMT")

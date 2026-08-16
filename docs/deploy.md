@@ -71,7 +71,9 @@ docker run -d --name servant \
 - Node.js 22+: required to build the frontend. Also required **at runtime** if you use the
   **Invoice Collector** connector, which runs Playwright scripts via `node` (run `npm install`
   in `priv/scrapers/`). Not needed at runtime otherwise.
-- `libvips`: required at runtime for photo thumbnail generation (`vix`).
+- `libvips`: required at runtime for photo thumbnail generation (`vix`). Build it with
+  `libheif` (the distro packages usually do) to also get previews for HEIC photos
+  uploaded over `/dav/photos`.
 
 ### Build
 

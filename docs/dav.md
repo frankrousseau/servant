@@ -4,8 +4,9 @@ Servant exposes a minimal DAV server at `/dav` so a phone can sync the
 Calendar app (CalDAV, RFC 4791 subset) and the Contacts app (CardDAV,
 RFC 6352 subset) two ways, tested against the discovery and sync flows
 used by iOS and DAVx5 on Android. The Files app is also reachable over
-plain WebDAV at `/dav/files` (see below), which is the recommended way
-to auto-upload a phone's camera roll.
+plain WebDAV at `/dav/files`, and the Photos app at `/dav/photos` (see
+below), which is the recommended way to auto-upload a phone's camera
+roll.
 
 ## Client setup
 
@@ -61,13 +62,45 @@ vice versa.
 
 - Token scope: `app:files:read` / `app:files:write` (or the transversal
   `data:*`).
-- Auto-upload apps (PhotoSync, FolderSync, rclone…) pointed at
-  `https://<your-host>/dav/files/<folder>` with the `srv_` token as Basic
-  password can back up a camera roll unattended. Re-uploading an existing
-  name replaces the file rather than duplicating it.
+- Re-uploading an existing name replaces the file rather than
+  duplicating it. For camera-roll backup prefer `/dav/photos` below;
+  `/dav/files` remains the right target for arbitrary documents.
 - No locks (class 2), no `MOVE`/`COPY`: fine for sync apps; mounting as a
   network drive in Windows Explorer (which demands `LOCK`) is out of
   scope.
+
+## Photos over WebDAV (`/dav/photos`)
+
+The Photos app is served as the same class 1 subset, with albums as
+folders. A `PUT` runs the full photo pipeline server side: the image is
+stored, EXIF is extracted (date taken, GPS, camera), thumbnails are
+generated, and a regular `photo` entry is created (source `webdav`), so
+the photo shows up in the Photos app with the rest, timeline, albums and
+face tagging included. This is the recommended target for auto-upload
+apps (PhotoSync, FolderSync, rclone…): point them at
+`https://<your-host>/dav/photos/<folder>` with the `srv_` token as Basic
+password. See [phone-backup.md](phone-backup.md) for the client recipes.
+
+- Token scope: `app:photos:read` / `app:photos:write` (or the
+  transversal `data:*`).
+- The first path level is the album (`/dav/photos/Camera/IMG.jpg` lands
+  in album `Camera`); deeper folders become slash-joined album names
+  (`Camera/2026-08`), so clients that shard uploads into date subfolders
+  keep working. Albums are derived from the photos in them: `MKCOL`
+  answers 201 but an album only persists once it holds a photo.
+- Re-uploading the same name in the same album updates the existing
+  photo in place (tags and face annotations survive). Use one folder per
+  device: two devices uploading the same generic name into the same
+  album would overwrite each other.
+- The capture date comes from EXIF (or the MP4/MOV container for
+  videos), falling back to the `X-OC-MTime` header that PhotoSync and
+  rclone send, then to the upload time.
+- HEIC support depends on the server's libvips build: with libheif (the
+  usual case for a system libvips, see deploy.md) thumbnails, viewing
+  and EXIF (date, GPS, camera) all work, read through the libvips
+  headers; without it the file is archived without a preview and the
+  date falls back to `X-OC-MTime`, so switch PhotoSync to JPEG there.
+  Videos are stored and playable, without a server-generated preview.
 
 ## Protocol notes (implementation)
 
