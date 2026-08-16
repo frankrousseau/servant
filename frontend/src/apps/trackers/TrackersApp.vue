@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import ComboBox from '../../components/ComboBox.vue'
 import TrackerCard from './TrackerCard.vue'
+import TrackerDetailView from './TrackerDetailView.vue'
 
 import {
   todayInUserTz,
@@ -14,9 +15,12 @@ import { addDays } from '../calendar/recurrence'
 import {
   TRACKER_TYPES,
   aggregateByDate,
+  fillBuckets,
   logsByDate,
   trackerFromEntry,
   weekMonday,
+  type RollupPeriod,
+  type RollupRow,
   type Tracker
 } from './trackers'
 import type { AppContext, Entry } from '../types'
@@ -111,9 +115,95 @@ async function reload() {
     await loadAggregates(trackers)
     trackerEntries.value = trackers
     logEntries.value = logs
+    detailCache.clear()
     loadState.value = 'ready'
   } catch {
     loadState.value = 'error'
+  }
+}
+
+// ----- detail view: per-tracker aggregates, deep-linked via ?tracker= -----
+
+const selectedTrackerId = ref<string | null>(null)
+
+const selectedTracker = computed<Tracker | null>(() => {
+  const entry = trackerEntries.value.find(
+    item => item.id === selectedTrackerId.value
+  )
+  return entry ? trackerFromEntry(entry) : null
+})
+
+function openTracker(id: string, opts: { push?: boolean } = {}) {
+  const entry = trackerEntries.value.find(item => item.id === id)
+  // A stale deep-link id (deleted tracker) falls back to the grid.
+  if (!entry) return
+  selectedTrackerId.value = id
+  if (opts.push !== false)
+    history.pushState(null, '', `/apps/trackers?tracker=${id}`)
+  if (trackerFromEntry(entry).type === 'entry') void loadDetailRollups(id)
+}
+
+const searchEl = ref<HTMLInputElement | null>(null)
+
+function closeDetail(opts: { push?: boolean } = {}) {
+  selectedTrackerId.value = null
+  if (opts.push !== false) history.pushState(null, '', '/apps/trackers')
+  void nextTick(() => searchEl.value?.focus())
+}
+
+function onPopState() {
+  const id = new URLSearchParams(window.location.search).get('tracker')
+  if (id) openTracker(id, { push: false })
+  else closeDetail({ push: false })
+}
+
+// Entry trackers have no logs: the detail view needs its own server
+// rollups over the whole history (entryMaps is windowed). All three
+// periods load at once so the selector switches without a spinner.
+const detailRollups = ref<Record<RollupPeriod, RollupRow[]> | null>(null)
+const detailState = ref<'idle' | 'loading' | 'error'>('idle')
+const detailCache = new Map<string, Record<RollupPeriod, RollupRow[]>>()
+let detailSeq = 0
+
+async function loadDetailRollups(id: string) {
+  const cached = detailCache.get(id)
+  if (cached) {
+    detailRollups.value = cached
+    detailState.value = 'idle'
+    return
+  }
+  const entry = trackerEntries.value.find(item => item.id === id)
+  if (!entry) return
+  const tracker = trackerFromEntry(entry)
+  if (tracker.type !== 'entry' || !tracker.entryKind) return
+
+  const seq = ++detailSeq
+  detailState.value = 'loading'
+  detailRollups.value = null
+  const base: Record<string, string> = { kind: tracker.entryKind }
+  if (tracker.agg === 'sum' && tracker.field) {
+    base.agg = 'sum'
+    base.field = tracker.field
+  }
+  try {
+    const [week, month, year] = await Promise.all(
+      (['week', 'month', 'year'] as const).map(bucket =>
+        ctx.api.entries.aggregate({ ...base, bucket })
+      )
+    )
+    if (seq !== detailSeq) return
+    const asRows = (rows: { bucket: string; value: number }[]) =>
+      rows.map(row => ({ ...row, days: 1 }))
+    const result = {
+      week: fillBuckets(asRows(week), 'week', today.value),
+      month: fillBuckets(asRows(month), 'month', today.value),
+      year: fillBuckets(asRows(year), 'year', today.value)
+    }
+    detailCache.set(id, result)
+    detailRollups.value = result
+    detailState.value = 'idle'
+  } catch {
+    if (seq === detailSeq) detailState.value = 'error'
   }
 }
 
@@ -123,9 +213,16 @@ onMounted(() => {
     resizeObs = new ResizeObserver(measureWeeks)
     resizeObs.observe(layoutEl.value)
   }
-  void reload()
+  window.addEventListener('popstate', onPopState)
+  void reload().then(() => {
+    const id = new URLSearchParams(window.location.search).get('tracker')
+    if (id) openTracker(id, { push: false })
+  })
 })
-onUnmounted(() => resizeObs?.disconnect())
+onUnmounted(() => {
+  resizeObs?.disconnect()
+  window.removeEventListener('popstate', onPopState)
+})
 
 // Moving or resizing the window changes the dates entry trackers need.
 watch([windowEnd, weeksVisible], () => {
@@ -334,6 +431,15 @@ async function removeTracker(tracker: Tracker) {
     <p v-else-if="loadState === 'error'" class="tk-placeholder">
       Failed to load trackers.
     </p>
+    <TrackerDetailView
+      v-else-if="selectedTracker"
+      :tracker="selectedTracker"
+      :by-date="mapsById.get(selectedTracker.id) || new Map()"
+      :today="today"
+      :server-rollups="selectedTracker.type === 'entry' ? detailRollups : null"
+      :server-state="selectedTracker.type === 'entry' ? detailState : 'idle'"
+      @back="closeDetail()"
+    />
     <template v-else>
       <div class="tk-toolbar">
         <button
@@ -361,6 +467,7 @@ async function removeTracker(tracker: Tracker) {
         </button>
         <span class="tk-spacer"></span>
         <input
+          ref="searchEl"
           v-model="searchQuery"
           class="tk-search"
           type="text"
@@ -388,6 +495,7 @@ async function removeTracker(tracker: Tracker) {
           :window-end="windowEnd"
           @set="(date, value) => setValue(tracker, date, value)"
           @remove="removeTracker(tracker)"
+          @open="openTracker(tracker.id)"
         />
       </div>
     </template>

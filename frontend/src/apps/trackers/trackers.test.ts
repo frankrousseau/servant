@@ -2,13 +2,18 @@ import { describe, it, expect } from 'vitest'
 
 import {
   aggregateByDate,
+  bucketOf,
+  fillBuckets,
   heatmapWeeks,
   lastValue,
   logsByDate,
+  nextBucket,
+  rollup,
   streak,
   sumLastDays,
   trackerColor,
-  trackerFromEntry
+  trackerFromEntry,
+  weekMonday
 } from './trackers'
 import type { Entry } from '../types'
 
@@ -205,5 +210,102 @@ describe('heatmapWeeks', () => {
     )
     expect(weeks[0][1]!.date).toBe('2026-07-07')
     expect(weeks[0][2]).toBeNull()
+  })
+})
+
+describe('bucketOf', () => {
+  it('weeks key on the Monday, months and years on their prefix', () => {
+    expect(bucketOf('2026-08-14', 'week')).toBe(weekMonday('2026-08-14'))
+    expect(bucketOf('2026-08-14', 'week')).toBe('2026-08-10')
+    expect(bucketOf('2026-08-14', 'month')).toBe('2026-08')
+    expect(bucketOf('2026-08-14', 'year')).toBe('2026')
+  })
+})
+
+describe('nextBucket', () => {
+  it('advances weeks by seven days across month boundaries', () => {
+    expect(nextBucket('2026-07-27', 'week')).toBe('2026-08-03')
+  })
+
+  it('advances months and rolls December over', () => {
+    expect(nextBucket('2026-08', 'month')).toBe('2026-09')
+    expect(nextBucket('2026-12', 'month')).toBe('2027-01')
+  })
+
+  it('advances years', () => {
+    expect(nextBucket('2026', 'year')).toBe('2027')
+  })
+})
+
+describe('fillBuckets', () => {
+  it('zero-fills gaps and extends to the bucket of today', () => {
+    const rows = [{ bucket: '2026-05', value: 3, days: 2 }]
+    const filled = fillBuckets(rows, 'month', '2026-08-14')
+    expect(filled.map(row => row.bucket)).toEqual([
+      '2026-05',
+      '2026-06',
+      '2026-07',
+      '2026-08'
+    ])
+    expect(filled[1]).toEqual({ bucket: '2026-06', value: 0, days: 0 })
+  })
+
+  it('returns an empty list for no rows', () => {
+    expect(fillBuckets([], 'week', '2026-08-14')).toEqual([])
+  })
+})
+
+describe('rollup', () => {
+  const today = '2026-08-14'
+
+  it('counts done days for check trackers', () => {
+    const byDate = asMap([
+      ['2026-08-10', 1],
+      ['2026-08-11', 0],
+      ['2026-08-12', 1]
+    ])
+    const rows = rollup(byDate, 'check', 'week', today)
+    expect(rows).toEqual([{ bucket: '2026-08-10', value: 2, days: 3 }])
+  })
+
+  it('sums count trackers per period', () => {
+    const byDate = asMap([
+      ['2026-08-03', 2],
+      ['2026-08-05', 3],
+      ['2026-08-11', 1]
+    ])
+    const rows = rollup(byDate, 'count', 'week', today)
+    expect(rows.map(row => row.value)).toEqual([5, 1])
+  })
+
+  it('averages value trackers over logged days and keeps gaps at zero days', () => {
+    const byDate = asMap([
+      ['2026-07-27', 80],
+      ['2026-07-29', 82],
+      ['2026-08-10', 81]
+    ])
+    const rows = rollup(byDate, 'value', 'week', today)
+    expect(rows[0]).toEqual({ bucket: '2026-07-27', value: 81, days: 2 })
+    expect(rows[1]).toEqual({ bucket: '2026-08-03', value: 0, days: 0 })
+    expect(rows[2]).toEqual({ bucket: '2026-08-10', value: 81, days: 1 })
+  })
+
+  it('excludes future-dated logs and sorts buckets ascending', () => {
+    const byDate = asMap([
+      ['2026-08-20', 5],
+      ['2026-06-01', 1],
+      ['2026-07-01', 2]
+    ])
+    const rows = rollup(byDate, 'count', 'month', today)
+    expect(rows.map(row => row.bucket)).toEqual([
+      '2026-06',
+      '2026-07',
+      '2026-08'
+    ])
+    expect(rows[2].value).toBe(0)
+  })
+
+  it('returns an empty list for an empty map', () => {
+    expect(rollup(new Map(), 'count', 'week', today)).toEqual([])
   })
 })

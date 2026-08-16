@@ -26,6 +26,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   set: [date: string, value: number]
   remove: []
+  open: []
 }>()
 
 // The date being edited: today by default, any heatmap cell on click
@@ -136,7 +137,15 @@ function onDatePick(value: string) {
   <section class="tk-card">
     <div class="tk-head">
       <span class="tk-swatch" :style="{ background: tracker.color }"></span>
-      <h2 class="tk-name">{{ tracker.name }}</h2>
+      <h2 class="tk-name">
+        <button
+          class="tk-name-btn"
+          title="Weekly, monthly and yearly totals"
+          @click="emit('open')"
+        >
+          {{ tracker.name }}
+        </button>
+      </h2>
       <span class="tk-stat">{{ statLabel }}</span>
       <button
         class="tk-del"
@@ -270,6 +279,17 @@ function onDatePick(value: string) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.tk-name-btn {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+.tk-name-btn:hover {
+  text-decoration: underline;
 }
 .tk-stat {
   margin-left: auto;

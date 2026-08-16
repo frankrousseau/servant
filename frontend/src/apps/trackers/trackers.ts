@@ -140,6 +140,88 @@ export function lastValue(
   return byDate.get(dates[dates.length - 1]) ?? null
 }
 
+// ----- Period rollups (detail view) -----
+
+export type RollupPeriod = 'week' | 'month' | 'year'
+
+export interface RollupRow {
+  // 'YYYY-MM-DD' Monday for weeks, 'YYYY-MM' for months, 'YYYY' for years;
+  // same keys as the backend aggregate buckets, lexicographically sortable
+  bucket: string
+  // per-type semantics: check = days done, count = sum, value = mean
+  value: number
+  // logged days contributing (0 for zero-filled gap rows)
+  days: number
+}
+
+export function bucketOf(date: string, period: RollupPeriod): string {
+  if (period === 'week') return weekMonday(date)
+  if (period === 'month') return date.slice(0, 7)
+  return date.slice(0, 4)
+}
+
+export function nextBucket(bucket: string, period: RollupPeriod): string {
+  if (period === 'week') return addDays(bucket, 7)
+  if (period === 'month') {
+    const [year, month] = bucket.split('-').map(Number)
+    if (month === 12) return `${year + 1}-01`
+    return `${year}-${String(month + 1).padStart(2, '0')}`
+  }
+  return String(Number(bucket) + 1)
+}
+
+// Every bucket from the earliest row up to bucketOf(today), gap buckets
+// zero-filled so quiet periods stay visible. Sorted ascending.
+export function fillBuckets(
+  rows: RollupRow[],
+  period: RollupPeriod,
+  today: string
+): RollupRow[] {
+  if (!rows.length) return []
+  const byBucket = new Map(rows.map(row => [row.bucket, row]))
+  const first = [...byBucket.keys()].sort()[0]
+  const last = bucketOf(today, period)
+
+  const out: RollupRow[] = []
+  for (let bucket = first; bucket <= last; bucket = nextBucket(bucket, period))
+    out.push(byBucket.get(bucket) ?? { bucket, value: 0, days: 0 })
+  return out
+}
+
+// Rolls a tracker's byDate map up into periods. check counts done days,
+// count sums, value averages over logged days (a weight logged twice a
+// week must not sum). Future-dated logs are excluded, like heatmapWeeks.
+export function rollup(
+  byDate: Map<string, number>,
+  type: TrackerType,
+  period: RollupPeriod,
+  today: string
+): RollupRow[] {
+  const sums = new Map<string, { sum: number; done: number; days: number }>()
+  for (const [date, value] of byDate) {
+    if (date > today) continue
+    const bucket = bucketOf(date, period)
+    const acc = sums.get(bucket) ?? { sum: 0, done: 0, days: 0 }
+    acc.sum += value
+    if (value > 0) acc.done++
+    acc.days++
+    sums.set(bucket, acc)
+  }
+
+  const rows = [...sums].map(([bucket, acc]) => ({
+    bucket,
+    value:
+      type === 'check'
+        ? acc.done
+        : type === 'value'
+          ? acc.sum / acc.days
+          : acc.sum,
+    days: acc.days
+  }))
+
+  return fillBuckets(rows, period, today)
+}
+
 export interface HeatCell {
   date: string
   value: number
