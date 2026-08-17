@@ -91,10 +91,12 @@ defmodule Servant.Connectors.SolanaConnector do
     end
   end
 
-  # ponytail: resolves via Bonfida's public SNS proxy (one GET, no crypto);
+  # ponytail: resolves via the public SNS SDK proxy (one GET, no crypto);
   # switch to on-chain PDA derivation through the RPC if the proxy goes away.
+  # The old sns-sdk-proxy.bonfida.workers.dev host died with a Cloudflare
+  # 1042 page when SNS moved from Bonfida to sns.id.
   defp resolve_sol_domain(domain) do
-    url = "https://sns-sdk-proxy.bonfida.workers.dev/resolve/#{URI.encode(domain)}"
+    url = "https://sdk-proxy.sns.id/resolve/#{URI.encode(domain)}"
 
     case Req.get(url, Servant.HTTP.req_options()) do
       {:ok, %Req.Response{status: 200, body: %{"s" => "ok", "result" => address}}} ->
