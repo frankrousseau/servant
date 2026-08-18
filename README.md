@@ -1,17 +1,14 @@
-# Servant
+# Servant, personal data hub you control
 
-A self-hosted personal data hub. Aggregates data from external services (banking, photos, health,
-calendar, contacts, blockchain, etc.) via connectors and exposes it through a unified API and a
-web interface.
+A self-hosted personal data hub that aggregates data from external services (banking, photos, health,
+calendar, contacts, blockchain, etc.) via connectors and exposes it through a unified API and a web interface.
 
 ## Features
 
 - **Universal data model**: all data stored as typed entries with JSON payloads
 - **Connector plugin system**: pull data from external services on a schedule
-- **Multi-user**: all API/database queries are scoped per user; the first account created is the
-  operator (admin), who additionally sees the cross-user Audit page
-- **API access**: scoped, revocable tokens (issued from Settings) for scripts and agents; full
-  OpenAPI docs and a SwaggerUI browser at `/api/docs`
+- **Single-user**: All UIs are designed for personal usages
+- **API access**: scoped, revocable tokens for scripts and agents
 - **Real-time**: entry changes are pushed to connected clients over websockets
 - **Self-hosted**: single binary deployment, SQLite database, runs on a Raspberry Pi
 
@@ -26,8 +23,7 @@ docker compose up -d --build
 ```
 
 Open `http://localhost:4000` and register the first account. See
-[docs/deploy.md](docs/deploy.md) for bare-metal releases, environment variables, systemd,
-reverse proxies and backups.
+[docs/deploy.md](docs/deploy.md) for bare-metal releases, environment variables, systemd, reverse proxies and backups.
 
 ## Development
 
@@ -53,5 +49,3 @@ project structure and architecture notes.
 - [docs/phone-backup.md](docs/phone-backup.md): auto-upload a phone's camera roll to the Files app
 - [docs/custom-apps.md](docs/custom-apps.md): apps installable from git
 - [AGENTS.md](AGENTS.md): coding rules and conventions
-
-[`specs/backlog.md`](specs/backlog.md) lists the ideas left over from shipped features.
