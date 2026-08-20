@@ -609,28 +609,29 @@ defmodule Mix.Tasks.Servant.Seed do
   # ----- Invoices (Files app, virtual Invoices folder) -----
 
   defp seed_invoices(user_id) do
-    for i <- 0..5, provider <- ["ovh", "free"] do
-      date = Date.add(Date.utc_today(), -30 * i - :rand.uniform(5))
-      amount = Float.round(:rand.uniform(40) + :rand.uniform(99) / 100, 2)
+    invoices =
+      for i <- 0..5, provider <- ["ovh", "free"] do
+        date = Date.add(Date.utc_today(), -30 * i - :rand.uniform(5))
+        amount = Float.round(:rand.uniform(40) + :rand.uniform(99) / 100, 2)
 
-      {:ok, _invoice} =
-        Data.create_entry(user_id, %{
-          kind: "invoice",
-          source: provider,
-          external_id: "seed-#{provider}-#{i}",
-          title: "#{String.capitalize(provider)} - #{amount} EUR",
-          occurred_at: DateTime.new!(date, ~T[00:00:00]),
-          data: %{
-            "provider" => provider,
-            "amount" => amount,
-            "currency" => "EUR",
-            "status" => "paid",
-            "url" => "https://example.com/#{provider}/invoice-#{i}.pdf"
-          }
-        })
-    end
+        {:ok, _invoice} =
+          Data.create_entry(user_id, %{
+            kind: "invoice",
+            source: provider,
+            external_id: "seed-#{provider}-#{i}",
+            title: "#{String.capitalize(provider)} - #{amount} EUR",
+            occurred_at: DateTime.new!(date, ~T[00:00:00]),
+            data: %{
+              "provider" => provider,
+              "amount" => amount,
+              "currency" => "EUR",
+              "status" => "paid",
+              "url" => "https://example.com/#{provider}/invoice-#{i}.pdf"
+            }
+          })
+      end
 
-    12
+    length(invoices)
   end
 
   # ----- Articles (data browser / palette variety) -----
@@ -733,15 +734,14 @@ defmodule Mix.Tasks.Servant.Seed do
       for _band <- 1..3 do
         {:ok, band} =
           Vix.Vips.Operation.gaussnoise(320, 240,
-            mean: 40 + :rand.uniform(160) / 1,
-            sigma: 20 + :rand.uniform(40) / 1
+            mean: 40.0 + :rand.uniform(160),
+            sigma: 20.0 + :rand.uniform(40)
           )
 
         band
       end
 
-    [first | rest] = bands
-    {:ok, joined} = Vix.Vips.Operation.bandjoin([first | rest])
+    {:ok, joined} = Vix.Vips.Operation.bandjoin(bands)
     {:ok, cast} = Vix.Vips.Operation.cast(joined, :VIPS_FORMAT_UCHAR)
     {:ok, srgb} = Vix.Vips.Operation.copy(cast, interpretation: :VIPS_INTERPRETATION_sRGB)
     path = Path.join(System.tmp_dir!(), name)

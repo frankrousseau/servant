@@ -6,6 +6,9 @@ defmodule Servant.Connectors.VCardConnector do
 
   use Servant.Connectors.Connector
 
+  alias Servant.HTTP
+  alias Servant.Storage
+
   # Contact photos are portrait-sized in practice; past this a card is carrying
   # something else and we leave it in the raw payload rather than store it.
   @max_photo_bytes 10_000_000
@@ -77,8 +80,8 @@ defmodule Servant.Connectors.VCardConnector do
   defp fetch_vcf(url) do
     # SSRF guard on the user-supplied feed URL, like RSS/iCal; without it a vCard
     # connector could be pointed at internal/metadata addresses.
-    with :ok <- Servant.HTTP.ensure_public_url(url) do
-      case Req.get(url, Servant.HTTP.req_options(verify: false)) do
+    with :ok <- HTTP.ensure_public_url(url) do
+      case Req.get(url, HTTP.req_options(verify: false)) do
         {:ok, %Req.Response{status: 200, body: body}} when is_binary(body) ->
           {:ok, body}
 
@@ -349,14 +352,14 @@ defmodule Servant.Connectors.VCardConnector do
   end
 
   defp store_photo(user_id, binary) do
-    workspace = Servant.Storage.tmp_workspace(user_id)
+    workspace = Storage.tmp_workspace(user_id)
 
     try do
       path = Path.join(workspace, "photo#{photo_extension(binary)}")
       File.write!(path, binary)
 
-      case Servant.Storage.store_app_file(user_id, "contacts", path, ext: Path.extname(path)) do
-        {:ok, relative, _absolute} -> Servant.Storage.public_url(relative)
+      case Storage.store_app_file(user_id, "contacts", path, ext: Path.extname(path)) do
+        {:ok, relative, _absolute} -> Storage.public_url(relative)
         _ -> nil
       end
     rescue
@@ -364,7 +367,7 @@ defmodule Servant.Connectors.VCardConnector do
       # not the import: the contact itself still lands.
       _ -> nil
     after
-      Servant.Storage.cleanup_tmp(workspace)
+      Storage.cleanup_tmp(workspace)
     end
   end
 

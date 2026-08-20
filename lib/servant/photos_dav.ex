@@ -21,19 +21,19 @@ defmodule Servant.PhotosDav do
 
   @source "webdav"
 
-  @spec photos(String.t()) :: [Servant.Data.Entry.t()]
+  @spec photos(String.t()) :: [Data.Entry.t()]
   def photos(user_id), do: Data.all_entries(user_id, %{"kind" => "photo"})
 
   def filename(entry) do
     case entry.data["filename"] do
-      n when is_binary(n) and n != "" -> n
+      name when is_binary(name) and name != "" -> name
       _ -> entry.title || "unnamed"
     end
   end
 
   def album(entry) do
     case entry.data["album"] do
-      a when is_binary(a) and a != "" -> a
+      album when is_binary(album) and album != "" -> album
       _ -> nil
     end
   end
@@ -93,7 +93,7 @@ defmodule Servant.PhotosDav do
 
     size =
       case File.stat(tmp_path) do
-        {:ok, %{size: s}} -> s
+        {:ok, %{size: size}} -> size
         _ -> 0
       end
 
@@ -135,9 +135,9 @@ defmodule Servant.PhotosDav do
     # Replace: new blob first, then drop the old one and its derivatives.
     old_paths =
       for key <- ["path", "thumb_path", "display_path"],
-          p = existing.data[key],
-          is_binary(p) and p != "",
-          do: p
+          path = existing.data[key],
+          is_binary(path) and path != "",
+          do: path
 
     # Merge over the old data so tags and face annotations survive; stale
     # derivative keys must not (the new blob may have no thumbnail).
@@ -243,7 +243,7 @@ defmodule Servant.PhotosDav do
         _ -> nil
       end
 
-    (parsed || mtime || DateTime.utc_now()) |> DateTime.truncate(:second)
+    DateTime.truncate(parsed || mtime || DateTime.utc_now(), :second)
   end
 
   defp heic?(name), do: String.ends_with?(String.downcase(name), [".heic", ".heif"])
@@ -253,8 +253,8 @@ defmodule Servant.PhotosDav do
 
   defp album_exists?(photos, prefix) do
     Enum.any?(photos, fn entry ->
-      a = album(entry)
-      a == prefix or under?(a, prefix)
+      album = album(entry)
+      album == prefix or under?(album, prefix)
     end)
   end
 
