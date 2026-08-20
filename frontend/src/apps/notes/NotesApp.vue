@@ -8,11 +8,17 @@ import {
   ref,
   watch
 } from 'vue'
-import { ChevronsDownUp, ChevronsUpDown, Star } from 'lucide-vue-next'
+import {
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Paperclip,
+  Star
+} from 'lucide-vue-next'
 
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 
 import { formatDate, todayInUserTz } from '../../lib/datetime'
+import { openDialog } from '../../lib/dialog'
 import { createFolderOrder } from '../folderOrder'
 import { canon, continueListEdit, renderMarkdown } from './render'
 import type { AppContext, Entry } from '../types'
@@ -36,6 +42,9 @@ const noteFolder = (note: Note) => ((note.data.folder as string) || '').trim()
 const noteBody = (note: Note) => (note.data.body as string) || ''
 const noteTags = (note: Note) => (note.data.tags as string[]) || []
 const noteFavorite = (note: Note) => note.data.favorite === true
+
+const noteAttachments = (note: Note) =>
+  (note.data.attachments as string[] | undefined) ?? []
 const fullPath = (folder: string, title: string) =>
   folder ? `${folder}/${title}` : title
 
@@ -632,6 +641,96 @@ async function toggleFavorite() {
   }
 }
 
+// ----- attachments (Files app entries linked from the note) -----
+
+// Loaded on demand: when a note with attachments is shown (to resolve ids
+// into filenames) or when the picker opens. Folders are not attachable.
+const fileEntries = ref<Entry[]>([])
+const filesLoaded = ref(false)
+const attachOpen = ref(false)
+const attachQuery = ref('')
+
+const fileName = (file: Entry) =>
+  (file.data.filename as string) || file.title || 'unnamed'
+
+async function ensureFiles() {
+  if (filesLoaded.value) return
+  try {
+    const entries = await ctx.api.entries.list({ kind: 'file' })
+    fileEntries.value = entries.filter(entry => entry.data.is_folder !== true)
+    filesLoaded.value = true
+  } catch {
+    // chips fall back to "missing file"; the picker shows its empty state
+  }
+}
+
+const attachedFiles = computed(() => {
+  const note = selected.value
+  if (!note) return []
+  const byId = new Map(fileEntries.value.map(entry => [entry.id, entry]))
+  return noteAttachments(note).map(id => {
+    const file = byId.get(id)
+    return {
+      id,
+      name: file ? fileName(file) : 'missing file',
+      path: file ? (file.data.path as string) || '' : '',
+      missing: !file
+    }
+  })
+})
+
+const attachOptions = computed(() => {
+  const note = selected.value
+  if (!note) return []
+  const attached = new Set(noteAttachments(note))
+  const needle = attachQuery.value.trim().toLowerCase()
+  return fileEntries.value
+    .filter(file => !attached.has(file.id))
+    .filter(file => !needle || fileName(file).toLowerCase().includes(needle))
+    .sort((a, b) => fileName(a).localeCompare(fileName(b)))
+    .slice(0, 50)
+})
+
+function openAttachPicker() {
+  attachQuery.value = ''
+  attachOpen.value = true
+  void ensureFiles()
+}
+
+async function setAttachments(note: Note, ids: string[]) {
+  // Flush first so a pending rename is not applied out of order.
+  await flushSave()
+  try {
+    const updated = await apiUpdate(note.id, { attachments: ids })
+    notes.value = notes.value.map(item =>
+      item.id === updated.id ? updated : item
+    )
+  } catch {
+    // the chips keep showing the stored list
+  }
+}
+
+async function attachFile(file: Entry) {
+  const note = selected.value
+  if (!note) return
+  attachOpen.value = false
+  await setAttachments(note, [...noteAttachments(note), file.id])
+}
+
+async function detachFile(id: string) {
+  const note = selected.value
+  if (!note) return
+  await setAttachments(
+    note,
+    noteAttachments(note).filter(item => item !== id)
+  )
+}
+
+// Resolve ids into names as soon as an annotated note is displayed.
+watch(selected, note => {
+  if (note && noteAttachments(note).length) void ensureFiles()
+})
+
 async function deleteSelected() {
   const note = selected.value
   if (!note) return
@@ -1162,6 +1261,14 @@ onBeforeUnmount(() => {
               @update:model-value="onFolderInput"
               @select="onFolderSelect"
             />
+            <button
+              class="nt-attach-btn"
+              title="Attach a file"
+              aria-label="Attach a file"
+              @click="openAttachPicker"
+            >
+              <Paperclip :size="14" />
+            </button>
             <span class="nt-toolbar-spacer"></span>
             <span v-if="createdLabel" class="nt-created"
               >Created {{ createdLabel }}</span
@@ -1178,6 +1285,33 @@ onBeforeUnmount(() => {
               </button>
             </div>
           </div>
+        </div>
+
+        <div v-if="attachedFiles.length" class="nt-attachments">
+          <span
+            v-for="file in attachedFiles"
+            :key="file.id"
+            class="nt-attachment"
+            :class="{ 'nt-attachment--missing': file.missing }"
+          >
+            <Paperclip :size="12" class="nt-attachment-icon" />
+            <a
+              v-if="!file.missing"
+              class="nt-attachment-name"
+              :href="file.path"
+              target="_blank"
+              rel="noopener"
+              >{{ file.name }}</a
+            >
+            <span v-else class="nt-attachment-name">{{ file.name }}</span>
+            <button
+              class="nt-attachment-remove"
+              :aria-label="`Detach ${file.name}`"
+              @click="detachFile(file.id)"
+            >
+              ×
+            </button>
+          </span>
         </div>
 
         <div class="nt-panes">
@@ -1225,6 +1359,48 @@ onBeforeUnmount(() => {
           <template v-if="item.icon">{{ item.icon }} </template>{{ item.label }}
         </div>
       </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <dialog
+        v-if="attachOpen"
+        :ref="openDialog"
+        class="modal-dialog"
+        aria-labelledby="nt-attach-title"
+        @click.self="attachOpen = false"
+        @cancel="attachOpen = false"
+      >
+        <div class="nt-attach-modal">
+          <div id="nt-attach-title" class="nt-attach-header">Attach a file</div>
+          <input
+            v-model="attachQuery"
+            class="nt-attach-search"
+            type="text"
+            placeholder="Search files..."
+            aria-label="Search files"
+            autofocus
+          />
+          <p v-if="!attachOptions.length" class="nt-attach-empty">
+            {{
+              filesLoaded
+                ? 'No matching file. Files come from the Files app.'
+                : 'Loading files…'
+            }}
+          </p>
+          <ul v-else class="nt-attach-list">
+            <li v-for="file in attachOptions" :key="file.id">
+              <button class="nt-attach-option" @click="attachFile(file)">
+                {{ fileName(file) }}
+              </button>
+            </li>
+          </ul>
+          <div class="nt-attach-actions">
+            <button class="nt-attach-cancel" @click="attachOpen = false">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </dialog>
     </Teleport>
   </div>
 </template>
@@ -1478,6 +1654,22 @@ onBeforeUnmount(() => {
   color: var(--text);
   display: block;
 }
+.nt-attach-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 0 0.45rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  align-self: stretch;
+  flex-shrink: 0;
+}
+.nt-attach-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
 .nt-save-status {
   flex-shrink: 0;
   font-family: var(--font-mono);
@@ -1545,6 +1737,53 @@ onBeforeUnmount(() => {
   border-color: var(--danger);
   color: var(--danger);
 }
+/* ----- Attachments ----- */
+.nt-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.5rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.nt-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.15rem 0.35rem 0.15rem 0.55rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.nt-attachment--missing {
+  border-style: dashed;
+}
+.nt-attachment-icon {
+  flex-shrink: 0;
+}
+.nt-attachment-name {
+  color: inherit;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+a.nt-attachment-name:hover {
+  color: var(--primary);
+}
+.nt-attachment-remove {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 0.2rem;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.nt-attachment-remove:hover {
+  color: var(--danger);
+}
+
 .nt-panes {
   flex: 1;
   display: flex;
@@ -1695,5 +1934,70 @@ onBeforeUnmount(() => {
 .nt-ac-item:hover,
 .nt-ac-item--active {
   background: var(--bg-hover);
+}
+
+/* ----- Attach-file modal ----- */
+.nt-attach-modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.nt-attach-header {
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+.nt-attach-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.nt-attach-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.nt-attach-option {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nt-attach-option:hover {
+  background: var(--bg-hover);
+}
+.nt-attach-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.nt-attach-cancel {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  padding: 0.35rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.nt-attach-cancel:hover {
+  border-color: var(--primary);
+  color: var(--primary);
 }
 </style>

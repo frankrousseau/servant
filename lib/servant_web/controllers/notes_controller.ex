@@ -101,7 +101,14 @@ defmodule ServantWeb.NotesController do
          type: :object,
          properties: %{
            title: %Schema{type: :string},
-           data: %Schema{type: :object, additionalProperties: true}
+           folder: %Schema{type: :string, description: "Slash-separated folder path"},
+           body: %Schema{type: :string, description: "Markdown body"},
+           favorite: %Schema{type: :boolean},
+           attachments: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description: "Entry ids of attached files (Files app entries)"
+           }
          }
        }},
     responses: [

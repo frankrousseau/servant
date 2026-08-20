@@ -59,7 +59,8 @@ defmodule Servant.Notes do
         "body" => body,
         "folder" => folder,
         "tags" => parse_tags(body),
-        "favorite" => favorite(attrs, nil)
+        "favorite" => favorite(attrs, nil),
+        "attachments" => attachments(attrs, nil)
       }
     }
 
@@ -87,7 +88,8 @@ defmodule Servant.Notes do
         "body" => body,
         "folder" => folder,
         "tags" => parse_tags(body),
-        "favorite" => favorite(attrs, note)
+        "favorite" => favorite(attrs, note),
+        "attachments" => attachments(attrs, note)
       }
     }
 
@@ -501,6 +503,25 @@ defmodule Servant.Notes do
     case Map.get(attrs, "favorite", Map.get(attrs, :favorite)) do
       nil -> (note && note.data["favorite"]) == true
       value -> value == true
+    end
+  end
+
+  # Entry ids of files attached to the note (Files app entries). Absent keeps
+  # the current list; present replaces it wholesale, sanitized to a deduped
+  # list of ids. Resolution stays client-side: a stale id (deleted file)
+  # renders as missing and can simply be detached.
+  defp attachments(attrs, note) do
+    case Map.get(attrs, "attachments", Map.get(attrs, :attachments)) do
+      nil ->
+        (note && note.data["attachments"]) || []
+
+      list when is_list(list) ->
+        list
+        |> Enum.filter(&(is_binary(&1) and String.trim(&1) != ""))
+        |> Enum.uniq()
+
+      _invalid ->
+        (note && note.data["attachments"]) || []
     end
   end
 

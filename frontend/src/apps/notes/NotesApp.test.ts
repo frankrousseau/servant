@@ -42,7 +42,10 @@ function makeCtx(notes: Entry[]) {
         title: attrs.title ?? found.title,
         data: {
           ...found.data,
-          ...(attrs.favorite === undefined ? {} : { favorite: attrs.favorite })
+          ...(attrs.favorite === undefined ? {} : { favorite: attrs.favorite }),
+          ...(attrs.attachments === undefined
+            ? {}
+            : { attachments: attrs.attachments })
         }
       })
     }
@@ -317,5 +320,57 @@ describe('NotesApp', () => {
       '1',
       expect.objectContaining({ folder: 'Proj' })
     )
+  })
+
+  it('attaches a Files entry to the note and detaches it', async () => {
+    const { ctx, update } = makeCtx([note('1', 'Alpha', '', '')])
+    ctx.api.entries.list = vi.fn(async () => [
+      {
+        ...note('f1', 'bail.txt', '', ''),
+        kind: 'file',
+        data: { filename: 'bail.txt', path: '/files/u/bail.txt' }
+      },
+      {
+        ...note('f2', 'Admin', '', ''),
+        kind: 'file',
+        data: { filename: 'Admin', is_folder: true }
+      }
+    ])
+    const wrapper = mount(NotesApp, {
+      props: { ctx: ctx as never },
+      global: { stubs: { teleport: true } }
+    })
+    await flushPromises()
+
+    await wrapper
+      .findAll('.nt-note')
+      .find(row => row.text().includes('Alpha'))!
+      .trigger('click')
+    await flushPromises()
+
+    await wrapper.find('.nt-attach-btn').trigger('click')
+    await flushPromises()
+
+    // Folders are not attachable; the file is.
+    const options = wrapper.findAll('.nt-attach-option')
+    expect(options.map(option => option.text())).toEqual(['bail.txt'])
+    await options[0].trigger('click')
+    await flushPromises()
+
+    expect(update).toHaveBeenCalledWith(
+      '1',
+      expect.objectContaining({ attachments: ['f1'] })
+    )
+    const chip = wrapper.find('.nt-attachment')
+    expect(chip.text()).toContain('bail.txt')
+    expect(chip.find('a').attributes('href')).toBe('/files/u/bail.txt')
+
+    await wrapper.find('.nt-attachment-remove').trigger('click')
+    await flushPromises()
+    expect(update).toHaveBeenCalledWith(
+      '1',
+      expect.objectContaining({ attachments: [] })
+    )
+    expect(wrapper.find('.nt-attachment').exists()).toBe(false)
   })
 })

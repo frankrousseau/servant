@@ -53,6 +53,27 @@ defmodule Servant.NotesTest do
       assert note.data["favorite"] == false
     end
 
+    test "attachments round-trip, dedupe and survive partial updates", %{user: user} do
+      {:ok, note} = Notes.create_note(user.id, %{"title" => "Att", "body" => ""})
+      assert note.data["attachments"] == []
+
+      {:ok, note} =
+        Notes.update_note(user.id, note.id, %{"attachments" => ["f1", "f2", "f1", "", 42]})
+
+      assert note.data["attachments"] == ["f1", "f2"]
+
+      # A body-only save (the editor autosave) keeps the list.
+      {:ok, note} = Notes.update_note(user.id, note.id, %{"body" => "hello"})
+      assert note.data["attachments"] == ["f1", "f2"]
+
+      # A non-list payload is ignored rather than clobbering the list.
+      {:ok, note} = Notes.update_note(user.id, note.id, %{"attachments" => "nope"})
+      assert note.data["attachments"] == ["f1", "f2"]
+
+      {:ok, note} = Notes.update_note(user.id, note.id, %{"attachments" => []})
+      assert note.data["attachments"] == []
+    end
+
     test "rejects a duplicate title in the same folder with a title error", %{user: user} do
       {:ok, _} = Notes.create_note(user.id, %{"title" => "Dup", "body" => ""})
 
