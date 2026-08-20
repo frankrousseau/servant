@@ -33,6 +33,10 @@ const logEntries = ref<Entry[]>([])
 const entryMaps = ref<Map<string, Map<string, number>>>(new Map())
 const loadState = ref<'loading' | 'ready' | 'error'>('loading')
 
+const today = computed(() => todayInUserTz())
+const searchQuery = ref('')
+const searchEl = ref<HTMLInputElement | null>(null)
+
 // ----- heatmap window: as many weeks as the width fits, browsable back -----
 
 // 11px cell + 3px gap; keep in sync with TrackerCard.vue styles.
@@ -72,6 +76,17 @@ function shiftWindow(dir: 1 | -1) {
 // (slower) response must not clobber the current window's data.
 let aggregateSeq = 0
 
+// COUNT of the tracked kind by default; SUM over the configured field when
+// the tracker asks for it. Shared by the windowed and the detail loads.
+function aggregateParams(tracker: Tracker): Record<string, string> {
+  const params: Record<string, string> = { kind: tracker.entryKind! }
+  if (tracker.agg === 'sum' && tracker.field) {
+    params.agg = 'sum'
+    params.field = tracker.field
+  }
+  return params
+}
+
 async function loadAggregates(trackers: Entry[]) {
   const seq = ++aggregateSeq
   const from = zonedToUtcISO(
@@ -84,14 +99,7 @@ async function loadAggregates(trackers: Entry[]) {
       .map(trackerFromEntry)
       .filter(tracker => tracker.type === 'entry' && tracker.entryKind)
       .map(async tracker => {
-        const params: Record<string, string> = {
-          kind: tracker.entryKind!,
-          from
-        }
-        if (tracker.agg === 'sum' && tracker.field) {
-          params.agg = 'sum'
-          params.field = tracker.field
-        }
+        const params = { ...aggregateParams(tracker), from }
         try {
           maps.set(
             tracker.id,
@@ -133,6 +141,14 @@ const selectedTracker = computed<Tracker | null>(() => {
   return entry ? trackerFromEntry(entry) : null
 })
 
+// Entry trackers have no logs: the detail view needs its own server
+// rollups over the whole history (entryMaps is windowed). All three
+// periods load at once so the selector switches without a spinner.
+const detailRollups = ref<Record<RollupPeriod, RollupRow[]> | null>(null)
+const detailState = ref<'idle' | 'loading' | 'error'>('idle')
+const detailCache = new Map<string, Record<RollupPeriod, RollupRow[]>>()
+let detailSeq = 0
+
 function openTracker(id: string, opts: { push?: boolean } = {}) {
   const entry = trackerEntries.value.find(item => item.id === id)
   // A stale deep-link id (deleted tracker) falls back to the grid.
@@ -142,8 +158,6 @@ function openTracker(id: string, opts: { push?: boolean } = {}) {
     history.pushState(null, '', `/apps/trackers?tracker=${id}`)
   if (trackerFromEntry(entry).type === 'entry') void loadDetailRollups(id)
 }
-
-const searchEl = ref<HTMLInputElement | null>(null)
 
 function closeDetail(opts: { push?: boolean } = {}) {
   selectedTrackerId.value = null
@@ -156,14 +170,6 @@ function onPopState() {
   if (id) openTracker(id, { push: false })
   else closeDetail({ push: false })
 }
-
-// Entry trackers have no logs: the detail view needs its own server
-// rollups over the whole history (entryMaps is windowed). All three
-// periods load at once so the selector switches without a spinner.
-const detailRollups = ref<Record<RollupPeriod, RollupRow[]> | null>(null)
-const detailState = ref<'idle' | 'loading' | 'error'>('idle')
-const detailCache = new Map<string, Record<RollupPeriod, RollupRow[]>>()
-let detailSeq = 0
 
 async function loadDetailRollups(id: string) {
   const cached = detailCache.get(id)
@@ -180,11 +186,7 @@ async function loadDetailRollups(id: string) {
   const seq = ++detailSeq
   detailState.value = 'loading'
   detailRollups.value = null
-  const base: Record<string, string> = { kind: tracker.entryKind }
-  if (tracker.agg === 'sum' && tracker.field) {
-    base.agg = 'sum'
-    base.field = tracker.field
-  }
+  const base = aggregateParams(tracker)
   try {
     const [week, month, year] = await Promise.all(
       (['week', 'month', 'year'] as const).map(bucket =>
@@ -206,32 +208,6 @@ async function loadDetailRollups(id: string) {
     if (seq === detailSeq) detailState.value = 'error'
   }
 }
-
-onMounted(() => {
-  measureWeeks()
-  if (typeof ResizeObserver !== 'undefined' && layoutEl.value) {
-    resizeObs = new ResizeObserver(measureWeeks)
-    resizeObs.observe(layoutEl.value)
-  }
-  window.addEventListener('popstate', onPopState)
-  void reload().then(() => {
-    const id = new URLSearchParams(window.location.search).get('tracker')
-    if (id) openTracker(id, { push: false })
-  })
-})
-onUnmounted(() => {
-  resizeObs?.disconnect()
-  window.removeEventListener('popstate', onPopState)
-})
-
-// Moving or resizing the window changes the dates entry trackers need.
-watch([windowEnd, weeksVisible], () => {
-  if (loadState.value === 'ready') void loadAggregates(trackerEntries.value)
-})
-
-const today = computed(() => todayInUserTz())
-
-const searchQuery = ref('')
 
 const trackers = computed<Tracker[]>(() => {
   const needle = searchQuery.value.trim().toLowerCase()
@@ -401,7 +377,7 @@ async function removeTracker(tracker: Tracker) {
   const message =
     tracker.type === 'entry'
       ? `Delete "${tracker.name}"? The ${tracker.entryKind} entries it counts are kept.`
-      : `Delete "${tracker.name}" and its ${logs.length} log(s)? This cannot be undone.`
+      : `Delete "${tracker.name}" and its ${logs.length} log${logs.length === 1 ? '' : 's'}? This cannot be undone.`
   const ok = await ctx.confirm.ask({
     message,
     confirmLabel: 'Delete',
@@ -421,6 +397,31 @@ async function removeTracker(tracker: Tracker) {
     void reload()
   }
 }
+
+// ----- lifecycle -----
+
+onMounted(() => {
+  measureWeeks()
+  if (typeof ResizeObserver !== 'undefined' && layoutEl.value) {
+    resizeObs = new ResizeObserver(measureWeeks)
+    resizeObs.observe(layoutEl.value)
+  }
+  window.addEventListener('popstate', onPopState)
+  void reload().then(() => {
+    const id = new URLSearchParams(window.location.search).get('tracker')
+    if (id) openTracker(id, { push: false })
+  })
+})
+
+onUnmounted(() => {
+  resizeObs?.disconnect()
+  window.removeEventListener('popstate', onPopState)
+})
+
+// Moving or resizing the window changes the dates entry trackers need.
+watch([windowEnd, weeksVisible], () => {
+  if (loadState.value === 'ready') void loadAggregates(trackerEntries.value)
+})
 </script>
 
 <template>

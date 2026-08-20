@@ -1,6 +1,7 @@
-import type { Entry } from '../types'
-import { addDays } from '../calendar/recurrence'
 import { utcToZonedParts } from '../../lib/datetime'
+import { addDays } from '../calendar/recurrence'
+
+import type { Entry } from '../types'
 
 // Pure logic for trackers. A tracker is an entry (kind tracker);
 // each day's observation is a tracker_log entry (one per tracker per day,
@@ -45,34 +46,34 @@ const PALETTE = [
 // an explicit data.color wins.
 export function trackerColor(name: string, stored?: string): string {
   if (stored) return stored
-  let h = 5381
+  let hash = 5381
   for (let i = 0; i < name.length; i++)
-    h = ((h << 5) + h + name.charCodeAt(i)) | 0
-  return PALETTE[Math.abs(h) % PALETTE.length]
+    hash = ((hash << 5) + hash + name.charCodeAt(i)) | 0
+  return PALETTE[Math.abs(hash) % PALETTE.length]
 }
 
-export function trackerFromEntry(e: Entry): Tracker {
-  const type = e.data.type as TrackerType
-  const name = (e.title || 'Unnamed').trim()
-  const entryKind = ((e.data.entry_kind as string) || '').trim()
+export function trackerFromEntry(entry: Entry): Tracker {
+  const type = entry.data.type as TrackerType
+  const name = (entry.title || 'Unnamed').trim()
+  const entryKind = ((entry.data.entry_kind as string) || '').trim()
   if (type === 'entry' && entryKind) {
     return {
-      id: e.id,
+      id: entry.id,
       name,
       type,
-      unit: ((e.data.unit as string) || '').trim(),
-      color: trackerColor(name, e.data.color as string | undefined),
+      unit: ((entry.data.unit as string) || '').trim(),
+      color: trackerColor(name, entry.data.color as string | undefined),
       entryKind,
-      agg: e.data.agg === 'sum' ? 'sum' : 'count',
-      field: ((e.data.field as string) || '').trim() || undefined
+      agg: entry.data.agg === 'sum' ? 'sum' : 'count',
+      field: ((entry.data.field as string) || '').trim() || undefined
     }
   }
   return {
-    id: e.id,
+    id: entry.id,
     name,
     type: type === 'count' || type === 'value' ? type : 'check',
-    unit: ((e.data.unit as string) || '').trim(),
-    color: trackerColor(name, e.data.color as string | undefined)
+    unit: ((entry.data.unit as string) || '').trim(),
+    color: trackerColor(name, entry.data.color as string | undefined)
   }
 }
 
@@ -81,9 +82,9 @@ export function aggregateByDate(
   rows: { bucket: string; value: number }[]
 ): Map<string, number> {
   const byDate = new Map<string, number>()
-  for (const r of rows) {
-    if (typeof r.value === 'number' && Number.isFinite(r.value))
-      byDate.set(r.bucket, r.value)
+  for (const row of rows) {
+    if (typeof row.value === 'number' && Number.isFinite(row.value))
+      byDate.set(row.bucket, row.value)
   }
   return byDate
 }
@@ -96,12 +97,12 @@ export function logsByDate(
 ): Map<string, number> {
   const byDate = new Map<string, number>()
   const mine = logs
-    .filter(l => l.data.tracker_id === trackerId && l.occurred_at)
+    .filter(log => log.data.tracker_id === trackerId && log.occurred_at)
     .sort((a, b) => (a.occurred_at || '').localeCompare(b.occurred_at || ''))
-  for (const l of mine) {
-    const value = l.data.value
+  for (const log of mine) {
+    const value = log.data.value
     if (typeof value !== 'number' || !Number.isFinite(value)) continue
-    byDate.set(utcToZonedParts(l.occurred_at!).date, value)
+    byDate.set(utcToZonedParts(log.occurred_at!).date, value)
   }
   return byDate
 }
@@ -111,22 +112,22 @@ export function logsByDate(
 export function streak(byDate: Map<string, number>, today: string): number {
   let day = today
   if (!((byDate.get(day) ?? 0) > 0)) day = addDays(day, -1)
-  let n = 0
+  let count = 0
   while ((byDate.get(day) ?? 0) > 0) {
-    n++
+    count++
     day = addDays(day, -1)
   }
-  return n
+  return count
 }
 
-// Sum over the last n days, today included.
+// Sum over the last `days` days, today included.
 export function sumLastDays(
   byDate: Map<string, number>,
   today: string,
-  n: number
+  days: number
 ): number {
   let total = 0
-  for (let i = 0; i < n; i++) total += byDate.get(addDays(today, -i)) ?? 0
+  for (let i = 0; i < days; i++) total += byDate.get(addDays(today, -i)) ?? 0
   return total
 }
 
@@ -135,7 +136,7 @@ export function lastValue(
   byDate: Map<string, number>,
   today: string
 ): number | null {
-  const dates = [...byDate.keys()].filter(d => d <= today).sort()
+  const dates = [...byDate.keys()].filter(date => date <= today).sort()
   if (!dates.length) return null
   return byDate.get(dates[dates.length - 1]) ?? null
 }
@@ -231,9 +232,9 @@ export interface HeatCell {
 
 // Monday of the week containing `date` (Mon-first weeks).
 export function weekMonday(date: string): string {
-  const [y, m, day] = date.split('-').map(Number)
-  const dow = (new Date(Date.UTC(y, m - 1, day)).getUTCDay() + 6) % 7 // Mon=0
-  return addDays(date, -dow)
+  const [year, month, day] = date.split('-').map(Number)
+  const weekday = (new Date(Date.UTC(year, month - 1, day)).getUTCDay() + 6) % 7 // Mon=0
+  return addDays(date, -weekday)
 }
 
 // Monday-first column per week, `weeks` columns ending with the week of
@@ -251,8 +252,9 @@ export function heatmapWeeks(
   const last = addDays(monday, 6)
 
   let max = 0
-  for (const [d, v] of byDate) {
-    if (d >= start && d <= last && d <= today && v > max) max = v
+  for (const [date, value] of byDate) {
+    if (date >= start && date <= last && date <= today && value > max)
+      max = value
   }
 
   const level = (value: number): number => {
@@ -262,18 +264,18 @@ export function heatmapWeeks(
   }
 
   const out: (HeatCell | null)[][] = []
-  for (let w = 0; w < weeks; w++) {
-    const col: (HeatCell | null)[] = []
-    for (let d = 0; d < 7; d++) {
-      const date = addDays(start, w * 7 + d)
+  for (let week = 0; week < weeks; week++) {
+    const column: (HeatCell | null)[] = []
+    for (let day = 0; day < 7; day++) {
+      const date = addDays(start, week * 7 + day)
       if (date > today) {
-        col.push(null)
+        column.push(null)
         continue
       }
       const value = byDate.get(date) ?? 0
-      col.push({ date, value, level: level(value) })
+      column.push({ date, value, level: level(value) })
     }
-    out.push(col)
+    out.push(column)
   }
   return out
 }

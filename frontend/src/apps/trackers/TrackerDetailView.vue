@@ -79,14 +79,17 @@ function fmtNumber(value: number): string {
   return String(Math.round(value * 100) / 100)
 }
 
+function plural(count: number, word: string): string {
+  return `${count} ${word}${count === 1 ? '' : 's'}`
+}
+
 function fmtValue(row: RollupRow): string {
   const tracker = props.tracker
-  if (tracker.type === 'check')
-    return `${row.value} day${row.value === 1 ? '' : 's'}`
+  if (tracker.type === 'check') return plural(row.value, 'day')
   const unit = tracker.unit ? ` ${tracker.unit}` : ''
   if (tracker.type === 'value') {
     if (row.days === 0) return '-'
-    return `avg ${fmtNumber(row.value)}${unit} (${row.days} log${row.days === 1 ? '' : 's'})`
+    return `avg ${fmtNumber(row.value)}${unit} (${plural(row.days, 'log')})`
   }
   return `${fmtNumber(row.value)}${unit}`
 }
@@ -182,11 +185,6 @@ function axisLabel(bucket: string, slot: number): string {
 // One readout at a time; the chart is role="img" and out of the tab
 // order, the table below carries the same numbers for keyboard and AT.
 const hover = ref<Bar | null>(null)
-
-const readout = computed(() => {
-  const bar = hover.value
-  return bar ? bar.title : ''
-})
 </script>
 
 <template>
@@ -199,7 +197,7 @@ const readout = computed(() => {
       >
         ← Trackers
       </button>
-      <span class="tk-swatch" :style="{ background: tracker.color }"></span>
+      <span class="tkd-swatch" :style="{ background: tracker.color }"></span>
       <h2 ref="headingEl" class="tkd-name" tabindex="-1">{{ tracker.name }}</h2>
       <span class="tkd-meta">
         {{ typeLabel
@@ -301,7 +299,7 @@ const readout = computed(() => {
         </g>
       </svg>
 
-      <p class="tkd-readout" aria-hidden="true">{{ readout }}</p>
+      <p class="tkd-readout" aria-hidden="true">{{ hover?.title }}</p>
 
       <div class="tkd-table-wrap">
         <table class="tkd-table">
@@ -352,7 +350,7 @@ const readout = computed(() => {
   border-color: var(--primary);
   color: var(--primary);
 }
-.tk-swatch {
+.tkd-swatch {
   width: 10px;
   height: 10px;
   border-radius: 3px;
