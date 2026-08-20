@@ -82,6 +82,31 @@ describe('NotesApp', () => {
     expect(wrapper.text()).toContain('Proj') // folder row
   })
 
+  it('collapses and expands every folder from the sidebar toggle', async () => {
+    const { ctx } = makeCtx([
+      note('1', 'Alpha', 'Proj', ''),
+      note('2', 'Beta', 'Proj/Sub', ''),
+      note('3', 'Root', '', '')
+    ])
+    const wrapper = mount(NotesApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+
+    const titles = () =>
+      wrapper.findAll('.nt-note-title').map(title => title.text())
+    expect(titles()).toContain('Alpha')
+
+    await wrapper.find('.nt-tree-toggle').trigger('click')
+    // Folder rows survive, notes inside collapsed folders do not.
+    expect(wrapper.text()).toContain('Proj')
+    expect(titles()).not.toContain('Alpha')
+    expect(titles()).not.toContain('Beta')
+    expect(titles()).toContain('Root')
+
+    await wrapper.find('.nt-tree-toggle').trigger('click')
+    expect(titles()).toContain('Alpha')
+    expect(titles()).toContain('Beta')
+  })
+
   it('selecting a note fills the editor and resolves a known wikilink in preview', async () => {
     const { ctx } = makeCtx([
       note('1', 'Alpha', '', 'see [[Beta]]'),

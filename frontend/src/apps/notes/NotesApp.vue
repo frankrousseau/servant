@@ -8,7 +8,7 @@ import {
   ref,
   watch
 } from 'vue'
-import { Star } from 'lucide-vue-next'
+import { ChevronsDownUp, ChevronsUpDown, Star } from 'lucide-vue-next'
 
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 
@@ -266,17 +266,6 @@ function toggleFolder(path: string) {
   else collapsed.add(path)
 }
 
-// ----- folder rename / drag & drop / ordering -----
-
-const renamingFolder = ref<string | null>(null) // full path being renamed
-const renameValue = ref('') // last segment only
-const draggingNoteId = ref<string | null>(null)
-const draggingFolderPath = ref<string | null>(null)
-const dragOverFolder = ref<string | null>(null)
-
-const parentOf = (p: string) =>
-  p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : ''
-
 // Every folder path present in the tree (including intermediate segments).
 const allFolderPaths = computed(() => {
   const paths = new Set<string>()
@@ -292,6 +281,33 @@ const allFolderPaths = computed(() => {
   }
   return [...paths]
 })
+
+// One button for the whole tree: collapse everything, unless everything is
+// already collapsed, in which case expand it all back.
+const allCollapsed = computed(
+  () =>
+    allFolderPaths.value.length > 0 &&
+    allFolderPaths.value.every(path => collapsed.has(path))
+)
+
+function toggleAllFolders() {
+  if (allCollapsed.value) {
+    collapsed.clear()
+  } else {
+    for (const path of allFolderPaths.value) collapsed.add(path)
+  }
+}
+
+// ----- folder rename / drag & drop / ordering -----
+
+const renamingFolder = ref<string | null>(null) // full path being renamed
+const renameValue = ref('') // last segment only
+const draggingNoteId = ref<string | null>(null)
+const draggingFolderPath = ref<string | null>(null)
+const dragOverFolder = ref<string | null>(null)
+
+const parentOf = (p: string) =>
+  p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : ''
 
 const folderOptions = computed(() =>
   [...allFolderPaths.value].sort((a, b) =>
@@ -960,6 +976,18 @@ onBeforeUnmount(() => {
           placeholder="Search notes..."
           aria-label="Search notes"
         />
+        <button
+          v-if="allFolderPaths.length"
+          class="nt-tree-toggle"
+          :title="allCollapsed ? 'Expand all folders' : 'Collapse all folders'"
+          :aria-label="
+            allCollapsed ? 'Expand all folders' : 'Collapse all folders'
+          "
+          @click="toggleAllFolders"
+        >
+          <ChevronsUpDown v-if="allCollapsed" :size="14" />
+          <ChevronsDownUp v-else :size="14" />
+        </button>
       </div>
       <div class="nt-tree" @dragover.prevent @drop.prevent="onTreeDrop('')">
         <template v-if="favoriteNotes.length">
@@ -1223,6 +1251,22 @@ onBeforeUnmount(() => {
 }
 .nt-search {
   flex: 1;
+  min-width: 0;
+}
+.nt-tree-toggle {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 0 0.45rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.nt-tree-toggle:hover {
+  border-color: var(--primary);
+  color: var(--primary);
 }
 .nt-main-topbar {
   display: flex;
