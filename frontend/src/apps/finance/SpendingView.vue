@@ -49,8 +49,9 @@ const spending = computed(() =>
   )
 )
 
-// ----- range: rolling 12 months, one year, or all years by year -----
+// ----- range: rolling 3 or 12 months, one year, or all years by year -----
 
+const RANGE_LAST3 = 'Last 3 months'
 const RANGE_LAST12 = 'Last 12 months'
 const RANGE_ALL_YEARS = 'All years'
 
@@ -63,6 +64,7 @@ const years = computed(() =>
     .reverse()
 )
 const rangeOptions = computed(() => [
+  RANGE_LAST3,
   RANGE_LAST12,
   ...years.value,
   RANGE_ALL_YEARS
@@ -71,6 +73,7 @@ const rangeOptions = computed(() => [
 // Table columns and chart bars: months, or years when aggregating.
 const periods = computed<string[]>(() => {
   if (range.value === RANGE_ALL_YEARS) return [...years.value].reverse()
+  if (range.value === RANGE_LAST3) return spending.value.months.slice(-3)
   if (range.value === RANGE_LAST12)
     return spending.value.months.slice(-MAX_MONTHS)
   return spending.value.months.filter(month => month.startsWith(range.value))

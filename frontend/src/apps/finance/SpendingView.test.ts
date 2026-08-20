@@ -82,6 +82,7 @@ describe('SpendingView', () => {
     const wrapper = mountView([...TXS, tx('2025-03-05', -200, 'rent')])
     const range = wrapper.findAllComponents({ name: 'ComboBox' }).at(-1)!
     expect(range.props('options')).toEqual([
+      'Last 3 months',
       'Last 12 months',
       '2026',
       '2025',
@@ -101,6 +102,25 @@ describe('SpendingView', () => {
     await range.vm.$emit('update:modelValue', '2025')
     headers = wrapper.findAll('thead th').map(h => h.text())
     expect(headers).toEqual(['Category', '2025-03', 'Total ▼'])
+  })
+
+  it('scopes to the last three spending months', async () => {
+    const wrapper = mountView([
+      ...TXS,
+      tx('2026-03-05', -50, 'rent'),
+      tx('2026-04-02', -70, 'food')
+    ])
+    const range = wrapper.findAllComponents({ name: 'ComboBox' }).at(-1)!
+    await range.vm.$emit('update:modelValue', 'Last 3 months')
+
+    const headers = wrapper.findAll('thead th').map(header => header.text())
+    expect(headers).toEqual([
+      'Category',
+      '2026-04',
+      '2026-06',
+      '2026-07',
+      'Total ▼'
+    ])
   })
 
   it('shows a pie for the chosen period', async () => {
