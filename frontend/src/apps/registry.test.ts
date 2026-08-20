@@ -5,7 +5,8 @@ import {
   DEFAULT_ENABLED_APPS,
   enabledBuiltins,
   agentsEnabled,
-  cryptoEnabled
+  cryptoEnabled,
+  hiddenEntryKinds
 } from './registry'
 
 describe('enabledBuiltins', () => {
@@ -53,5 +54,16 @@ describe('cryptoEnabled', () => {
   it('follows the enabled list', () => {
     expect(cryptoEnabled(['crypto'])).toBe(true)
     expect(cryptoEnabled(['agents'])).toBe(false)
+  })
+})
+
+describe('hiddenEntryKinds', () => {
+  it('hides blockchain entries while crypto is off', () => {
+    expect(hiddenEntryKinds(null)).toContain('blockchain_tx')
+    expect(hiddenEntryKinds(['notes'])).toContain('blockchain_tx')
+  })
+
+  it('hides nothing once crypto is enabled', () => {
+    expect(hiddenEntryKinds(['crypto'])).toEqual([])
   })
 })

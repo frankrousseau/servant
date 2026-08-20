@@ -17,7 +17,7 @@ import {
   recurrenceOf,
   upcomingOccurrence
 } from '../apps/calendar/recurrence'
-import { cryptoEnabled } from '../apps/registry'
+import { cryptoEnabled, hiddenEntryKinds } from '../apps/registry'
 import { debounce, useSocket } from '../composables/useSocket'
 import { blockchainConnector, getConnectorDef } from '../connectors'
 import {
@@ -40,6 +40,14 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const recentEntries = ref<Entry[]>([])
+
+// Kinds of an opt-in slice the user has off (crypto): a configured wallet
+// connector keeps syncing, so its entries exist; they just stay off-screen.
+const hiddenKinds = computed(() => hiddenEntryKinds(auth.user?.enabled_apps))
+
+const visibleRecent = computed(() =>
+  recentEntries.value.filter(entry => !hiddenKinds.value.includes(entry.kind))
+)
 const stats = ref<Record<string, number>>({})
 const totalEntries = ref(0)
 const connectors = ref<ConnectorConfig[]>([])
@@ -302,7 +310,8 @@ function sparkBars(
 
 const totalSpark = computed(() => {
   const merged: Record<string, number> = {}
-  for (const perDay of Object.values(dailyStats.value)) {
+  for (const [kind, perDay] of Object.entries(dailyStats.value)) {
+    if (hiddenKinds.value.includes(kind)) continue
     for (const [day, count] of Object.entries(perDay)) {
       merged[day] = (merged[day] || 0) + count
     }
@@ -312,20 +321,28 @@ const totalSpark = computed(() => {
 
 // One row per stat card, total first; bars precomputed here so the template
 // does not rebuild every sparkline on unrelated re-renders.
-const statCards = computed(() => [
-  {
-    kind: null as string | null,
-    count: totalEntries.value,
-    label: 'Total entries',
-    bars: totalSpark.value
-  },
-  ...Object.entries(stats.value).map(([kind, count]) => ({
-    kind: kind as string | null,
-    count,
-    label: kind,
-    bars: sparkBars(dailyStats.value[kind])
-  }))
-])
+const statCards = computed(() => {
+  const hiddenCount = hiddenKinds.value.reduce(
+    (sum, kind) => sum + (stats.value[kind] ?? 0),
+    0
+  )
+  return [
+    {
+      kind: null as string | null,
+      count: totalEntries.value - hiddenCount,
+      label: 'Total entries',
+      bars: totalSpark.value
+    },
+    ...Object.entries(stats.value)
+      .filter(([kind]) => !hiddenKinds.value.includes(kind))
+      .map(([kind, count]) => ({
+        kind: kind as string | null,
+        count,
+        label: kind,
+        bars: sparkBars(dailyStats.value[kind])
+      }))
+  ]
+})
 
 function goToData(kind?: string) {
   router.push({ path: '/data', query: kind ? { kind } : {} })
@@ -473,9 +490,9 @@ onMounted(fetchData)
                 >View all</router-link
               >
             </div>
-            <div v-if="recentEntries.length" class="activity-feed">
+            <div v-if="visibleRecent.length" class="activity-feed">
               <div
-                v-for="entry in recentEntries"
+                v-for="entry in visibleRecent"
                 :key="entry.id"
                 class="activity-item"
                 @click="goToEntry(entry)"

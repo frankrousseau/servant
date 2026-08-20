@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { listEntriesPage } from '../api/entries'
-import { agentsEnabled } from '../apps/registry'
+import { agentsEnabled, hiddenEntryKinds } from '../apps/registry'
 import { entryRoute } from '../lib/entryRoute'
 import { kindColor, kindIcon } from '../lib/kind'
 import { useAppsStore } from '../stores/apps'
@@ -56,8 +56,15 @@ const pageItems = computed<Item[]>(() => {
     }))
 })
 
+// Entries of an opt-in slice the user has off (crypto) stay out of the
+// results, matching the dashboard; the data browser remains the raw view.
+const visibleResults = computed(() => {
+  const hidden = hiddenEntryKinds(auth.user?.enabled_apps)
+  return results.value.filter(entry => !hidden.includes(entry.kind))
+})
+
 const entryItems = computed<Item[]>(() =>
-  results.value.map(entry => ({
+  visibleResults.value.map(entry => ({
     key: 'e:' + entry.id,
     icon: kindIcon(entry.kind),
     color: kindColor(entry.kind),
