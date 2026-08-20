@@ -57,6 +57,25 @@ cd frontend && npm run dev
 
 Open `http://localhost:5001` in your browser. Vite proxies `/api` and `/socket` requests to Phoenix on port 4001 (override with `PORT` / `PHOENIX_PORT`).
 
+### Seeding and switching databases
+
+`mix servant.seed` fills the current dev database with random but plausible data for every
+app screen (contacts, events, notes, checklists, trackers, bank transactions, invoices,
+files, generated photos). On an empty database it first creates a `demo` account
+(password `demo1234`); otherwise it seeds the first account (`--user <name>` to pick
+another one, `--photos 0` to skip photo generation).
+
+`DEV_DB=<name>` switches the backend to `servant_dev_<name>.db`; the file is created and
+migrated at boot, so testing the empty states is just:
+
+```bash
+DEV_DB=empty mix phx.server    # boots on servant_dev_empty.db (created on the fly)
+mix phx.server                 # back to the regular servant_dev.db
+```
+
+`DEV_DB` composes with the seed task (`DEV_DB=demo mix servant.seed`) to maintain several
+populated databases side by side.
+
 ## Project structure
 
 Not exhaustive: a map of the main subsystems, not every file.
@@ -118,6 +137,8 @@ servant/
 |------|---------|
 | Run tests | `mix test` |
 | Reset database | `mix ecto.reset` |
+| Seed random data | `mix servant.seed` |
+| Boot on an empty database | `DEV_DB=empty mix phx.server` |
 | Create a migration | `mix ecto.gen.migration <name>` |
 | Run migrations | `mix ecto.migrate` |
 | Build frontend for prod | `cd frontend && npm run build` |

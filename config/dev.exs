@@ -1,11 +1,24 @@
 import Config
 
-# Configure your database
+# Configure your database. DEV_DB selects an alternate database file, so
+# "DEV_DB=empty mix phx.server" boots on servant_dev_empty.db (created and
+# migrated on the fly, see :migrate_on_boot below) to test the empty states,
+# and a plain "mix phx.server" returns to the regular seeded database.
+dev_db =
+  case System.get_env("DEV_DB") do
+    nil -> "servant_dev.db"
+    name -> "servant_dev_#{name}.db"
+  end
+
 config :servant, Servant.Repo,
-  database: Path.expand("../servant_dev.db", __DIR__),
+  database: Path.expand("../#{dev_db}", __DIR__),
   pool_size: 5,
   stacktrace: true,
   show_sensitive_data_on_connection_error: true
+
+# Run pending migrations at boot (releases already do): a fresh DEV_DB file is
+# usable without a separate ecto.setup pass.
+config :servant, :migrate_on_boot, true
 
 # For development, we disable any cache and enable
 # debugging and code reloading.

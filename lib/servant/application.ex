@@ -51,7 +51,10 @@ defmodule Servant.Application do
   end
 
   defp skip_migrations? do
-    # By default, sqlite migrations are run when using a release
-    System.get_env("RELEASE_NAME") == nil
+    # Migrations run at boot in releases, and in any env that opts in through
+    # :migrate_on_boot (dev does, so a fresh DEV_DB file is migrated on the
+    # fly). Test keeps running them through the mix alias instead.
+    System.get_env("RELEASE_NAME") == nil and
+      not Application.get_env(:servant, :migrate_on_boot, false)
   end
 end
