@@ -6,19 +6,33 @@ defmodule ServantWeb.Plugs.DavAuth do
   / app:contacts) or a session token. The username is informative only;
   the token identifies the user. Failed `srv_` lookups feed the same
   per-IP throttle as the JSON API.
+
+  Every challenge logs why (missing header, other scheme, malformed
+  credentials, rejected token) so a phone client that "always gets 401"
+  can be diagnosed from the server log; the token itself is never logged.
   """
 
   import Plug.Conn
 
+  require Logger
+
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    with ["Basic " <> encoded] <- get_req_header(conn, "authorization"),
-         {:ok, userpass} <- Base.decode64(encoded),
+    case get_req_header(conn, "authorization") do
+      ["Basic " <> encoded] -> decode(conn, encoded)
+      [] -> challenge(conn, "no authorization header")
+      [other] -> challenge(conn, "unsupported scheme #{scheme(other)}")
+      _ -> challenge(conn, "several authorization headers")
+    end
+  end
+
+  defp decode(conn, encoded) do
+    with {:ok, userpass} <- Base.decode64(encoded),
          [_username, token] <- String.split(userpass, ":", parts: 2) do
       authenticate(conn, String.trim(token))
     else
-      _ -> challenge(conn)
+      _ -> challenge(conn, "malformed basic credentials")
     end
   end
 
@@ -36,7 +50,7 @@ defmodule ServantWeb.Plugs.DavAuth do
         |> halt()
 
       :error ->
-        challenge(conn)
+        challenge(conn, "unknown or expired srv_ token (#{byte_size(token)} bytes)")
     end
   end
 
@@ -48,14 +62,19 @@ defmodule ServantWeb.Plugs.DavAuth do
         |> assign(:api_scopes, nil)
 
       :error ->
-        challenge(conn)
+        challenge(conn, "invalid session token (#{byte_size(token)} bytes, no srv_ prefix)")
     end
   end
 
-  defp challenge(conn) do
+  defp challenge(conn, reason) do
+    Logger.warning("dav auth challenge (#{conn.method} #{conn.request_path}): #{reason}")
+
     conn
     |> put_resp_header("www-authenticate", ~s(Basic realm="Servant CalDAV"))
     |> send_resp(401, "Unauthorized")
     |> halt()
   end
+
+  # Only the scheme word, never the credential that follows it.
+  defp scheme(header), do: header |> String.split(" ", parts: 2) |> hd()
 end
