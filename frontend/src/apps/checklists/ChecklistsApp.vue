@@ -581,17 +581,18 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
                 </button>
               </template>
             </div>
-            <div
+            <a
               v-else
               class="cl-row"
               :class="{ 'cl-row--active': row.list!.id === selectedId }"
               :style="{ paddingLeft: row.depth * 12 + 8 + 'px' }"
+              :href="'/apps/checklists?selected=' + row.list!.id"
               draggable="true"
               @dragstart="onDragStart(row.list!, $event)"
               @dragend="draggingId = null"
               @dragover.prevent
               @drop.prevent.stop="onDrop(folderOf(row.list!))"
-              @click="selectList(row.list!.id)"
+              @click.exact.prevent="selectList(row.list!.id)"
             >
               <span class="cl-row-title">
                 <span
@@ -605,7 +606,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
               <span v-if="itemsOf(row.list!).length" class="cl-row-count">
                 {{ doneCount(row.list!) }}/{{ itemsOf(row.list!).length }}
               </span>
-            </div>
+            </a>
           </div>
         </template>
         <p v-else class="cl-empty">
@@ -946,6 +947,8 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   font-size: 0.85rem;
   border-radius: 6px;
 }
+/* A real link so a checklist opens in a new tab (middle or Ctrl+click);
+   plain clicks stay in the SPA via the prevented click handler */
 .cl-row {
   display: flex;
   align-items: center;
@@ -954,6 +957,8 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   border-radius: 6px;
   cursor: pointer;
   font-size: 0.9rem;
+  color: inherit;
+  text-decoration: none;
 }
 .cl-row:hover {
   background: var(--bg-hover);
