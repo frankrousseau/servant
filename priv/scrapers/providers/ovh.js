@@ -113,6 +113,20 @@ module.exports = {
 // The manager SPA talks to /engine/apiv6 with plain session cookies, so a
 // fetch from the page context is authenticated. JSON beats DOM scraping.
 async function extractViaApi(page) {
+  // The signin flow ends on auth.eu.ovhcloud.com: from there a fetch to
+  // www.ovh.com is cross-origin and CORS kills it, which read as "API
+  // failed" and sent us scraping a manager page that had no session either.
+  // Land on the manager first: the SSO handshake sets the www.ovh.com
+  // cookies and the fetch below runs same-origin.
+  if (!page.url().startsWith("https://www.ovh.com/")) {
+    log(`Hopping from ${page.url()} to the manager for a same-origin API call`);
+    await page.goto("https://www.ovh.com/manager/", {
+      waitUntil: "networkidle",
+      timeout: 30000,
+    });
+    log(`Manager landed on ${page.url()}`);
+  }
+
   const bills = await page.evaluate(
     async ({ apiBase, maxBills }) => {
       const get = async (path) => {
@@ -153,6 +167,7 @@ async function extractViaPage(page) {
     timeout: 30000,
   });
   await page.waitForTimeout(5000);
+  log(`Billing history page landed on ${page.url()}`);
 
   return page.evaluate(() => {
     const results = [];

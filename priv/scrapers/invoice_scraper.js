@@ -96,6 +96,14 @@ async function main() {
     const invoices = await provider.extractInvoices(page);
     log(`Found ${invoices.length} invoices`);
 
+    // ponytail: an empty harvest is treated as a failure, not a success. On a
+    // billing account it means the recipe broke (login interstitial, moved
+    // page, CORS-blocked API), and exiting 0 buried exactly that for weeks.
+    if (invoices.length === 0) {
+      log(`ERROR: logged in but found 0 invoices (final page: ${page.url()})`);
+      process.exit(1);
+    }
+
     // Output JSON
     process.stdout.write(JSON.stringify({ invoices }));
 
