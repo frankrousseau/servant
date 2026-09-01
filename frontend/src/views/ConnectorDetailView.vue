@@ -276,6 +276,48 @@ async function toggleEnabled() {
   }
 }
 
+// ----- editable configuration -----
+
+const configFields = computed(() => connectorDef.value?.configFields || [])
+const configForm = ref<Record<string, string>>({})
+const configSaving = ref(false)
+const configErrorMsg = ref('')
+
+function resetConfigForm() {
+  const values: Record<string, string> = {}
+  for (const field of configFields.value) {
+    const raw = connector.value?.config[field.key]
+    values[field.key] = raw === null || raw === undefined ? '' : String(raw)
+  }
+  configForm.value = values
+}
+
+async function saveConfig() {
+  if (!connector.value) return
+  configSaving.value = true
+  configErrorMsg.value = ''
+  try {
+    // Start from the stored config: untouched keys (sync cursors, hint
+    // values) survive the wholesale replace, and redacted secrets round-trip
+    // as their marker, which the backend swaps back for the stored value.
+    const merged: Record<string, unknown> = { ...connector.value.config }
+    for (const field of configFields.value) {
+      const value = (configForm.value[field.key] || '').trim()
+      if (!value) delete merged[field.key]
+      else merged[field.key] = field.type === 'number' ? Number(value) : value
+    }
+    await updateConnector(connectorId.value, { config: merged })
+    await fetchConnector(true)
+    resetConfigForm()
+    showFeedback('Configuration saved')
+  } catch (err) {
+    configErrorMsg.value =
+      err instanceof Error ? err.message : 'Failed to save the configuration'
+  } finally {
+    configSaving.value = false
+  }
+}
+
 const { ask } = useConfirm()
 
 async function deleteConnector() {
@@ -302,8 +344,9 @@ function duration(log: SyncLog): string {
   return `${(ms / 60000).toFixed(1)}m`
 }
 
-onMounted(() => {
-  fetchConnector()
+onMounted(async () => {
+  await fetchConnector()
+  resetConfigForm()
   fetchLogs()
 })
 </script>
@@ -388,11 +431,12 @@ onMounted(() => {
         <div v-if="syncing" class="sync-banner">Syncing...</div>
 
         <div v-if="connector.error && !syncing" class="connector-error">
-          <span>{{ connector.error }}</span>
+          <span class="connector-error-text">{{ connector.error }}</span>
           <button
             class="copy-error-btn"
             @click.stop="copyError(connector.error!, 'main')"
             :title="copiedId === 'main' ? 'Copied!' : 'Copy error'"
+            :aria-label="copiedId === 'main' ? 'Copied' : 'Copy error'"
           >
             <Check v-if="copiedId === 'main'" :size="13" />
             <Copy v-else :size="13" />
@@ -489,7 +533,59 @@ onMounted(() => {
           <p v-if="ebError" class="upload-result msg-error">{{ ebError }}</p>
         </div>
 
-        <h3 v-if="isImportable || isEnableBanking">Settings</h3>
+        <form
+          v-if="configFields.length"
+          class="config-form"
+          @submit.prevent="saveConfig"
+        >
+          <div
+            v-for="field in configFields"
+            :key="field.key"
+            class="config-field"
+          >
+            <label :for="`cfg-${field.key}`">
+              {{ field.label }}
+              <span v-if="!field.required" class="config-optional"
+                >optional</span
+              >
+            </label>
+            <ComboBox
+              v-if="field.type === 'select' && field.options"
+              v-model="configForm[field.key]"
+              :options="field.options"
+            />
+            <textarea
+              v-else-if="field.type === 'textarea'"
+              :id="`cfg-${field.key}`"
+              v-model="configForm[field.key]"
+              class="config-textarea"
+              rows="5"
+              :placeholder="field.placeholder"
+              spellcheck="false"
+            ></textarea>
+            <input
+              v-else
+              :id="`cfg-${field.key}`"
+              v-model="configForm[field.key]"
+              :type="field.type"
+              :placeholder="field.placeholder"
+            />
+          </div>
+          <p v-if="configErrorMsg" class="upload-result msg-error">
+            {{ configErrorMsg }}
+          </p>
+          <button
+            type="submit"
+            class="action-btn action-btn--primary config-save"
+            :disabled="configSaving"
+          >
+            {{ configSaving ? 'Saving...' : 'Save configuration' }}
+          </button>
+        </form>
+
+        <h3 v-if="isImportable || isEnableBanking || configFields.length">
+          Settings
+        </h3>
         <pre class="config-pre">{{
           JSON.stringify(connector.config, null, 2)
         }}</pre>
@@ -517,13 +613,16 @@ onMounted(() => {
                 {{ log.entries_count }}
                 {{ log.entries_count === 1 ? 'entry' : 'entries' }}
               </span>
-              <span v-if="log.error" class="log-error-text">
-                {{ log.error }}
+              <span v-if="log.error" class="log-error">
+                <span class="log-error-text">{{ log.error }}</span>
                 <button
                   class="copy-error-btn"
                   @click.stop="copyError(log.error!, `log-${log.id}`)"
                   :title="
                     copiedId === `log-${log.id}` ? 'Copied!' : 'Copy error'
+                  "
+                  :aria-label="
+                    copiedId === `log-${log.id}` ? 'Copied' : 'Copy error'
                   "
                 >
                   <Check v-if="copiedId === `log-${log.id}`" :size="12" />
@@ -704,32 +803,44 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: none;
-  border: none;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--border);
   color: var(--text-muted);
-  padding: 0.2rem;
   cursor: pointer;
-  border-radius: 4px;
-  vertical-align: middle;
-  margin-left: 0.25rem;
-  transition: color 0.15s;
+  border-radius: 6px;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .copy-error-btn:hover {
-  color: var(--text);
-  background: none;
+  color: var(--primary);
+  border-color: var(--primary);
+  background: transparent;
 }
 
 .connector-error {
   display: flex;
-  align-items: flex-start;
-  gap: 0.25rem;
+  align-items: center;
+  gap: 0.5rem;
   color: var(--danger);
-  font-size: 0.9rem;
   margin: 0.5rem 0;
   padding: 0.5rem 0.75rem;
   background: color-mix(in srgb, var(--danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
   border-radius: var(--radius);
+}
+/* Error payloads are API messages: mono, and free to wrap however long. */
+.connector-error-text {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
 }
 
 .action-bar {
@@ -821,6 +932,38 @@ onMounted(() => {
   opacity: 0;
 }
 
+/* ----- Configuration form ----- */
+.config-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 480px;
+  margin-bottom: 1.25rem;
+}
+.config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.config-field label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.config-optional {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  opacity: 0.7;
+  margin-left: 0.3rem;
+}
+.config-textarea {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  resize: vertical;
+}
+.config-save {
+  align-self: flex-start;
+}
+
 .config-pre {
   background: var(--bg);
   border: 1px solid var(--border);
@@ -906,10 +1049,15 @@ onMounted(() => {
   color: var(--text-muted);
 }
 
-.log-error-text {
+.log-error {
   display: inline-flex;
   align-items: center;
-  font-size: 0.9rem;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.log-error-text {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
   color: var(--danger);
   white-space: nowrap;
   overflow: hidden;
