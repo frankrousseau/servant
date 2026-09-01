@@ -1006,12 +1006,18 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 .fs-actions {
   display: flex;
   gap: 0.375rem;
-  flex-shrink: 0;
   align-items: center;
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-end;
 }
+/* The search takes whatever the breadcrumbs leave, up to a sane cap. */
 .fs-search {
-  width: 180px;
-  padding: 0.4rem 0.65rem;
+  flex: 1;
+  min-width: 160px;
+  max-width: 480px;
+  height: 32px;
+  padding: 0 0.65rem;
   font-size: 0.85rem;
   border-radius: 8px;
 }
@@ -1019,28 +1025,34 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   width: 150px;
   flex-shrink: 0;
 }
+/* Topbar controls share one control language: 32px outline capsules,
+   primary on hover, same as the Contacts and Checklists topbars. */
+.fs-type-filter :deep(.cb-control) {
+  height: 32px;
+  padding: 0 0.65rem;
+  font-size: 0.85rem;
+}
 .fs-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 32px;
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text-muted);
-  padding: 0.4rem 0.75rem;
+  padding: 0 0.75rem;
   border-radius: 8px;
   cursor: pointer;
   font-size: 0.85rem;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .fs-btn:hover {
   border-color: var(--primary);
-  color: var(--text);
+  color: var(--primary);
 }
 .fs-btn-icon {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.4rem 0.5rem;
-}
-.fs-upload-label {
-  display: inline-flex;
-  align-items: center;
+  padding: 0 0.5rem;
 }
 /* Upload progress + errors, same language as Photos */
 .fs-uploading {
