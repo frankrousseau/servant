@@ -20,6 +20,7 @@ defmodule Servant.Connectors do
     "vcard" => Servant.Connectors.VCardConnector,
     "apple_health" => Servant.Connectors.AppleHealthConnector,
     "invoice_scraper" => Servant.Connectors.InvoiceScraperConnector,
+    "ovh" => Servant.Connectors.OvhConnector,
     "strava" => Servant.Connectors.StravaConnector,
     "github" => Servant.Connectors.GithubConnector,
     "gitlab" => Servant.Connectors.GitlabConnector,

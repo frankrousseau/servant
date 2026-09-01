@@ -70,7 +70,14 @@ module.exports = {
 
     if (totpVisible) {
       if (!credentials.totp_secret) {
-        throw new Error("2FA required but no totp_secret provided");
+        // A code sent by SMS cannot be automated: nothing here can read the
+        // text message. TOTP can. Say exactly what to change on the account.
+        throw new Error(
+          "OVH asked for a 2FA code (likely sent by SMS). SMS codes cannot " +
+            "be automated: add an authenticator app (TOTP) as a 2FA method " +
+            "in OVH account security, then paste its Base32 secret into the " +
+            "connector's 'TOTP secret' field.",
+        );
       }
 
       log("2FA detected, generating TOTP...");
