@@ -16,7 +16,7 @@ defmodule Servant.Connectors.EVMConnector do
           chain: "arbitrum",
           chain_id: 42161,
           native_symbol: "ETH",
-          default_explorer_url: "https://api.arbiscan.io/api"
+          default_explorer_url: "https://api.etherscan.io/v2/api"
       end
   """
 
@@ -66,6 +66,7 @@ defmodule Servant.Connectors.EVMConnector do
              %{
                wallet_address: address,
                resolved_address: nil,
+               api_key: config_value(config, "api_key"),
                explorer_url: config_value(config, "explorer_url", unquote(default_explorer_url)),
                min_wei: config_value(config, "min_wei", @default_min_wei),
                last_block: config_value(config, "last_block", 0)
@@ -107,11 +108,15 @@ defmodule Servant.Connectors.EVMConnector do
 
         with {:ok, txs} <-
                Explorer.list_transactions(state.resolved_address, state.explorer_url,
-                 start_block: start_block
+                 start_block: start_block,
+                 chain_id: unquote(chain_id),
+                 api_key: state.api_key
                ),
              {:ok, token_txs} <-
                Explorer.list_token_transfers(state.resolved_address, state.explorer_url,
-                 start_block: start_block
+                 start_block: start_block,
+                 chain_id: unquote(chain_id),
+                 api_key: state.api_key
                ) do
           native_entries =
             Enum.flat_map(txs, fn tx ->

@@ -15,5 +15,5 @@ defmodule Servant.Connectors.BaseConnector do
     chain: "base",
     chain_id: 8453,
     native_symbol: "ETH",
-    default_explorer_url: "https://api.basescan.org/api"
+    default_explorer_url: "https://api.etherscan.io/v2/api"
 end

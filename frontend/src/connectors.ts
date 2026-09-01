@@ -239,7 +239,14 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
         key: 'explorer_url',
         label: 'Custom explorer URL',
         type: 'url',
-        placeholder: 'Leave empty for Arbiscan',
+        placeholder: 'Leave empty for Etherscan V2',
+        required: false
+      },
+      {
+        key: 'api_key',
+        label: 'Etherscan API key',
+        type: 'password',
+        placeholder: 'Free key from etherscan.io (required for Etherscan)',
         required: false
       }
     ],
@@ -249,6 +256,7 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
       min_wei: 1000000000000000
     }
   },
+
   {
     id: 'base',
     name: 'Base Wallet',
@@ -268,6 +276,13 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
         label: 'Custom explorer URL',
         type: 'url',
         placeholder: 'Leave empty for BaseScan',
+        required: false
+      },
+      {
+        key: 'api_key',
+        label: 'Etherscan API key',
+        type: 'password',
+        placeholder: 'Free key from etherscan.io (required for Etherscan)',
         required: false
       }
     ],
@@ -295,7 +310,14 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
         key: 'explorer_url',
         label: 'Custom explorer URL',
         type: 'url',
-        placeholder: 'Leave empty for Etherscan',
+        placeholder: 'Leave empty for Etherscan V2',
+        required: false
+      },
+      {
+        key: 'api_key',
+        label: 'Etherscan API key',
+        type: 'password',
+        placeholder: 'Free key from etherscan.io (required for Etherscan)',
         required: false
       }
     ],
@@ -305,6 +327,7 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
       min_wei: 1000000000000000
     }
   },
+
   {
     id: 'vcard',
     name: 'Contacts (vCard)',

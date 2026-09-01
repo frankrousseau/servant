@@ -9,5 +9,5 @@ defmodule Servant.Connectors.ArbitrumConnector do
     chain: "arbitrum",
     chain_id: 42161,
     native_symbol: "ETH",
-    default_explorer_url: "https://api.arbiscan.io/api"
+    default_explorer_url: "https://api.etherscan.io/v2/api"
 end

@@ -9,5 +9,5 @@ defmodule Servant.Connectors.EthereumConnector do
     chain: "ethereum",
     chain_id: 1,
     native_symbol: "ETH",
-    default_explorer_url: "https://api.etherscan.io/api"
+    default_explorer_url: "https://api.etherscan.io/v2/api"
 end
