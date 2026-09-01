@@ -58,9 +58,33 @@ defmodule Servant.Connectors do
   def update_connector_config(user_id, id, attrs) do
     config = get_connector_config!(user_id, id)
 
-    config
-    |> ConnectorConfig.changeset(restore_redacted(attrs, config.config || %{}))
-    |> Repo.update()
+    result =
+      config
+      |> ConnectorConfig.changeset(restore_redacted(attrs, config.config || %{}))
+      |> Repo.update()
+
+    # A running worker builds its connector state once at init and would keep
+    # syncing with the old credentials/schedule forever; bounce it so the
+    # edit takes effect now (init re-reads the row from the DB).
+    with {:ok, updated} <- result do
+      if updated.config != config.config or updated.schedule != config.schedule do
+        restart_if_running(user_id, id)
+      end
+
+      {:ok, updated}
+    end
+  end
+
+  defp restart_if_running(user_id, config_id) do
+    case Registry.lookup(Servant.Connectors.Registry, {user_id, config_id}) do
+      [{_pid, _}] ->
+        stop_connector(user_id, config_id)
+        start_connector(user_id, config_id)
+        :ok
+
+      [] ->
+        :ok
+    end
   end
 
   @doc """

@@ -66,7 +66,9 @@ defmodule Servant.Connectors.EVMConnector do
              %{
                wallet_address: address,
                resolved_address: nil,
-               api_key: config_value(config, "api_key"),
+               # Trimmed: a key pasted with a stray space or newline would
+               # fail Etherscan with the same message as no key at all.
+               api_key: String.trim(to_string(config_value(config, "api_key"))),
                explorer_url: config_value(config, "explorer_url", unquote(default_explorer_url)),
                min_wei: config_value(config, "min_wei", @default_min_wei),
                last_block: config_value(config, "last_block", 0)

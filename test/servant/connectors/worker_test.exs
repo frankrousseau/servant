@@ -140,4 +140,53 @@ defmodule Servant.Connectors.WorkerTest do
 
     assert %{state: %{cursor: "db_cursor"}} = :sys.get_state(pid)
   end
+
+  # --- Config updates reaching a running worker ---
+
+  describe "update_connector_config/3" do
+    setup %{user: user} do
+      {:ok, config} =
+        Connectors.create_connector_config(user.id, %{
+          "connector_type" => "rss",
+          "name" => "feed",
+          "config" => %{"url" => "https://example.com/old.xml"},
+          "schedule" => "on_demand"
+        })
+
+      {:ok, pid} = Connectors.start_connector(user.id, config.id)
+      on_exit(fn -> Connectors.stop_connector(user.id, config.id) end)
+
+      %{rss_config: config, rss_pid: pid}
+    end
+
+    test "a config change restarts the running worker with the new state", %{
+      user: user,
+      rss_config: config,
+      rss_pid: pid
+    } do
+      ref = Process.monitor(pid)
+
+      {:ok, _updated} =
+        Connectors.update_connector_config(user.id, config.id, %{
+          "config" => %{"url" => "https://example.com/new.xml"}
+        })
+
+      assert_receive {:DOWN, ^ref, :process, ^pid, _reason}
+
+      [{new_pid, _}] = Registry.lookup(Servant.Connectors.Registry, {user.id, config.id})
+      assert new_pid != pid
+      assert :sys.get_state(new_pid).state.url == "https://example.com/new.xml"
+    end
+
+    test "a name-only change leaves the worker alone", %{
+      user: user,
+      rss_config: config,
+      rss_pid: pid
+    } do
+      {:ok, _updated} =
+        Connectors.update_connector_config(user.id, config.id, %{"name" => "renamed"})
+
+      assert Registry.lookup(Servant.Connectors.Registry, {user.id, config.id}) == [{pid, nil}]
+    end
+  end
 end
