@@ -6,8 +6,9 @@ import { relationLabel, relationsOf } from './relations'
 // The address book as a graph: contacts are nodes, declared relations are
 // edges. Relations to the me-contact are left out, everyone has one.
 // ponytail: static layout computed once per data change (deterministic
-// golden-angle seed + a fixed force relaxation), no pan/zoom; revisit if a
-// network outgrows one screen.
+// golden-angle seed + a fixed force relaxation). The canvas sizes itself to
+// the laid-out graph and the pane scrolls, so growth costs space, never
+// legibility; a collision pass guarantees discs and names stay apart.
 
 const props = defineProps<{ contacts: Entry[]; meId: string | null }>()
 const emit = defineEmits<{ select: [id: string] }>()
@@ -102,8 +103,11 @@ const graph = computed(() => {
   const comps = componentsOf(ids, edges)
   const cols = Math.ceil(Math.sqrt(comps.length))
   const rows = Math.ceil(comps.length / cols)
-  const cellW = W / cols
-  const cellH = H / rows
+  // The seed canvas grows with the population (~12 labeled nodes fit the
+  // base size comfortably); the pane scrolls when the result outgrows it.
+  const roominess = Math.max(1, Math.sqrt(ids.length / 12))
+  const cellW = (W * roominess) / cols
+  const cellH = (H * roominess) / rows
   const centers = new Map<string, { x: number; y: number }>()
   const nodes = new Map<string, Node>()
   comps.forEach((comp, compIndex) => {
@@ -158,22 +162,118 @@ const graph = computed(() => {
       nodeB.x -= (dx / dist) * force
       nodeB.y -= (dy / dist) * force
     }
+    // A node sitting on someone else's relation reads as part of it: chords
+    // push unrelated nodes aside (and drag their endpoints back a little),
+    // so the layout makes room instead of letting edges run over discs.
+    for (const edge of edges) {
+      const nodeA = nodes.get(edge.from)!
+      const nodeB = nodes.get(edge.to)!
+      for (const node of placed) {
+        if (node.id === edge.from || node.id === edge.to) continue
+        const abx = nodeB.x - nodeA.x
+        const aby = nodeB.y - nodeA.y
+        const lenSq = abx * abx + aby * aby || 1
+        const t = Math.max(
+          0,
+          Math.min(
+            1,
+            ((node.x - nodeA.x) * abx + (node.y - nodeA.y) * aby) / lenSq
+          )
+        )
+        const dx = node.x - (nodeA.x + abx * t)
+        const dy = node.y - (nodeA.y + aby * t)
+        const dist = Math.hypot(dx, dy)
+        if (dist >= 44 || dist === 0) continue
+        const push = (44 - dist) * 0.25
+        node.x += (dx / dist) * push
+        node.y += (dy / dist) * push
+        nodeA.x -= (dx / dist) * push * 0.3
+        nodeA.y -= (dy / dist) * push * 0.3
+        nodeB.x -= (dx / dist) * push * 0.3
+        nodeB.y -= (dy / dist) * push * 0.3
+      }
+    }
     for (const node of placed) {
       const center = centers.get(node.id)!
       node.x += (center.x - node.x) * 0.02
       node.y += (center.y - node.y) * 0.02
     }
   }
-  for (const node of placed) {
-    node.x = Math.min(W - 70, Math.max(70, node.x))
-    node.y = Math.min(H - 45, Math.max(45, node.y))
+
+  // Forces attract but guarantee nothing; these passes do. First separate
+  // every disc+name box, then walk the actual arcs and shove any unrelated
+  // node clear of them, until both properties hold together.
+  resolveCollisions(placed)
+  let slots = fanSlots(edges, nodes)
+  for (let round = 0; round < 8; round++) {
+    let moved = false
+    for (const edge of edges) {
+      const arc = arcOf(edge, nodes, slots.get(pairKey(edge)) || 0)
+      for (const node of placed) {
+        if (node.id === edge.from || node.id === edge.to) continue
+        let best = Infinity
+        let bestX = 0
+        let bestY = 0
+        for (let step = 0; step <= 20; step++) {
+          const t = step / 20
+          const u = 1 - t
+          const px =
+            u * u * arc.start.x + 2 * u * t * arc.cx + t * t * arc.end.x
+          const py =
+            u * u * arc.start.y + 2 * u * t * arc.cy + t * t * arc.end.y
+          const d = Math.hypot(px - node.x, py - node.y)
+          if (d < best) {
+            best = d
+            bestX = px
+            bestY = py
+          }
+        }
+        if (best >= EDGE_CLEAR) continue
+        moved = true
+        if (best < 1) {
+          // Node dead on the arc: push it off the chord's normal.
+          const chordX = arc.end.x - arc.start.x
+          const chordY = arc.end.y - arc.start.y
+          const chordLen = Math.hypot(chordX, chordY) || 1
+          node.x -= (chordY / chordLen) * (EDGE_CLEAR + 2)
+          node.y += (chordX / chordLen) * (EDGE_CLEAR + 2)
+        } else {
+          const scale = (EDGE_CLEAR - best + 2) / best
+          node.x += (node.x - bestX) * scale
+          node.y += (node.y - bestY) * scale
+        }
+      }
+    }
+    if (!moved) break
+    resolveCollisions(placed)
+    slots = fanSlots(edges, nodes)
   }
 
-  const slots = fanSlots(edges, nodes)
+  // The canvas fits the laid-out graph rather than the graph the canvas:
+  // small networks stay small, big ones scroll at full size.
+  const PAD = 46
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const node of placed) {
+    minX = Math.min(minX, node.x - labelHalfW(node.name))
+    maxX = Math.max(maxX, node.x + labelHalfW(node.name))
+    minY = Math.min(minY, node.y - 18)
+    maxY = Math.max(maxY, node.y + 34)
+  }
+  const view = placed.length
+    ? {
+        x: Math.round(minX - PAD),
+        y: Math.round(minY - PAD),
+        w: Math.round(maxX - minX + 2 * PAD),
+        h: Math.round(maxY - minY + 2 * PAD)
+      }
+    : { x: 0, y: 0, w: W, h: H }
 
   return {
     nodes: placed,
-    byId: nodes,
+    view,
     edges: edges.map(edge => ({
       key: pairKey(edge),
       label: relationLabel(edge.type),
@@ -185,8 +285,45 @@ const graph = computed(() => {
 const NODE_R = 14
 // Gap between two neighbouring strokes in a fan, at the arc's widest point.
 const BOW_STEP = 26
+// Minimum distance from any point of an arc to an unrelated node's center.
+const EDGE_CLEAR = NODE_R + 10
+// A node's footprint: the disc plus its name 28px below, in 11px mono.
+const BOX_HALF_H = 26
+const labelHalfW = (name: string) => Math.max(NODE_R + 4, name.length * 3.3 + 4)
 
 const pairKey = (edge: Edge) => `${edge.from}|${edge.to}`
+
+// Separate overlapping disc+name boxes pairwise, along whichever axis needs
+// the smaller shove, until every label is readable.
+function resolveCollisions(placed: Node[]) {
+  for (let iter = 0; iter < 60; iter++) {
+    let moved = false
+    for (let i = 0; i < placed.length; i++) {
+      for (let j = i + 1; j < placed.length; j++) {
+        const nodeA = placed[i]
+        const nodeB = placed[j]
+        const overlapX =
+          labelHalfW(nodeA.name) +
+          labelHalfW(nodeB.name) +
+          2 -
+          Math.abs(nodeA.x - nodeB.x)
+        const overlapY = 2 * BOX_HALF_H + 2 - Math.abs(nodeA.y - nodeB.y)
+        if (overlapX <= 0 || overlapY <= 0) continue
+        moved = true
+        if (overlapX < overlapY) {
+          const push = (overlapX / 2) * (nodeA.x <= nodeB.x ? -1 : 1)
+          nodeA.x += push
+          nodeB.x -= push
+        } else {
+          const push = (overlapY / 2) * (nodeA.y <= nodeB.y ? -1 : 1)
+          nodeA.y += push
+          nodeB.y -= push
+        }
+      }
+    }
+    if (!moved) break
+  }
+}
 
 // Edges leaving one contact fan out instead of stacking: each edge takes a
 // slot in the fan of its two endpoints (incident edges ordered by the angle
@@ -245,7 +382,7 @@ function pullBack(node: Node, cx: number, cy: number, off: number) {
 // Shallow arc from disc to disc. A straight edge passing behind an unrelated
 // node would read as attached to it, so even a lone pair keeps the curve form
 // (slot 0 simply bows by nothing).
-function edgePath(edge: Edge, nodes: Map<string, Node>, slot: number): string {
+function arcOf(edge: Edge, nodes: Map<string, Node>, slot: number) {
   const nodeA = nodes.get(edge.from)!
   const nodeB = nodes.get(edge.to)!
   const dx = nodeB.x - nodeA.x
@@ -256,8 +393,16 @@ function edgePath(edge: Edge, nodes: Map<string, Node>, slot: number): string {
   const cx = (nodeA.x + nodeB.x) / 2 - (dy / dist) * bow
   const cy = (nodeA.y + nodeB.y) / 2 + (dx / dist) * bow
   const off = NODE_R + 3
-  const start = pullBack(nodeA, cx, cy, off)
-  const end = pullBack(nodeB, cx, cy, off)
+  return {
+    cx,
+    cy,
+    start: pullBack(nodeA, cx, cy, off),
+    end: pullBack(nodeB, cx, cy, off)
+  }
+}
+
+function edgePath(edge: Edge, nodes: Map<string, Node>, slot: number): string {
+  const { start, cx, cy, end } = arcOf(edge, nodes, slot)
   return `M ${start.x} ${start.y} Q ${cx} ${cy} ${end.x} ${end.y}`
 }
 </script>
@@ -271,7 +416,9 @@ function edgePath(edge: Edge, nodes: Map<string, Node>, slot: number): string {
     <svg
       v-else
       class="rg-svg"
-      :viewBox="`0 0 ${W} ${H}`"
+      :width="graph.view.w"
+      :height="graph.view.h"
+      :viewBox="`${graph.view.x} ${graph.view.y} ${graph.view.w} ${graph.view.h}`"
       role="img"
       aria-label="Contact relations graph"
     >
@@ -310,10 +457,12 @@ function edgePath(edge: Edge, nodes: Map<string, Node>, slot: number): string {
 </template>
 
 <style scoped>
+/* The svg renders at its natural size; margin auto centers a small graph
+   and a large one scrolls here instead of scaling down to fit. */
 .rg {
   height: 100%;
   display: flex;
-  flex-direction: column;
+  overflow: auto;
 }
 .rg-empty {
   color: var(--text-muted);
@@ -321,11 +470,11 @@ function edgePath(edge: Edge, nodes: Map<string, Node>, slot: number): string {
   font-size: 0.88rem;
   padding: 2.5rem 1rem;
   text-align: center;
+  margin: auto;
 }
 .rg-svg {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
+  margin: auto;
+  flex-shrink: 0;
 }
 .rg-edge {
   fill: none;

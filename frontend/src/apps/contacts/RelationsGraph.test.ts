@@ -125,6 +125,151 @@ describe('RelationsGraph', () => {
     expect(Math.max(...widths) / Math.min(...widths)).toBeGreaterThan(2)
   })
 
+  it('moves nodes aside so no edge runs over an unrelated contact', () => {
+    // A wheel: hub tied to six friends who also form a ring. Plenty of
+    // occasions for an edge to cut across a disc it does not touch.
+    const ring = ['r0', 'r1', 'r2', 'r3', 'r4', 'r5']
+    const contacts = [
+      contact(
+        'hub',
+        'Hub',
+        ring.map(id => ({ contact_id: id, type: 'friend' }))
+      ),
+      ...ring.map((id, i) =>
+        contact(id, `Ring ${id.toUpperCase()}`, [
+          { contact_id: 'hub', type: 'friend' },
+          { contact_id: ring[(i + 1) % ring.length], type: 'colleague' }
+        ])
+      )
+    ]
+    const wrapper = mount(RelationsGraph, { props: { contacts, meId: null } })
+
+    const centers = wrapper.findAll('.rg-node').map(node => ({
+      x: parseFloat(node.find('circle').attributes('cx')!),
+      y: parseFloat(node.find('circle').attributes('cy')!)
+    }))
+    const offenses: string[] = []
+    for (const edge of wrapper.findAll('.rg-edge')) {
+      const [x0, y0, cx, cy, x1, y1] = edge
+        .attributes('d')!
+        .match(/-?\d+(\.\d+)?/g)!
+        .map(Number)
+      for (let step = 0; step <= 20; step++) {
+        const t = step / 20
+        const u = 1 - t
+        const px = u * u * x0 + 2 * u * t * cx + t * t * x1
+        const py = u * u * y0 + 2 * u * t * cy + t * t * y1
+        for (const center of centers) {
+          // Paths already start 17px out of their own endpoint discs, so a
+          // sample closer than 16 to any center means the arc crosses a disc.
+          if (Math.hypot(px - center.x, py - center.y) < 16) {
+            offenses.push(
+              `${edge.attributes('d')} at t=${t} near ${center.x},${center.y}`
+            )
+          }
+        }
+      }
+    }
+    expect(offenses).toEqual([])
+  })
+
+  it('keeps every disc and name clear of the others, however crowded', () => {
+    // Two families plus a clique of colleagues: enough nodes that the old
+    // fixed 900x620 canvas piled them up on top of each other.
+    const contacts: Entry[] = []
+    const families = ['Durand', 'Martin', 'Lefebvre']
+    families.forEach((family, familyIndex) => {
+      const parent = `${family.toLowerCase()}-parent`
+      const memberIds = Array.from(
+        { length: 7 },
+        (_unused, i) => `${family.toLowerCase()}-${i}`
+      )
+      contacts.push(
+        contact(
+          parent,
+          `Parent ${family}`,
+          memberIds.map(id => ({ contact_id: id, type: 'child' }))
+        )
+      )
+      memberIds.forEach((id, i) => {
+        contacts.push(
+          contact(id, `${family} Number${familyIndex}${i}`, [
+            { contact_id: parent, type: 'parent' }
+          ])
+        )
+      })
+    })
+    const wrapper = mount(RelationsGraph, { props: { contacts, meId: null } })
+
+    interface Box {
+      name: string
+      left: number
+      right: number
+      top: number
+      bottom: number
+    }
+    const boxes: Box[] = wrapper.findAll('.rg-node').map(node => {
+      const name = node.find('.rg-label').text()
+      const x = parseFloat(node.find('circle').attributes('cx')!)
+      const y = parseFloat(node.find('circle').attributes('cy')!)
+      // Disc (r=14) plus the name centered 28px below it, 11px mono font.
+      const halfWidth = Math.max(18, name.length * 3.3 + 4)
+      return {
+        name,
+        left: x - halfWidth,
+        right: x + halfWidth,
+        top: y - 18,
+        bottom: y + 34
+      }
+    })
+    expect(boxes).toHaveLength(24)
+    const collisions: string[] = []
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i]
+        const b = boxes[j]
+        if (
+          a.left < b.right &&
+          b.left < a.right &&
+          a.top < b.bottom &&
+          b.top < a.bottom
+        ) {
+          collisions.push(`${a.name} / ${b.name}`)
+        }
+      }
+    }
+    expect(collisions).toEqual([])
+  })
+
+  it('sizes the canvas to the graph instead of squeezing into it', () => {
+    const spokes = Array.from({ length: 60 }, (_unused, i) => `s${i}`)
+    const contacts = [
+      contact(
+        'hub',
+        'Hub',
+        spokes.map(id => ({ contact_id: id, type: 'friend' }))
+      ),
+      ...spokes.map(id =>
+        contact(id, `Contact ${id.toUpperCase()}`, [
+          { contact_id: 'hub', type: 'friend' }
+        ])
+      )
+    ]
+    const wrapper = mount(RelationsGraph, { props: { contacts, meId: null } })
+
+    const svg = wrapper.find('svg')
+    // Rendered 1:1 (width/height in px matching the viewBox), so a large
+    // network scrolls at readable size instead of scaling down to fit.
+    const [, , viewWidth, viewHeight] = svg
+      .attributes('viewBox')!
+      .split(' ')
+      .map(Number)
+    expect(parseFloat(svg.attributes('width')!)).toBe(viewWidth)
+    expect(parseFloat(svg.attributes('height')!)).toBe(viewHeight)
+    // 61 labeled nodes cannot stay legible inside the old fixed 900x620.
+    expect(viewWidth * viewHeight).toBeGreaterThan(900 * 620)
+  })
+
   it('explains itself when no inter-contact relation exists', () => {
     const wrapper = mount(RelationsGraph, {
       props: {
