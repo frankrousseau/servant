@@ -211,7 +211,14 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
         key: 'explorer_url',
         label: 'Custom explorer URL',
         type: 'url',
-        placeholder: 'Leave empty for HyperScan',
+        placeholder: 'Leave empty for Etherscan V2',
+        required: false
+      },
+      {
+        key: 'api_key',
+        label: 'Etherscan API key',
+        type: 'password',
+        placeholder: 'Free key from etherscan.io (required for Etherscan)',
         required: false
       }
     ],

@@ -9,5 +9,5 @@ defmodule Servant.Connectors.HyperEVMConnector do
     chain: "hyperevm",
     chain_id: 999,
     native_symbol: "HYPE",
-    default_explorer_url: "https://www.hyperscan.com/api"
+    default_explorer_url: "https://api.etherscan.io/v2/api"
 end
