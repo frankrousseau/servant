@@ -26,13 +26,21 @@ defmodule Servant.HTTP do
         [verify: :verify_none]
       end
 
-    Keyword.merge(
-      [
-        receive_timeout: 30_000,
-        connect_options: [transport_opts: verify_opts]
-      ],
-      extra
-    )
+    [
+      receive_timeout: 30_000,
+      connect_options: [transport_opts: verify_opts]
+    ]
+    |> Keyword.merge(Application.get_env(:servant, __MODULE__, []))
+    |> Keyword.merge(extra)
+  end
+
+  @doc """
+  Courtesy pause between calls to a rate-limited third-party API. Disabled in
+  tests (`config :servant, :connector_throttle, false`) so suites don't sleep.
+  """
+  def throttle(ms) do
+    if Application.get_env(:servant, :connector_throttle, true), do: Process.sleep(ms)
+    :ok
   end
 
   @doc """

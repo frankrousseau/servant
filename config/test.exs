@@ -30,5 +30,10 @@ config :phoenix, :plug_init_mode, :runtime
 config :phoenix,
   sort_verified_routes_query_params: true
 
+# Route every connector HTTP call to Req.Test, so a test without an explicit
+# stub fails loudly instead of hitting the network
+config :servant, Servant.HTTP, plug: {Req.Test, Servant.HTTP}, retry_delay: 0
+config :servant, :connector_throttle, false
+
 # Disable scheduler ticking in tests
 config :servant, Servant.Agents.Scheduler, tick: false
