@@ -26,7 +26,8 @@ defmodule Servant.FakeConnector do
       {:ok,
        %{
          cursor: Map.get(config, "cursor", "start"),
-         fail_sync: Map.get(config, "fail_sync", false)
+         fail_sync: Map.get(config, "fail_sync", false),
+         user_id: Map.get(config, "user_id")
        }}
     end
   end

@@ -455,7 +455,7 @@ export const CONNECTOR_DEFS: ConnectorDef[] = [
     id: 'ovh',
     name: 'OVH',
     description:
-      'Collect your OVH invoices through the official signed API (no password, no 2FA).',
+      'Collect your OVH invoices and their PDFs (stored in Files) through the official signed API.',
     category: 'Billing',
     logo: OVH_LOGO,
     configFields: [

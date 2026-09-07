@@ -3,6 +3,10 @@ defmodule Servant.Connectors.OvhConnector do
   OVH invoice connector on the official signed API: no browser, no password,
   no 2FA at run time (unlike the Playwright provider it replaces).
 
+  Each new bill lands twice: as an `invoice` entry, and as its PDF stored in
+  the Files app under a root "Invoices" folder, with the invoice entry's
+  `data.url` pointing at the local copy.
+
   Credentials are the application key / application secret / consumer key
   triple created in one page at https://eu.api.ovh.com/createToken with the
   rights `GET /me/bill` and `GET /me/bill/*` (validity "Unlimited"). Every
@@ -13,8 +17,13 @@ defmodule Servant.Connectors.OvhConnector do
 
   use Servant.Connectors.Connector
 
+  require Logger
+
+  alias Servant.Data
+  alias Servant.Storage
+
   @default_endpoint "https://eu.api.ovh.com/1.0"
-  @max_bills 50
+  @invoices_folder "Invoices"
 
   @impl true
   def id, do: "ovh"
@@ -62,7 +71,8 @@ defmodule Servant.Connectors.OvhConnector do
            app_key: app_key,
            app_secret: app_secret,
            consumer_key: consumer_key,
-           endpoint: endpoint
+           endpoint: endpoint,
+           user_id: config_value(config, "user_id")
          }}
     end
   end
@@ -71,10 +81,134 @@ defmodule Servant.Connectors.OvhConnector do
   def sync(state) do
     with {:ok, drift} <- time_drift(state),
          {:ok, ids} <- list_bill_ids(state, drift),
-         {:ok, bills} <- fetch_bills(state, ids, drift) do
-      {:ok, Enum.map(bills, &build_entry/1), state}
+         {:ok, bills} <- fetch_bills(state, new_ids(ids, known_ids(state)), drift) do
+      folder_id =
+        if bills != [] and is_binary(state.user_id) do
+          invoices_folder_id(state.user_id)
+        end
+
+      {:ok, Enum.flat_map(bills, &bill_entries(&1, state, folder_id)), state}
     else
       {:error, reason} -> {:error, reason, state}
+    end
+  end
+
+  # A bill id maps 1:1 onto the entry external_id, so already-imported bills
+  # are dropped before their detail (and PDF) is ever fetched: every sync
+  # only pays for what is new, and no blob is ever stored twice.
+  @doc false
+  def new_ids(ids, known) do
+    Enum.reject(ids, fn id -> "ovh-#{id}" in known end)
+  end
+
+  defp known_ids(%{user_id: user_id}) when is_binary(user_id) do
+    user_id
+    |> Data.all_entries(%{"kind" => "invoice", "source" => "ovh"})
+    |> MapSet.new(& &1.external_id)
+  end
+
+  defp known_ids(_state), do: MapSet.new()
+
+  # One bill becomes an invoice entry, plus a PDF file entry in the Files
+  # app when the download works; a failed download keeps the sync alive and
+  # the invoice entry falls back to OVH's remote link.
+  defp bill_entries(bill, state, folder_id) do
+    case store_pdf(bill, state, folder_id) do
+      {:ok, file_entry, local_path} -> [build_entry(bill, local_path), file_entry]
+      :skip -> [build_entry(bill)]
+    end
+  end
+
+  defp store_pdf(bill, state, folder_id) do
+    pdf_url = bill["pdfUrl"] || bill["url"]
+
+    with true <- is_binary(pdf_url) and is_binary(state.user_id),
+         {:ok, %Req.Response{status: 200, body: body}} when is_binary(body) <-
+           Req.get(pdf_url, Servant.HTTP.req_options()),
+         {:ok, relative} <- write_blob(state.user_id, body) do
+      local_path = Storage.public_url(relative)
+      {:ok, file_entry(bill, local_path, byte_size(body), folder_id), local_path}
+    else
+      other ->
+        Logger.warning("OVH invoice PDF skipped for #{bill["billId"]}: #{inspect(other)}")
+        :skip
+    end
+  end
+
+  defp write_blob(user_id, body) do
+    workspace = Storage.tmp_workspace(user_id)
+    tmp_path = Path.join(workspace, "invoice.pdf")
+
+    try do
+      File.write!(tmp_path, body)
+
+      with {:ok, relative, _absolute} <-
+             Storage.store_app_file(user_id, "files", tmp_path, ext: ".pdf") do
+        {:ok, relative}
+      end
+    after
+      Storage.cleanup_tmp(workspace)
+    end
+  end
+
+  defp file_entry(bill, local_path, size, folder_id) do
+    filename = pdf_filename(bill)
+
+    %{
+      "kind" => "file",
+      "source" => "ovh",
+      "external_id" => "ovh-pdf-#{bill["billId"]}",
+      "title" => filename,
+      "occurred_at" => parse_datetime(bill["date"]),
+      "data" => %{
+        "filename" => filename,
+        "path" => local_path,
+        "size" => size,
+        "mime_type" => "application/pdf",
+        "parent_id" => folder_id
+      },
+      "metadata" => %{}
+    }
+  end
+
+  @doc false
+  def pdf_filename(bill) do
+    date = String.slice(to_string(bill["date"] || ""), 0, 10)
+    parts = Enum.reject(["ovh", date, to_string(bill["billId"])], &(&1 == ""))
+    Enum.join(parts, "-") <> ".pdf"
+  end
+
+  # The Files app is a flat entry tree; the shared "Invoices" root folder is
+  # found by name (whoever created it) or created once.
+  # ponytail: folder data lives in JSON, so the lookup scans the file entries
+  # in memory; index it if a file tree ever makes that visible.
+  defp invoices_folder_id(user_id) do
+    folder =
+      user_id
+      |> Data.all_entries(%{"kind" => "file"})
+      |> Enum.find(fn entry ->
+        entry.data["is_folder"] == true and entry.data["filename"] == @invoices_folder and
+          (entry.data["parent_id"] || nil) == nil
+      end)
+
+    case folder do
+      %{id: id} ->
+        id
+
+      nil ->
+        case Data.create_entry(user_id, %{
+               kind: "file",
+               source: "ovh",
+               title: @invoices_folder,
+               data: %{
+                 "filename" => @invoices_folder,
+                 "is_folder" => true,
+                 "parent_id" => nil
+               }
+             }) do
+          {:ok, entry} -> entry.id
+          _ -> nil
+        end
     end
   end
 
@@ -85,7 +219,7 @@ defmodule Servant.Connectors.OvhConnector do
   end
 
   @doc false
-  def build_entry(bill) do
+  def build_entry(bill, local_path \\ nil) do
     price = bill["priceWithTax"] || %{}
     amount = price["value"] || 0
     currency = price["currencyCode"] || "EUR"
@@ -110,7 +244,8 @@ defmodule Servant.Connectors.OvhConnector do
         "amount" => to_string(amount),
         "currency" => currency,
         "status" => "paid",
-        "url" => bill["pdfUrl"] || bill["url"]
+        "url" => local_path || bill["pdfUrl"] || bill["url"],
+        "remote_url" => bill["pdfUrl"] || bill["url"]
       },
       "metadata" => %{}
     }
@@ -141,9 +276,11 @@ defmodule Servant.Connectors.OvhConnector do
     end
   end
 
+  # No cap: new_ids/2 already reduces the work to unseen bills, so the full
+  # history only ever costs one first sync.
   defp list_bill_ids(state, drift) do
     case get_signed(state, "/me/bill", drift) do
-      {:ok, ids} when is_list(ids) -> {:ok, ids |> Enum.sort() |> Enum.take(-@max_bills)}
+      {:ok, ids} when is_list(ids) -> {:ok, Enum.sort(ids)}
       {:ok, other} -> {:error, "unexpected /me/bill payload: #{inspect(other)}"}
       {:error, reason} -> {:error, reason}
     end

@@ -141,6 +141,14 @@ defmodule Servant.Connectors.WorkerTest do
     assert %{state: %{cursor: "db_cursor"}} = :sys.get_state(pid)
   end
 
+  test "init hands the owner's user_id to the connector via the config", %{
+    user: user,
+    pid: pid
+  } do
+    assert %{state: %{user_id: user_id}} = :sys.get_state(pid)
+    assert user_id == user.id
+  end
+
   # --- Config updates reaching a running worker ---
 
   describe "update_connector_config/3" do

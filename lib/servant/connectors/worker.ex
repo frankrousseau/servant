@@ -53,7 +53,12 @@ defmodule Servant.Connectors.Worker do
     # advanced), which would re-scan from the start. Fall back to the opts if
     # the row is gone.
     stored = Repo.get(ConnectorConfig, config_id)
+
+    # The owner rides along in the config: a connector that stores files
+    # (OVH invoice PDFs) needs it to scope blobs and entry lookups. Never
+    # persisted back (persist_connector_cursor only writes persisted_config).
     config = (stored && stored.config) || Keyword.get(opts, :config, %{})
+    config = Map.put(config, "user_id", user_id)
 
     schedule =
       (stored && stored.schedule) || Keyword.get(opts, :schedule) ||

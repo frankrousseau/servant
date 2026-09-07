@@ -90,6 +90,34 @@ defmodule Servant.Connectors.OvhConnectorTest do
       assert entry["title"] == "OVH - 0 EUR (July 2026)"
       assert entry["occurred_at"] == ~U[2026-07-01 00:00:00Z]
     end
+
+    test "points at the stored PDF when there is one, keeping the remote link" do
+      bill = %{"billId" => "FR1", "date" => "2026-07-01", "pdfUrl" => "https://ovh/bill.pdf"}
+      entry = OvhConnector.build_entry(bill, "/files/u1/apps/files/abc.pdf")
+
+      assert entry["data"]["url"] == "/files/u1/apps/files/abc.pdf"
+      assert entry["data"]["remote_url"] == "https://ovh/bill.pdf"
+    end
+  end
+
+  describe "new_ids/2" do
+    test "drops bills already imported before any detail fetch" do
+      known = MapSet.new(["ovh-FR1", "ovh-FR2"])
+
+      assert OvhConnector.new_ids(["FR1", "FR2", "FR3"], known) == ["FR3"]
+    end
+  end
+
+  describe "pdf_filename/1" do
+    test "names the file from the date and the bill id" do
+      bill = %{"billId" => "FR12345678", "date" => "2026-08-15T09:34:12+02:00"}
+
+      assert OvhConnector.pdf_filename(bill) == "ovh-2026-08-15-FR12345678.pdf"
+    end
+
+    test "copes with a dateless bill" do
+      assert OvhConnector.pdf_filename(%{"billId" => "FR1"}) == "ovh-FR1.pdf"
+    end
   end
 
   describe "metadata" do
