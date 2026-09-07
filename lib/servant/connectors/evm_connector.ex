@@ -123,7 +123,8 @@ defmodule Servant.Connectors.EVMConnector do
           native_entries =
             Enum.flat_map(txs, fn tx ->
               case TransactionParser.parse_transaction(tx, state.resolved_address,
-                     min_wei: state.min_wei
+                     min_wei: state.min_wei,
+                     symbol: unquote(native_symbol)
                    ) do
                 {:ok, parsed} -> [build_entry(parsed, state.resolved_address)]
                 _ -> []
@@ -193,13 +194,12 @@ defmodule Servant.Connectors.EVMConnector do
       defp build_title(nil), do: "#{unquote(name)} transaction"
 
       defp build_title(transfer) do
-        symbol = if transfer.type == "native", do: unquote(native_symbol), else: transfer.symbol
         counterparty_short = Servant.Connectors.TxFormat.short_address(transfer.counterparty, 6)
 
         Servant.Connectors.TxFormat.transfer_title(
           transfer.direction,
           transfer.amount_display,
-          symbol,
+          transfer.symbol,
           counterparty_short
         )
       end

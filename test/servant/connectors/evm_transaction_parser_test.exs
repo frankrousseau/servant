@@ -50,7 +50,7 @@ defmodule Servant.Connectors.EVM.TransactionParserTest do
       assert transfer.type == "native"
       assert transfer.direction == "sent"
       assert transfer.amount == 1_000_000_000_000_000_000
-      assert transfer.symbol == "HYPE"
+      assert transfer.symbol == "ETH"
       assert transfer.counterparty == @other
     end
 

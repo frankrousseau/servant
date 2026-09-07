@@ -33,4 +33,115 @@ defmodule Servant.Connectors.EVM.ExplorerTest do
       assert {:error, _} = Explorer.parse_body(%{"unexpected" => true})
     end
   end
+
+  describe "list_transactions/3" do
+    test "sends the Etherscan V2 parameters and returns the results" do
+      tx = %{"hash" => "0xabc", "blockNumber" => "42"}
+
+      Req.Test.stub(Servant.HTTP, fn conn ->
+        conn = Plug.Conn.fetch_query_params(conn)
+        assert conn.params["module"] == "account"
+        assert conn.params["action"] == "txlist"
+        assert conn.params["address"] == "0xwallet"
+        assert conn.params["startblock"] == "43"
+        assert conn.params["chainid"] == "999"
+        assert conn.params["apikey"] == "KEY"
+        Req.Test.json(conn, %{"status" => "1", "result" => [tx]})
+      end)
+
+      assert {:ok, [^tx]} =
+               Explorer.list_transactions("0xwallet", "https://explorer.test/api",
+                 start_block: 43,
+                 chain_id: 999,
+                 api_key: "KEY"
+               )
+    end
+
+    test "omits chainid and apikey when absent or blank (Blockscout)" do
+      Req.Test.stub(Servant.HTTP, fn conn ->
+        conn = Plug.Conn.fetch_query_params(conn)
+        refute Map.has_key?(conn.params, "chainid")
+        refute Map.has_key?(conn.params, "apikey")
+        Req.Test.json(conn, %{"status" => "1", "result" => []})
+      end)
+
+      assert {:ok, []} =
+               Explorer.list_transactions("0xwallet", "https://blockscout.test/api", api_key: "")
+    end
+
+    test "follows pages until one comes back short" do
+      full_page = for i <- 1..1000, do: %{"hash" => "0x#{i}", "blockNumber" => "#{i}"}
+
+      Req.Test.expect(Servant.HTTP, fn conn ->
+        conn = Plug.Conn.fetch_query_params(conn)
+        assert conn.params["page"] == "1"
+        Req.Test.json(conn, %{"status" => "1", "result" => full_page})
+      end)
+
+      Req.Test.expect(Servant.HTTP, fn conn ->
+        conn = Plug.Conn.fetch_query_params(conn)
+        assert conn.params["page"] == "2"
+        Req.Test.json(conn, %{"status" => "1", "result" => [%{"hash" => "0xlast"}]})
+      end)
+
+      assert {:ok, results} = Explorer.list_transactions("0xwallet", "https://explorer.test/api")
+      assert length(results) == 1001
+      assert List.last(results) == %{"hash" => "0xlast"}
+    end
+
+    test "retries a 429 and returns the retried response" do
+      Req.Test.expect(Servant.HTTP, fn conn -> Plug.Conn.send_resp(conn, 429, "slow down") end)
+
+      Req.Test.expect(Servant.HTTP, fn conn ->
+        Req.Test.json(conn, %{"status" => "1", "result" => [%{"hash" => "0xok"}]})
+      end)
+
+      assert {:ok, [%{"hash" => "0xok"}]} =
+               Explorer.list_transactions("0xwallet", "https://explorer.test/api")
+    end
+
+    test "gives up after the retry budget on a transport error" do
+      Req.Test.stub(Servant.HTTP, fn conn ->
+        Req.Test.transport_error(conn, :econnrefused)
+      end)
+
+      assert {:error, %Req.TransportError{reason: :econnrefused}} =
+               Explorer.list_transactions("0xwallet", "https://explorer.test/api")
+    end
+
+    test "a non-200 response is an error" do
+      Req.Test.stub(Servant.HTTP, fn conn -> Plug.Conn.send_resp(conn, 500, "boom") end)
+
+      assert {:error, %{status: 500}} =
+               Explorer.list_transactions("0xwallet", "https://explorer.test/api")
+    end
+
+    test "keeps the pages already fetched when a later page fails" do
+      full_page = for i <- 1..1000, do: %{"hash" => "0x#{i}"}
+
+      Req.Test.expect(Servant.HTTP, fn conn ->
+        Req.Test.json(conn, %{"status" => "1", "result" => full_page})
+      end)
+
+      Req.Test.expect(Servant.HTTP, fn conn ->
+        Req.Test.json(conn, %{"status" => "0", "result" => "Max rate limit reached"})
+      end)
+
+      assert {:ok, results} = Explorer.list_transactions("0xwallet", "https://explorer.test/api")
+      assert length(results) == 1000
+    end
+  end
+
+  describe "list_token_transfers/3" do
+    test "queries the tokentx action" do
+      Req.Test.stub(Servant.HTTP, fn conn ->
+        conn = Plug.Conn.fetch_query_params(conn)
+        assert conn.params["action"] == "tokentx"
+        Req.Test.json(conn, %{"status" => "1", "result" => []})
+      end)
+
+      assert {:ok, []} =
+               Explorer.list_token_transfers("0xwallet", "https://explorer.test/api")
+    end
+  end
 end

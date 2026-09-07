@@ -7,8 +7,6 @@ defmodule Servant.Connectors.EVM.Explorer do
   Blockscout instances ignore both parameters.
   """
 
-  @max_retries 3
-  @retry_delay_ms 1_000
   @page_size 1000
   @max_pages 50
 
@@ -58,9 +56,9 @@ defmodule Servant.Connectors.EVM.Explorer do
       |> maybe_put(:chainid, Keyword.get(opts, :chain_id))
       |> maybe_put(:apikey, Keyword.get(opts, :api_key))
 
-    case do_request(explorer_url, params, 0) do
+    case do_request(explorer_url, params) do
       {:ok, results} when is_list(results) and length(results) == @page_size ->
-        Process.sleep(200)
+        Servant.HTTP.throttle(200)
         fetch_all_pages(action, address, explorer_url, opts, page + 1, acc ++ results)
 
       {:ok, results} when is_list(results) ->
@@ -75,21 +73,15 @@ defmodule Servant.Connectors.EVM.Explorer do
   defp maybe_put(params, _key, ""), do: params
   defp maybe_put(params, key, value), do: Map.put(params, key, value)
 
-  defp do_request(url, params, attempt) do
+  # Retries (429, 5xx, transport errors) are Req's job: it backs off
+  # exponentially and honors retry-after on safe methods.
+  defp do_request(url, params) do
     case Req.get(url, Servant.HTTP.req_options(params: params)) do
       {:ok, %Req.Response{status: 200, body: body}} ->
         parse_body(body)
 
-      {:ok, %Req.Response{status: 429}} when attempt < @max_retries ->
-        Process.sleep(@retry_delay_ms * (attempt + 1))
-        do_request(url, params, attempt + 1)
-
       {:ok, %Req.Response{status: status, body: body}} ->
         {:error, %{status: status, body: body}}
-
-      {:error, _reason} when attempt < @max_retries ->
-        Process.sleep(@retry_delay_ms * (attempt + 1))
-        do_request(url, params, attempt + 1)
 
       {:error, reason} ->
         {:error, reason}

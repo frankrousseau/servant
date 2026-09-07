@@ -4,17 +4,19 @@ defmodule Servant.Connectors.EVM.TransactionParser do
   for a given wallet address. Works with any Etherscan-compatible API response.
   """
 
-  @hype_decimals 18
-  @wei_per_hype trunc(:math.pow(10, @hype_decimals))
+  @native_decimals 18
+  @wei_per_unit trunc(:math.pow(10, @native_decimals))
 
   @doc """
-  Parses a normal (HYPE) transaction from Blockscout's txlist response.
+  Parses a native-currency transaction from an Etherscan-compatible
+  txlist response.
 
   Returns `{:ok, parsed}` or `:skip` if the transaction is failed,
   has zero value, or is below the threshold.
 
   Options:
-    - `:min_wei`: minimum HYPE transfer in wei to include (default 1_000_000_000_000_000 = 0.001 HYPE)
+    - `:min_wei`: minimum transfer in wei to include (default 1_000_000_000_000_000 = 0.001)
+    - `:symbol`: native currency symbol of the chain (default "ETH")
   """
   def parse_transaction(tx, wallet_address, opts \\ []) do
     min_wei = Keyword.get(opts, :min_wei, 1_000_000_000_000_000)
@@ -49,10 +51,10 @@ defmodule Servant.Connectors.EVM.TransactionParser do
                type: "native",
                direction: direction,
                amount: value,
-               amount_display: format_hype(value),
-               symbol: "HYPE",
+               amount_display: format_native(value),
+               symbol: Keyword.get(opts, :symbol, "ETH"),
                token_address: nil,
-               decimals: @hype_decimals,
+               decimals: @native_decimals,
                counterparty: counterparty
              }
            ]
@@ -159,7 +161,7 @@ defmodule Servant.Connectors.EVM.TransactionParser do
 
   defp parse_timestamp(_), do: DateTime.truncate(DateTime.utc_now(), :second)
 
-  defp format_hype(wei) do
-    Servant.Connectors.TxFormat.format_units(wei, @wei_per_hype, 8)
+  defp format_native(wei) do
+    Servant.Connectors.TxFormat.format_units(wei, @wei_per_unit, 8)
   end
 end
