@@ -8,8 +8,11 @@ defmodule Servant.Connectors.Scheduler do
 
   alias Servant.Connectors
 
+  # Sweep expired shared-env rows once a day so the table doesn't grow forever.
+  @cleanup_interval_ms :timer.hours(24)
+
   def start_link(opts) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
   end
 
   @impl true
@@ -18,9 +21,6 @@ defmodule Servant.Connectors.Scheduler do
     # tree, so `handle_continue` is safe here; no need for a hardcoded delay.
     {:ok, %{}, {:continue, :start_connectors}}
   end
-
-  # Sweep expired shared-env rows once a day so the table doesn't grow forever.
-  @cleanup_interval_ms :timer.hours(24)
 
   @impl true
   def handle_continue(:start_connectors, state) do
