@@ -41,5 +41,42 @@ defmodule Servant.EncryptedTest do
     test "load nil -> empty map" do
       assert {:ok, %{}} = EncMap.load(nil)
     end
+
+    test "cast accepts maps and nil, and refuses the rest" do
+      assert {:ok, %{"a" => 1}} = EncMap.cast(%{"a" => 1})
+      assert {:ok, %{}} = EncMap.cast(nil)
+      assert :error = EncMap.cast("a string")
+      assert :error = EncMap.cast(42)
+      assert :error = EncMap.cast(["a", "list"])
+    end
+
+    test "dump refuses anything that is not a map" do
+      assert {:ok, nil} = EncMap.dump(nil)
+      assert :error = EncMap.dump("plain")
+      assert :error = EncMap.dump(42)
+    end
+
+    # A row that is neither ciphertext nor valid JSON must fail loudly rather
+    # than silently loading as an empty config.
+    test "load refuses a row that is neither ciphertext nor JSON" do
+      assert :error = EncMap.load("not json, not encrypted")
+      assert :error = EncMap.load(~s({"unterminated":))
+    end
+
+    test "the column type is a binary" do
+      assert EncMap.type() == :binary
+    end
+
+    test "nested structures survive the round trip" do
+      config = %{
+        "accounts" => [%{"uid" => "a1", "name" => "CCP"}],
+        "cursors" => %{"a1" => "2026-07-10"},
+        "enabled" => true,
+        "count" => 3
+      }
+
+      {:ok, dumped} = EncMap.dump(config)
+      assert {:ok, ^config} = EncMap.load(dumped)
+    end
   end
 end

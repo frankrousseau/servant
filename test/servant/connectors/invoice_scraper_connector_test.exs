@@ -165,4 +165,72 @@ defmodule Servant.Connectors.InvoiceScraperConnectorTest do
       refute "every_5_minutes" in schedules
     end
   end
+
+  # The provider name is interpolated into `providers/<name>.js` by the Node
+  # script, so anything but a bare identifier could execute arbitrary JS.
+  describe "provider validation" do
+    defp init_with(provider) do
+      InvoiceScraperConnector.init(%{}, %{
+        "provider" => provider,
+        "email" => "a@b.c",
+        "password" => "pw"
+      })
+    end
+
+    test "accepts bare lowercase identifiers" do
+      assert {:ok, %{provider: "anthropic"}} = init_with("anthropic")
+      assert {:ok, %{provider: "banque_postale2"}} = init_with("banque_postale2")
+    end
+
+    test "refuses anything that could escape the providers directory" do
+      for provider <- [
+            "../../../etc/passwd",
+            "../evil",
+            "sub/dir",
+            "anthropic.js",
+            "Anthropic",
+            "anthropic ",
+            "anthropic;rm -rf /",
+            "anthropic-2"
+          ] do
+        assert init_with(provider) == {:error, :invalid_provider},
+               "#{inspect(provider)} should not be accepted as a provider"
+      end
+    end
+
+    test "refuses a provider that is not a string" do
+      assert {:error, :missing_provider} = init_with(nil)
+      assert {:error, :missing_provider} = init_with("")
+      assert {:error, :invalid_provider} = init_with(42)
+    end
+  end
+
+  describe "amount and date formatting" do
+    defp title_for(invoice), do: InvoiceScraperConnector.build_entry(invoice, "x")["title"]
+
+    test "prefixes the known currency symbols and suffixes the rest" do
+      assert title_for(%{"amount" => "10", "currency" => "USD"}) =~ "$10"
+      assert title_for(%{"amount" => "10", "currency" => "EUR"}) =~ "€10"
+      assert title_for(%{"amount" => "10", "currency" => "GBP"}) =~ "£10"
+      assert title_for(%{"amount" => "10", "currency" => "chf"}) =~ "10 CHF"
+    end
+
+    test "defaults to USD and a zero amount" do
+      assert title_for(%{}) =~ "$0"
+    end
+
+    test "an unparsable date still yields an entry" do
+      entry = InvoiceScraperConnector.build_entry(%{"date" => "sometime last year"}, "x")
+
+      assert %DateTime{} = entry["occurred_at"]
+      assert entry["kind"] == "invoice"
+    end
+
+    test "an invoice without an id gets a deterministic external id" do
+      invoice = %{"date" => "2025-03-01", "amount" => "10"}
+
+      assert InvoiceScraperConnector.build_entry(invoice, "x")["external_id"] ==
+               InvoiceScraperConnector.build_entry(invoice, "x")["external_id"]
+    end
+  end
 end
