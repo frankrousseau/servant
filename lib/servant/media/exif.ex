@@ -23,8 +23,8 @@ defmodule Servant.Media.Exif do
           camera_make: get_in_exif(exif, [:ifd0, :make]),
           camera_model: get_in_exif(exif, [:ifd0, :model]),
           orientation: get_in_exif(exif, [:ifd0, :orientation]),
-          width: get_in_exif(exif, [:exif, :pixel_x_dimension]),
-          height: get_in_exif(exif, [:exif, :pixel_y_dimension])
+          width: get_in_exif(exif, [:ifd0, :exif, :pixel_x_dimension]),
+          height: get_in_exif(exif, [:ifd0, :exif, :pixel_y_dimension])
         }
 
       {:error, _} ->
@@ -103,18 +103,20 @@ defmodule Servant.Media.Exif do
     end
   end
 
+  # ExifParser nests the EXIF and GPS sub-IFDs under ifd0; they never appear
+  # at the top level, so these paths all start there.
   defp extract_date(exif) do
     # Try multiple date fields in order of preference
     date_str =
-      get_in_exif(exif, [:exif, :date_time_original]) ||
-        get_in_exif(exif, [:exif, :date_time_digitized]) ||
+      get_in_exif(exif, [:ifd0, :exif, :date_time_original]) ||
+        get_in_exif(exif, [:ifd0, :exif, :date_time_digitized]) ||
         get_in_exif(exif, [:ifd0, :date_time])
 
     parse_exif_date(date_str)
   end
 
   defp extract_gps(exif) do
-    gps = Map.get(exif, :gps, %{}) || %{}
+    gps = get_in_exif(exif, [:ifd0, :gps]) || %{}
 
     lat = Map.get(gps, :gps_latitude)
     lat_ref = Map.get(gps, :gps_latitude_ref)
@@ -181,11 +183,9 @@ defmodule Servant.Media.Exif do
 
   defp parse_exif_date(_), do: nil
 
-  defp get_in_exif(exif, [key1, key2]) do
-    case Map.get(exif, key1) do
-      nil -> nil
-      map when is_map(map) -> Map.get(map, key2)
-      _ -> nil
-    end
+  defp get_in_exif(exif, path) do
+    Enum.reduce_while(path, exif, fn key, value ->
+      if is_map(value), do: {:cont, Map.get(value, key)}, else: {:halt, nil}
+    end)
   end
 end

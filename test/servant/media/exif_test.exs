@@ -19,24 +19,23 @@ defmodule Servant.Media.ExifTest do
     {"exif-ifd3-GPSLongitudeRef", "E"}
   ]
 
-  test "extracts date, GPS and camera from a HEIC through the vips fallback" do
+  # Anything that is not a JPEG goes through the libvips header fallback: that
+  # is the path HEIC photos from phones take (PNG here, since a libvips build
+  # without HEIC support would make the test environment-dependent).
+  test "extracts date, GPS and camera from a non-JPEG through the vips fallback" do
     tmp = System.tmp_dir!()
-    heic = Path.join(tmp, "exif-test-#{System.unique_integer([:positive])}.heic")
-    on_exit(fn -> File.rm(heic) end)
+    png = Path.join(tmp, "exif-test-#{System.unique_integer([:positive])}.png")
+    on_exit(fn -> File.rm(png) end)
 
-    case write_heic_with_exif(heic) do
-      :ok ->
-        exif = Exif.extract(heic)
+    assert :ok = write_image_with_exif(png)
 
-        assert exif.camera_make == "Apple"
-        assert exif.camera_model == "iPhone 15 Pro"
-        assert exif.date_taken == ~U[2024-07-14 18:30:12Z]
-        assert_in_delta exif.gps.latitude, 47.5034, 0.001
-        assert_in_delta exif.gps.longitude, 2.3347, 0.001
+    exif = Exif.extract(png)
 
-      :skip ->
-        IO.puts("Skipping HEIC EXIF test: libvips lacks HEIC or EXIF support here")
-    end
+    assert exif.camera_make == "Apple"
+    assert exif.camera_model == "iPhone 15 Pro"
+    assert exif.date_taken == ~U[2024-07-14 18:30:12Z]
+    assert_in_delta exif.gps.latitude, 47.5034, 0.001
+    assert_in_delta exif.gps.longitude, 2.3347, 0.001
   end
 
   test "a file without EXIF yields an empty map" do
@@ -57,32 +56,63 @@ defmodule Servant.Media.ExifTest do
     assert Exif.extract(path) == %{}
   end
 
-  # Tags a JPEG via the exif-* mutable fields (jpegsave materializes the
-  # EXIF block), then converts it to HEIC; both steps need optional
-  # libvips features, so any failure skips rather than fails.
-  defp write_heic_with_exif(heic) do
+  # JPEG goes through ExifParser (not the vips fallback). Regression: the EXIF
+  # and GPS sub-IFDs are nested under ifd0, so reading them at the top level
+  # silently dropped the date and the coordinates of every JPEG photo.
+  test "extracts date, GPS and dimensions from a JPEG through ExifParser" do
     tmp = System.tmp_dir!()
-    jpg = Path.join(tmp, "exif-src-#{System.unique_integer([:positive])}.jpg")
-    File.write!(jpg, @jpeg)
+    jpg = Path.join(tmp, "exif-jpeg-#{System.unique_integer([:positive])}.jpg")
+    on_exit(fn -> File.rm(jpg) end)
 
-    try do
-      with {:ok, img} <- Image.new_from_file(jpg),
-           {:ok, tagged} <- Image.mutate(img, &set_exif_fields/1),
-           :ok <- Image.write_to_file(tagged, jpg),
-           {:ok, reloaded} <- Image.new_from_file(jpg),
-           :ok <- Image.write_to_file(reloaded, heic) do
-        :ok
-      else
-        _ -> :skip
-      end
-    after
-      File.rm(jpg)
+    assert :ok = write_image_with_exif(jpg)
+
+    exif = Exif.extract(jpg)
+
+    assert exif.date_taken == ~U[2024-07-14 18:30:12Z]
+    assert_in_delta exif.gps.latitude, 47.5034, 0.001
+    assert_in_delta exif.gps.longitude, 2.3347, 0.001
+    assert exif.camera_make == "Apple"
+    assert exif.camera_model == "iPhone 15 Pro"
+    assert exif.orientation == 1
+    assert exif.width == 1
+    assert exif.height == 1
+  end
+
+  test "southern and western coordinates come back negative" do
+    tmp = System.tmp_dir!()
+    jpg = Path.join(tmp, "exif-south-#{System.unique_integer([:positive])}.jpg")
+    on_exit(fn -> File.rm(jpg) end)
+
+    fields =
+      Enum.map(@exif_fields, fn
+        {"exif-ifd3-GPSLatitudeRef", _} -> {"exif-ifd3-GPSLatitudeRef", "S"}
+        {"exif-ifd3-GPSLongitudeRef", _} -> {"exif-ifd3-GPSLongitudeRef", "W"}
+        other -> other
+      end)
+
+    assert :ok = write_image_with_exif(jpg, fields)
+
+    exif = Exif.extract(jpg)
+    assert exif.gps.latitude < 0
+    assert exif.gps.longitude < 0
+  end
+
+  # Tags the fixture through the exif-* mutable fields, then writes it to
+  # `path` in whatever format its extension asks for.
+  defp write_image_with_exif(path, fields \\ @exif_fields) do
+    source = Path.join(System.tmp_dir!(), "exif-src-#{System.unique_integer([:positive])}.jpg")
+    File.write!(source, @jpeg)
+    on_exit(fn -> File.rm(source) end)
+
+    with {:ok, img} <- Image.new_from_file(source),
+         {:ok, tagged} <- Image.mutate(img, &set_fields(&1, fields)) do
+      Image.write_to_file(tagged, path)
     end
   end
 
-  defp set_exif_fields(mut) do
+  defp set_fields(mut, fields) do
     results =
-      for {field, value} <- @exif_fields do
+      for {field, value} <- fields do
         MutableImage.set(mut, field, :VipsRefString, value)
       end
 
