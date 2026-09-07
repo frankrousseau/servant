@@ -132,7 +132,7 @@ defmodule Servant.Connectors.SolanaConnector do
             if sig_info["err"] != nil do
               {:cont, {acc, signature, errors}}
             else
-              Process.sleep(@tx_fetch_delay_ms)
+              Servant.HTTP.throttle(@tx_fetch_delay_ms)
 
               case fetch_and_parse(signature, state, rpc_opts) do
                 {:ok, entry} ->
@@ -191,7 +191,7 @@ defmodule Servant.Connectors.SolanaConnector do
         else
           # More pages available; use the last signature as cursor
           last = List.last(signatures)
-          Process.sleep(500)
+          Servant.HTTP.throttle(500)
 
           fetch_all_signatures(
             address,

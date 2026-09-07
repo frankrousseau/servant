@@ -17,34 +17,27 @@ defmodule Servant.Connectors.Solana.RPC do
       params: params
     }
 
-    do_call(url, body, 0)
+    do_call(url, body)
   end
 
-  defp do_call(url, body, attempt) do
-    case Req.post(url, Servant.HTTP.req_options(json: body)) do
+  # HTTP-level failures (429, 5xx, transport) are retried by Req itself. A node
+  # that reports the rate limit *inside* a 200 body is ours to retry: Req's
+  # retry step runs before the body is decoded, so it cannot see that one.
+  defp do_call(url, body, attempt \\ 0) do
+    case Req.post(url, Servant.HTTP.req_options(json: body, retry: :transient)) do
       {:ok, %Req.Response{status: 200, body: %{"result" => result}}} ->
         {:ok, result}
 
-      # 429 in JSON body (HTTP 200 but RPC-level rate limit)
       {:ok, %Req.Response{status: 200, body: %{"error" => %{"code" => 429}}}}
       when attempt < @max_retries ->
-        Process.sleep(@retry_delay_ms * (attempt + 1))
+        Servant.HTTP.throttle(@retry_delay_ms * (attempt + 1))
         do_call(url, body, attempt + 1)
 
       {:ok, %Req.Response{status: 200, body: %{"error" => error}}} ->
         {:error, error}
 
-      # HTTP-level 429
-      {:ok, %Req.Response{status: 429}} when attempt < @max_retries ->
-        Process.sleep(@retry_delay_ms * (attempt + 1))
-        do_call(url, body, attempt + 1)
-
       {:ok, %Req.Response{status: status, body: resp_body}} ->
         {:error, %{status: status, body: resp_body}}
-
-      {:error, _reason} when attempt < @max_retries ->
-        Process.sleep(@retry_delay_ms * (attempt + 1))
-        do_call(url, body, attempt + 1)
 
       {:error, reason} ->
         {:error, reason}

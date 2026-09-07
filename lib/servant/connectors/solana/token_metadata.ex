@@ -16,68 +16,54 @@ defmodule Servant.Connectors.Solana.TokenMetadata do
   Fetches from cache first, bulk-fetches missing from Jupiter.
   """
   def resolve(mints) when is_list(mints) do
-    mints = Enum.uniq(mints)
-
-    # Check cache for each mint
     {cached, missing} =
-      Enum.split_with(mints, fn mint ->
+      mints
+      |> Enum.uniq()
+      |> Enum.reduce({%{}, []}, fn mint, {cached, missing} ->
         case Connectors.get_env(@connector_type, @namespace, mint) do
-          nil -> false
-          _val -> true
+          %{"data" => data} -> {Map.put(cached, mint, data), missing}
+          _ -> {cached, [mint | missing]}
         end
       end)
 
-    cached_map =
-      Map.new(cached, fn mint ->
-        %{"data" => data} = Connectors.get_env(@connector_type, @namespace, mint)
-        {mint, data}
-      end)
-
-    # Fetch missing from Jupiter
-    fetched_map =
-      if missing == [] do
-        %{}
-      else
-        case fetch_jupiter_list() do
-          {:ok, tokens} ->
-            token_map = Map.new(tokens, fn t -> {t["address"], t} end)
-
-            Map.new(missing, fn mint ->
-              data =
-                case Map.get(token_map, mint) do
-                  nil ->
-                    %{"symbol" => short_mint(mint), "name" => "Unknown token"}
-
-                  token ->
-                    %{"symbol" => token["symbol"], "name" => token["name"]}
-                end
-
-              # Cache the result
-              expires_at =
-                DateTime.utc_now()
-                |> DateTime.add(@ttl_seconds, :second)
-                |> DateTime.truncate(:second)
-
-              Connectors.put_env(@connector_type, @namespace, mint, %{"data" => data}, expires_at)
-
-              {mint, data}
-            end)
-
-          {:error, _reason} ->
-            # On fetch failure, return fallback entries without caching
-            Map.new(missing, fn mint ->
-              {mint, %{"symbol" => short_mint(mint), "name" => "Unknown token"}}
-            end)
-        end
-      end
-
-    Map.merge(cached_map, fetched_map)
+    Map.merge(cached, fetch_missing(missing))
   end
 
+  @doc "Resolves a single mint, falling back to a shortened mint address."
   def resolve_one(mint) do
-    result = resolve([mint])
-    Map.get(result, mint, %{"symbol" => short_mint(mint), "name" => "Unknown token"})
+    Map.get(resolve([mint]), mint, unknown(mint))
   end
+
+  defp fetch_missing([]), do: %{}
+
+  defp fetch_missing(mints) do
+    case fetch_jupiter_list() do
+      {:ok, tokens} ->
+        token_map = Map.new(tokens, fn token -> {token["address"], token} end)
+        Map.new(mints, fn mint -> {mint, cache(mint, Map.get(token_map, mint))} end)
+
+      # Without the list there is nothing to cache: fall back to a short mint
+      # and retry on the next sync.
+      {:error, _reason} ->
+        Map.new(mints, fn mint -> {mint, unknown(mint)} end)
+    end
+  end
+
+  defp cache(mint, nil), do: unknown(mint)
+
+  defp cache(mint, token) do
+    data = %{"symbol" => token["symbol"], "name" => token["name"]}
+
+    expires_at =
+      DateTime.utc_now()
+      |> DateTime.add(@ttl_seconds, :second)
+      |> DateTime.truncate(:second)
+
+    Connectors.put_env(@connector_type, @namespace, mint, %{"data" => data}, expires_at)
+    data
+  end
+
+  defp unknown(mint), do: %{"symbol" => short_mint(mint), "name" => "Unknown token"}
 
   defp fetch_jupiter_list do
     case Req.get(@jupiter_url, Servant.HTTP.req_options()) do
