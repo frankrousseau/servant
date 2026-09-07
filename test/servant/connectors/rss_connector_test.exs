@@ -54,4 +54,81 @@ defmodule Servant.Connectors.RSSConnectorTest do
       assert id == RSSConnector.external_id(item)
     end
   end
+
+  describe "sync/1" do
+    # A public IP literal, so the SSRF guard resolves without a DNS lookup and
+    # the test stays offline; Req.Test answers the request itself.
+    @feed_url "http://93.184.216.34/feed.xml"
+
+    @rss """
+    <?xml version="1.0"?>
+    <rss version="2.0"><channel>
+      <title>Feed</title>
+      <item>
+        <title>First post</title>
+        <link>https://blog.test/first</link>
+        <description><![CDATA[Hello <b>world</b>]]></description>
+        <pubDate>Tue, 01 Jul 2026 10:00:00 +0000</pubDate>
+      </item>
+      <item>
+        <title>Second post</title>
+        <link>https://blog.test/second</link>
+        <description>Plain text</description>
+        <pubDate>Wed, 02 Jul 2026 12:30:00 +0200</pubDate>
+      </item>
+    </channel></rss>
+    """
+
+    defp stub_feed(body, status \\ 200) do
+      Req.Test.stub(Servant.HTTP, fn conn -> Plug.Conn.send_resp(conn, status, body) end)
+    end
+
+    test "turns feed items into article entries" do
+      stub_feed(@rss)
+      {:ok, state} = RSSConnector.init(%{}, %{"url" => @feed_url})
+
+      assert {:ok, [first, second], ^state} = RSSConnector.sync(state)
+
+      assert first["kind"] == "article"
+      assert first["source"] == "rss"
+      assert first["title"] == "First post"
+      assert first["external_id"] == "https://blog.test/first"
+      assert first["occurred_at"] == ~U[2026-07-01 10:00:00Z]
+      assert first["data"]["description"] == "Hello <b>world</b>"
+      assert first["metadata"]["feed_url"] == @feed_url
+
+      assert second["occurred_at"] == ~U[2026-07-02 10:30:00Z]
+    end
+
+    test "an empty feed yields no entries" do
+      stub_feed("<rss><channel><title>Nothing</title></channel></rss>")
+      {:ok, state} = RSSConnector.init(%{}, %{"url" => @feed_url})
+
+      assert {:ok, [], ^state} = RSSConnector.sync(state)
+    end
+
+    test "a non-200 response fails the sync" do
+      stub_feed("gone", 404)
+      {:ok, state} = RSSConnector.init(%{}, %{"url" => @feed_url})
+
+      assert {:error, "HTTP 404", ^state} = RSSConnector.sync(state)
+    end
+
+    # The feed URL comes from the user, so it must never be usable to reach
+    # the host's own network (SSRF).
+    test "refuses a URL that is not publicly routable" do
+      Req.Test.stub(Servant.HTTP, fn _conn -> flunk("the guard should have refused") end)
+
+      for url <- [
+            "http://localhost:4000/feed",
+            "http://127.0.0.1/feed",
+            "http://169.254.169.254/latest/meta-data/",
+            "http://192.168.1.10/feed",
+            "file:///etc/passwd"
+          ] do
+        {:ok, state} = RSSConnector.init(%{}, %{"url" => url})
+        assert {:error, "Refusing to fetch a non-public URL", ^state} = RSSConnector.sync(state)
+      end
+    end
+  end
 end

@@ -27,12 +27,21 @@ defmodule Servant.FakeConnector do
        %{
          cursor: Map.get(config, "cursor", "start"),
          fail_sync: Map.get(config, "fail_sync", false),
+         raise_sync: Map.get(config, "raise_sync", false),
          user_id: Map.get(config, "user_id")
        }}
     end
   end
 
   @impl true
+  def sync(%{raise_sync: true}) do
+    raise "connector blew up"
+  end
+
+  def sync(%{fail_sync: message} = state) when is_binary(message) do
+    {:error, message, state}
+  end
+
   def sync(%{fail_sync: true} = state) do
     {:error, :sync_failed, state}
   end

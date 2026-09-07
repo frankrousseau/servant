@@ -137,4 +137,94 @@ defmodule Servant.Connectors.ICalConnectorTest do
       assert event[:summary] == "This is a very long summary that wraps"
     end
   end
+
+  describe "sync/1" do
+    # A public IP literal, so the SSRF guard resolves without a DNS lookup and
+    # the test stays offline; Req.Test answers the request itself.
+    @feed_url "http://93.184.216.34/calendar.ics"
+
+    defp state(config \\ %{}) do
+      {:ok, state} = ICalConnector.init(%{}, Map.merge(%{"url" => @feed_url}, config))
+      state
+    end
+
+    test "turns the calendar into event entries" do
+      Req.Test.stub(Servant.HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, @sample_ical) end)
+
+      assert {:ok, entries, _state} = ICalConnector.sync(state(%{"calendar_name" => "Work"}))
+      assert length(entries) == 3
+
+      [standup | _] = entries
+      assert standup["kind"] == "event"
+      assert standup["source"] == "ical"
+      assert standup["external_id"] == "event1@example.com"
+      assert standup["title"] == "Team standup"
+      assert standup["occurred_at"] == ~U[2025-03-15 10:00:00Z]
+      assert standup["data"]["end_at"] == ~U[2025-03-15 11:00:00Z]
+      assert standup["data"]["location"] == "Zoom"
+      assert standup["data"]["calendar"] == "Work"
+    end
+
+    test "an empty calendar yields no entries" do
+      Req.Test.stub(Servant.HTTP, fn conn ->
+        Plug.Conn.send_resp(conn, 200, "BEGIN:VCALENDAR\nEND:VCALENDAR\n")
+      end)
+
+      assert {:ok, [], _state} = ICalConnector.sync(state())
+    end
+
+    test "a non-200 response fails the sync" do
+      Req.Test.stub(Servant.HTTP, fn conn -> Plug.Conn.send_resp(conn, 404, "gone") end)
+
+      assert {:error, "HTTP 404", _state} = ICalConnector.sync(state())
+    end
+
+    # The calendar URL comes from the user, so it must never be usable to reach
+    # the host's own network (SSRF).
+    test "refuses a URL that is not publicly routable" do
+      Req.Test.stub(Servant.HTTP, fn _conn -> flunk("the guard should have refused") end)
+
+      for url <- ["http://127.0.0.1/cal.ics", "http://169.254.169.254/", "http://10.0.0.1/cal"] do
+        assert {:error, "Refusing to fetch a non-public URL", _state} =
+                 ICalConnector.sync(state(%{"url" => url}))
+      end
+    end
+
+    test "an event without a uid falls back to its summary" do
+      ical = """
+      BEGIN:VCALENDAR
+      BEGIN:VEVENT
+      DTSTART:20250315T100000Z
+      SUMMARY:Anonymous meeting
+      END:VEVENT
+      END:VCALENDAR
+      """
+
+      Req.Test.stub(Servant.HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, ical) end)
+
+      assert {:ok, [entry], _state} = ICalConnector.sync(state())
+      assert entry["external_id"] == "Anonymous meeting"
+    end
+
+    test "an event without a start date still yields an entry" do
+      ical =
+        "BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:u1\nSUMMARY:Whenever\nEND:VEVENT\nEND:VCALENDAR\n"
+
+      Req.Test.stub(Servant.HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, ical) end)
+
+      assert {:ok, [entry], _state} = ICalConnector.sync(state())
+      assert %DateTime{} = entry["occurred_at"]
+      assert entry["data"]["end_at"] == nil
+    end
+  end
+
+  describe "import_ical/2" do
+    test "parses an uploaded file with the same shape as a sync" do
+      {:ok, state} = ICalConnector.init(%{}, %{"calendar_name" => "Imported"})
+
+      assert {:ok, entries} = ICalConnector.import_ical(@sample_ical, state)
+      assert length(entries) == 3
+      assert hd(entries)["data"]["calendar"] == "Imported"
+    end
+  end
 end

@@ -121,7 +121,7 @@ defmodule Servant.Connectors.GithubConnector do
         last_date = last_author_date(items) || cursor
 
         if length(items) >= @search_cap and total > length(items) and last_date != cursor do
-          Process.sleep(@throttle_ms)
+          Servant.HTTP.throttle(@throttle_ms)
           fetch_all_commits(state, last_date, all)
         else
           {:ok, all, last_date}
@@ -160,7 +160,7 @@ defmodule Servant.Connectors.GithubConnector do
         all = acc ++ items
 
         if length(items) == @per_page and length(all) < @search_cap do
-          Process.sleep(@throttle_ms)
+          Servant.HTTP.throttle(@throttle_ms)
           fetch_page(state, cursor, page + 1, all)
         else
           {:ok, all, total}
@@ -196,7 +196,7 @@ defmodule Servant.Connectors.GithubConnector do
             {:ok, resp}
 
           wait_ms ->
-            Process.sleep(wait_ms)
+            Servant.HTTP.throttle(wait_ms)
             search_request(url, headers, retries - 1)
         end
 

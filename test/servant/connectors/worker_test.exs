@@ -151,6 +151,101 @@ defmodule Servant.Connectors.WorkerTest do
 
   # --- Config updates reaching a running worker ---
 
+  # --- Failure handling ---
+
+  defp start_worker(user, config_attrs, schedule \\ "on_demand") do
+    {:ok, config} =
+      Connectors.create_connector_config(
+        user.id,
+        Map.merge(
+          %{"connector_type" => "rss", "name" => "fake", "schedule" => schedule},
+          config_attrs
+        )
+      )
+
+    pid =
+      start_supervised!(
+        {Worker,
+         [
+           user_id: user.id,
+           connector_module: Servant.FakeConnector,
+           config_id: config.id,
+           config: config.config,
+           schedule: schedule
+         ]},
+        id: config.id
+      )
+
+    {config, pid}
+  end
+
+  # A raise inside sync/1 would otherwise kill the worker and leave the sync
+  # log stuck in "running" forever.
+  test "a connector that raises fails the log and keeps the worker alive", %{user: user} do
+    {config, pid} = start_worker(user, %{"config" => %{"raise_sync" => true}})
+
+    Worker.sync_now(user.id, config.id)
+    _ = :sys.get_state(pid)
+
+    assert Process.alive?(pid)
+
+    assert [log] = Connectors.list_sync_logs(config.id)
+    assert log.status == "failed"
+    assert log.error =~ "connector blew up"
+
+    updated = Connectors.get_connector_config!(user.id, config.id)
+    assert updated.error =~ "connector blew up"
+  end
+
+  # A connector that took the trouble to write a sentence gets shown as one,
+  # not as an inspected blob.
+  test "a string error reaches the config verbatim", %{user: user} do
+    {config, pid} = start_worker(user, %{"config" => %{"fail_sync" => "Token refresh failed"}})
+
+    Worker.sync_now(user.id, config.id)
+    _ = :sys.get_state(pid)
+
+    updated = Connectors.get_connector_config!(user.id, config.id)
+    assert updated.error == "Token refresh failed"
+  end
+
+  test "a successful sync clears a previous error", %{user: user, config: config, pid: pid} do
+    Connectors.get_connector_config!(user.id, config.id)
+    |> Ecto.Changeset.change(%{error: "an error from a previous run"})
+    |> Servant.Repo.update!()
+
+    Worker.sync_now(user.id, config.id)
+    _ = :sys.get_state(pid)
+
+    assert Connectors.get_connector_config!(user.id, config.id).error == nil
+  end
+
+  # --- Scheduling ---
+
+  test "an on_demand worker arms no timer", %{pid: pid, user: user, config: config} do
+    assert %{timer_ref: nil} = :sys.get_state(pid)
+
+    Worker.sync_now(user.id, config.id)
+    assert %{timer_ref: nil} = :sys.get_state(pid)
+  end
+
+  # Manual syncs used to stack parallel timer chains, each one firing its own
+  # sync forever after.
+  test "a scheduled worker keeps exactly one pending timer", %{user: user} do
+    {config, pid} = start_worker(user, %{"name" => "scheduled"}, "every_hour")
+
+    assert %{timer_ref: first} = :sys.get_state(pid)
+    assert is_reference(first)
+
+    Worker.sync_now(user.id, config.id)
+    assert %{timer_ref: second} = :sys.get_state(pid)
+
+    assert is_reference(second)
+    assert second != first
+    # The superseded timer is cancelled, not left to fire on its own
+    assert Process.read_timer(first) == false
+  end
+
   describe "update_connector_config/3" do
     setup %{user: user} do
       {:ok, config} =
