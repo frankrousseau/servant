@@ -27,6 +27,7 @@ defmodule Servant.Connectors.ConnectorConfig do
     connector_config
     |> cast(attrs, [:connector_type, :name, :enabled, :config, :schedule, :last_synced_at, :error])
     |> validate_required([:connector_type])
+    |> validate_inclusion(:connector_type, Map.keys(Servant.Connectors.connector_modules()))
     |> validate_inclusion(:schedule, @all_schedules)
   end
 
