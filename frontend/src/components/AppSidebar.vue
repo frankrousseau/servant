@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Activity,
+  Brain,
   Cable,
   CalendarDays,
   CircleUserRound,
@@ -35,6 +36,7 @@ import { useAuthStore } from '../stores/auth'
 // An app declares its icon by name in the registry, which stays free of Vue
 // imports; the mapping to a component lives here, where they are rendered.
 const appIcons: Record<string, unknown> = {
+  Brain,
   UserRound,
   CalendarDays,
   FolderOpen,

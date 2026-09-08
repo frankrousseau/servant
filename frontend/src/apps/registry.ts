@@ -3,6 +3,13 @@ import type { AppDef } from './types'
 // Alphabetical by name; this array is the sidebar display order.
 export const BUILTIN_APPS: AppDef[] = [
   {
+    id: 'agent_memory',
+    name: 'Agent memory',
+    icon: 'Brain',
+    builtin: true,
+    load: () => import('./agent_memory')
+  },
+  {
     id: 'calendar',
     name: 'Calendar',
     icon: 'CalendarDays',
