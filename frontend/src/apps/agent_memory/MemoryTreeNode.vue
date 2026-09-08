@@ -1,11 +1,17 @@
 <script setup lang="ts">
 import type { TreeNode } from './tree'
 
-defineProps<{
-  node: TreeNode
-  selectedPath: string | null
-  expanded: boolean
-}>()
+// Harness roots (depth 0) stay open; expand/collapse all acts on the level
+// below them.
+withDefaults(
+  defineProps<{
+    node: TreeNode
+    selectedPath: string | null
+    expanded: boolean
+    depth?: number
+  }>(),
+  { depth: 0 }
+)
 
 const emit = defineEmits<{ select: [node: TreeNode] }>()
 </script>
@@ -21,7 +27,7 @@ const emit = defineEmits<{ select: [node: TreeNode] }>()
   >
     <span class="file-name">{{ node.name }}</span>
   </button>
-  <details v-else :open="expanded">
+  <details v-else :open="depth === 0 || expanded">
     <summary class="folder">
       <span class="folder-caret" aria-hidden="true"></span>
       <span class="folder-name">{{ node.name }}</span>
@@ -32,6 +38,7 @@ const emit = defineEmits<{ select: [node: TreeNode] }>()
           :node="child"
           :selected-path="selectedPath"
           :expanded="expanded"
+          :depth="depth + 1"
           @select="emit('select', $event)"
         />
       </li>
