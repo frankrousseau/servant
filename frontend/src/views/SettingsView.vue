@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   Copy,
   Download,
@@ -34,10 +35,33 @@ import { useAppsStore } from '../stores/apps'
 import { useAuthStore } from '../stores/auth'
 import type { AiConfig, ApiToken } from '../types'
 
+const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 const apps = useAppsStore()
 const api = useApi()
 const { ask } = useConfirm()
+
+// ----- Tabs (query-driven, same pattern as the Agents page) -----
+
+const TABS = [
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'tokens', label: 'API Tokens' },
+  { id: 'apps', label: 'Apps' },
+  { id: 'agents', label: 'Agents' },
+  { id: 'export', label: 'Export' }
+]
+
+const tab = computed(() => {
+  const requested = route.query.tab
+  return TABS.some(option => option.id === requested)
+    ? String(requested)
+    : 'appearance'
+})
+
+function setTab(next: string) {
+  router.replace({ query: { ...route.query, tab: next } })
+}
 
 const buildCommit = __BUILD_COMMIT__
 const buildDate = __BUILD_DATE__
@@ -386,8 +410,22 @@ onMounted(() => {
   <div class="view">
     <h1>Settings</h1>
 
+    <div class="tabs" role="tablist">
+      <button
+        v-for="(option, i) in TABS"
+        :key="option.id"
+        v-autofocus="i === 0"
+        role="tab"
+        :aria-selected="tab === option.id"
+        :class="{ active: tab === option.id }"
+        @click="setTab(option.id)"
+      >
+        {{ option.label }}
+      </button>
+    </div>
+
     <!-- Appearance -->
-    <section class="card">
+    <section v-if="tab === 'appearance'" class="card">
       <div class="card-header">
         <Palette :size="20" class="card-icon" />
         <h2>Appearance</h2>
@@ -450,7 +488,7 @@ onMounted(() => {
     </section>
 
     <!-- API Tokens -->
-    <section class="card">
+    <section v-if="tab === 'tokens'" class="card">
       <div class="card-header">
         <TerminalSquare :size="20" class="card-icon" />
         <h2>API Tokens</h2>
@@ -570,7 +608,7 @@ onMounted(() => {
     </section>
 
     <!-- Installed apps -->
-    <section class="card">
+    <section v-if="tab === 'apps'" class="card">
       <div class="card-header">
         <Puzzle :size="20" class="card-icon" />
         <h2>Apps</h2>
@@ -660,7 +698,7 @@ onMounted(() => {
     </section>
 
     <!-- Agents -->
-    <section class="card">
+    <section v-if="tab === 'agents'" class="card">
       <div class="card-header">
         <Wrench :size="20" class="card-icon" />
         <h2>Agents</h2>
@@ -727,7 +765,7 @@ onMounted(() => {
     </section>
 
     <!-- Export -->
-    <section class="card">
+    <section v-if="tab === 'export'" class="card">
       <div class="card-header">
         <Download :size="20" class="card-icon" />
         <h2>Export</h2>
@@ -752,6 +790,27 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.tabs button {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  padding: 0.45rem 1rem;
+  cursor: pointer;
+}
+.tabs button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.tabs button.active {
+  color: var(--text);
+  border-color: var(--primary);
+}
 .card {
   background: var(--bg-surface);
   border: 1px solid var(--border);

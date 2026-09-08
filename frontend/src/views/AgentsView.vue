@@ -418,8 +418,8 @@ onMounted(() => {
 
     <p v-if="aiConfig && !aiConfig.enabled" class="agents-disabled">
       Agents are disabled.
-      <router-link to="/settings">Enable them in Settings</router-link> and
-      configure a model server first.
+      <router-link to="/settings?tab=apps">Enable them in Settings</router-link>
+      and configure a model server first.
     </p>
 
     <template v-else-if="aiConfig">
