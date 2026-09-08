@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { TreeNode } from './tree'
 
-// Harness roots (depth 0) stay open; expand/collapse all acts on the level
-// below them.
+// Harness roots (depth 0) and their sections (depth 1) stay open;
+// expand/collapse all acts on the third level (projects, skills).
 withDefaults(
   defineProps<{
     node: TreeNode
@@ -27,7 +27,7 @@ const emit = defineEmits<{ select: [node: TreeNode] }>()
   >
     <span class="file-name">{{ node.name }}</span>
   </button>
-  <details v-else :open="depth === 0 || expanded">
+  <details v-else :open="depth < 2 || expanded">
     <summary class="folder">
       <span class="folder-caret" aria-hidden="true"></span>
       <span class="folder-name">{{ node.name }}</span>

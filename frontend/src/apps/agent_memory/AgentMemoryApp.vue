@@ -553,7 +553,7 @@ onUnmounted(() => {
 }
 
 .markdown {
-  font-size: 0.95rem;
+  font-size: 1.08rem;
   line-height: 1.7;
 }
 
