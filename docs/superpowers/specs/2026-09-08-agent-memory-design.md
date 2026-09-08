@@ -7,8 +7,10 @@ filesystem. Memory files are readable and editable in a Notes-like app.
 
 ## Data model
 
-One entry per file: `kind: "agent_memory"`, `source: "agent"` (or `"manual"` when
-written from the UI), `title` = file name (last path segment), `data`:
+One entry per file: `kind: "agent_memory"`, `source: "agent"` (the UI writes through the
+same endpoint, so the source never varies), `external_id` = path (the existing
+`user_id + source + external_id` unique index enforces path uniqueness), `title` = file
+name (last path segment), `data`:
 
 | key | value |
 |-----|-------|
@@ -31,9 +33,7 @@ Validation: prefix in `memory/`, `skills/`, `rules/`; every segment matches
 requires; body is a string. Anything else is rejected with 422. `tool` in `skills/`
 must be `claude`, `cursor` or `shared`.
 
-No migration: entries already carry a JSON `data` column. Path uniqueness is enforced in
-the context (lookup before insert), not by an index; concurrent creates of the same path
-by two agents are not expected.
+No migration: entries already carry a JSON `data` column. 
 
 ## API
 
@@ -57,9 +57,10 @@ not rewritten (`updated_at` stays). Returns the manifest (same shape as GET with
 bodies) of the files sent. Any invalid path fails the whole request with 422 and
 nothing is written. Last write wins; there is no server-side conflict detection.
 
-### `DELETE /api/agent_memory/*path`
+### `DELETE /api/agent_memory?path=<path>`
 
-Deletes the entry at that path, 404 when absent, 204 on success.
+Deletes the entry at that path (query parameter, so the OpenAPI validator sees a plain
+string), 404 when absent, 204 on success.
 
 All three broadcast the usual entry events through `Servant.Events` so the app updates
 live. Routes are documented in OpenAPI like the other controllers.
@@ -101,8 +102,6 @@ three-line `index.ts`.
   swaps in a textarea, Save calls `POST /api/agent_memory` through `ctx.api.fetch` (so
   the UI and the agents share the same write path), Cancel discards. Delete goes through
   `ctx.confirm.ask` then `DELETE`.
-- Live updates: the app reloads its list on `agent_memory` entry events like the other
-  apps.
 - No wikilinks, tags, favorites, attachments or folders management: that is what makes
   Notes 2000 lines and agents do not need it. Creating a file from the UI is out of
   scope (agents create files; the UI edits and deletes).
