@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
+import MemoryTreeNode from './MemoryTreeNode.vue'
+
+import { formatDateTime } from '../../lib/datetime'
 import { renderMarkdown } from '../notes/render'
 import { buildTree } from './tree'
 import type { AppContext } from '../types'
@@ -11,6 +14,7 @@ const props = defineProps<{ ctx: AppContext }>()
 const files = ref<MemoryFile[]>([])
 const loading = ref(true)
 const loadError = ref('')
+const actionError = ref('')
 const search = ref('')
 const selectedPath = ref<string | null>(null)
 const editing = ref(false)
@@ -39,8 +43,7 @@ const rendered = computed(() =>
 
 const selectedMeta = computed(() => {
   if (!selected.value) return ''
-  const when = new Date(selected.value.updated_at).toLocaleString()
-  return `${selected.value.tool} · ${selected.value.size} bytes · ${when}`
+  return `${selected.value.tool} · ${selected.value.size} bytes · ${formatDateTime(selected.value.updated_at)}`
 })
 
 async function load() {
@@ -73,6 +76,7 @@ function startEdit() {
 async function save() {
   if (!selected.value) return
   saving.value = true
+  actionError.value = ''
   try {
     const res = await props.ctx.api.fetch('/api/agent_memory', {
       method: 'POST',
@@ -87,7 +91,7 @@ async function save() {
     Object.assign(selected.value, manifest, { body: draft.value })
     editing.value = false
   } catch (err) {
-    loadError.value = err instanceof Error ? err.message : String(err)
+    actionError.value = err instanceof Error ? err.message : String(err)
   } finally {
     saving.value = false
   }
@@ -102,17 +106,22 @@ async function remove() {
     danger: true
   })
   if (!ok) return
+  actionError.value = ''
   const path = selected.value.path
-  const res = await props.ctx.api.fetch(
-    `/api/agent_memory?path=${encodeURIComponent(path)}`,
-    { method: 'DELETE' }
-  )
-  if (!res.ok) {
-    loadError.value = `HTTP ${res.status}`
-    return
+  try {
+    const res = await props.ctx.api.fetch(
+      `/api/agent_memory?path=${encodeURIComponent(path)}`,
+      { method: 'DELETE' }
+    )
+    if (!res.ok) {
+      actionError.value = `HTTP ${res.status}`
+      return
+    }
+    files.value = files.value.filter(memoryFile => memoryFile.path !== path)
+    selectedPath.value = null
+  } catch (err) {
+    actionError.value = err instanceof Error ? err.message : String(err)
   }
-  files.value = files.value.filter(memoryFile => memoryFile.path !== path)
-  selectedPath.value = null
 }
 
 onMounted(load)
@@ -136,70 +145,11 @@ onMounted(load)
       </p>
       <ul v-else class="nodes">
         <li v-for="node in tree" :key="node.path">
-          <details open>
-            <summary>{{ node.name }}</summary>
-            <ul class="nodes">
-              <template v-for="child in node.children" :key="child.path">
-                <li v-if="child.file">
-                  <button
-                    type="button"
-                    class="file"
-                    :class="{ 'file--active': child.path === selectedPath }"
-                    @click="select(child)"
-                  >
-                    {{ child.name }}
-                  </button>
-                </li>
-                <li v-else>
-                  <details open>
-                    <summary>{{ child.name }}</summary>
-                    <ul class="nodes">
-                      <template v-for="leaf in child.children" :key="leaf.path">
-                        <li v-if="leaf.file">
-                          <button
-                            type="button"
-                            class="file"
-                            :class="{
-                              'file--active': leaf.path === selectedPath
-                            }"
-                            @click="select(leaf)"
-                          >
-                            {{ leaf.name }}
-                          </button>
-                        </li>
-                        <li v-else>
-                          <details open>
-                            <summary>{{ leaf.name }}</summary>
-                            <ul class="nodes">
-                              <li
-                                v-for="deep in leaf.children"
-                                :key="deep.path"
-                              >
-                                <button
-                                  v-if="deep.file"
-                                  type="button"
-                                  class="file"
-                                  :class="{
-                                    'file--active': deep.path === selectedPath
-                                  }"
-                                  @click="select(deep)"
-                                >
-                                  {{ deep.name }}
-                                </button>
-                                <span v-else class="muted"
-                                  >{{ deep.name }}/…</span
-                                >
-                              </li>
-                            </ul>
-                          </details>
-                        </li>
-                      </template>
-                    </ul>
-                  </details>
-                </li>
-              </template>
-            </ul>
-          </details>
+          <MemoryTreeNode
+            :node="node"
+            :selected-path="selectedPath"
+            @select="select"
+          />
         </li>
       </ul>
     </aside>
@@ -237,6 +187,7 @@ onMounted(load)
           </template>
         </div>
       </header>
+      <p v-if="actionError" class="error">{{ actionError }}</p>
       <textarea
         v-if="editing"
         v-model="draft"
@@ -296,44 +247,10 @@ onMounted(load)
   font: inherit;
 }
 
-.nodes {
+.tree > .nodes {
   list-style: none;
   margin: 0;
-  padding-left: 0.75rem;
-}
-
-.tree > .nodes {
   padding-left: 0;
-}
-
-summary {
-  cursor: pointer;
-  padding: 0.15rem 0;
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-}
-
-.file {
-  display: block;
-  width: 100%;
-  padding: 0.15rem 0.4rem;
-  border: 0;
-  border-radius: 4px;
-  background: none;
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.file:hover {
-  background: var(--bg-hover);
-}
-
-.file--active {
-  background: var(--primary);
-  color: var(--primary-contrast);
 }
 
 /* ----- Viewer ----- */
