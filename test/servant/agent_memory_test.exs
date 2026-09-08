@@ -62,7 +62,7 @@ defmodule Servant.AgentMemoryTest do
       assert entry.data["body"] == "hello"
 
       assert entry.data["sha256"] ==
-               :crypto.hash(:sha256, "hello") |> Base.encode16(case: :lower)
+               Base.encode16(:crypto.hash(:sha256, "hello"), case: :lower)
     end
 
     test "replaces the body of an existing path and skips unchanged ones", %{user: user} do

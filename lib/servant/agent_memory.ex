@@ -107,7 +107,7 @@ defmodule Servant.AgentMemory do
   end
 
   defp upsert_one(user_id, attrs, body) do
-    sha = :crypto.hash(:sha256, body) |> Base.encode16(case: :lower)
+    sha = Base.encode16(:crypto.hash(:sha256, body), case: :lower)
     data = attrs |> Map.delete("title") |> Map.merge(%{"body" => body, "sha256" => sha})
 
     case get_by_path(user_id, attrs["path"]) do
