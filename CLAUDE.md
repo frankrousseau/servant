@@ -21,3 +21,4 @@ universal user-scoped `entries`, and pushes changes over Phoenix Channels.
 - `docs/dav.md`: CalDAV/CardDAV/WebDAV endpoint at /dav (phone calendar + contacts sync, Files and Photos over WebDAV; client setup, what syncs, protocol subset).
 - `docs/phone-backup.md`: user guide for auto-uploading a phone's camera roll to the Photos app over WebDAV at /dav/photos (PhotoSync, FolderSync, rclone).
 - `specs/backlog.md`: ideas left over from shipped features ("hors scope v1"), nothing committed to.
+- `docs/skills/servant-memory/SKILL.md`: the skill (plus pull/push scripts) that lets Claude Code and Cursor share agent memory and skills through the Agent memory app.
