@@ -246,16 +246,21 @@ onMounted(() => {
           spellcheck="false"
         />
         <div v-else class="am-reading">
-          <dl v-if="split.fields.length" class="am-frontmatter">
+          <div v-if="split.fields.length" class="am-frontmatter">
             <div
               v-for="field in split.fields"
-              :key="field.key"
+              :key="`${field.group}.${field.key}`"
               class="am-frontmatter-row"
             >
-              <dt>{{ field.key }}</dt>
-              <dd>{{ field.value }}</dd>
+              <span class="am-frontmatter-key">
+                <span v-if="field.group" class="am-frontmatter-tag">{{
+                  field.group
+                }}</span>
+                {{ field.key }}
+              </span>
+              <span class="am-frontmatter-value">{{ field.value }}</span>
             </div>
-          </dl>
+          </div>
           <!-- markdown rendered by the shared Notes renderer, which escapes user data -->
           <article class="markdown" v-html="rendered" />
         </div>
@@ -476,22 +481,39 @@ onMounted(() => {
 
 .am-frontmatter-row {
   display: flex;
+  align-items: baseline;
   gap: 0.75rem;
   padding: 0.15rem 0;
 }
 
-.am-frontmatter dt {
-  flex: 0 0 11rem;
+.am-frontmatter-key {
+  flex: 0 0 12rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.am-frontmatter dd {
-  margin: 0;
+.am-frontmatter-tag {
+  flex-shrink: 0;
+  background: rgba(var(--primary-rgb), 0.15);
+  color: var(--primary);
+  border-radius: 6px;
+  padding: 0 0.4em;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.am-frontmatter-value {
+  flex: 1;
   min-width: 0;
   color: var(--text);
+  overflow-wrap: anywhere;
 }
 
 .markdown {

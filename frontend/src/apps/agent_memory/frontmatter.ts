@@ -1,9 +1,10 @@
 // Memory files, skills and Cursor rules open with a YAML frontmatter block
 // that markdown-it would render as a rule and stray paragraphs. Split it off
-// as flat key/value pairs (one nesting level, "metadata.type") for display;
-// the stored body keeps it verbatim.
+// as flat fields (one nesting level: `group` is the parent key, shown as a
+// tag, "" at the top level) for display; the stored body keeps it verbatim.
 
 export interface FrontmatterField {
+  group: string
   key: string
   value: string
 }
@@ -28,9 +29,13 @@ export function splitFrontmatter(body: string): SplitBody {
     const [, indent, key, value] = parsed
     if (indent.length === 0) {
       parent = value === '' ? key : ''
-      if (value !== '') fields.push({ key, value })
+      if (value !== '') fields.push({ group: '', key, value })
     } else if (parent) {
-      fields.push({ key: `${parent}.${key}`, value })
+      fields.push({
+        group: parent === 'metadata' ? 'meta' : parent,
+        key,
+        value
+      })
     }
   }
 

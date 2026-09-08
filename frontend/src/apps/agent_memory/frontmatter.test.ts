@@ -19,10 +19,10 @@ describe('splitFrontmatter', () => {
 
     expect(splitFrontmatter(body)).toEqual({
       fields: [
-        { key: 'name', value: 'servant-ui-doctrine' },
-        { key: 'description', value: 'single-workplace pages' },
-        { key: 'metadata.type', value: 'feedback' },
-        { key: 'metadata.originSessionId', value: 'abc' }
+        { group: '', key: 'name', value: 'servant-ui-doctrine' },
+        { group: '', key: 'description', value: 'single-workplace pages' },
+        { group: 'meta', key: 'type', value: 'feedback' },
+        { group: 'meta', key: 'originSessionId', value: 'abc' }
       ],
       content: '\n# Body\ntext'
     })
