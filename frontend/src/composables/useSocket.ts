@@ -13,8 +13,11 @@ export function useSocket() {
   const entryChangeCallbacks: Array<(entry: Entry) => void> = []
   const bulkChangeCallbacks: Array<() => void> = []
 
+  // Both subscriptions return an unsubscribe, for callers that outlive a
+  // single consumer (the app host keeps one socket while apps come and go).
   function onEntryChange(cb: (entry: Entry) => void) {
     entryChangeCallbacks.push(cb)
+    return () => remove(entryChangeCallbacks, cb)
   }
 
   // Fires on the aggregated "entries_changed" signal (connector syncs / bulk
@@ -23,6 +26,12 @@ export function useSocket() {
   // per-entry events (which never arrive for bulk writes).
   function onBulkChange(cb: () => void) {
     bulkChangeCallbacks.push(cb)
+    return () => remove(bulkChangeCallbacks, cb)
+  }
+
+  function remove<T>(list: T[], item: T) {
+    const index = list.indexOf(item)
+    if (index >= 0) list.splice(index, 1)
   }
 
   function connect() {

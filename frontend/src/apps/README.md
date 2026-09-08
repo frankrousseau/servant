@@ -60,6 +60,7 @@ directly.
 - `viewer.open(items, startIndex)` / `.close()` / `.onDelete(cb)` / `.onClose(cb)`: full-screen media viewer. `onClose` fires on user-initiated closes only (backdrop, Esc, Close button), so the app can sync its URL or state.
 - `api.entries`: user-scoped CRUD (`list` / `get` / `create` / `update` / `delete` / `stats` / `aggregate`). `list` pages through the results transparently, `aggregate` returns server-side COUNT/SUM bucketed by local day/week/month/year.
 - `api.upload(file, app?, onProgress?)`: upload a file, returns `{ path, filename, size, mime_type }`; `onProgress` receives a percentage.
+- `events.onEntryChange(cb)`: live entry changes pushed over the data channel (a deleted entry carries only its `id`). Returns an unsubscribe to call in `unmount` (or `onUnmounted`); coalesce bursts before refetching.
 - `api.fetch(path, opts?)`: authenticated `fetch` for anything not covered above (the Notes app uses it for `/api/notes`, which is the only way to write a note, the Photos app for media backfill).
 
 ## Conventions

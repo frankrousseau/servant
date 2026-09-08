@@ -27,6 +27,11 @@ function makeCtx(fetchMock: ReturnType<typeof vi.fn>) {
   return {
     navigate: vi.fn(),
     confirm: { ask: vi.fn().mockResolvedValue(true) },
+    events: {
+      onEntryChange: vi.fn((_listener: (entry: { kind?: string }) => void) =>
+        vi.fn()
+      )
+    },
     api: {
       entries: { list: vi.fn().mockResolvedValue([]) },
       upload: vi.fn(),
@@ -177,5 +182,23 @@ describe('AgentMemoryApp', () => {
     expect(wrapper.find('.viewer .error').text()).toContain('HTTP 422')
     expect(wrapper.find('.tree').exists()).toBe(true)
     expect(wrapper.find('button.file').exists()).toBe(true)
+  })
+
+  it('refetches silently after an agent_memory socket event', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn(async () => jsonRes([memoryFile()]))
+    const ctx = makeCtx(fetchMock)
+    mount(AgentMemoryApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    const listener = ctx.events.onEntryChange.mock.calls[0][0]
+    listener({ kind: 'note' })
+    listener({ kind: 'agent_memory' })
+    listener({ kind: 'agent_memory' })
+    vi.advanceTimersByTime(500)
+    await flushPromises()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    vi.useRealTimers()
   })
 })

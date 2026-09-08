@@ -65,6 +65,12 @@ export interface AppContext {
   // set. A getter on the context object, so it stays live.
   readonly enabledApps: string[] | null
   confirm: ConfirmAPI
+  // Live entry changes from the user's data channel (created, updated, or
+  // deleted, the latter carrying only `id`). Returns an unsubscribe; call it
+  // in the app's teardown.
+  events: {
+    onEntryChange(cb: (entry: Entry) => void): () => void
+  }
   api: {
     entries: EntriesAPI
     upload(

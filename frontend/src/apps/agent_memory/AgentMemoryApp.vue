@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ChevronsDownUp, ChevronsUpDown } from 'lucide-vue-next'
 
 import MemoryTreeNode from './MemoryTreeNode.vue'
@@ -60,19 +60,37 @@ const selectedMeta = computed(() => {
   return `${selected.value.tool} · ${selected.value.size} bytes · ${formatDateTime(selected.value.updated_at)}`
 })
 
+async function fetchFiles() {
+  const res = await props.ctx.api.fetch('/api/agent_memory?include=body')
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const json = await res.json()
+  files.value = json.data
+}
+
 async function load() {
   loading.value = true
   loadError.value = ''
   try {
-    const res = await props.ctx.api.fetch('/api/agent_memory?include=body')
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const json = await res.json()
-    files.value = json.data
+    await fetchFiles()
   } catch (err) {
     loadError.value = err instanceof Error ? err.message : String(err)
   } finally {
     loading.value = false
   }
+}
+
+// Live updates: agents push one file per POST, so a seed push is a burst;
+// coalesce into one silent refetch (no loading state, the draft being edited
+// is kept, the selection follows its path).
+let refreshTimer: ReturnType<typeof setTimeout> | null = null
+let unsubscribe: (() => void) | null = null
+
+function scheduleRefresh() {
+  if (refreshTimer) clearTimeout(refreshTimer)
+  refreshTimer = setTimeout(() => {
+    refreshTimer = null
+    fetchFiles().catch(() => {})
+  }, 400)
 }
 
 function select(node: TreeNode) {
@@ -141,9 +159,18 @@ async function remove() {
 
 onMounted(() => {
   load()
+  // A deleted entry only carries its id: refresh on those too.
+  unsubscribe = props.ctx.events.onEntryChange(entry => {
+    if (!entry.kind || entry.kind === 'agent_memory') scheduleRefresh()
+  })
   // Apps are mounted as separate Vue instances after a dynamic import, so the
   // native `autofocus` attribute below is never honored; focus by hand.
   searchInput.value?.focus()
+})
+
+onUnmounted(() => {
+  if (unsubscribe) unsubscribe()
+  if (refreshTimer) clearTimeout(refreshTimer)
 })
 </script>
 
@@ -246,23 +273,25 @@ onMounted(() => {
           spellcheck="false"
         />
         <div v-else class="am-reading">
-          <div v-if="split.fields.length" class="am-frontmatter">
-            <div
-              v-for="field in split.fields"
-              :key="`${field.group}.${field.key}`"
-              class="am-frontmatter-row"
-            >
-              <span class="am-frontmatter-key">
-                <span v-if="field.group" class="am-frontmatter-tag">{{
-                  field.group
-                }}</span>
-                {{ field.key }}
-              </span>
-              <span class="am-frontmatter-value">{{ field.value }}</span>
+          <div class="am-column">
+            <div v-if="split.fields.length" class="am-frontmatter">
+              <div
+                v-for="field in split.fields"
+                :key="`${field.group}.${field.key}`"
+                class="am-frontmatter-row"
+              >
+                <span class="am-frontmatter-key">
+                  <span v-if="field.group" class="am-frontmatter-tag">{{
+                    field.group
+                  }}</span>
+                  {{ field.key }}
+                </span>
+                <span class="am-frontmatter-value">{{ field.value }}</span>
+              </div>
             </div>
+            <!-- markdown rendered by the shared Notes renderer, which escapes user data -->
+            <article class="markdown" v-html="rendered" />
           </div>
-          <!-- markdown rendered by the shared Notes renderer, which escapes user data -->
-          <article class="markdown" v-html="rendered" />
         </div>
       </template>
       <p v-else class="am-placeholder">Select a file.</p>
@@ -461,29 +490,36 @@ onMounted(() => {
   outline: none;
 }
 
-/* ----- Preview: frontmatter block, then Notes rendering, in a reading column ----- */
+/* ----- Preview: one reading column holding the frontmatter block and the rendering ----- */
 .am-reading {
   flex: 1;
   overflow-y: auto;
-  padding: 1rem 1.25rem 3rem;
+  padding: 1.5rem 1.5rem 4rem;
+}
+
+/* A fixed rem width (not ch): the column is the same for the mono block, the
+   headings and the body, so their left edges line up. */
+.am-column {
+  max-width: 44rem;
+  margin: 0 auto;
 }
 
 .am-frontmatter {
-  max-width: 72ch;
-  margin: 0 auto 1rem;
-  padding: 0.6rem 0.9rem;
+  margin: 0 0 1.75rem;
+  padding: 0.9rem 1.1rem;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-surface);
   font-family: var(--font-mono);
   font-size: 0.8rem;
+  line-height: 1.5;
 }
 
 .am-frontmatter-row {
   display: flex;
   align-items: baseline;
-  gap: 0.75rem;
-  padding: 0.15rem 0;
+  gap: 1rem;
+  padding: 0.25rem 0;
 }
 
 .am-frontmatter-key {
@@ -517,25 +553,28 @@ onMounted(() => {
 }
 
 .markdown {
-  line-height: 1.65;
-}
-
-.markdown > :deep(*) {
-  max-width: 72ch;
-  margin-left: auto;
-  margin-right: auto;
+  font-size: 0.95rem;
+  line-height: 1.7;
 }
 
 .markdown :deep(h1),
 .markdown :deep(h2),
 .markdown :deep(h3) {
-  margin-top: 0.8em;
-  margin-bottom: 0.4em;
+  margin: 1.4em 0 0.6em;
+  line-height: 1.3;
+}
+
+.markdown :deep(h1:first-child),
+.markdown :deep(h2:first-child) {
+  margin-top: 0;
 }
 
 .markdown :deep(p) {
-  margin-top: 0.5em;
-  margin-bottom: 0.5em;
+  margin: 0.8em 0;
+}
+
+.markdown :deep(li) {
+  margin: 0.25em 0;
 }
 
 .markdown :deep(code) {

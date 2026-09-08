@@ -3,6 +3,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import type { AppContext, UploadResult, ViewerAPI } from './types'
 import { useConfirm } from '../composables/useConfirm'
+import { useSocket } from '../composables/useSocket'
 import { apiFetch } from '../composables/apiClient'
 import {
   aggregateEntries,
@@ -18,6 +19,7 @@ export function createAppContext(viewer: ViewerAPI): AppContext {
   const auth = useAuthStore()
   const router = useRouter()
   const { ask } = useConfirm()
+  const { onEntryChange } = useSocket()
 
   return {
     navigate(path: string) {
@@ -85,6 +87,7 @@ export function createAppContext(viewer: ViewerAPI): AppContext {
       fetch: apiFetch
     },
     confirm: { ask },
+    events: { onEntryChange },
     viewer
   }
 }
