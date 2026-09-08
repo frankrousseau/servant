@@ -56,12 +56,24 @@ defmodule Servant.AgentMemory do
   @spec list(String.t(), map) :: [Entry.t()]
   def list(user_id, filters \\ %{}) do
     from(e in Entry,
-      where: e.user_id == ^user_id and e.kind == @kind,
+      where: e.user_id == ^user_id and e.kind == @kind and e.source == ^@source,
       order_by: [asc: e.external_id]
     )
     |> filter_project(filters["project"])
     |> filter_tool(filters["tool"])
     |> Repo.all()
+    |> Enum.filter(&valid_entry?/1)
+  end
+
+  # A row is only trustworthy once its stored path both re-parses cleanly and
+  # still matches the external_id it was upserted under (a row inserted or
+  # edited outside upsert_all/2, directly against the entries table, could
+  # carry a stale or malicious path in `data`).
+  defp valid_entry?(entry) do
+    case parse_path(entry.data["path"]) do
+      {:ok, _attrs} -> entry.data["path"] == entry.external_id
+      {:error, _} -> false
+    end
   end
 
   defp filter_project(query, nil), do: query
@@ -79,14 +91,36 @@ defmodule Servant.AgentMemory do
   @doc """
   Upserts `[%{"path", "body"}]` by path in one transaction. Any invalid file
   rejects the whole batch. An unchanged body is left alone (`updated_at` stays).
+  A path conflicting with an existing entry (a changeset error on insert or
+  update) rolls the whole batch back and returns `{:error, :conflict}`.
   """
-  @spec upsert_all(String.t(), list) :: {:ok, [Entry.t()]} | {:error, :invalid_path}
+  @spec upsert_all(String.t(), list) ::
+          {:ok, [Entry.t()]} | {:error, :invalid_path} | {:error, :conflict}
   def upsert_all(user_id, files) when is_list(files) do
     with {:ok, parsed} <- parse_all(files) do
-      Repo.transaction(fn ->
-        Enum.map(parsed, fn {attrs, body} -> upsert_one(user_id, attrs, body) end)
-      end)
+      parsed
+      |> run_upserts(user_id)
+      |> case do
+        {:ok, entries_and_events} ->
+          # Broadcasts fire only once the transaction actually commits, so a
+          # rolled-back conflict never announces a change that didn't happen.
+          Enum.each(entries_and_events, fn
+            {_entry, nil} -> :ok
+            {_entry, event} -> Events.broadcast(user_id, event)
+          end)
+
+          {:ok, Enum.map(entries_and_events, fn {entry, _event} -> entry end)}
+
+        {:error, :conflict} ->
+          {:error, :conflict}
+      end
     end
+  end
+
+  defp run_upserts(parsed, user_id) do
+    Repo.transaction(fn ->
+      Enum.map(parsed, fn {attrs, body} -> upsert_one(user_id, attrs, body) end)
+    end)
   end
 
   defp parse_all(files) do
@@ -106,36 +140,39 @@ defmodule Servant.AgentMemory do
     end
   end
 
+  # Returns `{entry, event | nil}`: the event is broadcast by the caller only
+  # once the whole transaction commits, and a changeset error (a path racing
+  # another insert/update) rolls the batch back instead of raising.
   defp upsert_one(user_id, attrs, body) do
     sha = Base.encode16(:crypto.hash(:sha256, body), case: :lower)
     data = attrs |> Map.delete("title") |> Map.merge(%{"body" => body, "sha256" => sha})
 
     case get_by_path(user_id, attrs["path"]) do
       nil ->
-        {:ok, entry} =
-          %Entry{user_id: user_id, kind: @kind, source: @source}
-          |> Entry.changeset(%{
-            title: attrs["title"],
-            external_id: attrs["path"],
-            occurred_at: DateTime.truncate(DateTime.utc_now(), :second),
-            data: data
-          })
-          |> Repo.insert()
-
-        Events.broadcast(user_id, {:entry_created, entry})
-        entry
+        %Entry{user_id: user_id, kind: @kind, source: @source}
+        |> Entry.changeset(%{
+          title: attrs["title"],
+          external_id: attrs["path"],
+          occurred_at: DateTime.truncate(DateTime.utc_now(), :second),
+          data: data
+        })
+        |> Repo.insert()
+        |> case do
+          {:ok, entry} -> {entry, {:entry_created, entry}}
+          {:error, _changeset} -> Repo.rollback(:conflict)
+        end
 
       %Entry{data: %{"sha256" => ^sha}} = entry ->
-        entry
+        {entry, nil}
 
       entry ->
-        {:ok, entry} =
-          entry
-          |> Entry.changeset(%{title: attrs["title"], data: data})
-          |> Repo.update()
-
-        Events.broadcast(user_id, {:entry_updated, entry})
         entry
+        |> Entry.changeset(%{title: attrs["title"], data: data})
+        |> Repo.update()
+        |> case do
+          {:ok, entry} -> {entry, {:entry_updated, entry}}
+          {:error, _changeset} -> Repo.rollback(:conflict)
+        end
     end
   end
 

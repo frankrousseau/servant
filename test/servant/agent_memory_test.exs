@@ -2,6 +2,7 @@ defmodule Servant.AgentMemoryTest do
   use Servant.DataCase
 
   alias Servant.AgentMemory
+  alias Servant.Data.Entry
 
   setup do
     %{user: user_fixture(), other: user_fixture()}
@@ -96,6 +97,23 @@ defmodule Servant.AgentMemoryTest do
       assert AgentMemory.upsert_all(user.id, [%{"path" => "memory/proj/a.md", "body" => 1}]) ==
                {:error, :invalid_path}
     end
+
+    test "a path conflicting with a differently-kinded entry rolls back with :conflict",
+         %{user: user} do
+      {:ok, _entry} =
+        %Entry{user_id: user.id}
+        |> Entry.changeset(%{
+          "kind" => "bookmark",
+          "source" => "agent",
+          "external_id" => "memory/p/a.md"
+        })
+        |> Repo.insert()
+
+      assert AgentMemory.upsert_all(user.id, [%{"path" => "memory/p/a.md", "body" => "x"}]) ==
+               {:error, :conflict}
+
+      assert AgentMemory.list(user.id) == []
+    end
   end
 
   describe "list/2" do
@@ -140,6 +158,29 @@ defmodule Servant.AgentMemoryTest do
                "skills/claude/kitsu/SKILL.md",
                "skills/shared/brainstorm/SKILL.md"
              ]
+    end
+  end
+
+  describe "list/2 validation" do
+    test "drops a row whose stored path fails parse_path/1 or diverges from external_id",
+         %{user: user} do
+      {:ok, _entry} =
+        %Entry{user_id: user.id}
+        |> Entry.changeset(%{
+          "kind" => "agent_memory",
+          "source" => "agent",
+          "external_id" => "memory/p/a.md",
+          "data" => %{
+            "path" => "rules/p/../../x",
+            "project" => "p",
+            "tool" => "claude",
+            "body" => "x",
+            "sha256" => "x"
+          }
+        })
+        |> Repo.insert()
+
+      assert AgentMemory.list(user.id) == []
     end
   end
 

@@ -85,7 +85,8 @@ defmodule ServantWeb.AgentMemoryController do
       ok: {"Manifest of the files sent", "application/json", @file_list},
       unauthorized: {"Unauthorized", "application/json", Schemas.Error},
       forbidden: {"Insufficient scope", "application/json", Schemas.Error},
-      unprocessable_entity: {"Invalid path", "application/json", Schemas.Error}
+      unprocessable_entity:
+        {"Invalid path or conflicting entry", "application/json", Schemas.Error}
     ]
   )
 
@@ -100,6 +101,11 @@ defmodule ServantWeb.AgentMemoryController do
         conn
         |> put_status(:unprocessable_entity)
         |> json(%{error: "Invalid file path or body"})
+
+      {:error, :conflict} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "Path conflicts with an existing entry"})
     end
   end
 

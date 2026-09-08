@@ -81,6 +81,19 @@ defmodule ServantWeb.EntryControllerTest do
       assert %{"error" => _} = json_response(conn, 422)
     end
 
+    test "422 when creating an agent_memory entry, even with data:write" do
+      {conn, _user} = register_and_log_in_api_token(build_conn(), ["data:write"])
+
+      conn =
+        post(conn, "/api/entries", %{
+          "kind" => "agent_memory",
+          "source" => "agent",
+          "title" => "Hi"
+        })
+
+      assert %{"error" => _} = json_response(conn, 422)
+    end
+
     test "422 when required fields are missing", %{conn: conn} do
       conn = post(conn, "/api/entries", %{"title" => "no kind/source"})
       # Rejected by the spec before the action runs, so it names the fields.
@@ -315,6 +328,16 @@ defmodule ServantWeb.EntryControllerTest do
     test "refuses to update a note through the generic entries API", %{conn: conn, user: user} do
       {:ok, note} = Servant.Notes.create_note(user.id, %{"title" => "A note"})
       conn = put(conn, "/api/entries/#{note.id}", %{"title" => "hijacked"})
+      assert %{"error" => _} = json_response(conn, 422)
+    end
+
+    test "refuses to update an agent_memory entry, even with data:write" do
+      {conn, user} = register_and_log_in_api_token(build_conn(), ["data:write"])
+
+      {:ok, [entry]} =
+        Servant.AgentMemory.upsert_all(user.id, [%{"path" => "memory/p/a.md", "body" => "hi"}])
+
+      conn = put(conn, "/api/entries/#{entry.id}", %{"title" => "hijacked"})
       assert %{"error" => _} = json_response(conn, 422)
     end
 

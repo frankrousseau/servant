@@ -155,24 +155,31 @@ defmodule Servant.Data do
 
   def create_entry(user_id, attrs) do
     # Notes must go through Servant.Notes so their wikilinks/mentions are parsed
-    # into note_links; creating one here would leave the graph incomplete. Mirror
-    # of the guard in update_entry/3.
-    if get_attr(attrs, :kind) == "note" do
-      {:error, :notes_api_required}
-    else
-      result =
-        %Entry{user_id: user_id}
-        |> Entry.changeset(attrs)
-        |> Repo.insert()
+    # into note_links; creating one here would leave the graph incomplete. Agent
+    # memory files must go through Servant.AgentMemory so the path is parsed and
+    # the body gets its server-side sha256; creating one here would skip both.
+    # Mirror of the guard in update_entry/3.
+    cond do
+      get_attr(attrs, :kind) == "note" ->
+        {:error, :notes_api_required}
 
-      case result do
-        {:ok, entry} ->
-          broadcast(user_id, {:entry_created, entry})
-          {:ok, entry}
+      get_attr(attrs, :kind) == "agent_memory" ->
+        {:error, :agent_memory_api_required}
 
-        error ->
-          error
-      end
+      true ->
+        result =
+          %Entry{user_id: user_id}
+          |> Entry.changeset(attrs)
+          |> Repo.insert()
+
+        case result do
+          {:ok, entry} ->
+            broadcast(user_id, {:entry_created, entry})
+            {:ok, entry}
+
+          error ->
+            error
+        end
     end
   end
 
@@ -243,22 +250,29 @@ defmodule Servant.Data do
 
   def update_entry(user_id, id, attrs) do
     entry = get_entry!(user_id, id)
+    target_kind = get_attr(attrs, :kind)
 
     # Notes are entries too, but editing one here would skip the Notes context's
     # link re-sync / rename propagation, leaving note_links stale. Route note
     # edits through Servant.Notes instead. (Deletes are fine: note_links rows are
-    # cleaned by the FK on_delete.)
-    if entry.kind == "note" do
-      {:error, :notes_api_required}
-    else
-      case entry |> Entry.changeset(attrs) |> Repo.update() do
-        {:ok, entry} ->
-          broadcast(user_id, {:entry_updated, entry})
-          {:ok, entry}
+    # cleaned by the FK on_delete.) Agent memory files carry the same guard:
+    # editing one here would skip Servant.AgentMemory's path parsing and sha256.
+    cond do
+      entry.kind == "note" ->
+        {:error, :notes_api_required}
 
-        error ->
-          error
-      end
+      entry.kind == "agent_memory" or target_kind == "agent_memory" ->
+        {:error, :agent_memory_api_required}
+
+      true ->
+        case entry |> Entry.changeset(attrs) |> Repo.update() do
+          {:ok, entry} ->
+            broadcast(user_id, {:entry_updated, entry})
+            {:ok, entry}
+
+          error ->
+            error
+        end
     end
   end
 

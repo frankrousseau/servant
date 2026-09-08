@@ -403,7 +403,7 @@ defmodule ServantWeb.EntryController do
   operation(:create,
     summary: "Create an entry",
     description:
-      "Requires write scope on the kind's domain for an API token. Notes cannot be created here (use /api/notes).",
+      "Requires write scope on the kind's domain for an API token. Notes cannot be created here (use /api/notes), nor can agent memory files (use /api/agent_memory).",
     request_body:
       {"Entry attributes", "application/json",
        %Schema{
@@ -441,6 +441,11 @@ defmodule ServantWeb.EntryController do
           |> put_status(:unprocessable_entity)
           |> json(%{error: "Notes must be created through the notes API (/api/notes)"})
 
+        {:error, :agent_memory_api_required} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "Agent memory files must be written through /api/agent_memory"})
+
         {:error, changeset} ->
           conn
           |> put_status(:unprocessable_entity)
@@ -454,7 +459,7 @@ defmodule ServantWeb.EntryController do
   operation(:update,
     summary: "Update an entry",
     description:
-      "Requires write scope on both the entry's current and (if changing) new kind domain for an API token. Notes cannot be edited here (use /api/notes).",
+      "Requires write scope on both the entry's current and (if changing) new kind domain for an API token. Notes cannot be edited here (use /api/notes), nor can agent memory files (use /api/agent_memory).",
     parameters: [id: [in: :path, type: :string, required: true]],
     request_body:
       {"Entry attributes", "application/json",
@@ -489,6 +494,11 @@ defmodule ServantWeb.EntryController do
             conn
             |> put_status(:unprocessable_entity)
             |> json(%{error: "Notes must be edited through the notes API (/api/notes)"})
+
+          {:error, :agent_memory_api_required} ->
+            conn
+            |> put_status(:unprocessable_entity)
+            |> json(%{error: "Agent memory files must be written through /api/agent_memory"})
 
           {:error, changeset} ->
             conn

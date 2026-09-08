@@ -2,6 +2,8 @@ defmodule ServantWeb.AgentMemoryControllerTest do
   use ServantWeb.ConnCase
 
   alias Servant.AgentMemory
+  alias Servant.Data.Entry
+  alias Servant.Repo
 
   describe "scopes" do
     test "403 without app:agent_memory scopes" do
@@ -61,6 +63,27 @@ defmodule ServantWeb.AgentMemoryControllerTest do
 
     test "422 when files is missing", %{conn: conn} do
       assert json_response(post(conn, ~p"/api/agent_memory", %{}), 422)
+    end
+
+    test "422 when the path conflicts with a differently-kinded entry", %{
+      conn: conn,
+      user: user
+    } do
+      {:ok, _entry} =
+        %Entry{user_id: user.id}
+        |> Entry.changeset(%{
+          "kind" => "bookmark",
+          "source" => "agent",
+          "external_id" => "memory/p/a.md"
+        })
+        |> Repo.insert()
+
+      conn =
+        post(conn, ~p"/api/agent_memory", %{
+          "files" => [%{"path" => "memory/p/a.md", "body" => "x"}]
+        })
+
+      assert json_response(conn, 422)["error"] =~ "conflict"
     end
 
     test "index filters and includes bodies on demand", %{conn: conn, user: user} do
