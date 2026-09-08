@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { ChevronsDownUp, ChevronsUpDown } from 'lucide-vue-next'
 
 import MemoryTreeNode from './MemoryTreeNode.vue'
 
@@ -22,6 +23,15 @@ const selectedPath = ref<string | null>(null)
 const editing = ref(false)
 const draft = ref('')
 const saving = ref(false)
+// Expand/collapse all: the tree is re-keyed on each toggle so every <details>
+// takes the new default even after a folder was toggled by hand.
+const expanded = ref(true)
+const treeVersion = ref(0)
+
+function toggleAll() {
+  expanded.value = !expanded.value
+  treeVersion.value += 1
+}
 
 const filteredFiles = computed(() => {
   const needle = search.value.trim().toLowerCase()
@@ -149,6 +159,17 @@ onMounted(() => {
           placeholder="Filter by path"
           aria-label="Filter files by path"
         />
+        <button
+          v-if="tree.length"
+          type="button"
+          class="am-tree-toggle"
+          :title="expanded ? 'Collapse all folders' : 'Expand all folders'"
+          :aria-label="expanded ? 'Collapse all folders' : 'Expand all folders'"
+          @click="toggleAll"
+        >
+          <ChevronsDownUp v-if="expanded" :size="14" />
+          <ChevronsUpDown v-else :size="14" />
+        </button>
       </div>
       <div class="am-tree">
         <p v-if="loading" class="am-placeholder">Loading…</p>
@@ -158,11 +179,12 @@ onMounted(() => {
         <p v-else-if="tree.length === 0" class="am-placeholder">
           No files yet. Run the servant-memory skill's push script from a repo.
         </p>
-        <ul v-else class="nodes">
+        <ul v-else :key="treeVersion" class="nodes">
           <li v-for="node in tree" :key="node.path">
             <MemoryTreeNode
               :node="node"
               :selected-path="selectedPath"
+              :expanded="expanded"
               @select="select"
             />
           </li>
@@ -264,8 +286,27 @@ onMounted(() => {
 
 .am-side-head {
   display: flex;
+  gap: 0.5rem;
   padding: 0.75rem;
   border-bottom: 1px solid var(--border);
+}
+
+.am-tree-toggle {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 0 0.45rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.am-tree-toggle:hover,
+.am-tree-toggle:focus-visible {
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .am-search {

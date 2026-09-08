@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import type { TreeNode } from './tree'
 
-defineProps<{ node: TreeNode; selectedPath: string | null }>()
+defineProps<{
+  node: TreeNode
+  selectedPath: string | null
+  expanded: boolean
+}>()
 
 const emit = defineEmits<{ select: [node: TreeNode] }>()
 </script>
@@ -17,7 +21,7 @@ const emit = defineEmits<{ select: [node: TreeNode] }>()
   >
     <span class="file-name">{{ node.name }}</span>
   </button>
-  <details v-else open>
+  <details v-else :open="expanded">
     <summary class="folder">
       <span class="folder-caret" aria-hidden="true"></span>
       <span class="folder-name">{{ node.name }}</span>
@@ -27,6 +31,7 @@ const emit = defineEmits<{ select: [node: TreeNode] }>()
         <MemoryTreeNode
           :node="child"
           :selected-path="selectedPath"
+          :expanded="expanded"
           @select="emit('select', $event)"
         />
       </li>
