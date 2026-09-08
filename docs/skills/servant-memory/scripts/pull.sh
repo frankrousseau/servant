@@ -6,6 +6,10 @@ set -euo pipefail
 
 tool=${1:-claude}
 project=$(basename "$PWD")
+if [[ ! "$project" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "project name \"$project\" is not a valid path segment" >&2
+  exit 1
+fi
 : "${SERVANT_URL:?set SERVANT_URL}" "${SERVANT_TOKEN:?set SERVANT_TOKEN}"
 
 # ponytail: Claude mangles the cwd by swapping "/" for "-"; adjust here if it ever changes.
@@ -15,6 +19,9 @@ case "$tool" in
   cursor) skills_dir="$HOME/.cursor/skills-cursor" ;;
   *) echo "unknown tool: $tool" >&2; exit 1 ;;
 esac
+
+# Never let a synced file land on top of the scripts themselves.
+script_dir=$(dirname "$(realpath "$0")")
 
 local_path() {
   case "$1" in
@@ -26,12 +33,34 @@ local_path() {
   esac
 }
 
+# Only the three known trees, and no "." or ".." segment (path traversal).
+path_ok() {
+  local path="$1" seg
+  [[ "$path" =~ ^(memory|skills|rules)(/[A-Za-z0-9._-]+)+$ ]] || return 1
+  local IFS=/
+  for seg in $path; do
+    [ "$seg" = "." ] && return 1
+    [ "$seg" = ".." ] && return 1
+  done
+  return 0
+}
+
 curl -sSf -H "Authorization: Bearer $SERVANT_TOKEN" \
   "$SERVANT_URL/api/agent_memory?project=$project&tool=$tool&include=body" |
   jq -r '.data[] | [.path, .sha256, .updated_at, (.body | @base64)] | @tsv' |
   while IFS=$'\t' read -r path sha updated body64; do
+    if ! path_ok "$path"; then
+      echo "REJECTED  $path" >&2
+      continue
+    fi
     dest=$(local_path "$path")
     [ -n "$dest" ] || continue
+    case "$dest" in
+      "$script_dir"/*)
+        echo "SKIPPED  $path  (would overwrite the sync scripts)" >&2
+        continue
+        ;;
+    esac
     if [ -f "$dest" ] && [ "$(sha256sum "$dest" | cut -c1-64)" = "$sha" ]; then
       continue
     fi
@@ -40,6 +69,12 @@ curl -sSf -H "Authorization: Bearer $SERVANT_TOKEN" \
       continue
     fi
     mkdir -p "$(dirname "$dest")"
-    printf '%s' "$body64" | base64 -d > "$dest"
-    echo "pulled       $path"
+    if [ -f "$dest" ]; then
+      cp "$dest" "$dest.local"
+      printf '%s' "$body64" | base64 -d > "$dest"
+      echo "MERGE        $path  (previous local copy kept at $dest.local)"
+    else
+      printf '%s' "$body64" | base64 -d > "$dest"
+      echo "pulled       $path"
+    fi
   done

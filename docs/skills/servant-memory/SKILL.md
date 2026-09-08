@@ -24,7 +24,7 @@ Your memory (`~/.claude/projects/<cwd>/memory/*.md`), your skills
 1. In Servant, Settings > API tokens: create a token with the `Agent memory: write` scope.
 2. Export `SERVANT_URL` (e.g. `https://servant.example.com`) and `SERVANT_TOKEN` (the `srv_` token) in the shell profile.
 3. Copy this folder to `~/.claude/skills/servant-memory/` and `~/.cursor/skills-cursor/servant-memory/`.
-4. Seed once from each repo: `scripts/push.sh claude ~/.claude/projects/$(pwd | tr / -)/memory/*.md ~/.claude/skills/*/SKILL.md`.
+4. Seed once from each repo: `~/.claude/skills/servant-memory/scripts/push.sh claude ~/.claude/projects/$(pwd | tr / -)/memory/*.md ~/.claude/skills/*/SKILL.md`.
 
 ## Session start: pull
 
@@ -38,6 +38,11 @@ It writes every remote file that is missing locally or newer than the local copy
 and prints `LOCAL NEWER <path>` for files you changed here since the last push.
 For those, push them (below), or when the remote copy also changed, read both,
 merge by hand (they are markdown), write the merge locally and push it.
+
+When a local file exists and the remote is newer, the previous local copy is
+kept alongside it as `<path>.local` before the remote version is written
+(`MERGE <path>`); read both, merge by hand, delete the `.local` file once
+merged, then push the result.
 
 ## After every write: push
 
@@ -56,3 +61,5 @@ not at the end of the session.
 - Never write secrets (tokens, passwords, keys) in a memory file: it is stored server side and readable in the app.
 - Deleting is done from the app, not from here; a file deleted locally is simply not pulled back until someone deletes it remotely too.
 - If `SERVANT_URL` or `SERVANT_TOKEN` is unset, say so once and carry on without syncing.
+- Trust model: anything that can write entries on the server can place a skill the other machine's agent will read; keep the token scoped to `app:agent_memory:write` and revoke it from Settings if a machine is lost.
+- Linux only (GNU date, sha256sum, realpath).
