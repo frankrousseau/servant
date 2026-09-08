@@ -110,4 +110,13 @@ defmodule Servant.ApiTokensTest do
       assert ApiTokens.authenticate(plaintext) == :error
     end
   end
+
+  describe "agent_memory scope" do
+    test "is a valid domain mapped to the agent_memory kind" do
+      assert Servant.ApiTokens.Scopes.valid?("app:agent_memory:write")
+      assert Servant.ApiTokens.Scopes.kind_domain("agent_memory") == "agent_memory"
+      assert Servant.ApiTokens.Scopes.can_kind?(["app:agent_memory:read"], "agent_memory", :read)
+      refute Servant.ApiTokens.Scopes.can_kind?(["app:notes:write"], "agent_memory", :read)
+    end
+  end
 end

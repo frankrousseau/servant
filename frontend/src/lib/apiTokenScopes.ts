@@ -13,6 +13,7 @@ export const SCOPE_DOMAINS: ScopeDomain[] = [
   { id: 'files', label: 'Files' },
   { id: 'finance', label: 'Finance' },
   { id: 'trackers', label: 'Trackers' },
+  { id: 'agent_memory', label: 'Agent memory' },
   { id: 'data', label: 'All data' }
 ]
 

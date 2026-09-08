@@ -7,7 +7,7 @@ defmodule Servant.ApiTokens.Scopes do
   Single source of truth for the kind-to-domain mapping.
   """
 
-  @app_domains ~w(notes checklists calendar contacts photos files finance trackers)
+  @app_domains ~w(notes checklists calendar contacts photos files finance trackers agent_memory)
 
   @kind_to_domain %{
     "note" => "notes",
@@ -22,7 +22,8 @@ defmodule Servant.ApiTokens.Scopes do
     "blockchain_tx" => "finance",
     "invoice" => "finance",
     "tracker" => "trackers",
-    "tracker_log" => "trackers"
+    "tracker_log" => "trackers",
+    "agent_memory" => "agent_memory"
   }
 
   @all Enum.flat_map(@app_domains, &["app:#{&1}:read", "app:#{&1}:write"]) ++
