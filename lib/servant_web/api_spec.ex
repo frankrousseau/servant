@@ -17,8 +17,8 @@ defmodule ServantWeb.ApiSpec do
         - session tokens (used by the SPA, also carried by an HttpOnly cookie): full access
         - API tokens (`srv_` prefixed, created in Settings): restricted by scopes of the
           form `app:<domain>:<read|write>` (notes, checklists, calendar, contacts, photos,
-          files, finance, trackers) plus the `data:<read|write>` wildcard. `write` implies
-          `read`. Scope failures return 403 with the required scope.
+          files, finance, trackers, agent_memory) plus the `data:<read|write>` wildcard.
+          `write` implies `read`. Scope failures return 403 with the required scope.
 
         Raw file bytes under /files and /uploads need the explicit `data:read-binary`
         scope (never implied by `data:read`/`data:write`): a token without it can list

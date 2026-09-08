@@ -101,6 +101,7 @@ servant/
 │   │   ├── data.ex            # Entry CRUD (user-scoped)
 │   │   ├── notes/             # NoteLink schema (wikilink/mention graph)
 │   │   ├── notes.ex           # Notes context: wikilinks, backlinks, mentions, tags
+│   │   ├── agent_memory.ex    # Agent memory context: path-keyed upserts for agent files
 │   │   ├── encrypted/         # Ecto type for encrypted-at-rest maps
 │   │   ├── encrypted.ex       # AES-256-GCM for connector secrets
 │   │   ├── media/             # EXIF, thumbnails/display JPEGs (vix), rotation, backfill
@@ -108,7 +109,7 @@ servant/
 │   │   ├── events.ex          # Shared PubSub broadcasting ("data:<user_id>")
 │   │   └── storage.ex         # Per-user file storage layout
 │   └── servant_web/
-│       ├── controllers/       # Auth, Entry, Note, Connector, Upload, Export, App, Files, Audit, Dav, SPA
+│       ├── controllers/       # Auth, Entry, Note, AgentMemory, Connector, Upload, Export, App, Files, Audit, Dav, SPA
 │       ├── channels/          # UserSocket, DataChannel
 │       ├── plugs/             # FileAuth, DavAuth, Scope, SessionOnly, RequireAdmin, AccessLog
 │       ├── schemas/           # OpenApiSpex request/response schemas
