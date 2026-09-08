@@ -1,5 +1,6 @@
-// Turns flat `path`s (memory/<project>/file, skills/<tool>/<name>/file,
-// rules/<project>/file) into the nested tree the app renders.
+// Turns flat files into the tree the app renders: one root per harness
+// (Claude Code, Cursor, Shared), then the section named by the path's first
+// segment (memory, skills, rules), then the remaining folders and the file.
 
 export interface MemoryFile {
   id: string
@@ -19,34 +20,35 @@ export interface TreeNode {
   file?: MemoryFile
 }
 
-const ROOTS: Record<string, string> = {
+const HARNESSES = [
+  { key: 'claude', name: 'Claude Code' },
+  { key: 'cursor', name: 'Cursor' },
+  { key: 'shared', name: 'Shared' }
+]
+
+const SECTIONS: Record<string, string> = {
   memory: 'Memory',
   skills: 'Skills',
   rules: 'Rules'
 }
 
 export function buildTree(files: MemoryFile[]): TreeNode[] {
-  const roots: TreeNode[] = Object.keys(ROOTS).map(key => ({
-    name: ROOTS[key],
-    path: key,
+  const roots: TreeNode[] = HARNESSES.map(harness => ({
+    name: harness.name,
+    path: harness.key,
     children: []
   }))
 
   for (const memoryFile of files) {
+    const root = roots.find(candidate => candidate.path === memoryFile.tool)
     const segments = memoryFile.path.split('/')
-    const node = roots.find(root => root.path === segments[0])
-    if (!node) continue
-    let current: TreeNode = node
-    for (let i = 1; i < segments.length - 1; i++) {
-      const path = segments.slice(0, i + 1).join('/')
-      let child: TreeNode | undefined = current.children.find(
-        candidate => candidate.path === path
-      )
-      if (!child) {
-        child = { name: segments[i], path, children: [] }
-        current.children.push(child)
-      }
-      current = child
+    const section = SECTIONS[segments[0]]
+    if (!root || !section) continue
+    // skills/<tool>/<name>/... repeats the harness the root already names.
+    const folders = segments.slice(segments[0] === 'skills' ? 2 : 1, -1)
+    let current = childFolder(root, section, `${root.path}/${segments[0]}`)
+    for (const folder of folders) {
+      current = childFolder(current, folder, `${current.path}/${folder}`)
     }
     current.children.push({
       name: segments[segments.length - 1],
@@ -57,6 +59,15 @@ export function buildTree(files: MemoryFile[]): TreeNode[] {
   }
 
   return roots.filter(root => root.children.length > 0).map(sortNode)
+}
+
+function childFolder(parent: TreeNode, name: string, path: string): TreeNode {
+  let child = parent.children.find(candidate => candidate.path === path)
+  if (!child) {
+    child = { name, path, children: [] }
+    parent.children.push(child)
+  }
+  return child
 }
 
 function sortNode(node: TreeNode): TreeNode {

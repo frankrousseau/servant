@@ -15,10 +15,13 @@ const emit = defineEmits<{ select: [node: TreeNode] }>()
     :aria-current="node.path === selectedPath ? 'true' : undefined"
     @click="emit('select', node)"
   >
-    {{ node.name }}
+    <span class="file-name">{{ node.name }}</span>
   </button>
   <details v-else open>
-    <summary>{{ node.name }}</summary>
+    <summary class="folder">
+      <span class="folder-caret" aria-hidden="true"></span>
+      <span class="folder-name">{{ node.name }}</span>
+    </summary>
     <ul class="nodes">
       <li v-for="child in node.children" :key="child.path">
         <MemoryTreeNode
@@ -38,25 +41,74 @@ const emit = defineEmits<{ select: [node: TreeNode] }>()
   padding-left: 0.75rem;
 }
 
-summary {
+/* ----- Folders: structure, same mono uppercase labels as the Notes tree ----- */
+.folder {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem;
+  margin-top: 0.4rem;
+  border-radius: 6px;
   cursor: pointer;
-  padding: 0.15rem 0;
+  list-style: none;
+  color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  user-select: none;
 }
 
+.folder::-webkit-details-marker {
+  display: none;
+}
+
+.folder:hover {
+  background: var(--bg-hover);
+}
+
+.folder-caret {
+  width: 0.9em;
+  flex-shrink: 0;
+}
+
+.folder-caret::before {
+  content: '\25B8';
+}
+
+details[open] > .folder .folder-caret::before {
+  content: '\25BE';
+}
+
+.folder-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ----- Files: the note rows of Notes, violet rail when selected ----- */
 .file {
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
-  padding: 0.15rem 0.4rem;
+  padding: 0.45rem 0.5rem;
   border: 0;
-  border-radius: 4px;
+  border-radius: 6px;
   background: none;
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
+  color: inherit;
+  font: inherit;
+  font-size: 0.92rem;
   text-align: left;
   cursor: pointer;
+}
+
+.file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .file:hover {
@@ -64,7 +116,8 @@ summary {
 }
 
 .file--active {
-  background: var(--primary);
-  color: var(--primary-contrast);
+  background: rgba(var(--primary-rgb), 0.1);
+  box-shadow: inset 2px 0 0 var(--primary);
+  border-radius: 0 6px 6px 0;
 }
 </style>

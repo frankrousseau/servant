@@ -135,43 +135,51 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="agent-memory">
-    <aside class="tree">
-      <input
-        ref="searchInput"
-        v-model="search"
-        type="search"
-        class="search"
-        placeholder="Filter by path"
-        aria-label="Filter files by path"
-      />
-      <p v-if="loading" class="muted">Loading…</p>
-      <p v-else-if="loadError" class="error">{{ loadError }}</p>
-      <p v-else-if="tree.length === 0" class="muted">
-        No files yet. Run the servant-memory skill's push script from a repo.
-      </p>
-      <ul v-else class="nodes">
-        <li v-for="node in tree" :key="node.path">
-          <MemoryTreeNode
-            :node="node"
-            :selected-path="selectedPath"
-            @select="select"
-          />
-        </li>
-      </ul>
-    </aside>
+  <div class="am-layout">
+    <div class="tree">
+      <div class="am-side-head">
+        <input
+          ref="searchInput"
+          v-model="search"
+          type="search"
+          class="am-search"
+          placeholder="Filter by path"
+          aria-label="Filter files by path"
+        />
+      </div>
+      <div class="am-tree">
+        <p v-if="loading" class="am-placeholder">Loading…</p>
+        <p v-else-if="loadError" class="am-placeholder error">
+          {{ loadError }}
+        </p>
+        <p v-else-if="tree.length === 0" class="am-placeholder">
+          No files yet. Run the servant-memory skill's push script from a repo.
+        </p>
+        <ul v-else class="nodes">
+          <li v-for="node in tree" :key="node.path">
+            <MemoryTreeNode
+              :node="node"
+              :selected-path="selectedPath"
+              @select="select"
+            />
+          </li>
+        </ul>
+      </div>
+    </div>
 
-    <section v-if="selected" class="viewer">
-      <header class="viewer-head">
-        <div>
-          <h2 class="path">{{ selected.path }}</h2>
-          <p class="muted">{{ selectedMeta }}</p>
-        </div>
-        <div class="actions">
+    <div class="viewer">
+      <div class="am-topbar">
+        <span class="am-count"
+          >{{ filteredFiles.length }}
+          <span class="am-count-unit">{{
+            filteredFiles.length === 1 ? 'FILE' : 'FILES'
+          }}</span></span
+        >
+        <div v-if="selected" class="am-topbar-actions">
           <template v-if="editing">
             <button
               type="button"
-              class="btn"
+              class="am-btn"
               :disabled="saving"
               @click="editing = false"
             >
@@ -179,7 +187,7 @@ onMounted(() => {
             </button>
             <button
               type="button"
-              class="btn btn--primary"
+              class="am-btn am-btn--primary"
               :disabled="saving"
               @click="save"
             >
@@ -187,167 +195,304 @@ onMounted(() => {
             </button>
           </template>
           <template v-else>
-            <button type="button" class="btn" @click="startEdit">Edit</button>
-            <button type="button" class="btn btn--danger" @click="remove">
+            <button type="button" class="am-btn" @click="startEdit">
+              Edit
+            </button>
+            <button type="button" class="am-btn am-btn--danger" @click="remove">
               Delete
             </button>
           </template>
         </div>
-      </header>
-      <p v-if="actionError" class="error">{{ actionError }}</p>
-      <textarea
-        v-if="editing"
-        v-model="draft"
-        class="editor"
-        aria-label="File body"
-        spellcheck="false"
-      />
-      <!-- markdown rendered by the shared Notes renderer, which escapes user data -->
-      <article v-else class="markdown" v-html="rendered" />
-    </section>
-    <section v-else class="viewer viewer--empty">
-      <p class="muted">Select a file.</p>
-    </section>
+      </div>
+
+      <template v-if="selected">
+        <div class="viewer-head">
+          <span class="am-path">{{ selected.path }}</span>
+          <span class="am-meta">{{ selectedMeta }}</span>
+        </div>
+        <p v-if="actionError" class="am-action-error error">
+          {{ actionError }}
+        </p>
+        <textarea
+          v-if="editing"
+          v-model="draft"
+          class="editor"
+          aria-label="File body"
+          spellcheck="false"
+        />
+        <!-- markdown rendered by the shared Notes renderer, which escapes user data -->
+        <article v-else class="markdown" v-html="rendered" />
+      </template>
+      <p v-else class="am-placeholder">Select a file.</p>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.agent-memory {
-  display: grid;
-  grid-template-columns: minmax(220px, 300px) 1fr;
-  gap: 1rem;
-  height: 100%;
-  min-height: 0;
-}
-
-@media (max-width: 800px) {
-  .agent-memory {
-    grid-template-columns: 1fr;
-  }
-}
-
-.muted {
-  color: var(--text-muted);
-  font-size: 0.85rem;
+.am-layout {
+  display: flex;
+  height: 100vh;
 }
 
 .error {
   color: var(--danger);
 }
 
-/* ----- Tree ----- */
+/* ----- Sidebar: search head + tree, same skeleton as Notes ----- */
 .tree {
-  overflow: auto;
-  border-right: 1px solid var(--border);
-  padding-right: 0.5rem;
-}
-
-.search {
-  width: 100%;
-  box-sizing: border-box;
-  margin-bottom: 0.5rem;
-  padding: 0.4rem 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: var(--control-radius);
-  background: var(--bg);
-  color: var(--text);
-  font: inherit;
-}
-
-.tree > .nodes {
-  list-style: none;
-  margin: 0;
-  padding-left: 0;
-}
-
-/* ----- Viewer ----- */
-.viewer {
+  width: 280px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  overflow: auto;
+  border-right: 1px solid var(--border);
 }
 
-.viewer--empty {
-  align-items: center;
-  justify-content: center;
-}
-
-.viewer-head {
+.am-side-head {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
 }
 
-.path {
+.am-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.am-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.375rem 0.25rem;
+}
+
+.nodes {
+  list-style: none;
   margin: 0;
-  font-family: var(--font-mono);
-  font-size: 1rem;
-  word-break: break-all;
+  padding: 0;
 }
 
-.actions {
+.am-placeholder {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 2.5rem 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+}
+
+/* ----- Main: topbar with count and actions ----- */
+.viewer {
+  flex: 1;
   display: flex;
-  gap: 0.5rem;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.am-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
-.btn {
-  padding: 0.35rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--control-radius);
-  background: var(--bg);
+.am-count {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
   color: var(--text);
-  font: inherit;
+  white-space: nowrap;
+}
+
+.am-count-unit {
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+
+.am-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.am-btn {
+  height: 32px;
+  padding: 0 0.75rem;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  border-radius: 8px;
   cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
 }
 
-.btn:hover {
-  background: var(--bg-hover);
-}
-
-.btn--primary {
-  background: var(--primary);
+.am-btn:hover,
+.am-btn:focus-visible {
   border-color: var(--primary);
-  color: var(--primary-contrast);
+  color: var(--primary);
 }
 
-.btn--primary:hover {
-  background: var(--primary-hover);
+.am-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
-.btn--danger {
+.am-btn--primary {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.am-btn--danger:hover,
+.am-btn--danger:focus-visible {
+  border-color: var(--danger);
   color: var(--danger);
 }
 
+/* ----- File head: path and meta under the topbar ----- */
+.viewer-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.am-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.am-meta {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.am-action-error {
+  margin: 0;
+  padding: 0.5rem 1.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+/* ----- Editor: the raw markdown pane of Notes ----- */
 .editor {
   flex: 1;
-  min-height: 60vh;
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--control-radius);
-  background: var(--bg);
-  color: var(--text);
+  border: none;
+  border-radius: 0;
+  resize: none;
+  padding: 1rem 1.25rem;
   font-family: var(--font-mono);
   font-size: 0.9rem;
-  resize: vertical;
+  line-height: 1.6;
+  background: var(--bg);
+  color: var(--text);
 }
 
+.editor:focus {
+  outline: none;
+}
+
+/* ----- Preview: Notes rendering, in a reading column ----- */
 .markdown {
-  line-height: 1.55;
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.25rem 3rem;
+  line-height: 1.65;
 }
 
-.markdown :deep(pre) {
-  overflow-x: auto;
-  padding: 0.75rem;
-  border-radius: var(--radius);
-  background: var(--bg-hover);
+.markdown > :deep(*) {
+  max-width: 72ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.markdown :deep(h1),
+.markdown :deep(h2),
+.markdown :deep(h3) {
+  margin-top: 0.8em;
+  margin-bottom: 0.4em;
+}
+
+.markdown :deep(p) {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
 }
 
 .markdown :deep(code) {
-  font-family: var(--font-mono);
-  font-size: 0.9em;
+  background: var(--bg-surface);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+.markdown :deep(pre) {
+  background: var(--bg-surface);
+  padding: 0.75rem;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.markdown :deep(pre code) {
+  background: none;
+  padding: 0;
+}
+
+.markdown :deep(a) {
+  color: var(--primary);
+}
+
+.markdown :deep(ul),
+.markdown :deep(ol) {
+  padding-left: 1.4em;
+}
+
+.markdown :deep(blockquote) {
+  border-left: 3px solid var(--border);
+  padding-left: 0.8em;
+  color: var(--text-muted);
+}
+
+.markdown :deep(table) {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.markdown :deep(th),
+.markdown :deep(td) {
+  border: 1px solid var(--border);
+  padding: 0.25em 0.6em;
+  text-align: left;
+}
+
+.markdown :deep(.nt-tag) {
+  display: inline-block;
+  background: rgba(var(--primary-rgb), 0.15);
+  color: var(--primary);
+  border-radius: 6px;
+  padding: 0 0.4em;
+  font-size: 0.85em;
+}
+
+@media (max-width: 800px) {
+  .am-layout {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .tree {
+    width: auto;
+    max-height: 40vh;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
 }
 </style>
