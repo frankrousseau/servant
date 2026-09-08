@@ -16,6 +16,7 @@ const loading = ref(true)
 const loadError = ref('')
 const actionError = ref('')
 const search = ref('')
+const searchInput = ref<HTMLInputElement | null>(null)
 const selectedPath = ref<string | null>(null)
 const editing = ref(false)
 const draft = ref('')
@@ -65,6 +66,7 @@ function select(node: TreeNode) {
   if (!node.file) return
   selectedPath.value = node.file.path
   editing.value = false
+  actionError.value = ''
 }
 
 function startEdit() {
@@ -124,19 +126,24 @@ async function remove() {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  // Apps are mounted as separate Vue instances after a dynamic import, so the
+  // native `autofocus` attribute below is never honored; focus by hand.
+  searchInput.value?.focus()
+})
 </script>
 
 <template>
   <div class="agent-memory">
     <aside class="tree">
       <input
+        ref="searchInput"
         v-model="search"
         type="search"
         class="search"
         placeholder="Filter by path"
         aria-label="Filter files by path"
-        autofocus
       />
       <p v-if="loading" class="muted">Loading…</p>
       <p v-else-if="loadError" class="error">{{ loadError }}</p>
@@ -195,7 +202,7 @@ onMounted(load)
         aria-label="File body"
         spellcheck="false"
       />
-      <!-- eslint-disable-next-line vue/no-v-html: markdown rendered by the shared Notes renderer, which escapes user data -->
+      <!-- markdown rendered by the shared Notes renderer, which escapes user data -->
       <article v-else class="markdown" v-html="rendered" />
     </section>
     <section v-else class="viewer viewer--empty">
@@ -241,7 +248,7 @@ onMounted(load)
   margin-bottom: 0.5rem;
   padding: 0.4rem 0.6rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   background: var(--bg);
   color: var(--text);
   font: inherit;
@@ -290,17 +297,25 @@ onMounted(load)
 .btn {
   padding: 0.35rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   background: var(--bg);
   color: var(--text);
   font: inherit;
   cursor: pointer;
 }
 
+.btn:hover {
+  background: var(--bg-hover);
+}
+
 .btn--primary {
   background: var(--primary);
   border-color: var(--primary);
   color: var(--primary-contrast);
+}
+
+.btn--primary:hover {
+  background: var(--primary-hover);
 }
 
 .btn--danger {
@@ -312,7 +327,7 @@ onMounted(load)
   min-height: 60vh;
   padding: 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-mono);
@@ -327,7 +342,7 @@ onMounted(load)
 .markdown :deep(pre) {
   overflow-x: auto;
   padding: 0.75rem;
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--bg-hover);
 }
 

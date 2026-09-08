@@ -58,12 +58,15 @@ describe('cryptoEnabled', () => {
 })
 
 describe('hiddenEntryKinds', () => {
-  it('hides blockchain entries while crypto is off', () => {
-    expect(hiddenEntryKinds(null)).toContain('blockchain_tx')
-    expect(hiddenEntryKinds(['notes'])).toContain('blockchain_tx')
+  it('always hides agent_memory, and hides blockchain entries while crypto is off', () => {
+    expect(hiddenEntryKinds(null)).toEqual(['agent_memory', 'blockchain_tx'])
+    expect(hiddenEntryKinds(['notes'])).toEqual([
+      'agent_memory',
+      'blockchain_tx'
+    ])
   })
 
-  it('hides nothing once crypto is enabled', () => {
-    expect(hiddenEntryKinds(['crypto'])).toEqual([])
+  it('still hides agent_memory once crypto is enabled', () => {
+    expect(hiddenEntryKinds(['crypto'])).toEqual(['agent_memory'])
   })
 })

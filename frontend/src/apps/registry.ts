@@ -94,9 +94,12 @@ export function cryptoEnabled(ids: string[] | null | undefined): boolean {
   return (ids ?? DEFAULT_ENABLED_APPS).includes('crypto')
 }
 
-// Entry kinds that belong to an opt-in slice: with crypto off they stay out of
-// the everyday surfaces (dashboard feed and stats, command palette). The data
-// browser is exempt on purpose, it is the raw view of what the database holds.
+// Entry kinds that stay out of the everyday surfaces (dashboard feed and
+// stats, command palette). agent_memory is agent-facing plumbing, never an
+// everyday-surface kind, so it is always hidden; blockchain_tx belongs to the
+// opt-in crypto slice, hidden only while crypto is off. The data browser is
+// exempt on purpose, it is the raw view of what the database holds.
 export function hiddenEntryKinds(ids: string[] | null | undefined): string[] {
-  return cryptoEnabled(ids) ? [] : ['blockchain_tx']
+  const hidden = ['agent_memory']
+  return cryptoEnabled(ids) ? hidden : [...hidden, 'blockchain_tx']
 }

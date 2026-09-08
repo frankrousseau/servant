@@ -12,6 +12,7 @@ const emit = defineEmits<{ select: [node: TreeNode] }>()
     type="button"
     class="file"
     :class="{ 'file--active': node.path === selectedPath }"
+    :aria-current="node.path === selectedPath ? 'true' : undefined"
     @click="emit('select', node)"
   >
     {{ node.name }}
