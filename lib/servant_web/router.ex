@@ -65,6 +65,10 @@ defmodule ServantWeb.Router do
       get "/notes/:id/backlinks", NotesController, :backlinks
       resources "/notes", NotesController, except: [:new, :edit]
 
+      get "/agent_memory", AgentMemoryController, :index
+      post "/agent_memory", AgentMemoryController, :upsert
+      delete "/agent_memory", AgentMemoryController, :delete
+
       get "/apps", AppController, :index
       get "/version", VersionController, :show
 
