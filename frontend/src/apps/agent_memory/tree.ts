@@ -34,18 +34,21 @@ export function buildTree(files: MemoryFile[]): TreeNode[] {
 
   for (const memoryFile of files) {
     const segments = memoryFile.path.split('/')
-    let node = roots.find(root => root.path === segments[0])
+    const node = roots.find(root => root.path === segments[0])
     if (!node) continue
+    let current: TreeNode = node
     for (let i = 1; i < segments.length - 1; i++) {
       const path = segments.slice(0, i + 1).join('/')
-      let child = node.children.find(candidate => candidate.path === path)
+      let child: TreeNode | undefined = current.children.find(
+        candidate => candidate.path === path
+      )
       if (!child) {
         child = { name: segments[i], path, children: [] }
-        node.children.push(child)
+        current.children.push(child)
       }
-      node = child
+      current = child
     }
-    node.children.push({
+    current.children.push({
       name: segments[segments.length - 1],
       path: memoryFile.path,
       children: [],
