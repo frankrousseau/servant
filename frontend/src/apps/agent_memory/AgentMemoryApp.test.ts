@@ -108,6 +108,7 @@ describe('AgentMemoryApp', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        origin: 'app',
         files: [{ path: original.path, body: 'edited body' }]
       })
     })
@@ -118,7 +119,7 @@ describe('AgentMemoryApp', () => {
     expect(wrapper.find('.markdown').text()).toContain('edited body')
   })
 
-  it('deletes after confirmation and removes the file from the tree', async () => {
+  it('soft-deletes after confirmation: the file stays, marked, with restore and purge', async () => {
     const original = memoryFile()
     const fetchMock = vi.fn(async (_path: string, opts?: RequestInit) => {
       if (!opts) return jsonRes([original])
@@ -140,6 +141,19 @@ describe('AgentMemoryApp', () => {
     expect(ctx.confirm.ask).toHaveBeenCalled()
     expect(fetchMock).toHaveBeenCalledWith(
       `/api/agent_memory?path=${encodeURIComponent(original.path)}`,
+      { method: 'DELETE' }
+    )
+    expect(wrapper.find('button.file').classes()).toContain('file--deleted')
+    expect(wrapper.find('.am-banner').text()).toContain('Deleted in Servant')
+
+    await wrapper
+      .findAll('button')
+      .find(button => button.text() === 'Purge')!
+      .trigger('click')
+    await flushPromises()
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/agent_memory?path=${encodeURIComponent(original.path)}&purge=true`,
       { method: 'DELETE' }
     )
     expect(wrapper.find('button.file').exists()).toBe(false)

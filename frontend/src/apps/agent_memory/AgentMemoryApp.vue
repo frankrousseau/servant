@@ -55,6 +55,8 @@ const rendered = computed(() =>
   selected.value ? renderMarkdown(split.value.content, () => null) : ''
 )
 
+const isDeleted = computed(() => selected.value?.pending === 'deleted')
+
 const selectedMeta = computed(() => {
   if (!selected.value) return ''
   return `${selected.value.tool} · ${selected.value.size} bytes · ${formatDateTime(selected.value.updated_at)}`
@@ -115,6 +117,7 @@ async function save() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        origin: 'app',
         files: [{ path: selected.value.path, body: draft.value }]
       })
     })
@@ -130,28 +133,74 @@ async function save() {
   }
 }
 
+// Writing the current body back with origin: app clears the deleted mark.
+async function restore() {
+  if (!selected.value) return
+  actionError.value = ''
+  try {
+    const res = await props.ctx.api.fetch('/api/agent_memory', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        origin: 'app',
+        files: [{ path: selected.value.path, body: selected.value.body ?? '' }]
+      })
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const json = await res.json()
+    const manifest: MemoryFile = json.data[0]
+    Object.assign(selected.value, manifest, { body: selected.value.body })
+  } catch (err) {
+    actionError.value = err instanceof Error ? err.message : String(err)
+  }
+}
+
+// Soft delete: the file stays, marked, until every machine has pulled; purge
+// then removes it for good.
 async function remove() {
   if (!selected.value) return
   const ok = await props.ctx.confirm.ask({
     title: 'Delete file',
-    message: `Delete ${selected.value.path}? Agents will not pull it any more.`,
+    message: `Delete ${selected.value.path}? Agents will remove their copy at their next sync.`,
     confirmLabel: 'Delete',
     danger: true
   })
   if (!ok) return
+  await deleteRequest(false)
+}
+
+async function purge() {
+  if (!selected.value) return
+  const ok = await props.ctx.confirm.ask({
+    title: 'Purge file',
+    message: `Remove ${selected.value.path} for good? Do it once every machine has synced.`,
+    confirmLabel: 'Purge',
+    danger: true
+  })
+  if (!ok) return
+  await deleteRequest(true)
+}
+
+async function deleteRequest(purging: boolean) {
+  if (!selected.value) return
   actionError.value = ''
   const path = selected.value.path
+  const query = `path=${encodeURIComponent(path)}${purging ? '&purge=true' : ''}`
   try {
-    const res = await props.ctx.api.fetch(
-      `/api/agent_memory?path=${encodeURIComponent(path)}`,
-      { method: 'DELETE' }
-    )
+    const res = await props.ctx.api.fetch(`/api/agent_memory?${query}`, {
+      method: 'DELETE'
+    })
     if (!res.ok) {
       actionError.value = `HTTP ${res.status}`
       return
     }
-    files.value = files.value.filter(memoryFile => memoryFile.path !== path)
-    selectedPath.value = null
+    if (purging) {
+      files.value = files.value.filter(memoryFile => memoryFile.path !== path)
+      selectedPath.value = null
+    } else {
+      selected.value.pending = 'deleted'
+      editing.value = false
+    }
   } catch (err) {
     actionError.value = err instanceof Error ? err.message : String(err)
   }
@@ -228,7 +277,15 @@ onUnmounted(() => {
           }}</span></span
         >
         <div v-if="selected" class="am-topbar-actions">
-          <template v-if="editing">
+          <template v-if="isDeleted">
+            <button type="button" class="am-btn" @click="restore">
+              Restore
+            </button>
+            <button type="button" class="am-btn am-btn--danger" @click="purge">
+              Purge
+            </button>
+          </template>
+          <template v-else-if="editing">
             <button
               type="button"
               class="am-btn"
@@ -260,21 +317,30 @@ onUnmounted(() => {
       <template v-if="selected">
         <div class="viewer-head">
           <span class="am-path">{{ selected.path }}</span>
-          <span class="am-meta">{{ selectedMeta }}</span>
+          <span class="am-meta">
+            <span v-if="selected.pending === 'modified'" class="am-badge"
+              >modified</span
+            >
+            {{ selectedMeta }}
+          </span>
         </div>
         <p v-if="actionError" class="am-action-error error">
           {{ actionError }}
         </p>
-        <textarea
-          v-if="editing"
-          v-model="draft"
-          class="editor"
-          aria-label="File body"
-          spellcheck="false"
-        />
-        <div v-else class="am-reading">
+        <p v-if="isDeleted" class="am-banner">
+          Deleted in Servant: agents remove their copy at their next sync.
+          Restore to keep the file, purge once every machine has synced.
+        </p>
+        <div class="am-reading">
           <div class="am-column">
-            <div v-if="split.fields.length" class="am-frontmatter">
+            <textarea
+              v-if="editing"
+              v-model="draft"
+              class="editor"
+              aria-label="File body"
+              spellcheck="false"
+            />
+            <div v-if="split.fields.length && !editing" class="am-frontmatter">
               <div
                 v-for="field in split.fields"
                 :key="`${field.group}.${field.key}`"
@@ -290,7 +356,7 @@ onUnmounted(() => {
               </div>
             </div>
             <!-- markdown rendered by the shared Notes renderer, which escapes user data -->
-            <article class="markdown" v-html="rendered" />
+            <article v-if="!editing" class="markdown" v-html="rendered" />
           </div>
         </div>
       </template>
@@ -465,6 +531,27 @@ onUnmounted(() => {
   color: var(--text-muted);
 }
 
+.am-badge {
+  display: inline-block;
+  margin-right: 0.5rem;
+  padding: 0 0.45em;
+  border-radius: 6px;
+  background: rgba(var(--primary-rgb), 0.15);
+  color: var(--primary);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.am-banner {
+  margin: 0;
+  padding: 0.6rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: rgba(var(--primary-rgb), 0.08);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
 .am-action-error {
   margin: 0;
   padding: 0.5rem 1.25rem;
@@ -472,22 +559,22 @@ onUnmounted(() => {
   font-size: 0.85rem;
 }
 
-/* ----- Editor: the raw markdown pane of Notes ----- */
+/* ----- Editor: a modest, resizable textarea in the reading column ----- */
 .editor {
-  flex: 1;
-  border: none;
-  border-radius: 0;
-  resize: none;
-  padding: 1rem 1.25rem;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 22rem;
+  max-height: 65vh;
+  resize: vertical;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
   font-family: var(--font-mono);
   font-size: 0.9rem;
   line-height: 1.6;
   background: var(--bg);
   color: var(--text);
-}
-
-.editor:focus {
-  outline: none;
 }
 
 /* ----- Preview: one reading column holding the frontmatter block and the rendering ----- */

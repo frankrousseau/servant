@@ -10,6 +10,8 @@ export interface MemoryFile {
   sha256: string
   size: number
   updated_at: string
+  // Set by the app: agents apply it at their next pull.
+  pending?: 'deleted' | 'modified' | null
   body?: string
 }
 

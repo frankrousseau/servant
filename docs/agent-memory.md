@@ -77,6 +77,14 @@ The skill tells the agent to:
 
 Last write wins on the server; there is no versioning. The app shows each file's
 `updated_at`, size and tool, renders the markdown, and lets you edit or delete a file.
+
+**Servant curates, agents apply.** Deleting a file in the app is a soft delete: the file
+stays, marked `deleted`, greyed out in the tree, and every machine removes its copy at its
+next pull (`DELETED <path>`); an agent push to that path is refused until you **Restore**
+it, and **Purge** removes it for good once every machine has synced. Editing a file in the
+app marks it `modified`: at the next pull the Servant version replaces the local copy
+whatever its date (`SERVANT EDIT <path>`, previous copy kept as `.local`), and the badge
+stays until an agent rewrites the file.
 Creating files is the agents' job.
 
 ## API
@@ -87,8 +95,8 @@ session cookie. They are documented in `/api/docs` with the rest.
 | Route | Purpose |
 |-------|---------|
 | `GET /api/agent_memory?project=<name>&tool=<claude\|cursor>&include=body` | manifest sorted by path (`path`, `project`, `tool`, `sha256`, `size`, `updated_at`, `body` on demand); `project` also returns global files, `tool` also returns shared ones |
-| `POST /api/agent_memory` with `{"files": [{"path": "...", "body": "..."}]}` | upsert by path; unchanged bodies are left alone; one invalid path rejects the batch (422) |
-| `DELETE /api/agent_memory?path=<path>` | 204, or 404 when absent |
+| `POST /api/agent_memory` with `{"files": [{"path": "...", "body": "..."}]}` | upsert by path; unchanged bodies are left alone; one invalid path rejects the batch (422); 409 on a path deleted in the app. `"origin": "app"` marks the files `modified` (or restores a deleted one) |
+| `DELETE /api/agent_memory?path=<path>` | soft delete (marks `deleted`), 404 when absent; `&purge=true` removes the row |
 
 The generic `/api/entries` can read these entries but refuses to write them, so the path
 validation cannot be bypassed.

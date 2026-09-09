@@ -21,7 +21,10 @@ const emit = defineEmits<{ select: [node: TreeNode] }>()
     v-if="node.file"
     type="button"
     class="file"
-    :class="{ 'file--active': node.path === selectedPath }"
+    :class="{
+      'file--active': node.path === selectedPath,
+      'file--deleted': node.file.pending === 'deleted'
+    }"
     :aria-current="node.path === selectedPath ? 'true' : undefined"
     @click="emit('select', node)"
   >
@@ -131,5 +134,12 @@ details[open] > .folder .folder-caret::before {
   background: rgba(var(--primary-rgb), 0.1);
   box-shadow: inset 2px 0 0 var(--primary);
   border-radius: 0 6px 6px 0;
+}
+
+/* Deleted in Servant, waiting for the machines to sync: still listed so it
+   can be restored or purged. */
+.file--deleted {
+  color: var(--text-muted);
+  text-decoration: line-through;
 }
 </style>
