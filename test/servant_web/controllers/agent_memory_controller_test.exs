@@ -107,12 +107,40 @@ defmodule ServantWeb.AgentMemoryControllerTest do
       assert first["body"] == "m"
     end
 
-    test "delete by path: 204 then 404", %{conn: conn, user: user} do
+    test "delete marks the file, an agent push gets 409, purge removes it", %{
+      conn: conn,
+      user: user
+    } do
       {:ok, _} =
         AgentMemory.upsert_all(user.id, [%{"path" => "memory/proj/a.md", "body" => "x"}])
 
       assert response(delete(conn, ~p"/api/agent_memory?path=memory/proj/a.md"), 204)
+
+      assert [%{"pending" => "deleted"}] =
+               json_response(get(conn, ~p"/api/agent_memory"), 200)["data"]
+
+      conn2 =
+        post(conn, ~p"/api/agent_memory", %{
+          "files" => [%{"path" => "memory/proj/a.md", "body" => "y"}]
+        })
+
+      assert json_response(conn2, 409)["error"] =~ "restore"
+
+      assert response(delete(conn, ~p"/api/agent_memory?path=memory/proj/a.md&purge=true"), 204)
       assert json_response(delete(conn, ~p"/api/agent_memory?path=memory/proj/a.md"), 404)
+    end
+
+    test "origin app marks an edit modified", %{conn: conn, user: user} do
+      {:ok, _} =
+        AgentMemory.upsert_all(user.id, [%{"path" => "memory/proj/a.md", "body" => "x"}])
+
+      conn2 =
+        post(conn, ~p"/api/agent_memory", %{
+          "origin" => "app",
+          "files" => [%{"path" => "memory/proj/a.md", "body" => "edited"}]
+        })
+
+      assert [%{"pending" => "modified"}] = json_response(conn2, 200)["data"]
     end
 
     test "does not see another user's files", %{conn: conn} do

@@ -93,13 +93,23 @@ defmodule Servant.AgentMemory do
   rejects the whole batch. An unchanged body is left alone (`updated_at` stays).
   A path conflicting with an existing entry (a changeset error on insert or
   update) rolls the whole batch back and returns `{:error, :conflict}`.
+
+  `origin` says who writes. The app (`:app`) curates: its edit marks the file
+  `pending: "modified"` so agents apply it over their own copy, and writing a
+  soft-deleted path restores it. An agent (`:agent`, the default) takes the
+  file back: its push clears `modified`, and a push to a soft-deleted path is
+  refused with `{:error, :deleted}` until the app restores it.
   """
-  @spec upsert_all(String.t(), list) ::
-          {:ok, [Entry.t()]} | {:error, :invalid_path} | {:error, :conflict}
-  def upsert_all(user_id, files) when is_list(files) do
+  @spec upsert_all(String.t(), list, :agent | :app) ::
+          {:ok, [Entry.t()]}
+          | {:error, :invalid_path}
+          | {:error, :conflict}
+          | {:error, :deleted}
+  def upsert_all(user_id, files, origin \\ :agent)
+      when is_list(files) and origin in [:agent, :app] do
     with {:ok, parsed} <- parse_all(files) do
       parsed
-      |> run_upserts(user_id)
+      |> run_upserts(user_id, origin)
       |> case do
         {:ok, entries_and_events} ->
           # Broadcasts fire only once the transaction actually commits, so a
@@ -111,15 +121,15 @@ defmodule Servant.AgentMemory do
 
           {:ok, Enum.map(entries_and_events, fn {entry, _event} -> entry end)}
 
-        {:error, :conflict} ->
-          {:error, :conflict}
+        {:error, reason} when reason in [:conflict, :deleted] ->
+          {:error, reason}
       end
     end
   end
 
-  defp run_upserts(parsed, user_id) do
+  defp run_upserts(parsed, user_id, origin) do
     Repo.transaction(fn ->
-      Enum.map(parsed, fn {attrs, body} -> upsert_one(user_id, attrs, body) end)
+      Enum.map(parsed, fn {attrs, body} -> upsert_one(user_id, attrs, body, origin) end)
     end)
   end
 
@@ -143,7 +153,7 @@ defmodule Servant.AgentMemory do
   # Returns `{entry, event | nil}`: the event is broadcast by the caller only
   # once the whole transaction commits, and a changeset error (a path racing
   # another insert/update) rolls the batch back instead of raising.
-  defp upsert_one(user_id, attrs, body) do
+  defp upsert_one(user_id, attrs, body, origin) do
     sha = Base.encode16(:crypto.hash(:sha256, body), case: :lower)
     data = attrs |> Map.delete("title") |> Map.merge(%{"body" => body, "sha256" => sha})
 
@@ -162,17 +172,28 @@ defmodule Servant.AgentMemory do
           {:error, _changeset} -> Repo.rollback(:conflict)
         end
 
+      %Entry{data: %{"pending" => "deleted"}} when origin == :agent ->
+        Repo.rollback(:deleted)
+
+      %Entry{data: %{"sha256" => ^sha, "pending" => "deleted"} = old} = entry ->
+        update_data(entry, attrs, Map.delete(old, "pending"))
+
       %Entry{data: %{"sha256" => ^sha}} = entry ->
         {entry, nil}
 
       entry ->
-        entry
-        |> Entry.changeset(%{title: attrs["title"], data: data})
-        |> Repo.update()
-        |> case do
-          {:ok, entry} -> {entry, {:entry_updated, entry}}
-          {:error, _changeset} -> Repo.rollback(:conflict)
-        end
+        data = if origin == :app, do: Map.put(data, "pending", "modified"), else: data
+        update_data(entry, attrs, data)
+    end
+  end
+
+  defp update_data(entry, attrs, data) do
+    entry
+    |> Entry.changeset(%{title: attrs["title"], data: data})
+    |> Repo.update()
+    |> case do
+      {:ok, entry} -> {entry, {:entry_updated, entry}}
+      {:error, _changeset} -> Repo.rollback(:conflict)
     end
   end
 
@@ -180,9 +201,32 @@ defmodule Servant.AgentMemory do
     Repo.get_by(Entry, user_id: user_id, kind: @kind, source: @source, external_id: path)
   end
 
-  @doc "Deletes the file at `path`."
+  @doc """
+  Soft-deletes the file at `path`: the row stays, marked `pending: "deleted"`,
+  so every machine removes its copy at its next pull (a hard delete would
+  vanish from the manifest, and the next push from a machine that still has
+  the file would bring it back). `purge/2` removes the row for good.
+  """
   @spec delete(String.t(), String.t()) :: {:ok, Entry.t()} | {:error, :not_found}
   def delete(user_id, path) do
+    case get_by_path(user_id, path) do
+      nil ->
+        {:error, :not_found}
+
+      entry ->
+        {:ok, entry} =
+          entry
+          |> Entry.changeset(%{data: Map.put(entry.data, "pending", "deleted")})
+          |> Repo.update()
+
+        Events.broadcast(user_id, {:entry_updated, entry})
+        {:ok, entry}
+    end
+  end
+
+  @doc "Removes the row at `path` for good."
+  @spec purge(String.t(), String.t()) :: {:ok, Entry.t()} | {:error, :not_found}
+  def purge(user_id, path) do
     case get_by_path(user_id, path) do
       nil ->
         {:error, :not_found}
@@ -206,7 +250,8 @@ defmodule Servant.AgentMemory do
       tool: entry.data["tool"],
       sha256: entry.data["sha256"],
       size: byte_size(body),
-      updated_at: entry.updated_at
+      updated_at: entry.updated_at,
+      pending: entry.data["pending"]
     }
 
     if include_body?, do: Map.put(base, :body, body), else: base

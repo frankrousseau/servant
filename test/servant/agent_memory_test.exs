@@ -184,14 +184,58 @@ defmodule Servant.AgentMemoryTest do
     end
   end
 
-  describe "delete/2" do
-    test "removes by path and reports missing ones", %{user: user, other: other} do
+  describe "delete/2 and purge/2" do
+    test "delete is soft: the row stays marked deleted until purged", %{user: user, other: other} do
       {:ok, _} =
         AgentMemory.upsert_all(user.id, [%{"path" => "memory/proj/a.md", "body" => "x"}])
 
       assert {:error, :not_found} = AgentMemory.delete(other.id, "memory/proj/a.md")
-      assert {:ok, _} = AgentMemory.delete(user.id, "memory/proj/a.md")
+      assert {:ok, deleted} = AgentMemory.delete(user.id, "memory/proj/a.md")
+      assert deleted.data["pending"] == "deleted"
+      assert [%{data: %{"pending" => "deleted"}}] = AgentMemory.list(user.id)
+
+      assert {:error, :not_found} = AgentMemory.purge(other.id, "memory/proj/a.md")
+      assert {:ok, _} = AgentMemory.purge(user.id, "memory/proj/a.md")
+      assert AgentMemory.list(user.id) == []
       assert {:error, :not_found} = AgentMemory.delete(user.id, "memory/proj/a.md")
+    end
+
+    test "an agent push to a deleted path is refused, an app write restores it", %{user: user} do
+      {:ok, _} =
+        AgentMemory.upsert_all(user.id, [%{"path" => "memory/proj/a.md", "body" => "x"}])
+
+      {:ok, _} = AgentMemory.delete(user.id, "memory/proj/a.md")
+
+      assert AgentMemory.upsert_all(user.id, [%{"path" => "memory/proj/a.md", "body" => "y"}]) ==
+               {:error, :deleted}
+
+      {:ok, [restored]} =
+        AgentMemory.upsert_all(user.id, [%{"path" => "memory/proj/a.md", "body" => "x"}], :app)
+
+      refute Map.has_key?(restored.data, "pending")
+    end
+  end
+
+  describe "pending modified" do
+    test "an app edit marks the file, an agent push with a new body clears it", %{user: user} do
+      {:ok, _} =
+        AgentMemory.upsert_all(user.id, [%{"path" => "memory/proj/a.md", "body" => "v1"}])
+
+      {:ok, [edited]} =
+        AgentMemory.upsert_all(user.id, [%{"path" => "memory/proj/a.md", "body" => "v2"}], :app)
+
+      assert edited.data["pending"] == "modified"
+      assert AgentMemory.to_json(edited).pending == "modified"
+
+      {:ok, [same]} =
+        AgentMemory.upsert_all(user.id, [%{"path" => "memory/proj/a.md", "body" => "v2"}])
+
+      assert same.data["pending"] == "modified"
+
+      {:ok, [taken]} =
+        AgentMemory.upsert_all(user.id, [%{"path" => "memory/proj/a.md", "body" => "v3"}])
+
+      refute Map.has_key?(taken.data, "pending")
     end
   end
 
