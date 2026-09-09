@@ -47,8 +47,8 @@ path_ok() {
 
 curl -sSf -H "Authorization: Bearer $SERVANT_TOKEN" \
   "$SERVANT_URL/api/agent_memory?project=$project&tool=$tool&include=body" |
-  jq -r '.data[] | [.path, .sha256, .updated_at, (.body | @base64)] | @tsv' |
-  while IFS=$'\t' read -r path sha updated body64; do
+  jq -r '.data[] | [.path, .sha256, .updated_at, (.pending // ""), (.body | @base64)] | @tsv' |
+  while IFS=$'\t' read -r path sha updated pending body64; do
     if ! path_ok "$path"; then
       echo "REJECTED  $path" >&2
       continue
@@ -61,7 +61,22 @@ curl -sSf -H "Authorization: Bearer $SERVANT_TOKEN" \
         continue
         ;;
     esac
+    # Servant's curation comes first: a file deleted in the app goes away, a
+    # file edited in the app wins over the local copy whatever its mtime.
+    if [ "$pending" = "deleted" ]; then
+      if [ -f "$dest" ]; then
+        rm "$dest"
+        echo "DELETED      $path  (removed in Servant)"
+      fi
+      continue
+    fi
     if [ -f "$dest" ] && [ "$(sha256sum "$dest" | cut -c1-64)" = "$sha" ]; then
+      continue
+    fi
+    if [ "$pending" = "modified" ] && [ -f "$dest" ]; then
+      cp "$dest" "$dest.local"
+      printf '%s' "$body64" | base64 -d > "$dest"
+      echo "SERVANT EDIT $path  (edited in Servant, previous local copy kept at $dest.local)"
       continue
     fi
     if [ -f "$dest" ] && [ "$(date -r "$dest" +%s)" -gt "$(date -d "$updated" +%s)" ]; then

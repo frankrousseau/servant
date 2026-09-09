@@ -34,8 +34,12 @@ for file in "$@"; do
     echo "skipped      $file (not a memory, skill or rule file)" >&2
     continue
   fi
-  jq -n --arg path "$remote" --rawfile body "$file" '{files: [{path: $path, body: $body}]}' |
-    curl -sSf -H "Authorization: Bearer $SERVANT_TOKEN" -H 'Content-Type: application/json' \
-      -d @- "$SERVANT_URL/api/agent_memory" > /dev/null
-  echo "pushed       $remote"
+  status=$(jq -n --arg path "$remote" --rawfile body "$file" '{files: [{path: $path, body: $body}]}' |
+    curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $SERVANT_TOKEN" \
+      -H 'Content-Type: application/json' -d @- "$SERVANT_URL/api/agent_memory")
+  case "$status" in
+    200) echo "pushed       $remote" ;;
+    409) echo "DELETED IN SERVANT  $remote  (local file left alone; delete it, or restore it in the app)" ;;
+    *) echo "FAILED       $remote  (HTTP $status)" >&2; exit 1 ;;
+  esac
 done

@@ -26,6 +26,19 @@ Your memory (`~/.claude/projects/<cwd>/memory/*.md`), your skills
 3. Copy this folder to `~/.claude/skills/servant-memory/` and `~/.cursor/skills-cursor/servant-memory/`.
 4. Seed once from each repo: `~/.claude/skills/servant-memory/scripts/push.sh claude ~/.claude/projects/$(pwd | tr / -)/memory/*.md ~/.claude/skills/*/SKILL.md`.
 
+## Servant curates, agents apply
+
+Deleting or editing a file in the Agent memory app marks it (`pending`
+`deleted` or `modified`). The pull applies those marks before anything else,
+so run it first and treat its lines as instructions:
+
+- `DELETED <path>`: removed in Servant, the local copy was deleted. Do not
+  recreate it; a push to that path is refused (409) until it is restored in
+  the app.
+- `SERVANT EDIT <path>`: edited in Servant, the local copy was replaced
+  (previous version kept as `<path>.local`). Read the new version, keep it;
+  delete the `.local` file once you have taken anything worth keeping from it.
+
 ## Session start: pull
 
 Run, from the repo root, with `claude` or `cursor` depending on who you are:
