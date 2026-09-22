@@ -1,0 +1,77 @@
+defmodule Servant.PhotoShares.PhotoShare do
+  @moduledoc """
+  A public link over the photos carrying one or more tags. The feed is
+  computed at request time, so a photo tagged after the link was created
+  shows up in it, and untagging a photo removes it.
+  """
+
+  use Ecto.Schema
+
+  import Ecto.Changeset
+
+  @matches ~w(any all)
+  @max_tags 20
+
+  @primary_key {:id, :binary_id, autogenerate: true}
+  @foreign_key_type :binary_id
+  schema "photo_shares" do
+    field :name, :string
+    field :tags, {:array, :string}
+    field :match, :string, default: "any"
+    field :token, :string
+
+    belongs_to :user, Servant.Accounts.User
+
+    timestamps(type: :utc_datetime)
+  end
+
+  @type t :: %__MODULE__{}
+
+  @doc "The accepted `match` values: `any` (union of the tags) or `all` (intersection)."
+  def matches, do: @matches
+
+  # user_id and token are set programmatically by the context, never cast
+  # from params.
+  def changeset(share, attrs) do
+    share
+    |> cast(attrs, [:name, :tags, :match])
+    |> update_change(:name, &blank_to_nil/1)
+    |> update_change(:tags, &normalize_tags/1)
+    |> validate_required([:tags, :match])
+    |> validate_length(:name, max: 100)
+    |> validate_length(:tags, min: 1, max: @max_tags)
+    |> validate_inclusion(:match, @matches)
+  end
+
+  defp blank_to_nil(name) when is_binary(name) do
+    case String.trim(name) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp blank_to_nil(name), do: name
+
+  defp normalize_tags(tags) when is_list(tags) do
+    tags
+    |> Enum.filter(&is_binary/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
+
+  defp normalize_tags(tags), do: tags
+
+  @doc "JSON shape for the management API, link included (the owner may copy it again)."
+  def to_json(%__MODULE__{} = share) do
+    %{
+      id: share.id,
+      name: share.name,
+      tags: share.tags,
+      match: share.match,
+      token: share.token,
+      path: "/share/#{share.token}",
+      inserted_at: share.inserted_at
+    }
+  end
+end

@@ -30,6 +30,7 @@ import {
   uploading
 } from './uploadQueue'
 import type { AppContext, Entry } from '../types'
+import type { PhotoShare } from '../../types'
 
 const props = defineProps<{ ctx: AppContext }>()
 
@@ -478,6 +479,118 @@ function setFilter(opts: { tag?: string; person?: string }) {
   }
 }
 
+// ----- share links (public photo feeds over one or more tags) -----
+
+const shareModalActive = ref(false)
+const shares = ref<PhotoShare[]>([])
+const shareTags = ref<string[]>([])
+const shareMatch = ref<'any' | 'all'>('any')
+const shareName = ref('')
+const shareBusy = ref(false)
+const shareError = ref('')
+const copiedShareId = ref('')
+let copiedTimer: ReturnType<typeof setTimeout> | undefined
+
+const SHARE_MATCH_OPTIONS = [
+  { value: 'any', label: 'Photos with any of these tags' },
+  { value: 'all', label: 'Photos with all of these tags' }
+]
+
+const shareRows = computed(() =>
+  shares.value.map(share => ({
+    share,
+    label:
+      share.name ||
+      share.tags
+        .map(tag => `#${tag}`)
+        .join(share.match === 'all' ? ' + ' : ', '),
+    url: new URL(share.path, window.location.origin).toString()
+  }))
+)
+
+async function shareRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await props.ctx.api.fetch(path, init)
+  if (res.status === 204) return undefined as T
+  return (await res.json()).data as T
+}
+
+async function openShareModal() {
+  shareTags.value = tagFilter.value ? [tagFilter.value] : []
+  shareMatch.value = 'any'
+  shareName.value = ''
+  shareError.value = ''
+  shareModalActive.value = true
+  try {
+    shares.value = await shareRequest<PhotoShare[]>('/api/photo_shares')
+  } catch (err) {
+    shareError.value =
+      err instanceof Error ? err.message : 'Failed to load the links'
+  }
+}
+function closeShareModal() {
+  shareModalActive.value = false
+}
+function toggleShareTag(tag: string) {
+  shareTags.value = shareTags.value.includes(tag)
+    ? shareTags.value.filter(selected => selected !== tag)
+    : [...shareTags.value, tag]
+}
+function onShareMatchChange(value: string) {
+  shareMatch.value = value === 'all' ? 'all' : 'any'
+}
+async function createShare() {
+  if (!shareTags.value.length || shareBusy.value) return
+  shareBusy.value = true
+  shareError.value = ''
+  try {
+    const share = await shareRequest<PhotoShare>('/api/photo_shares', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: shareName.value.trim() || null,
+        tags: shareTags.value,
+        match: shareMatch.value
+      })
+    })
+    shares.value = [share, ...shares.value]
+    shareName.value = ''
+    await copyShare(share)
+  } catch (err) {
+    shareError.value =
+      err instanceof Error ? err.message : 'Failed to create the link'
+  } finally {
+    shareBusy.value = false
+  }
+}
+async function copyShare(share: PhotoShare) {
+  const url = new URL(share.path, window.location.origin).toString()
+  try {
+    await navigator.clipboard.writeText(url)
+    copiedShareId.value = share.id
+    clearTimeout(copiedTimer)
+    copiedTimer = setTimeout(() => (copiedShareId.value = ''), 2000)
+  } catch {
+    // No clipboard access (insecure context): the URL stays selectable.
+  }
+}
+async function revokeShare(share: PhotoShare) {
+  const ok = await props.ctx.confirm.ask({
+    message: 'Revoke this link? Anyone holding it loses access at once.',
+    confirmLabel: 'Revoke',
+    danger: true
+  })
+  if (!ok) return
+  shareError.value = ''
+  try {
+    await shareRequest<void>(`/api/photo_shares/${share.id}`, {
+      method: 'DELETE'
+    })
+    shares.value = shares.value.filter(existing => existing.id !== share.id)
+  } catch (err) {
+    shareError.value =
+      err instanceof Error ? err.message : 'Failed to revoke the link'
+  }
+}
+
 async function reload() {
   loadError.value = ''
   try {
@@ -886,6 +999,7 @@ onMounted(async () => {
 onUnmounted(() => {
   alive = false
   clearTimeout(createdFlushTimer)
+  clearTimeout(copiedTimer)
   window.removeEventListener('popstate', onPopState)
 })
 </script>
@@ -1051,6 +1165,9 @@ onUnmounted(() => {
         </button>
         <button v-if="anyFaces" class="ph-btn" @click="openFaceModal">
           Faces
+        </button>
+        <button v-if="allTags.length" class="ph-btn" @click="openShareModal">
+          Share
         </button>
         <button class="ph-btn" @click="enterSelect">Select</button>
         <label class="ph-btn">
@@ -1396,6 +1513,101 @@ onUnmounted(() => {
             Add
           </button>
         </div>
+      </div>
+    </dialog>
+    <dialog
+      v-if="shareModalActive"
+      :ref="openDialog"
+      class="modal-dialog"
+      aria-labelledby="ph-share-title"
+      @click.self="closeShareModal"
+      @cancel="closeShareModal"
+    >
+      <div class="ph-modal ph-modal--share">
+        <h3 id="ph-share-title" class="ph-modal-title">Share a photo feed</h3>
+        <p class="ph-share-help">
+          Anyone with the link sees the photos carrying the tags you pick,
+          including the ones you tag later. Nothing else is exposed.
+        </p>
+        <div class="ph-modal-section-label">Tags</div>
+        <div class="ph-modal-suggestions">
+          <button
+            v-for="tag in allTags"
+            :key="tag"
+            type="button"
+            class="ph-modal-suggestion"
+            :class="{
+              'ph-modal-suggestion--active': shareTags.includes(tag)
+            }"
+            :aria-pressed="shareTags.includes(tag)"
+            @click="toggleShareTag(tag)"
+          >
+            {{ tag }}
+          </button>
+        </div>
+        <ComboBox
+          v-if="shareTags.length > 1"
+          class="ph-modal-input"
+          :model-value="shareMatch"
+          :options="SHARE_MATCH_OPTIONS"
+          @update:model-value="onShareMatchChange"
+        />
+        <input
+          class="ph-modal-input"
+          type="text"
+          placeholder="Link name (optional)"
+          aria-label="Link name"
+          v-model="shareName"
+          @keydown.enter="createShare"
+          @keydown.esc="closeShareModal"
+        />
+        <p v-if="shareError" class="ph-share-error">{{ shareError }}</p>
+        <div class="ph-modal-actions">
+          <button class="ph-btn" @click="closeShareModal">Close</button>
+          <button
+            class="ph-btn ph-btn--primary"
+            :disabled="!shareTags.length || shareBusy"
+            autofocus
+            @click="createShare"
+          >
+            {{ shareBusy ? 'Creating…' : 'Create link' }}
+          </button>
+        </div>
+        <template v-if="shareRows.length">
+          <div class="ph-modal-section-label ph-share-list-label">
+            Existing links
+          </div>
+          <ul class="ph-share-list">
+            <li
+              v-for="row in shareRows"
+              :key="row.share.id"
+              class="ph-share-row"
+            >
+              <div class="ph-share-info">
+                <span class="ph-share-label">{{ row.label }}</span>
+                <code class="ph-share-url">{{ row.url }}</code>
+              </div>
+              <div class="ph-share-row-actions">
+                <button class="ph-btn" @click="copyShare(row.share)">
+                  {{ copiedShareId === row.share.id ? 'Copied' : 'Copy' }}
+                </button>
+                <a
+                  class="ph-btn"
+                  :href="row.share.path"
+                  target="_blank"
+                  rel="noopener"
+                  >Open</a
+                >
+                <button
+                  class="ph-btn ph-btn--danger"
+                  @click="revokeShare(row.share)"
+                >
+                  Revoke
+                </button>
+              </div>
+            </li>
+          </ul>
+        </template>
       </div>
     </dialog>
   </Teleport>
@@ -1879,6 +2091,11 @@ onUnmounted(() => {
   max-height: 80vh;
   overflow-y: auto;
 }
+.ph-modal--share {
+  max-width: 560px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
 .ph-faces-empty {
   color: var(--text-muted);
   font-size: 0.88rem;
@@ -1941,6 +2158,15 @@ onUnmounted(() => {
   background: var(--primary);
   color: var(--primary-contrast);
 }
+button.ph-modal-suggestion {
+  border: none;
+  font: inherit;
+  font-size: 0.8rem;
+}
+.ph-modal-suggestion--active {
+  background: var(--primary);
+  color: var(--primary-contrast);
+}
 .ph-modal-section-label {
   font-size: 0.75rem;
   color: var(--text-muted);
@@ -1978,5 +2204,64 @@ onUnmounted(() => {
   display: flex;
   gap: 0.5rem;
   justify-content: flex-end;
+}
+
+/* ----- Share modal ----- */
+.ph-share-help {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.ph-share-error {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--danger);
+}
+.ph-share-list-label {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.ph-share-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ph-share-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.ph-share-row:last-of-type {
+  border-bottom: none;
+}
+.ph-share-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.ph-share-label {
+  font-size: 0.9rem;
+}
+.ph-share-url {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: all;
+}
+.ph-share-row-actions {
+  display: flex;
+  gap: 0.375rem;
+  flex-shrink: 0;
+}
+.ph-share-row-actions .ph-btn {
+  text-decoration: none;
 }
 </style>

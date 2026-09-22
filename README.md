@@ -47,5 +47,6 @@ project structure and architecture notes.
 - [docs/development.md](docs/development.md): dev setup, project structure, architecture
 - [docs/dav.md](docs/dav.md): CalDAV/CardDAV/WebDAV endpoint (phone calendar, contacts, files)
 - [docs/phone-backup.md](docs/phone-backup.md): auto-upload a phone's camera roll to the Files app
+- [docs/photo-sharing.md](docs/photo-sharing.md): share a photo feed by public link from one or more tags
 - [docs/custom-apps.md](docs/custom-apps.md): apps installable from git
 - [AGENTS.md](AGENTS.md): coding rules and conventions

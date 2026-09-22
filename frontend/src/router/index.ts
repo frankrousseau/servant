@@ -98,6 +98,14 @@ const router = createRouter({
       name: 'photo-detail',
       component: () => import('../views/PhotoDetailView.vue'),
       meta: { auth: true, title: 'Photo' }
+    },
+    {
+      // Public photo feed behind a share link: no session needed, the token
+      // in the URL is the credential (see Servant.PhotoShares).
+      path: '/share/:token',
+      name: 'shared-feed',
+      component: () => import('../views/SharedFeedView.vue'),
+      meta: { public: true, title: 'Shared photos' }
     }
   ]
 })

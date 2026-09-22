@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   Copy,
   Download,
+  Link2,
   Palette,
   Puzzle,
   RefreshCw,
@@ -16,6 +17,7 @@ import ComboBox from '../components/ComboBox.vue'
 import DateInput from '../components/DateInput.vue'
 
 import { updateProfile } from '../api/auth'
+import { deletePhotoShare, listPhotoShares } from '../api/photoShares'
 import { BUILTIN_APPS, DEFAULT_ENABLED_APPS } from '../apps/registry'
 import { useApi } from '../composables/useApi'
 import { useConfirm } from '../composables/useConfirm'
@@ -33,7 +35,7 @@ import {
 import { THEMES, applyTheme, storedTheme, type ThemeId } from '../lib/theme'
 import { useAppsStore } from '../stores/apps'
 import { useAuthStore } from '../stores/auth'
-import type { AiConfig, ApiToken } from '../types'
+import type { AiConfig, ApiToken, PhotoShare } from '../types'
 
 const route = useRoute()
 const router = useRouter()
@@ -398,8 +400,73 @@ function downloadEntries() {
   downloadFile('/api/export/entries', 'servant_entries.json', exportingEntries)
 }
 
+// ----- Shared photo links (created from Photos > Share; revocable here too) -----
+
+const photoShares = ref<PhotoShare[]>([])
+const photoShareError = ref('')
+const copiedShareId = ref('')
+let copiedShareTimer: ReturnType<typeof setTimeout> | undefined
+
+const photoShareRows = computed(() =>
+  photoShares.value.map(share => ({
+    share,
+    label: share.name || share.tags.map(tag => `#${tag}`).join(' '),
+    rule:
+      share.tags.length > 1
+        ? share.match === 'all'
+          ? 'all tags'
+          : 'any tag'
+        : '',
+    url: new URL(share.path, window.location.origin).toString(),
+    created: formatDate(share.inserted_at)
+  }))
+)
+
+async function loadPhotoShares() {
+  try {
+    photoShares.value = await listPhotoShares()
+  } catch (err) {
+    photoShareError.value =
+      err instanceof Error ? err.message : 'Failed to load the links'
+  }
+}
+
+async function copyPhotoShare(share: PhotoShare) {
+  const url = new URL(share.path, window.location.origin).toString()
+  try {
+    await navigator.clipboard.writeText(url)
+    copiedShareId.value = share.id
+    clearTimeout(copiedShareTimer)
+    copiedShareTimer = setTimeout(() => (copiedShareId.value = ''), 2000)
+  } catch {
+    // No clipboard access (insecure context): the URL stays selectable.
+  }
+}
+
+async function revokePhotoShare(share: PhotoShare) {
+  const label = share.name || share.tags.map(tag => `#${tag}`).join(' ')
+  const ok = await ask({
+    title: 'Revoke link',
+    message: `Revoke "${label}"? Anyone holding the link loses access at once.`,
+    confirmLabel: 'Revoke',
+    danger: true
+  })
+  if (!ok) return
+  photoShareError.value = ''
+  try {
+    await deletePhotoShare(share.id)
+    photoShares.value = photoShares.value.filter(
+      existing => existing.id !== share.id
+    )
+  } catch (err) {
+    photoShareError.value =
+      err instanceof Error ? err.message : 'Failed to revoke the link'
+  }
+}
+
 onMounted(() => {
   loadTokens()
+  loadPhotoShares()
   loadAiConfig()
   loadApiVersion()
   apps.load().catch(() => {})
@@ -604,6 +671,82 @@ onMounted(() => {
             </button>
           </div>
         </form>
+      </div>
+    </section>
+
+    <!-- Shared photo links -->
+    <section v-if="tab === 'tokens'" class="card">
+      <div class="card-header">
+        <Link2 :size="20" class="card-icon" />
+        <h2>Shared photo links</h2>
+      </div>
+      <div class="card-body">
+        <p class="tk-hint">
+          Public links created from Photos &gt; Share. Anyone holding one sees
+          the photos carrying its tags; revoking a link cuts access at once.
+        </p>
+        <p v-if="photoShareError" class="msg msg-error">
+          {{ photoShareError }}
+        </p>
+        <table v-if="photoShareRows.length" class="tk-table">
+          <thead>
+            <tr>
+              <th>Link</th>
+              <th>Tags</th>
+              <th>Created</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in photoShareRows" :key="row.share.id">
+              <td>
+                {{ row.label }}
+                <a
+                  class="ps-url"
+                  :href="row.share.path"
+                  target="_blank"
+                  rel="noopener"
+                  >{{ row.url }}</a
+                >
+              </td>
+              <td>
+                <span
+                  v-for="tag in row.share.tags"
+                  :key="tag"
+                  class="tk-scope"
+                  >{{ tag }}</span
+                >
+                <span v-if="row.rule" class="tk-prefix">{{ row.rule }}</span>
+              </td>
+              <td>{{ row.created }}</td>
+              <td class="ps-actions">
+                <button
+                  type="button"
+                  class="tk-revoke"
+                  :title="
+                    copiedShareId === row.share.id ? 'Copied' : 'Copy link'
+                  "
+                  :aria-label="
+                    copiedShareId === row.share.id ? 'Copied' : 'Copy link'
+                  "
+                  @click="copyPhotoShare(row.share)"
+                >
+                  <Copy :size="14" />
+                </button>
+                <button
+                  type="button"
+                  class="tk-revoke"
+                  title="Revoke"
+                  aria-label="Revoke"
+                  @click="revokePhotoShare(row.share)"
+                >
+                  <Trash2 :size="14" />
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else class="tk-empty">No shared photo links.</p>
       </div>
     </section>
 
@@ -1167,6 +1310,22 @@ onMounted(() => {
   color: var(--danger);
   border-color: var(--danger);
   background: color-mix(in srgb, var(--danger) 8%, transparent);
+}
+
+/* ----- Shared photo links ----- */
+.ps-url {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--primary);
+  word-break: break-all;
+  user-select: all;
+}
+.ps-actions {
+  white-space: nowrap;
+}
+.ps-actions .tk-revoke + .tk-revoke {
+  margin-left: 0.25rem;
 }
 .tk-form input[type='text'] {
   width: 100%;

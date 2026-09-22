@@ -144,3 +144,34 @@ export interface AgentRun {
   error: string | null
   inserted_at: string
 }
+
+/** A public link over the photos carrying one or more tags (Photos > Share). */
+export interface PhotoShare {
+  id: string
+  name: string | null
+  tags: string[]
+  match: 'any' | 'all'
+  token: string
+  /** Path of the public page on this instance. */
+  path: string
+  inserted_at: string
+}
+
+/** One photo of a public feed, as the share link exposes it. */
+export interface SharedPhoto {
+  id: string
+  title: string | null
+  occurred_at: string | null
+  mime_type: string | null
+  video: boolean
+  thumb: string | null
+  src: string | null
+  full: string | null
+}
+
+export interface SharedFeed {
+  name: string | null
+  tags: string[]
+  match: 'any' | 'all'
+  photos: SharedPhoto[]
+}

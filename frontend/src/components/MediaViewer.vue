@@ -31,6 +31,8 @@ export interface ViewerItem {
 const props = defineProps<{
   items: ViewerItem[]
   startIndex?: number
+  /** Browsing only (a public feed): no delete, no in-app permalink. */
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -232,7 +234,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             ><Download :size="18"
           /></a>
           <router-link
-            v-if="current"
+            v-if="current && !readonly"
             class="mv-btn"
             :to="`/photos/${current.id}`"
             title="Permalink"
@@ -251,6 +253,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             <Info :size="18" />
           </button>
           <button
+            v-if="!readonly"
             class="mv-btn mv-btn--danger"
             @click="handleDelete"
             title="Delete"

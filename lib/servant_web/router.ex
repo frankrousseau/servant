@@ -49,6 +49,9 @@ defmodule ServantWeb.Router do
     post "/auth/login", AuthController, :login
     post "/auth/totp/verify", AuthController, :totp_verify
 
+    # Public photo feeds: the share token in the URL is the credential.
+    get "/shares/:token", ShareController, :show
+
     scope "/" do
       pipe_through :auth
 
@@ -91,6 +94,7 @@ defmodule ServantWeb.Router do
         post "/auth/avatar", AuthController, :upload_avatar
 
         resources "/tokens", ApiTokenController, only: [:index, :create, :delete]
+        resources "/photo_shares", PhotoShareController, only: [:index, :create, :delete]
 
         post "/apps", AppController, :create
         post "/apps/:id/update", AppController, :update
@@ -161,6 +165,13 @@ defmodule ServantWeb.Router do
 
     get "/files/*path", FilesController, :show
     get "/uploads/*path", FilesController, :show
+  end
+
+  # Files of a public photo feed (no auth: the share token is the credential;
+  # only the files of photos currently in the feed resolve). The page itself,
+  # /share/:token, is the SPA.
+  scope "/", ServantWeb do
+    get "/share/:token/files/*path", ShareFileController, :show
   end
 
   # SPA catch-all: must be after /api and /dev routes

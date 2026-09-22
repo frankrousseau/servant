@@ -15,6 +15,9 @@ const route = useRoute()
 
 // App routes are full-bleed: the apps lay out their own full-height chrome.
 const flushContent = computed(() => route.name === 'app')
+// Public pages (a shared photo feed) render without the shell, even for a
+// logged-in owner: what they see is what a visitor gets.
+const publicPage = computed(() => route.meta.public === true)
 
 // Installed apps come from the API, so they can only load once authenticated;
 // the sidebar shows builtins in the meantime. Loaded here rather than in a
@@ -29,12 +32,15 @@ watch(
 </script>
 
 <template>
-  <div class="app-layout" :class="{ authenticated: auth.isAuthenticated }">
-    <AppSidebar v-if="auth.isAuthenticated" />
+  <div
+    class="app-layout"
+    :class="{ authenticated: auth.isAuthenticated && !publicPage }"
+  >
+    <AppSidebar v-if="auth.isAuthenticated && !publicPage" />
     <main class="content" :class="{ 'content--flush': flushContent }">
       <router-view />
     </main>
     <ConfirmModal />
-    <CommandPalette v-if="auth.isAuthenticated" />
+    <CommandPalette v-if="auth.isAuthenticated && !publicPage" />
   </div>
 </template>
