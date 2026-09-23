@@ -18,10 +18,17 @@ import RelationsGraph from './RelationsGraph.vue'
 
 import { contactField, contactInitials, contactName } from '../../lib/contact'
 import { formatDate } from '../../lib/datetime'
+import { openDialog } from '../../lib/dialog'
 import { safeUrl } from '../../lib/url'
 // Photos owns the shape of a stored face; read it through its helper rather
 // than re-deriving `data.faces` here.
 import { facesOf } from '../photos/faces'
+import {
+  findDuplicateGroups,
+  suggestedSurvivor,
+  type DuplicateGroup,
+  type DuplicateReason
+} from './duplicates'
 import {
   RELATION_TYPES,
   inverseType,
@@ -650,6 +657,112 @@ async function saveForm() {
   }
 }
 
+// ----- duplicates (merge candidates sharing an email, a phone or a name) -----
+
+const duplicatesOpen = ref(false)
+// Chosen survivor per group, keyed by the group's first contact id.
+const survivorChoice = ref<Record<string, string>>({})
+const merging = ref<string | null>(null)
+const mergeError = ref('')
+
+const REASON_LABELS: Record<DuplicateReason, string> = {
+  email: 'same email',
+  phone: 'same phone',
+  name: 'same name'
+}
+
+const duplicateGroups = computed(() => findDuplicateGroups(allContacts.value))
+
+const groupKey = (group: DuplicateGroup) => group.contacts[0].id
+
+const duplicateRows = computed(() =>
+  duplicateGroups.value.map(group => {
+    const key = groupKey(group)
+    const survivorId = survivorChoice.value[key] ?? suggestedSurvivor(group).id
+    return {
+      key,
+      group,
+      survivorId,
+      reasons: group.reasons.map(reason => REASON_LABELS[reason]).join(', '),
+      contacts: group.contacts.map(contact => ({
+        contact,
+        name: contactName(contact),
+        initials: getInitials(contactName(contact)),
+        photo: fld(contact, 'photo'),
+        summary: [
+          fld(contact, 'org'),
+          getEmails(contact)[0]?.value,
+          getPhones(contact)[0]?.value,
+          `added ${formatDate(contact.inserted_at)}`
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      }))
+    }
+  })
+)
+
+function openDuplicates() {
+  survivorChoice.value = {}
+  mergeError.value = ''
+  duplicatesOpen.value = true
+}
+function closeDuplicates() {
+  duplicatesOpen.value = false
+}
+function chooseSurvivor(key: string, id: string) {
+  survivorChoice.value = { ...survivorChoice.value, [key]: id }
+}
+
+async function mergeGroup(row: (typeof duplicateRows.value)[number]) {
+  const survivor = row.group.contacts.find(
+    contact => contact.id === row.survivorId
+  )
+  if (!survivor || merging.value) return
+  const duplicateIds = row.group.contacts
+    .map(contact => contact.id)
+    .filter(id => id !== survivor.id)
+  const ok = await props.ctx.confirm.ask({
+    title: 'Merge contacts',
+    message: `Merge ${duplicateIds.length} ${
+      duplicateIds.length === 1 ? 'contact' : 'contacts'
+    } into "${contactName(survivor)}"? Their details, tags, relations, photo faces, events and note mentions move to it, then they are deleted.`,
+    confirmLabel: 'Merge'
+  })
+  if (!ok) return
+  merging.value = row.key
+  mergeError.value = ''
+  try {
+    const res = await props.ctx.api.fetch('/api/contacts/merge', {
+      method: 'POST',
+      body: JSON.stringify({
+        survivor_id: survivor.id,
+        duplicate_ids: duplicateIds
+      })
+    })
+    const merged = ((await res.json()) as { data: Entry }).data
+    allContacts.value = sortContacts([
+      ...allContacts.value.filter(
+        contact =>
+          contact.id !== merged.id && !duplicateIds.includes(contact.id)
+      ),
+      merged
+    ])
+    if (selectedId.value && duplicateIds.includes(selectedId.value)) {
+      selectedId.value = merged.id
+      syncUrl()
+    }
+    if (selectedId.value === merged.id) void loadLinked()
+    // Other contacts' relations were repointed server side; reload them so
+    // the graph and the detail column agree with the database.
+    void reload()
+  } catch (err) {
+    mergeError.value = err instanceof Error ? err.message : 'Merge failed'
+  } finally {
+    merging.value = null
+  }
+}
+
 async function deleteContact() {
   const contact = selected.value
   if (!contact) return
@@ -809,8 +922,19 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           }}</span></span
         >
         <button
+          v-if="duplicateGroups.length"
+          class="ct-graph-btn ct-duplicates-btn"
+          title="Contacts sharing an email, a phone or a name"
+          @click="openDuplicates"
+        >
+          Duplicates ({{ duplicateGroups.length }})
+        </button>
+        <button
           class="ct-graph-btn"
-          :class="{ 'ct-graph-btn--active': graphOpen }"
+          :class="{
+            'ct-graph-btn--active': graphOpen,
+            'ct-graph-btn--inline': duplicateGroups.length
+          }"
           title="Relations between contacts (links to you left out)"
           @click="toggleGraph"
         >
@@ -1353,6 +1477,85 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
       </div>
     </div>
   </div>
+  <Teleport to="body">
+    <dialog
+      v-if="duplicatesOpen"
+      :ref="openDialog"
+      class="modal-dialog"
+      aria-labelledby="ct-duplicates-title"
+      @click.self="closeDuplicates"
+      @cancel="closeDuplicates"
+    >
+      <div class="ct-modal">
+        <h3 id="ct-duplicates-title" class="ct-modal-title">
+          Possible duplicates
+        </h3>
+        <p class="ct-modal-help">
+          Pick the contact to keep in each group. Merging moves the others'
+          details, tags, relations, photo faces, events and note mentions to it,
+          then deletes them.
+        </p>
+        <p v-if="mergeError" class="ct-modal-error">{{ mergeError }}</p>
+        <p v-if="!duplicateRows.length" class="ct-modal-empty">
+          No duplicates left.
+        </p>
+        <fieldset
+          v-for="row in duplicateRows"
+          :key="row.key"
+          class="ct-dup-group"
+        >
+          <legend class="ct-dup-reasons">{{ row.reasons }}</legend>
+          <label
+            v-for="item in row.contacts"
+            :key="item.contact.id"
+            class="ct-dup-row"
+            :class="{ 'ct-dup-row--keep': item.contact.id === row.survivorId }"
+          >
+            <input
+              type="radio"
+              :name="'keep-' + row.key"
+              :value="item.contact.id"
+              :checked="item.contact.id === row.survivorId"
+              @change="chooseSurvivor(row.key, item.contact.id)"
+            />
+            <span v-if="item.photo" class="ct-avatar ct-avatar--photo">
+              <img :src="item.photo" alt="" loading="lazy" />
+            </span>
+            <span v-else class="ct-avatar" :style="avatarStyle(item.name)">{{
+              item.initials
+            }}</span>
+            <span class="ct-dup-body">
+              <span class="ct-dup-name">{{ item.name }}</span>
+              <span class="ct-dup-summary">{{ item.summary }}</span>
+            </span>
+            <span class="ct-dup-keep">{{
+              item.contact.id === row.survivorId ? 'keep' : ''
+            }}</span>
+          </label>
+          <div class="ct-dup-actions">
+            <button
+              type="button"
+              class="ct-btn ct-btn--primary"
+              :disabled="merging !== null"
+              @click="mergeGroup(row)"
+            >
+              {{ merging === row.key ? 'Merging…' : 'Merge into the kept one' }}
+            </button>
+          </div>
+        </fieldset>
+        <div class="ct-modal-actions">
+          <button
+            type="button"
+            class="ct-btn"
+            autofocus
+            @click="closeDuplicates"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </dialog>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -1853,6 +2056,10 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   border-color: var(--primary);
   color: var(--primary);
 }
+/* With the Duplicates button first, it takes the auto margin instead. */
+.ct-graph-btn--inline {
+  margin-left: 0;
+}
 .ct-add-contact-btn {
   display: inline-flex;
   align-items: center;
@@ -2026,5 +2233,99 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .ct-btn--primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* ----- Duplicates modal ----- */
+.ct-modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 620px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+.ct-modal-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+.ct-modal-help {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.ct-modal-error {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--danger);
+}
+.ct-modal-empty {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+.ct-dup-group {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.5rem 0.75rem 0.75rem;
+  margin: 0 0 0.75rem;
+}
+.ct-dup-reasons {
+  padding: 0 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--primary);
+}
+.ct-dup-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.4rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.ct-dup-row:hover {
+  background: var(--bg-hover);
+}
+.ct-dup-row--keep {
+  background: rgba(var(--primary-rgb), 0.08);
+}
+.ct-dup-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.ct-dup-name {
+  font-size: 0.9rem;
+}
+.ct-dup-summary {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ct-dup-keep {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--primary);
+  width: 3rem;
+  text-align: right;
+}
+.ct-dup-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+.ct-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 </style>

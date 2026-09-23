@@ -64,6 +64,8 @@ defmodule ServantWeb.Router do
       delete "/entries", EntryController, :delete_matching
       resources "/entries", EntryController, except: [:new, :edit]
 
+      post "/contacts/merge", ContactsController, :merge
+
       get "/notes/mentioning/:entry_id", NotesController, :mentioning
       get "/notes/:id/backlinks", NotesController, :backlinks
       resources "/notes", NotesController, except: [:new, :edit]

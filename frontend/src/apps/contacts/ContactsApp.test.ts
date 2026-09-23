@@ -474,4 +474,53 @@ describe('ContactsApp', () => {
     const sections = wrapper.findAll('.ct-section-title').map(t => t.text())
     expect(sections).not.toContain('Relations')
   })
+
+  it('lists duplicate groups and merges into the kept contact', async () => {
+    const alice = contact('a', 'Alice', {
+      emails: [{ value: 'alice@x.io', type: 'home' }]
+    })
+    const twin = contact('b', 'Alice Martin', {
+      emails: [{ value: 'Alice@x.io', type: 'work' }],
+      org: 'ACME'
+    })
+    const bob = contact('c', 'Bob')
+    const contacts = [alice, twin, bob]
+    const { ctx } = makeCtx(contacts)
+    const merged = { ...twin, data: { ...twin.data, tags: ['x'] } }
+    ctx.api.fetch = vi.fn(async () => {
+      // Mirror the backend: the duplicate is gone, the survivor updated.
+      contacts.splice(0, contacts.length, merged, bob)
+      return { ok: true, json: async () => ({ data: merged }) }
+    }) as never
+    const wrapper = mount(ContactsApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+
+    const button = wrapper.find('.ct-duplicates-btn')
+    expect(button.text()).toBe('Duplicates (1)')
+    await button.trigger('click')
+    await flushPromises()
+
+    const group = wrapper.find('.ct-dup-group')
+    expect(group.find('.ct-dup-reasons').text()).toBe('same email')
+    // The fuller card (org set) is preselected as the survivor.
+    expect(group.find('.ct-dup-row--keep .ct-dup-name').text()).toBe(
+      'Alice Martin'
+    )
+
+    await group.find('.ct-btn--primary').trigger('click')
+    await flushPromises()
+
+    expect(ctx.confirm.ask).toHaveBeenCalled()
+    expect(ctx.api.fetch).toHaveBeenCalledWith(
+      '/api/contacts/merge',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ survivor_id: 'b', duplicate_ids: ['a'] })
+      })
+    )
+    // The duplicate left the list, the survivor stayed, the modal has no group.
+    const names = wrapper.findAll('.ct-card .ct-name').map(card => card.text())
+    expect(names).toEqual(['Alice Martin', 'Bob'])
+    expect(wrapper.find('.ct-dup-group').exists()).toBe(false)
+  })
 })
