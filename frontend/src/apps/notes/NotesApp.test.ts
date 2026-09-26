@@ -32,6 +32,10 @@ function makeCtx(notes: Entry[]) {
     if (path === '/api/notes' && (!opts || opts.method === undefined))
       return jsonRes(notes)
     if (path.endsWith('/backlinks')) return jsonRes([])
+    if (path === '/api/notes' && opts?.method === 'POST') {
+      const attrs = JSON.parse(opts.body as string)
+      return jsonRes(note('new', attrs.title, attrs.folder, attrs.body))
+    }
     if (opts?.method === 'PUT') {
       const id = path.split('/').pop()!
       const attrs = JSON.parse(opts.body as string)
@@ -255,6 +259,22 @@ describe('NotesApp', () => {
       expect.objectContaining({ folder: 'Projects/Sub' })
     )
     expect(update).not.toHaveBeenCalledWith('3', expect.anything())
+  })
+
+  it('creates a note inside a folder from its + button', async () => {
+    const { ctx, fetchMock } = makeCtx([note('1', 'Alpha', 'Proj', '')])
+    const wrapper = mount(NotesApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+
+    await wrapper.find('.nt-folder-add').trigger('click')
+    await flushPromises()
+
+    const post = fetchMock.mock.calls.find(
+      ([path, opts]) => path === '/api/notes' && opts?.method === 'POST'
+    )
+    expect(JSON.parse(post![1]!.body as string)).toMatchObject({
+      folder: 'Proj'
+    })
   })
 
   it('pins favorite notes above the tree', async () => {

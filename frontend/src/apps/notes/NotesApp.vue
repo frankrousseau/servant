@@ -12,6 +12,7 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   Paperclip,
+  Plus,
   Star
 } from 'lucide-vue-next'
 
@@ -276,6 +277,11 @@ function toggleFolder(path: string) {
   else collapsed.add(path)
 }
 
+// Opens the folder first so the new note shows up under it in the tree.
+function createNoteIn(path: string) {
+  collapsed.delete(path)
+  void createNote(path)
+}
 
 // Every folder path present in the tree (including intermediate segments).
 const allFolderPaths = computed(() => {
@@ -1143,6 +1149,14 @@ onBeforeUnmount(() => {
                 >
                   ✎
                 </button>
+                <button
+                  class="nt-folder-edit nt-folder-add"
+                  title="New note in this folder"
+                  :aria-label="`New note in ${row.name}`"
+                  @click.stop="createNoteIn(row.path!)"
+                >
+                  <Plus :size="14" />
+                </button>
               </template>
             </div>
             <a
@@ -1567,6 +1581,9 @@ onBeforeUnmount(() => {
 }
 .nt-folder-edit:hover {
   color: var(--primary);
+}
+.nt-folder-add {
+  display: inline-flex;
 }
 .nt-folder-rename {
   flex: 1;
