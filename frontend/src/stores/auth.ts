@@ -5,6 +5,7 @@ import type { User } from '../types'
 import * as authApi from '../api/auth'
 import type { Session } from '../api/auth'
 import { applyTheme } from '../lib/theme'
+import { messageOf, reportClientError } from '../lib/reportError'
 
 // Only a non-sensitive "are we logged in?" flag is persisted. The actual auth
 // token lives in an HttpOnly cookie (unreadable by JS) plus an in-memory copy
@@ -29,6 +30,14 @@ export const useAuthStore = defineStore('auth', () => {
     loggedIn.value = true
     localStorage.setItem(LOGGED_IN_KEY, '1')
     if (session.user.theme) applyTheme(session.user.theme)
+    // The login/register answer carries a partial user; /auth/me completes it
+    // (preferences, enabled apps, formats) without waiting for a reload.
+    authApi
+      .fetchMe()
+      .then(me => {
+        if (me) user.value = me.user
+      })
+      .catch(() => {})
   }
 
   function clearAuth() {
@@ -72,6 +81,21 @@ export const useAuthStore = defineStore('auth', () => {
     clearAuth()
   }
 
+  // ----- preferences -----
+
+  // Applied locally at once, then saved one key at a time. Saves are chained
+  // so two quick changes reach the server in order and never overtake.
+  let preferenceSaves = Promise.resolve()
+
+  function setPreference(key: string, value: unknown) {
+    if (!user.value) return
+    user.value.preferences = { ...user.value.preferences, [key]: value }
+    preferenceSaves = preferenceSaves
+      .then(() => authApi.updateProfile({ preferences: { [key]: value } }))
+      .then(() => {})
+      .catch(err => reportClientError('preferences', messageOf(err)))
+  }
+
   // ----- boot -----
 
   // On boot, if the flag says we were logged in, confirm via /auth/me; the
@@ -102,6 +126,7 @@ export const useAuthStore = defineStore('auth', () => {
     verifyTotp,
     register,
     logout,
+    setPreference,
     hydrate
   }
 })

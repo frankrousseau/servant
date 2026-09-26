@@ -16,6 +16,9 @@ export interface User {
   time_format?: string | null
   date_format?: string | null
   enabled_apps?: string[] | null
+  // Per-app UI preferences keyed "<app>.<name>"; only /api/auth/me and the
+  // profile update return them.
+  preferences?: Record<string, unknown>
   totp_enabled?: boolean
   admin?: boolean
   // Only /api/auth/me returns it (the Profile page's "member since").

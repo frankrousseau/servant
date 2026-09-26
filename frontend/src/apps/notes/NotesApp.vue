@@ -20,6 +20,7 @@ import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import { formatDate, todayInUserTz } from '../../lib/datetime'
 import { openDialog } from '../../lib/dialog'
 import { createFolderOrder } from '../folderOrder'
+import { preferenceRef } from '../preference'
 import { canon, continueListEdit, renderMarkdown } from './render'
 import type { AppContext, Entry } from '../types'
 
@@ -76,7 +77,7 @@ function dedupeByName(list: Mentionable[]): Mentionable[] {
 
 // ----- reactive state -----
 
-const LAST_OPEN_KEY = 'servant_notes_last_open'
+const lastOpen = preferenceRef<string | null>(ctx, 'notes.lastOpen', null)
 
 const notes = ref<Note[]>([])
 const mentionables = ref<Mentionable[]>([])
@@ -274,6 +275,7 @@ function toggleFolder(path: string) {
   if (collapsed.has(path)) collapsed.delete(path)
   else collapsed.add(path)
 }
+
 
 // Every folder path present in the tree (including intermediate segments).
 const allFolderPaths = computed(() => {
@@ -995,9 +997,9 @@ watch(selected, (note, previous) => {
   if (note && note.id !== previous?.id) syncEditorFrom(note)
 })
 
-// Remembered per device, so reopening the app lands on the last note.
+// Remembered on the account, so reopening the app lands on the last note.
 watch(selectedId, id => {
-  if (id) localStorage.setItem(LAST_OPEN_KEY, id)
+  if (id) lastOpen.value = id
 })
 
 // ----- bootstrap -----
@@ -1012,10 +1014,9 @@ onMounted(async () => {
     loadState.value = 'error'
   }
 
-  // URL selection wins; otherwise reopen the last note used on this device.
+  // URL selection wins; otherwise reopen the last note used.
   const initial = new URLSearchParams(window.location.search).get('selected')
-  const lastOpen = localStorage.getItem(LAST_OPEN_KEY)
-  const target = [initial, lastOpen].find(
+  const target = [initial, lastOpen.value].find(
     id => id && notes.value.some(note => note.id === id)
   )
   if (target) void selectNote(target, { push: false })

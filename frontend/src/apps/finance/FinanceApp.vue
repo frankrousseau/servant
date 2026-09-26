@@ -744,6 +744,7 @@ function saveShared(account: Account, shared: boolean) {
 
       <template v-else-if="tab === 'spending'">
         <SpendingView
+          :ctx="ctx"
           :txs="bankTxs"
           :accounts="accounts"
           :rates="rates"

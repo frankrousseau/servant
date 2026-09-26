@@ -5,6 +5,7 @@ defmodule Servant.Accounts.User do
   # nil on either means "render like the browser does".
   @time_formats ~w(24h 12h)
   @date_formats ~w(dmy mdy iso)
+  @max_preferences_bytes 65_536
 
   use Ecto.Schema
   import Ecto.Changeset
@@ -24,6 +25,8 @@ defmodule Servant.Accounts.User do
     # nil means "the default set" (DEFAULT_ENABLED_APPS in the frontend
     # registry); ids are opaque here, the frontend owns the app list
     field :enabled_apps, {:array, :string}
+    # Per-app UI preferences, keyed by "<app>.<name>"; opaque to the server.
+    field :preferences, :map, default: %{}
     # AI agents config (enabled/base_url/model/api_key), encrypted at rest
     # like connector secrets
     field :ai_config, Servant.Encrypted.Map, redact: true
@@ -64,7 +67,32 @@ defmodule Servant.Accounts.User do
     |> validate_inclusion(:date_format, @date_formats)
     |> validate_enabled_apps()
     |> validate_timezone()
+    |> merge_preferences(attrs)
   end
+
+  # Preferences are patched, not replaced: each app sends only its own keys, so
+  # two apps saving at once never erase each other. A nil value drops the key.
+  # ponytail: merges against the user loaded for this request, so two saves in
+  # flight at the same instant can still lose one key; move the merge into SQL
+  # (json_patch) if that ever shows up.
+
+  defp merge_preferences(changeset, %{"preferences" => prefs}) when is_map(prefs) do
+    merged =
+      (changeset.data.preferences || %{})
+      |> Map.merge(prefs)
+      |> Map.reject(fn {_key, value} -> is_nil(value) end)
+
+    if byte_size(Jason.encode!(merged)) > @max_preferences_bytes do
+      add_error(changeset, :preferences, "are too large")
+    else
+      put_change(changeset, :preferences, merged)
+    end
+  end
+
+  defp merge_preferences(changeset, %{"preferences" => _prefs}),
+    do: add_error(changeset, :preferences, "must be an object")
+
+  defp merge_preferences(changeset, _attrs), do: changeset
 
   # App ids are slugs owned by the frontend registry; only their shape is
   # checked here so an old backend never rejects a newer frontend's apps.

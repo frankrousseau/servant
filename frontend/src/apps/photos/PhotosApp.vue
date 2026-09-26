@@ -29,6 +29,7 @@ import {
   uploadProgress,
   uploading
 } from './uploadQueue'
+import { preferenceRef } from '../preference'
 import type { AppContext, Entry } from '../types'
 import type { PhotoShare } from '../../types'
 
@@ -118,14 +119,7 @@ const filtered = computed(() => {
 // ----- grouping by shot date (occurred_at, i.e. EXIF date, else upload date) -----
 
 type GroupBy = '' | 'year' | 'month' | 'week'
-const GROUP_BY_KEY = 'servant_photos_group_by'
-
-function storedGroupBy(): GroupBy {
-  const v = localStorage.getItem(GROUP_BY_KEY)
-  return v === 'year' || v === 'month' || v === 'week' ? v : ''
-}
-
-const groupBy = ref<GroupBy>(storedGroupBy())
+const groupBy = preferenceRef<GroupBy>(props.ctx, 'photos.groupBy', '')
 
 const albumOptions = computed(() => [
   { value: '', label: 'All photos' },
@@ -141,7 +135,6 @@ const GROUP_OPTIONS = [
 
 function onGroupByChange(v: string) {
   groupBy.value = v as GroupBy
-  localStorage.setItem(GROUP_BY_KEY, v)
 }
 
 const photoDate = (photo: Entry) =>

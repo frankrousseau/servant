@@ -34,8 +34,8 @@ The entry module default-exports an `AppModule` (see `frontend/src/apps/types.ts
 ```js
 export default {
   mount(el, ctx) {
-    // el: the host element; ctx: navigate, confirm, viewer, api (entries CRUD,
-    // aggregate, upload, fetch). Same context as built-in apps.
+    // el: the host element; ctx: navigate, confirm, viewer, preferences, api
+    // (entries CRUD, aggregate, upload, fetch). Same context as built-in apps.
     el.innerHTML = '<h1>Hello</h1>'
   },
   unmount(el) {}

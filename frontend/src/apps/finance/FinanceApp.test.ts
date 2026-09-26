@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 
 import FinanceApp from './FinanceApp.vue'
 
+import { fakePreferences } from '../fakePreferences'
 import type { Entry } from '../types'
 
 vi.mock('./cryptoPrices', () => ({
@@ -80,6 +81,7 @@ function makeCtx() {
     // Crypto is opt-in; these cases exercise it, so the fixture opts in.
     enabledApps: ['crypto'],
     confirm: { ask: vi.fn().mockResolvedValue(true) },
+    preferences: fakePreferences(),
     api: {
       entries: {
         list: vi.fn(

@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 
 import CalendarApp from './CalendarApp.vue'
 
+import { fakePreferences } from '../fakePreferences'
 import type { Entry } from '../types'
 
 // A two-hour meeting on 2026-08-12 12:00 UTC, in the month the app opens on.
@@ -30,6 +31,7 @@ function makeCtx() {
   return {
     navigate: vi.fn(),
     confirm: { ask: vi.fn().mockResolvedValue(true) },
+    preferences: fakePreferences(),
     api: {
       entries: {
         list: vi.fn(async (filters?: Record<string, string>) =>

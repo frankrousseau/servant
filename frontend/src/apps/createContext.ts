@@ -87,6 +87,11 @@ export function createAppContext(viewer: ViewerAPI): AppContext {
       fetch: apiFetch
     },
     confirm: { ask },
+    preferences: {
+      get: <T>(key: string, fallback: T) =>
+        (auth.user?.preferences?.[key] as T | undefined) ?? fallback,
+      set: auth.setPreference
+    },
     events: { onEntryChange },
     viewer
   }

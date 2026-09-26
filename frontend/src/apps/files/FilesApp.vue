@@ -26,6 +26,7 @@ import {
   uploadProgress,
   uploading
 } from './uploadQueue'
+import { preferenceRef } from '../preference'
 import type { AppContext, Entry } from '../types'
 
 const props = defineProps<{ ctx: AppContext }>()
@@ -100,12 +101,10 @@ const virtualFiles = ref<Entry[]>([])
 const virtualLoaded = new Set<string>()
 const virtualLoading = ref(false)
 
-const SHOW_VIRTUAL_KEY = 'servant_files_show_virtual'
-const showVirtual = ref(localStorage.getItem(SHOW_VIRTUAL_KEY) !== '0')
+const showVirtual = preferenceRef(props.ctx, 'files.showVirtual', true)
 
 function toggleVirtual() {
   showVirtual.value = !showVirtual.value
-  localStorage.setItem(SHOW_VIRTUAL_KEY, showVirtual.value ? '1' : '0')
   if (!showVirtual.value && inVirtual.value) setFolder(null, { push: true })
 }
 

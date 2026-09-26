@@ -65,6 +65,13 @@ export interface AppContext {
   // set. A getter on the context object, so it stays live.
   readonly enabledApps: string[] | null
   confirm: ConfirmAPI
+  // UI preferences stored on the account, so they follow the user from one
+  // device to the next. Keys are namespaced "<app>.<name>"; get() is reactive
+  // and set() saves that one key (null removes it).
+  preferences: {
+    get<T>(key: string, fallback: T): T
+    set(key: string, value: unknown): void
+  }
   // Live entry changes from the user's data channel (created, updated, or
   // deleted, the latter carrying only `id`). Returns an unsubscribe; call it
   // in the app's teardown.

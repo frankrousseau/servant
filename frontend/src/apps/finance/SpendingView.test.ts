@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import { reactive } from 'vue'
 import { mount } from '@vue/test-utils'
 
 import SpendingView from './SpendingView.vue'
 
-import type { Entry } from '../types'
+import type { AppContext, Entry } from '../types'
 
 function tx(
   date: string,
@@ -36,14 +37,27 @@ const TXS = [
   tx('2026-07-02', -60, 'food')
 ]
 
+// Stands in for the account-backed preferences, shared across mounts.
+let prefs: Record<string, unknown> = reactive({})
+const ctx = {
+  preferences: {
+    get: <T>(key: string, fallback: T) => (prefs[key] as T) ?? fallback,
+    set: (key: string, value: unknown) => {
+      prefs[key] = value
+    }
+  }
+} as unknown as AppContext
+
 function mountView(txs = TXS) {
   return mount(SpendingView, {
-    props: { txs, accounts: [], rates: {}, refCurrency: 'EUR' }
+    props: { ctx, txs, accounts: [], rates: {}, refCurrency: 'EUR' }
   })
 }
 
 describe('SpendingView', () => {
-  beforeEach(() => localStorage.clear())
+  beforeEach(() => {
+    prefs = reactive({})
+  })
 
   it('shows a legend chip per category, largest total first', () => {
     const wrapper = mountView()
@@ -56,9 +70,7 @@ describe('SpendingView', () => {
     await wrapper.findAll('.sp-chip')[0].trigger('click')
     const cats = wrapper.findAll('tbody .sp-cat-col').map(c => c.text())
     expect(cats).toEqual(['food'])
-    expect(
-      JSON.parse(localStorage.getItem('servant_finance_hidden_categories')!)
-    ).toEqual(['rent'])
+    expect(prefs['finance.hiddenCategories']).toEqual(['rent'])
     // A fresh mount reads the exclusion back.
     const again = mountView()
     const cats2 = again.findAll('tbody .sp-cat-col').map(c => c.text())

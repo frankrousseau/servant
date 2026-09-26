@@ -144,6 +144,38 @@ defmodule Servant.AccountsTest do
     end
   end
 
+  describe "update_profile/2 preferences" do
+    setup do
+      %{user: user_fixture(%{"username" => "prefuser", "password" => "password123"})}
+    end
+
+    test "merge into the stored ones, a nil value drops the key", %{user: user} do
+      {:ok, user} =
+        Accounts.update_profile(user, %{
+          "preferences" => %{"photos.groupBy" => "month", "files.showVirtual" => false}
+        })
+
+      {:ok, user} =
+        Accounts.update_profile(user, %{
+          "preferences" => %{"calendar.hidden" => ["Work"], "files.showVirtual" => nil}
+        })
+
+      assert Accounts.get_user!(user.id).preferences == %{
+               "photos.groupBy" => "month",
+               "calendar.hidden" => ["Work"]
+             }
+    end
+
+    test "reject a non-object or an oversized payload", %{user: user} do
+      assert {:error, changeset} = Accounts.update_profile(user, %{"preferences" => [1]})
+      assert %{preferences: ["must be an object"]} = errors_on(changeset)
+
+      big = %{"notes.blob" => String.duplicate("x", 70_000)}
+      assert {:error, changeset} = Accounts.update_profile(user, %{"preferences" => big})
+      assert %{preferences: ["are too large"]} = errors_on(changeset)
+    end
+  end
+
   describe "ai_config" do
     test "defaults to disabled with the local base URL" do
       user = user_fixture()

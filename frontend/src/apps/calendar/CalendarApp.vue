@@ -13,6 +13,7 @@ import {
   zonedToUtcISO
 } from '../../lib/datetime'
 import { openDialog } from '../../lib/dialog'
+import { preferenceRef } from '../preference'
 import { addDays, nextOccurrence, occursOn, recurrenceOf } from './recurrence'
 import type { Item as ChecklistItem } from '../checklists/markdown'
 import type { AppContext, Entry } from '../types'
@@ -288,20 +289,13 @@ const calendars = computed(() => {
     }))
 })
 
-function readHiddenCals(): string[] {
-  try {
-    return JSON.parse(localStorage.getItem('cal-hidden') || '[]')
-  } catch {
-    return []
-  }
-}
-
-const hiddenCals = ref<Set<string>>(new Set(readHiddenCals()))
+const hiddenCalList = preferenceRef<string[]>(props.ctx, 'calendar.hidden', [])
+const hiddenCals = computed(() => new Set(hiddenCalList.value))
 
 function toggleCalendar(name: string) {
-  if (hiddenCals.value.has(name)) hiddenCals.value.delete(name)
-  else hiddenCals.value.add(name)
-  localStorage.setItem('cal-hidden', JSON.stringify([...hiddenCals.value]))
+  hiddenCalList.value = hiddenCals.value.has(name)
+    ? hiddenCalList.value.filter(calendar => calendar !== name)
+    : [...hiddenCalList.value, name]
 }
 
 const allEvents = computed(() => [

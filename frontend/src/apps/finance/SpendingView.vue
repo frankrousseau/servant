@@ -11,9 +11,11 @@ import {
   type Account,
   type Rates
 } from './finance'
-import type { Entry } from '../types'
+import { preferenceRef } from '../preference'
+import type { AppContext, Entry } from '../types'
 
 const props = defineProps<{
+  ctx: AppContext
   txs: Entry[]
   accounts: Account[]
   rates: Rates
@@ -111,30 +113,17 @@ watch([periods, chartType], () => {
 
 // ----- category visibility (persisted) -----
 
-const STORAGE_KEY = 'servant_finance_hidden_categories'
-
-function loadHidden(): Set<string> {
-  try {
-    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-    return new Set(
-      Array.isArray(raw) ? raw.filter(value => typeof value === 'string') : []
-    )
-  } catch {
-    return new Set()
-  }
-}
-
-const hidden = ref<Set<string>>(loadHidden())
-
-function persistHidden() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([...hidden.value]))
-}
+const hiddenList = preferenceRef<string[]>(
+  props.ctx,
+  'finance.hiddenCategories',
+  []
+)
+const hidden = computed(() => new Set(hiddenList.value))
 
 function toggleCategory(category: string) {
-  if (hidden.value.has(category)) hidden.value.delete(category)
-  else hidden.value.add(category)
-  hidden.value = new Set(hidden.value)
-  persistHidden()
+  hiddenList.value = hidden.value.has(category)
+    ? hiddenList.value.filter(cat => cat !== category)
+    : [...hiddenList.value, category]
 }
 
 // Solo on a fresh legend, back to everything when already solo.
@@ -144,13 +133,11 @@ function soloCategory(category: string) {
     .filter(cat => cat !== category)
   const alreadySolo =
     !hidden.value.has(category) && others.every(cat => hidden.value.has(cat))
-  hidden.value = alreadySolo ? new Set() : new Set(others)
-  persistHidden()
+  hiddenList.value = alreadySolo ? [] : others
 }
 
 function showAll() {
-  hidden.value = new Set()
-  persistHidden()
+  hiddenList.value = []
 }
 
 // Table and legend ordering: by cost (default) or alphabetical.

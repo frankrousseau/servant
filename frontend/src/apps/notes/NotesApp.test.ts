@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 
 import NotesApp from './NotesApp.vue'
 
+import { fakePreferences } from '../fakePreferences'
 import type { Entry } from '../types'
 
 function note(id: string, title: string, folder: string, body: string): Entry {
@@ -55,6 +56,7 @@ function makeCtx(notes: Entry[]) {
   const ctx = {
     navigate: vi.fn(),
     confirm: { ask: vi.fn().mockResolvedValue(true) },
+    preferences: fakePreferences(),
     api: {
       entries: { list: vi.fn().mockResolvedValue([]) },
       upload: vi.fn(),
@@ -67,7 +69,6 @@ function makeCtx(notes: Entry[]) {
 
 describe('NotesApp', () => {
   beforeEach(() => {
-    localStorage.clear()
     // Selection pushes ?selected=<id>; keep tests URL-independent.
     history.replaceState(null, '', '/apps/notes')
   })
@@ -187,6 +188,7 @@ describe('NotesApp', () => {
     const ctx = {
       navigate: vi.fn(),
       confirm: { ask: vi.fn().mockResolvedValue(true) },
+      preferences: fakePreferences(),
       api: {
         entries: { list: vi.fn().mockResolvedValue([]) },
         upload: vi.fn(),
@@ -288,11 +290,11 @@ describe('NotesApp', () => {
   })
 
   it('reopens the last open note on mount', async () => {
-    localStorage.setItem('servant_notes_last_open', '2')
     const { ctx } = makeCtx([
       note('1', 'Alpha', '', ''),
       note('2', 'Beta', '', '')
     ])
+    ctx.preferences.set('notes.lastOpen', '2')
     const wrapper = mount(NotesApp, { props: { ctx: ctx as never } })
     await flushPromises()
 

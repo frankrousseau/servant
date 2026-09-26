@@ -57,6 +57,7 @@ directly.
 
 - `navigate(path)`: router navigation.
 - `confirm.ask({ message, title?, confirmLabel?, danger? })`: themed confirm dialog, resolves to a boolean.
+- `preferences.get(key, fallback)` / `.set(key, value)`: UI preferences stored on the account, so they follow the user across devices (hidden calendars, grouping, last open item). Namespace keys as `<app>.<name>`; `get` is reactive, `set` saves that one key (`null` removes it). `preferenceRef(ctx, key, fallback)` in `preference.ts` wraps one as a writable ref.
 - `viewer.open(items, startIndex)` / `.close()` / `.onDelete(cb)` / `.onClose(cb)`: full-screen media viewer. `onClose` fires on user-initiated closes only (backdrop, Esc, Close button), so the app can sync its URL or state.
 - `api.entries`: user-scoped CRUD (`list` / `get` / `create` / `update` / `delete` / `stats` / `aggregate`). `list` pages through the results transparently, `aggregate` returns server-side COUNT/SUM bucketed by local day/week/month/year.
 - `api.upload(file, app?, onProgress?)`: upload a file, returns `{ path, filename, size, mime_type }`; `onProgress` receives a percentage.

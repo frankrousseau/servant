@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 
 import FilesApp from './FilesApp.vue'
 
+import { fakePreferences } from '../fakePreferences'
 import type { Entry } from '../types'
 
 function fileEntry(
@@ -45,6 +46,9 @@ function makeCtx(files: Entry[]) {
   const ctx = {
     navigate: vi.fn(),
     confirm: { ask: vi.fn().mockResolvedValue(true) },
+    // Keep the virtual mounts (Notes, Photos, ...) out of the row list so
+    // .fs-name selectors hit real files only.
+    preferences: fakePreferences({ 'files.showVirtual': false }),
     api: {
       entries: {
         list: vi.fn(async (filters?: Record<string, string>) =>
@@ -74,9 +78,6 @@ async function createFolder(wrapper: ReturnType<typeof mount>) {
 describe('FilesApp folder creation', () => {
   beforeEach(() => {
     window.history.replaceState(null, '', '/')
-    // Keep the virtual mounts (Notes, Photos, ...) out of the row list so
-    // .fs-name selectors hit real files only.
-    localStorage.setItem('servant_files_show_virtual', '0')
   })
 
   it('creates the folder immediately and opens inline naming', async () => {

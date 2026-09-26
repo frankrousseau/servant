@@ -424,6 +424,7 @@ defmodule ServantWeb.AuthController do
                    nullable: true,
                    description: "enabled built-in app ids; null means the default set"
                  },
+                 preferences: %Schema{type: :object, description: "per-app UI preferences"},
                  totp_enabled: %Schema{type: :boolean},
                  admin: %Schema{type: :boolean},
                  inserted_at: %Schema{type: :string, format: :"date-time"}
@@ -455,6 +456,7 @@ defmodule ServantWeb.AuthController do
         time_format: user.time_format,
         date_format: user.date_format,
         enabled_apps: user.enabled_apps,
+        preferences: user.preferences,
         totp_enabled: Accounts.totp_enabled?(user),
         admin: user.admin,
         inserted_at: user.inserted_at
@@ -493,6 +495,11 @@ defmodule ServantWeb.AuthController do
              type: :array,
              items: %Schema{type: :string},
              description: "enabled built-in app ids"
+           },
+           preferences: %Schema{
+             type: :object,
+             description:
+               "per-app UI preferences, merged into the stored ones; a null value removes the key"
            }
          }
        }},
@@ -518,7 +525,8 @@ defmodule ServantWeb.AuthController do
                    type: :array,
                    items: %Schema{type: :string},
                    nullable: true
-                 }
+                 },
+                 preferences: %Schema{type: :object}
                }
              }
            }
@@ -545,7 +553,8 @@ defmodule ServantWeb.AuthController do
             theme: user.theme,
             time_format: user.time_format,
             date_format: user.date_format,
-            enabled_apps: user.enabled_apps
+            enabled_apps: user.enabled_apps,
+            preferences: user.preferences
           }
         })
 
