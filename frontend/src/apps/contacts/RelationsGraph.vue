@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { Entry } from '../types'
 import { relationLabel, relationsOf } from './relations'
+import { untangle } from './untangle'
 
 // The address book as a graph: contacts are nodes, declared relations are
 // edges. Relations to the me-contact are left out, everyone has one.
@@ -199,6 +200,10 @@ const graph = computed(() => {
       node.y += (center.y - node.y) * 0.02
     }
   }
+
+  // Forces settle wherever the seed leads, sometimes with a branch folded
+  // over its neighbours: swing such branches around their contact first.
+  untangle(nodes, edges)
 
   // Forces attract but guarantee nothing; these passes do. First separate
   // every disc+name box, then walk the actual arcs and shove any unrelated
