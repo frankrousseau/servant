@@ -21,6 +21,12 @@ import {
   type FaceCluster
 } from './faces'
 import {
+  FLAW_LABELS,
+  flawsOf,
+  measureImage,
+  type QualityMetrics
+} from './quality'
+import {
   batchesDone,
   captureVideoFrame,
   enqueueUploads,
@@ -447,6 +453,90 @@ async function nameCluster(row: ClusterRow) {
     )
   } finally {
     namingCluster.value = false
+  }
+}
+
+// ----- failed shots (blurry, dark, overexposed) -----
+
+// Metrics are measured once per photo and stored on it; `ok` records the
+// user's "Keep", which takes the photo off the list for good.
+type StoredQuality = QualityMetrics & { ok?: boolean }
+
+const qualityOf = (photo: Entry) =>
+  photo.data.quality as StoredQuality | undefined
+
+// The thumbnail is enough to judge a shot and is the cheapest to decode.
+const qualitySrc = (photo: Entry) =>
+  (field(photo, 'thumb_path') as string) || faceScanSrc(photo)
+
+const qualityModalActive = ref(false)
+const checkingQuality = ref<{ done: number; total: number } | null>(null)
+const qualityUnreadable = ref(0)
+
+const failedShots = computed(() =>
+  allPhotos.value.flatMap(photo => {
+    const quality = qualityOf(photo)
+    if (!quality || quality.ok) return []
+    const flaws = flawsOf(quality)
+    if (!flaws.length) return []
+    return [
+      {
+        photo,
+        flaws: flaws.map(flaw => FLAW_LABELS[flaw]),
+        title: photo.title || (field(photo, 'filename') as string) || 'Photo',
+        thumb: getThumbPath(photo)
+      }
+    ]
+  })
+)
+
+async function openQualityModal() {
+  qualityModalActive.value = true
+  await checkQuality()
+}
+
+async function checkQuality() {
+  const targets = allPhotos.value.filter(
+    photo => !qualityOf(photo) && qualitySrc(photo)
+  )
+  if (!targets.length || checkingQuality.value) return
+  checkingQuality.value = { done: 0, total: targets.length }
+  qualityUnreadable.value = 0
+  for (const photo of targets) {
+    if (!alive || !qualityModalActive.value) break
+    try {
+      const quality = await measureImage(qualitySrc(photo)!)
+      const updated = await props.ctx.api.entries.update(photo.id, {
+        data: { ...photo.data, quality }
+      })
+      allPhotos.value = allPhotos.value.map(item =>
+        item.id === updated.id ? updated : item
+      )
+    } catch {
+      // ponytail: an unreadable photo is retried at the next check; store a
+      // marker if a large broken backlog ever makes that slow.
+      qualityUnreadable.value++
+    } finally {
+      if (checkingQuality.value) checkingQuality.value.done++
+    }
+  }
+  checkingQuality.value = null
+}
+
+async function keepShot(photo: Entry) {
+  try {
+    const updated = await props.ctx.api.entries.update(photo.id, {
+      data: { ...photo.data, quality: { ...qualityOf(photo)!, ok: true } }
+    })
+    allPhotos.value = allPhotos.value.map(item =>
+      item.id === updated.id ? updated : item
+    )
+  } catch (err) {
+    uploadErrors.value.push(
+      `${field(photo, 'filename') || 'photo'}: ${
+        err instanceof Error ? err.message : 'update failed'
+      }`
+    )
   }
 }
 
@@ -1212,6 +1302,13 @@ onUnmounted(() => {
           Faces
         </button>
         <button
+          v-if="allPhotos.length"
+          class="ph-btn"
+          @click="openQualityModal"
+        >
+          Failed shots
+        </button>
+        <button
           v-if="allTags.length || allPeople.length"
           class="ph-btn"
           @click="openShareModal"
@@ -1487,6 +1584,72 @@ onUnmounted(() => {
         </div>
         <div class="ph-modal-actions">
           <button class="ph-btn" @click="faceModalActive = false">Close</button>
+        </div>
+      </div>
+    </dialog>
+    <dialog
+      v-if="qualityModalActive"
+      :ref="openDialog"
+      class="modal-dialog"
+      aria-labelledby="ph-quality-title"
+      @click.self="qualityModalActive = false"
+      @cancel="qualityModalActive = false"
+    >
+      <div class="ph-modal ph-modal--wide">
+        <h3 id="ph-quality-title" class="ph-modal-title">Failed shots</h3>
+        <p class="ph-faces-help">
+          Blurry, too dark or overexposed photos, spotted from their thumbnail.
+          Delete them, or keep one to take it off this list for good.
+        </p>
+        <p v-if="checkingQuality" class="ph-shots-status" role="status">
+          Checking photos {{ checkingQuality.done }}/{{
+            checkingQuality.total
+          }}…
+        </p>
+        <p v-if="qualityUnreadable" class="ph-shots-status">
+          {{ qualityUnreadable }}
+          {{ qualityUnreadable === 1 ? 'photo' : 'photos' }} could not be read.
+        </p>
+        <p
+          v-if="!checkingQuality && !failedShots.length"
+          class="ph-faces-empty"
+        >
+          No failed shots.
+        </p>
+        <ul v-if="failedShots.length" class="ph-shots">
+          <li v-for="shot in failedShots" :key="shot.photo.id" class="ph-shot">
+            <img
+              class="ph-shot-img"
+              :src="shot.thumb"
+              :alt="shot.title"
+              loading="lazy"
+            />
+            <div class="ph-shot-flaws">
+              <span
+                v-for="flaw in shot.flaws"
+                :key="flaw"
+                class="ph-shot-flaw"
+                >{{ flaw }}</span
+              >
+            </div>
+            <span class="ph-shot-title" :title="shot.title">{{
+              shot.title
+            }}</span>
+            <div class="ph-shot-actions">
+              <button class="ph-btn" @click="keepShot(shot.photo)">Keep</button>
+              <button
+                class="ph-btn ph-btn--danger"
+                @click="deletePhotos([shot.photo.id])"
+              >
+                Delete
+              </button>
+            </div>
+          </li>
+        </ul>
+        <div class="ph-modal-actions">
+          <button class="ph-btn" autofocus @click="qualityModalActive = false">
+            Close
+          </button>
         </div>
       </div>
     </dialog>
@@ -2181,6 +2344,67 @@ onUnmounted(() => {
   max-width: 1100px;
   max-height: 80vh;
   overflow-y: auto;
+}
+.ph-modal--wide {
+  max-width: 1100px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+.ph-shots-status {
+  margin: 0 0 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.ph-shots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+.ph-shot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.ph-shot-img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--bg-hover);
+}
+.ph-shot-flaws {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.ph-shot-flaw {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.ph-shot-title {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ph-shot-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+.ph-shot-actions .ph-btn {
+  flex: 1;
 }
 .ph-modal--share {
   max-width: 560px;
