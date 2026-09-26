@@ -1657,6 +1657,7 @@ function saveShared(account: Account, shared: boolean) {
   color: var(--text-muted);
   cursor: pointer;
   padding: 0 0.25rem;
+  font-size: 1.15rem;
   flex-shrink: 0;
 }
 .fin-mini-del:hover {

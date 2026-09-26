@@ -7,6 +7,7 @@ import {
   reactive,
   ref
 } from 'vue'
+import { Pencil } from 'lucide-vue-next'
 
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import DateInput from '../../components/DateInput.vue'
@@ -575,9 +576,10 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
                 <button
                   class="cl-folder-edit"
                   title="Rename folder"
+                  :aria-label="`Rename ${row.name}`"
                   @click.stop="startRenameFolder(row.name)"
                 >
-                  ✎
+                  <Pencil :size="16" />
                 </button>
               </template>
             </div>
@@ -930,8 +932,8 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 0 0.25rem;
-  font-size: 0.8rem;
+  padding: 0.1rem 0.25rem;
+  display: inline-flex;
   visibility: hidden;
 }
 .cl-folder:hover .cl-folder-edit {

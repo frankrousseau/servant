@@ -438,8 +438,8 @@ onMounted(async () => {
             :title="copiedId === 'main' ? 'Copied!' : 'Copy error'"
             :aria-label="copiedId === 'main' ? 'Copied' : 'Copy error'"
           >
-            <Check v-if="copiedId === 'main'" :size="13" />
-            <Copy v-else :size="13" />
+            <Check v-if="copiedId === 'main'" :size="16" />
+            <Copy v-else :size="16" />
           </button>
         </div>
 
@@ -625,8 +625,8 @@ onMounted(async () => {
                     copiedId === `log-${log.id}` ? 'Copied' : 'Copy error'
                   "
                 >
-                  <Check v-if="copiedId === `log-${log.id}`" :size="12" />
-                  <Copy v-else :size="12" />
+                  <Check v-if="copiedId === `log-${log.id}`" :size="14" />
+                  <Copy v-else :size="14" />
                 </button>
               </span>
             </div>

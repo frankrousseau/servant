@@ -12,6 +12,7 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   Paperclip,
+  Pencil,
   Plus,
   Star
 } from 'lucide-vue-next'
@@ -1145,9 +1146,10 @@ onBeforeUnmount(() => {
                 <button
                   class="nt-folder-edit"
                   title="Rename folder"
+                  :aria-label="`Rename ${row.name}`"
                   @click.stop="startRenameFolder(row.path!)"
                 >
-                  ✎
+                  <Pencil :size="16" />
                 </button>
                 <button
                   class="nt-folder-edit nt-folder-add"
@@ -1155,7 +1157,7 @@ onBeforeUnmount(() => {
                   :aria-label="`New note in ${row.name}`"
                   @click.stop="createNoteIn(row.path!)"
                 >
-                  <Plus :size="14" />
+                  <Plus :size="16" />
                 </button>
               </template>
             </div>
@@ -1309,7 +1311,7 @@ onBeforeUnmount(() => {
             class="nt-attachment"
             :class="{ 'nt-attachment--missing': file.missing }"
           >
-            <Paperclip :size="12" class="nt-attachment-icon" />
+            <Paperclip :size="14" class="nt-attachment-icon" />
             <a
               v-if="!file.missing"
               class="nt-attachment-name"
@@ -1572,8 +1574,8 @@ onBeforeUnmount(() => {
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 0 0.25rem;
-  font-size: 0.8rem;
+  padding: 0.1rem 0.25rem;
+  display: inline-flex;
   visibility: hidden;
 }
 .nt-folder:hover .nt-folder-edit {
@@ -1581,9 +1583,6 @@ onBeforeUnmount(() => {
 }
 .nt-folder-edit:hover {
   color: var(--primary);
-}
-.nt-folder-add {
-  display: inline-flex;
 }
 .nt-folder-rename {
   flex: 1;
@@ -1795,7 +1794,7 @@ a.nt-attachment-name:hover {
   color: var(--text-muted);
   cursor: pointer;
   padding: 0 0.2rem;
-  font-size: 0.85rem;
+  font-size: 1.15rem;
   line-height: 1;
 }
 .nt-attachment-remove:hover {

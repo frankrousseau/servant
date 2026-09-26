@@ -604,7 +604,7 @@ async function openLinked(tx: Entry) {
             class="ftx-doc"
             :title="linkedTitle(tx)"
           >
-            <Paperclip :size="11" />
+            <Paperclip :size="14" />
             <span
               class="ftx-doc-name"
               role="button"
@@ -629,7 +629,7 @@ async function openLinked(tx: Entry) {
             aria-label="Link an invoice or file"
             @click="startLink(tx)"
           >
-            <Paperclip :size="12" />
+            <Paperclip :size="14" />
           </button>
           <span
             v-if="editingId !== tx.id"
@@ -799,6 +799,7 @@ async function openLinked(tx: Entry) {
   color: var(--text-muted);
   cursor: pointer;
   padding: 0 0.15rem;
+  font-size: 1.15rem;
 }
 .ftx-doc-clear:hover {
   color: var(--danger);
@@ -995,6 +996,7 @@ async function openLinked(tx: Entry) {
   color: var(--text-muted);
   cursor: pointer;
   padding: 0 0.15rem;
+  font-size: 1.15rem;
   opacity: 0;
 }
 .ftx-row:hover .ftx-del {

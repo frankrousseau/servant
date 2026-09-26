@@ -1328,7 +1328,7 @@ onUnmounted(destroyPickers)
   color: var(--text-muted);
   cursor: pointer;
   padding: 0 0.25rem;
-  font-size: 0.85rem;
+  font-size: 1.15rem;
   flex-shrink: 0;
 }
 .cal-manage-delete:hover {
