@@ -57,6 +57,10 @@ watch(query, () => {
 // dropdown) and is fixed-positioned from the control's rect; scrolling any
 // ancestor repositions it. Flips above when the viewport bottom is close.
 const panelStyle = ref<Record<string, string>>({})
+// Inside a modal <dialog>, the panel must live in that dialog: an open modal
+// sits in the browser's top layer, above anything in <body> whatever its
+// z-index, so a panel teleported to <body> would open hidden behind it.
+const panelHost = ref<HTMLElement | string>('body')
 
 function reposition() {
   const rect = root.value?.getBoundingClientRect()
@@ -90,6 +94,7 @@ onBeforeUnmount(() => watchViewport(false))
 let swapping = false
 
 function openPanel() {
+  panelHost.value = root.value?.closest('dialog') ?? 'body'
   open.value = true
   query.value = ''
   activeIndex.value = opts.value.findIndex(
@@ -228,7 +233,7 @@ function onFocusout(event: FocusEvent) {
       </span>
       <span class="cb-caret" aria-hidden="true">▾</span>
     </button>
-    <Teleport to="body">
+    <Teleport :to="panelHost">
       <div v-if="open" class="cb-panel" :style="panelStyle">
         <div ref="listEl" class="cb-list" role="listbox">
           <div

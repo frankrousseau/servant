@@ -26,6 +26,23 @@ describe('ComboBox', () => {
     expect(wrapper.find('.cb-option--selected').text()).toBe('Every week')
   })
 
+  it('opens its panel inside the modal dialog that holds it', async () => {
+    // A modal <dialog> is in the top layer: a panel left in <body> would
+    // open behind it, unreachable.
+    const dialog = document.createElement('dialog')
+    document.body.appendChild(dialog)
+    const wrapper = mount(ComboBox, {
+      props: { modelValue: '', options: SMALL },
+      attachTo: dialog,
+      global: { stubs: { teleport: false } }
+    })
+    await wrapper.find('.cb-control').trigger('click')
+
+    expect(dialog.querySelector('.cb-panel')).not.toBeNull()
+    wrapper.unmount()
+    dialog.remove()
+  })
+
   it('selects with the mouse and closes', async () => {
     const wrapper = make()
     await wrapper.find('.cb-control').trigger('click')
