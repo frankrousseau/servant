@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import AppSidebar from './components/AppSidebar.vue'
 import CommandPalette from './components/CommandPalette.vue'
@@ -12,6 +12,7 @@ import { useAuthStore } from './stores/auth'
 const auth = useAuthStore()
 const apps = useAppsStore()
 const route = useRoute()
+const router = useRouter()
 
 // App routes are full-bleed: the apps lay out their own full-height chrome.
 const flushContent = computed(() => route.name === 'app')
@@ -22,10 +23,14 @@ const publicPage = computed(() => route.meta.public === true)
 // Installed apps come from the API, so they can only load once authenticated;
 // the sidebar shows builtins in the meantime. Loaded here rather than in a
 // consumer: the sidebar, the palette, Settings and AppView all read the store.
+// Losing the session (expired cookie at boot, 401 mid-session) clears the auth
+// state outside any navigation, so the router guard never runs: send the user
+// to the login page from here.
 watch(
   () => auth.isAuthenticated,
   authed => {
     if (authed) apps.load().catch(() => {})
+    else if (route.meta.auth) router.replace({ name: 'login' })
   },
   { immediate: true }
 )
