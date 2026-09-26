@@ -25,6 +25,8 @@ import { safeUrl } from '../../lib/url'
 import { facesOf } from '../photos/faces'
 import {
   findDuplicateGroups,
+  normalizeEmail,
+  normalizePhone,
   suggestedSurvivor,
   type DuplicateGroup,
   type DuplicateReason
@@ -675,10 +677,41 @@ const duplicateGroups = computed(() => findDuplicateGroups(allContacts.value))
 
 const groupKey = (group: DuplicateGroup) => group.contacts[0].id
 
+// Values held by more than one contact of the group, so the card can show
+// what the candidates have in common next to what sets them apart.
+function sharedValues(values: string[][]): Set<string> {
+  const seen = new Set<string>()
+  const shared = new Set<string>()
+  for (const list of values) {
+    for (const value of new Set(list)) {
+      if (seen.has(value)) shared.add(value)
+      seen.add(value)
+    }
+  }
+  return shared
+}
+
 const duplicateRows = computed(() =>
   duplicateGroups.value.map(group => {
     const key = groupKey(group)
     const survivorId = survivorChoice.value[key] ?? suggestedSurvivor(group).id
+    const emailsOf = (contact: Entry) =>
+      getEmails(contact)
+        .map(email => email.value)
+        .filter(Boolean)
+    const phonesOf = (contact: Entry) =>
+      getPhones(contact)
+        .map(phone => phone.value)
+        .filter(Boolean)
+    const sharedEmails = sharedValues(
+      group.contacts.map(contact => emailsOf(contact).map(normalizeEmail))
+    )
+    const sharedPhones = sharedValues(
+      group.contacts.map(contact => phonesOf(contact).map(normalizePhone))
+    )
+    const sharedBirthdays = sharedValues(
+      group.contacts.map(contact => [fld(contact, 'birthday')].filter(Boolean))
+    )
     return {
       key,
       group,
@@ -689,14 +722,31 @@ const duplicateRows = computed(() =>
         name: contactName(contact),
         initials: getInitials(contactName(contact)),
         photo: fld(contact, 'photo'),
-        summary: [
-          fld(contact, 'org'),
-          getEmails(contact)[0]?.value,
-          getPhones(contact)[0]?.value,
-          `added ${formatDate(contact.inserted_at)}`
+        org: fld(contact, 'org'),
+        added: formatDate(contact.inserted_at),
+        fields: [
+          {
+            label: 'Email',
+            values: emailsOf(contact).map(text => ({
+              text,
+              shared: sharedEmails.has(normalizeEmail(text))
+            }))
+          },
+          {
+            label: 'Phone',
+            values: phonesOf(contact).map(text => ({
+              text,
+              shared: sharedPhones.has(normalizePhone(text))
+            }))
+          },
+          {
+            label: 'Birthday',
+            values: [fld(contact, 'birthday')].filter(Boolean).map(text => ({
+              text,
+              shared: sharedBirthdays.has(text)
+            }))
+          }
         ]
-          .filter(Boolean)
-          .join(' · ')
       }))
     }
   })
@@ -1505,33 +1555,62 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           class="ct-dup-group"
         >
           <legend class="ct-dup-reasons">{{ row.reasons }}</legend>
-          <label
-            v-for="item in row.contacts"
-            :key="item.contact.id"
-            class="ct-dup-row"
-            :class="{ 'ct-dup-row--keep': item.contact.id === row.survivorId }"
-          >
-            <input
-              type="radio"
-              :name="'keep-' + row.key"
-              :value="item.contact.id"
-              :checked="item.contact.id === row.survivorId"
-              @change="chooseSurvivor(row.key, item.contact.id)"
-            />
-            <span v-if="item.photo" class="ct-avatar ct-avatar--photo">
-              <img :src="item.photo" alt="" loading="lazy" />
-            </span>
-            <span v-else class="ct-avatar" :style="avatarStyle(item.name)">{{
-              item.initials
-            }}</span>
-            <span class="ct-dup-body">
-              <span class="ct-dup-name">{{ item.name }}</span>
-              <span class="ct-dup-summary">{{ item.summary }}</span>
-            </span>
-            <span class="ct-dup-keep">{{
-              item.contact.id === row.survivorId ? 'keep' : ''
-            }}</span>
-          </label>
+          <div class="ct-dup-cards">
+            <label
+              v-for="item in row.contacts"
+              :key="item.contact.id"
+              class="ct-dup-card"
+              :class="{
+                'ct-dup-card--keep': item.contact.id === row.survivorId
+              }"
+            >
+              <span class="ct-dup-head">
+                <input
+                  type="radio"
+                  class="ct-dup-radio"
+                  :name="'keep-' + row.key"
+                  :value="item.contact.id"
+                  :checked="item.contact.id === row.survivorId"
+                  @change="chooseSurvivor(row.key, item.contact.id)"
+                />
+                <span v-if="item.photo" class="ct-avatar ct-avatar--photo">
+                  <img :src="item.photo" alt="" loading="lazy" />
+                </span>
+                <span
+                  v-else
+                  class="ct-avatar"
+                  :style="avatarStyle(item.name)"
+                  >{{ item.initials }}</span
+                >
+                <span class="ct-dup-title">
+                  <span class="ct-dup-name">{{ item.name }}</span>
+                  <span v-if="item.org" class="ct-dup-org">{{ item.org }}</span>
+                </span>
+                <span
+                  v-if="item.contact.id === row.survivorId"
+                  class="ct-dup-keep"
+                  >keep</span
+                >
+              </span>
+              <dl class="ct-dup-fields">
+                <template v-for="field in item.fields" :key="field.label">
+                  <dt>{{ field.label }}</dt>
+                  <dd v-if="field.values.length">
+                    <span
+                      v-for="value in field.values"
+                      :key="value.text"
+                      class="ct-dup-value"
+                      :class="{ 'ct-dup-value--shared': value.shared }"
+                      >{{ value.text }}</span
+                    >
+                  </dd>
+                  <dd v-else class="ct-dup-empty">-</dd>
+                </template>
+                <dt>Added</dt>
+                <dd class="ct-dup-added">{{ item.added }}</dd>
+              </dl>
+            </label>
+          </div>
           <div class="ct-dup-actions">
             <button
               type="button"
@@ -2242,7 +2321,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   border-radius: 12px;
   padding: 1.5rem;
   width: 100%;
-  max-width: 620px;
+  max-width: 760px;
   max-height: 85vh;
   overflow-y: auto;
 }
@@ -2279,31 +2358,54 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   letter-spacing: 0.1em;
   color: var(--primary);
 }
-.ct-dup-row {
+.ct-dup-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.6rem;
+}
+.ct-dup-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.ct-dup-card:hover {
+  background: var(--bg-hover);
+}
+.ct-dup-card--keep {
+  border-color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.08);
+}
+.ct-dup-head {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 0.45rem 0.4rem;
-  border-radius: 8px;
-  cursor: pointer;
 }
-.ct-dup-row:hover {
-  background: var(--bg-hover);
+.ct-dup-radio {
+  accent-color: var(--primary);
+  flex-shrink: 0;
 }
-.ct-dup-row--keep {
-  background: rgba(var(--primary-rgb), 0.08);
-}
-.ct-dup-body {
+.ct-dup-title {
   display: flex;
   flex-direction: column;
   min-width: 0;
   flex: 1;
 }
 .ct-dup-name {
-  font-size: 0.9rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.ct-dup-summary {
-  font-size: 0.78rem;
+.ct-dup-org {
+  font-size: 0.8rem;
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2311,12 +2413,49 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 .ct-dup-keep {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--primary);
-  width: 3rem;
-  text-align: right;
+}
+/* Label column in mono, values wrap instead of being cut: comparing two
+   emails is the whole point of the card. */
+.ct-dup-fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.3rem 0.75rem;
+  margin: 0;
+  font-size: 0.85rem;
+}
+.ct-dup-fields dt {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding-top: 0.1rem;
+}
+.ct-dup-fields dd {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  min-width: 0;
+}
+.ct-dup-value {
+  overflow-wrap: anywhere;
+}
+.ct-dup-value--shared {
+  color: var(--primary);
+}
+.ct-dup-empty,
+.ct-dup-added {
+  color: var(--text-muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ct-dup-card {
+    transition: none;
+  }
 }
 .ct-dup-actions {
   display: flex;

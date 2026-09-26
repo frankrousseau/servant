@@ -503,9 +503,13 @@ describe('ContactsApp', () => {
     const group = wrapper.find('.ct-dup-group')
     expect(group.find('.ct-dup-reasons').text()).toBe('same email')
     // The fuller card (org set) is preselected as the survivor.
-    expect(group.find('.ct-dup-row--keep .ct-dup-name').text()).toBe(
+    expect(group.find('.ct-dup-card--keep .ct-dup-name').text()).toBe(
       'Alice Martin'
     )
+    // Both emails show, flagged as the value the two cards share.
+    expect(
+      group.findAll('.ct-dup-value--shared').map(value => value.text())
+    ).toEqual(['alice@x.io', 'Alice@x.io'])
 
     await group.find('.ct-btn--primary').trigger('click')
     await flushPromises()
