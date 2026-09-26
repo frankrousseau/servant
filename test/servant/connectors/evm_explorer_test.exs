@@ -69,6 +69,35 @@ defmodule Servant.Connectors.EVM.ExplorerTest do
                Explorer.list_transactions("0xwallet", "https://blockscout.test/api", api_key: "")
     end
 
+    test "retries an explorer rate-limit answer, then returns the results" do
+      tx = %{"hash" => "0xabc", "blockNumber" => "42"}
+      limited = "Max calls per sec rate limit reached (3/sec)"
+
+      Req.Test.expect(Servant.HTTP, fn conn ->
+        Req.Test.json(conn, %{"status" => "0", "message" => "NOTOK", "result" => limited})
+      end)
+
+      Req.Test.expect(Servant.HTTP, fn conn ->
+        Req.Test.json(conn, %{"status" => "1", "result" => [tx]})
+      end)
+
+      assert {:ok, [^tx]} =
+               Explorer.list_transactions("0xwallet", "https://explorer.test/api", api_key: "KEY")
+    end
+
+    test "does not retry other explorer errors" do
+      Req.Test.expect(Servant.HTTP, fn conn ->
+        Req.Test.json(conn, %{
+          "status" => "0",
+          "message" => "NOTOK",
+          "result" => "Missing/Invalid API Key"
+        })
+      end)
+
+      assert {:error, "Missing/Invalid API Key"} =
+               Explorer.list_transactions("0xwallet", "https://explorer.test/api", api_key: "KEY")
+    end
+
     test "follows pages until one comes back short" do
       full_page = for i <- 1..1000, do: %{"hash" => "0x#{i}", "blockNumber" => "#{i}"}
 
@@ -124,7 +153,7 @@ defmodule Servant.Connectors.EVM.ExplorerTest do
       end)
 
       Req.Test.expect(Servant.HTTP, fn conn ->
-        Req.Test.json(conn, %{"status" => "0", "result" => "Max rate limit reached"})
+        Req.Test.json(conn, %{"status" => "0", "result" => "Query Timeout occured"})
       end)
 
       assert {:ok, results} = Explorer.list_transactions("0xwallet", "https://explorer.test/api")

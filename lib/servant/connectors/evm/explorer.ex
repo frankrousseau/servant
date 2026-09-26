@@ -7,8 +7,14 @@ defmodule Servant.Connectors.EVM.Explorer do
   Blockscout instances ignore both parameters.
   """
 
+  alias Servant.Connectors.EVM.RateLimiter
+
   @page_size 1000
   @max_pages 50
+  # Retries of an explorer "rate limit" answer (HTTP 200, so Req never sees
+  # it): another client of the same key may still burst past our own pacing.
+  @rate_limit_retries 3
+  @rate_limit_backoff_ms 1_100
 
   def list_transactions(address, explorer_url, opts \\ []) do
     fetch_all_pages("txlist", address, explorer_url, opts)
@@ -56,9 +62,8 @@ defmodule Servant.Connectors.EVM.Explorer do
       |> maybe_put(:chainid, Keyword.get(opts, :chain_id))
       |> maybe_put(:apikey, Keyword.get(opts, :api_key))
 
-    case do_request(explorer_url, params) do
+    case request_paced(explorer_url, params, @rate_limit_retries) do
       {:ok, results} when is_list(results) and length(results) == @page_size ->
-        Servant.HTTP.throttle(200)
         fetch_all_pages(action, address, explorer_url, opts, page + 1, acc ++ results)
 
       {:ok, results} when is_list(results) ->
@@ -72,6 +77,28 @@ defmodule Servant.Connectors.EVM.Explorer do
   defp maybe_put(params, _key, nil), do: params
   defp maybe_put(params, _key, ""), do: params
   defp maybe_put(params, key, value), do: Map.put(params, key, value)
+
+  # One queue per API key (Etherscan V2 serves every chain from one URL and
+  # counts calls per key), per explorer URL for keyless Blockscout instances.
+  defp request_paced(url, params, retries_left) do
+    RateLimiter.wait(params[:apikey] || url)
+
+    case do_request(url, params) do
+      {:error, message} when is_binary(message) and retries_left > 0 ->
+        if rate_limited?(message) do
+          Servant.HTTP.throttle(@rate_limit_backoff_ms)
+          request_paced(url, params, retries_left - 1)
+        else
+          {:error, message}
+        end
+
+      result ->
+        result
+    end
+  end
+
+  @doc false
+  def rate_limited?(message), do: String.match?(message, ~r/rate limit/i)
 
   # Retries (429, 5xx, transport errors) are Req's job: it backs off
   # exponentially and honors retry-after on safe methods.

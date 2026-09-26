@@ -18,6 +18,7 @@ defmodule Servant.Application do
         # DynamicSupervisor + Scheduler as a rest_for_one unit: a collapse of the
         # worker supervisor must re-run start_all_enabled, or connectors stop
         # syncing until the next full restart.
+        Servant.Connectors.EVM.RateLimiter,
         Servant.Connectors.WorkerSupervisor,
         Servant.Audit.LogBuffer,
         Servant.Auth.Throttle,
