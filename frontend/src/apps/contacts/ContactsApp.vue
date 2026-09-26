@@ -303,6 +303,11 @@ async function toggleBirthdayOnDashboard() {
 const mePrefs = ref<Entry | null>(null)
 const meId = computed(() => (mePrefs.value?.data.contact_id as string) || null)
 
+// Once a me contact exists, only it shows the toggle (to unset).
+const showMeToggle = computed(
+  () => !meId.value || meId.value === selected.value?.id
+)
+
 // ----- relations graph view -----
 
 // The graph takes the whole detail column: opening it drops what was on
@@ -1396,14 +1401,13 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             </form>
           </div>
 
-          <div class="ct-section-card">
+          <div
+            v-if="showMeToggle || fld(selected, 'birthday')"
+            class="ct-section-card"
+          >
             <h3 class="ct-section-title">Parameters</h3>
             <div class="ct-param-list">
-              <!-- Once a me contact exists, only it shows the toggle (to unset). -->
-              <label
-                v-if="!meId || meId === selected.id"
-                class="ct-dash-toggle"
-              >
+              <label v-if="showMeToggle" class="ct-dash-toggle">
                 <input
                   type="checkbox"
                   :checked="meId === selected.id"
@@ -2094,8 +2098,6 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 .ct-detail-footer {
   margin-top: 0.5rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--border);
   display: flex;
   justify-content: flex-end;
 }
