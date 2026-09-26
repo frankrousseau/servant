@@ -37,4 +37,25 @@ defmodule ServantWeb.SpaControllerTest do
     assert get_resp_header(conn, "x-content-type-options") == ["nosniff"]
     assert get_resp_header(conn, "x-frame-options") == ["DENY"]
   end
+
+  # A public file missing from static_paths falls through to the SPA fallback
+  # in production (Vite serves it in dev, so nothing shows until deployed).
+  test "every frontend/public file the SPA references is served" do
+    frontend = Path.expand("../../../frontend", __DIR__)
+
+    sources =
+      [
+        Path.join(frontend, "index.html")
+        | Path.wildcard(Path.join(frontend, "src/**/*.{vue,ts}"))
+      ]
+      |> Enum.map_join("\n", &File.read!/1)
+
+    missing =
+      for name <- File.ls!(Path.join(frontend, "public")),
+          String.contains?(sources, "/" <> name),
+          name not in ServantWeb.static_paths(),
+          do: name
+
+    assert missing == []
+  end
 end

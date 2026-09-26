@@ -18,10 +18,14 @@ defmodule ServantWeb do
   """
 
   # `models` holds the face-detection weights (frontend/public/models).
+  # Every other file of frontend/public referenced by the SPA (logo.svg on the
+  # public share page, strava-logo.png) must be listed too, or it falls
+  # through to the SPA fallback and renders as a broken image.
   # "swagger" holds the SwaggerUI assets the frontend build copies in, served
   # to the /api/docs page (ServantWeb.DocsController).
   def static_paths,
-    do: ~w(assets fonts images models swagger favicon.ico favicon.svg robots.txt index.html)
+    do:
+      ~w(assets fonts images models swagger favicon.ico favicon.svg logo.svg strava-logo.png robots.txt index.html)
 
   def router do
     quote do
