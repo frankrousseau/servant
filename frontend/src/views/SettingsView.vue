@@ -407,15 +407,23 @@ const photoShareError = ref('')
 const copiedShareId = ref('')
 let copiedShareTimer: ReturnType<typeof setTimeout> | undefined
 
+function shareLabel(share: PhotoShare) {
+  if (share.name) return share.name
+  return [
+    ...share.tags.map(tag => `#${tag}`),
+    ...(share.people ?? []).map(person => person.name)
+  ].join(' ')
+}
+
 const photoShareRows = computed(() =>
   photoShares.value.map(share => ({
     share,
-    label: share.name || share.tags.map(tag => `#${tag}`).join(' '),
+    label: shareLabel(share),
     rule:
-      share.tags.length > 1
+      share.tags.length + (share.people?.length ?? 0) > 1
         ? share.match === 'all'
-          ? 'all tags'
-          : 'any tag'
+          ? 'all of them'
+          : 'any of them'
         : '',
     url: new URL(share.path, window.location.origin).toString(),
     created: formatDate(share.inserted_at)
@@ -444,7 +452,7 @@ async function copyPhotoShare(share: PhotoShare) {
 }
 
 async function revokePhotoShare(share: PhotoShare) {
-  const label = share.name || share.tags.map(tag => `#${tag}`).join(' ')
+  const label = shareLabel(share)
   const ok = await ask({
     title: 'Revoke link',
     message: `Revoke "${label}"? Anyone holding the link loses access at once.`,
@@ -683,7 +691,8 @@ onMounted(() => {
       <div class="card-body">
         <p class="tk-hint">
           Public links created from Photos &gt; Share. Anyone holding one sees
-          the photos carrying its tags; revoking a link cuts access at once.
+          the photos carrying its tags or people; revoking a link cuts access at
+          once.
         </p>
         <p v-if="photoShareError" class="msg msg-error">
           {{ photoShareError }}

@@ -23,11 +23,10 @@ defmodule ServantWeb.PhotoShareControllerTest do
     assert json_response(get(build_conn(), ~p"/api/shares/#{created["token"]}"), 404)
   end
 
-  test "an empty tag list is rejected", %{conn: conn} do
+  test "a link with neither tags nor people is rejected", %{conn: conn} do
     {conn, _user} = register_and_log_in_user(conn)
-    # Rejected by the spec validation before the action runs.
     conn = post(conn, ~p"/api/photo_shares", %{"tags" => []})
-    assert json_response(conn, 422)["error"] =~ "tags"
+    assert %{"tags" => ["pick at least one tag or person"]} = json_response(conn, 422)["errors"]
   end
 
   test "API tokens cannot manage links (session only)", %{conn: conn} do

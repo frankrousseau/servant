@@ -35,17 +35,24 @@ defmodule ServantWeb.PhotoShareController do
   operation(:create,
     summary: "Create a photo-feed link",
     description:
-      "Session-only. Anyone opening `/share/<token>` then sees the photos carrying the tags (any of them, or all of them with `match: all`); the feed follows later tag changes.",
+      "Session-only. Anyone opening `/share/<token>` then sees the photos carrying the tags or people (any of them, or all of them with `match: all`); the feed follows later tag changes. At least one tag or person is required.",
     request_body:
       {"Share attributes", "application/json",
        %Schema{
          type: :object,
          properties: %{
            name: %Schema{type: :string, nullable: true},
-           tags: %Schema{type: :array, items: %Schema{type: :string}, minItems: 1},
+           tags: %Schema{type: :array, items: %Schema{type: :string}},
+           people: %Schema{
+             type: :array,
+             items: %Schema{
+               type: :object,
+               properties: %{id: %Schema{type: :string}, name: %Schema{type: :string}},
+               required: [:id]
+             }
+           },
            match: %Schema{type: :string, enum: ["any", "all"]}
-         },
-         required: [:tags]
+         }
        }},
     responses: [
       created:

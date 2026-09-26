@@ -472,11 +472,12 @@ function setFilter(opts: { tag?: string; person?: string }) {
   }
 }
 
-// ----- share links (public photo feeds over one or more tags) -----
+// ----- share links (public photo feeds over tags and people) -----
 
 const shareModalActive = ref(false)
 const shares = ref<PhotoShare[]>([])
 const shareTags = ref<string[]>([])
+const sharePeople = ref<Person[]>([])
 const shareMatch = ref<'any' | 'all'>('any')
 const shareName = ref('')
 const shareBusy = ref(false)
@@ -485,18 +486,26 @@ const copiedShareId = ref('')
 let copiedTimer: ReturnType<typeof setTimeout> | undefined
 
 const SHARE_MATCH_OPTIONS = [
-  { value: 'any', label: 'Photos with any of these tags' },
-  { value: 'all', label: 'Photos with all of these tags' }
+  { value: 'any', label: 'Photos with any of these' },
+  { value: 'all', label: 'Photos with all of these' }
 ]
+
+const shareCriteriaCount = computed(
+  () => shareTags.value.length + sharePeople.value.length
+)
+const sharePeopleIds = computed(
+  () => new Set(sharePeople.value.map(person => person.id))
+)
 
 const shareRows = computed(() =>
   shares.value.map(share => ({
     share,
     label:
       share.name ||
-      share.tags
-        .map(tag => `#${tag}`)
-        .join(share.match === 'all' ? ' + ' : ', '),
+      [
+        ...share.tags.map(tag => `#${tag}`),
+        ...(share.people || []).map(person => person.name)
+      ].join(share.match === 'all' ? ' + ' : ', '),
     url: new URL(share.path, window.location.origin).toString()
   }))
 )
@@ -509,6 +518,9 @@ async function shareRequest<T>(path: string, init?: RequestInit): Promise<T> {
 
 async function openShareModal() {
   shareTags.value = tagFilter.value ? [tagFilter.value] : []
+  sharePeople.value = allPeople.value.filter(
+    person => person.id === peopleFilter.value
+  )
   shareMatch.value = 'any'
   shareName.value = ''
   shareError.value = ''
@@ -528,11 +540,16 @@ function toggleShareTag(tag: string) {
     ? shareTags.value.filter(selected => selected !== tag)
     : [...shareTags.value, tag]
 }
+function toggleSharePerson(person: Person) {
+  sharePeople.value = sharePeopleIds.value.has(person.id)
+    ? sharePeople.value.filter(selected => selected.id !== person.id)
+    : [...sharePeople.value, person]
+}
 function onShareMatchChange(value: string) {
   shareMatch.value = value === 'all' ? 'all' : 'any'
 }
 async function createShare() {
-  if (!shareTags.value.length || shareBusy.value) return
+  if (!shareCriteriaCount.value || shareBusy.value) return
   shareBusy.value = true
   shareError.value = ''
   try {
@@ -541,6 +558,7 @@ async function createShare() {
       body: JSON.stringify({
         name: shareName.value.trim() || null,
         tags: shareTags.value,
+        people: sharePeople.value,
         match: shareMatch.value
       })
     })
@@ -1159,7 +1177,11 @@ onUnmounted(() => {
         <button v-if="anyFaces" class="ph-btn" @click="openFaceModal">
           Faces
         </button>
-        <button v-if="allTags.length" class="ph-btn" @click="openShareModal">
+        <button
+          v-if="allTags.length || allPeople.length"
+          class="ph-btn"
+          @click="openShareModal"
+        >
           Share
         </button>
         <button class="ph-btn" @click="enterSelect">Select</button>
@@ -1519,11 +1541,12 @@ onUnmounted(() => {
       <div class="ph-modal ph-modal--share">
         <h3 id="ph-share-title" class="ph-modal-title">Share a photo feed</h3>
         <p class="ph-share-help">
-          Anyone with the link sees the photos carrying the tags you pick,
-          including the ones you tag later. Nothing else is exposed.
+          Anyone with the link sees the photos carrying the tags and people you
+          pick, including the ones you tag later. Nothing else is exposed, not
+          even the names of the people.
         </p>
-        <div class="ph-modal-section-label">Tags</div>
-        <div class="ph-modal-suggestions">
+        <div v-if="allTags.length" class="ph-modal-section-label">Tags</div>
+        <div v-if="allTags.length" class="ph-modal-suggestions">
           <button
             v-for="tag in allTags"
             :key="tag"
@@ -1538,8 +1561,24 @@ onUnmounted(() => {
             {{ tag }}
           </button>
         </div>
+        <div v-if="allPeople.length" class="ph-modal-section-label">People</div>
+        <div v-if="allPeople.length" class="ph-modal-suggestions">
+          <button
+            v-for="person in allPeople"
+            :key="person.id"
+            type="button"
+            class="ph-modal-suggestion"
+            :class="{
+              'ph-modal-suggestion--active': sharePeopleIds.has(person.id)
+            }"
+            :aria-pressed="sharePeopleIds.has(person.id)"
+            @click="toggleSharePerson(person)"
+          >
+            {{ person.name }}
+          </button>
+        </div>
         <ComboBox
-          v-if="shareTags.length > 1"
+          v-if="shareCriteriaCount > 1"
           class="ph-modal-input"
           :model-value="shareMatch"
           :options="SHARE_MATCH_OPTIONS"
@@ -1559,7 +1598,7 @@ onUnmounted(() => {
           <button class="ph-btn" @click="closeShareModal">Close</button>
           <button
             class="ph-btn ph-btn--primary"
-            :disabled="!shareTags.length || shareBusy"
+            :disabled="!shareCriteriaCount || shareBusy"
             autofocus
             @click="createShare"
           >

@@ -1,9 +1,10 @@
 defmodule Servant.PhotoShares do
   @moduledoc """
   Public photo feeds: a share is a random-token link over the owner's photos
-  carrying one or more tags (`any` of them, or `all` of them). Anyone holding
-  the link sees those photos, and only those: the JSON feed exposes a few
-  neutral fields per photo (no EXIF location, no people), and the file route
+  carrying one or more tags or people (`any` of them, or `all` of them).
+  Anyone holding the link sees those photos, and only those: the JSON feed
+  exposes a few neutral fields per photo (no EXIF location, no people, not
+  even the people the share selects on), and the file route
   serves a file only when it belongs to a photo currently in the feed.
 
   The token is stored as-is (not hashed) so the owner can copy the link again
@@ -53,7 +54,8 @@ defmodule Servant.PhotoShares do
 
   @doc """
   The owner's photos currently in the feed, newest first: `any` keeps a photo
-  carrying at least one of the share's tags, `all` one carrying every tag.
+  carrying at least one of the share's tags or people, `all` one carrying
+  every one of them.
   """
   @spec photos(PhotoShare.t()) :: [Entry.t()]
   def photos(%PhotoShare{} = share) do
@@ -64,18 +66,22 @@ defmodule Servant.PhotoShares do
 
   @doc "Whether a photo entry belongs to the share's feed."
   @spec in_feed?(PhotoShare.t(), Entry.t()) :: boolean()
-  def in_feed?(%PhotoShare{tags: tags, match: match}, %Entry{data: data}) do
-    photo_tags =
-      case data["tags"] do
-        list when is_list(list) -> Enum.filter(list, &is_binary/1)
-        _ -> []
-      end
+  def in_feed?(%PhotoShare{tags: tags, people: people, match: match}, %Entry{data: data}) do
+    photo_tags = for tag <- list(data["tags"]), is_binary(tag), do: {:tag, tag}
+    photo_people = for %{"id" => id} <- list(data["people"]), do: {:person, id}
+    held = MapSet.new(photo_tags ++ photo_people)
+
+    wanted =
+      Enum.map(tags || [], &{:tag, &1}) ++ Enum.map(people || [], &{:person, &1["id"]})
 
     case match do
-      "all" -> Enum.all?(tags, &(&1 in photo_tags))
-      _ -> Enum.any?(tags, &(&1 in photo_tags))
+      "all" -> Enum.all?(wanted, &MapSet.member?(held, &1))
+      _ -> Enum.any?(wanted, &MapSet.member?(held, &1))
     end
   end
+
+  defp list(value) when is_list(value), do: value
+  defp list(_value), do: []
 
   @doc """
   Resolves a storage-relative path requested through the share's file route:

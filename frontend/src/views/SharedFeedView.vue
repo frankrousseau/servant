@@ -39,7 +39,12 @@ watch(() => route.params.token, load, { immediate: true })
 
 const title = computed(() => {
   if (!feed.value) return 'Shared photos'
-  return feed.value.name || feed.value.tags.map(tag => `#${tag}`).join(' ')
+  // A people-only link without a name: the feed withholds who it is about.
+  return (
+    feed.value.name ||
+    feed.value.tags.map(tag => `#${tag}`).join(' ') ||
+    'Shared photos'
+  )
 })
 
 // The join word doubles as the match rule: "beach + family" needs both tags,

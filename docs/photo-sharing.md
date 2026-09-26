@@ -1,7 +1,8 @@
 # Sharing a photo feed by link
 
-The Photos app can publish a **public link over one or more tags**: anyone
-holding the link sees the photos carrying those tags, in a read-only gallery,
+The Photos app can publish a **public link over one or more tags or people**:
+anyone holding the link sees the photos carrying those tags or people (the
+contacts named on a photo), in a read-only gallery,
 without an account. The feed is computed when the link is opened, so photos
 you tag later show up on their own, and untagging a photo removes it. That
 is what makes it a feed rather than an album snapshot: tag the photos of an
@@ -10,11 +11,13 @@ ongoing trip as you go, share the link once.
 ## Creating a link
 
 1. In **Photos**, click **Share** in the toolbar (the button appears once at
-   least one photo carries a tag).
-2. Pick one or more tags. With several tags, choose whether the feed keeps
-   photos carrying **any** of them (union) or **all** of them (intersection).
+   least one photo carries a tag or a person).
+2. Pick tags, people, or both. With several, choose whether the feed keeps
+   photos carrying **any** of them (union) or **all** of them (intersection):
+   "Alice + beach" is the beach photos Alice is on.
 3. Optionally name the link (the name titles the public page; otherwise the
-   tags do), then **Create link**. The URL is copied to the clipboard.
+   tags do, and a people-only link reads "Shared photos", since the page never
+   names anyone), then **Create link**. The URL is copied to the clipboard.
 
 The same dialog lists the existing links, each with **Copy**, **Open** and
 **Revoke**; **Settings > API Tokens > Shared photo links** lists them too,

@@ -153,6 +153,8 @@ export interface PhotoShare {
   id: string
   name: string | null
   tags: string[]
+  /** Contacts tagged on the photos; the name is a label snapshot. */
+  people: { id: string; name: string }[]
   match: 'any' | 'all'
   token: string
   /** Path of the public page on this instance. */

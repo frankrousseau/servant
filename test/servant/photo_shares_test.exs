@@ -87,6 +87,55 @@ defmodule Servant.PhotoSharesTest do
     end
   end
 
+  describe "people" do
+    test "a share can select on people alone, matched by contact id" do
+      u = user()
+      alice = %{"id" => "c-alice", "name" => "Alice"}
+      with_alice = photo(u.id, [], %{"people" => [alice]})
+      _renamed = photo(u.id, [], %{"people" => [%{"id" => "c-bob", "name" => "Alice"}]})
+
+      {:ok, share} =
+        PhotoShares.create_share(u.id, %{"people" => [alice, alice, %{"name" => "no id"}]})
+
+      assert share.people == [alice]
+      assert Enum.map(PhotoShares.photos(share), & &1.id) == [with_alice.id]
+    end
+
+    test "all: a photo needs every tag and every person" do
+      u = user()
+      alice = %{"id" => "c-alice", "name" => "Alice"}
+      both = photo(u.id, ["beach"], %{"people" => [alice]})
+      _beach_only = photo(u.id, ["beach"])
+
+      {:ok, share} =
+        PhotoShares.create_share(u.id, %{
+          "tags" => ["beach"],
+          "people" => [alice],
+          "match" => "all"
+        })
+
+      assert Enum.map(PhotoShares.photos(share), & &1.id) == [both.id]
+    end
+
+    test "the public feed never names the people a share selects on" do
+      u = user()
+      photo(u.id, [], %{"people" => [%{"id" => "c-alice", "name" => "Alice"}]})
+
+      {:ok, share} =
+        PhotoShares.create_share(u.id, %{"people" => [%{"id" => "c-alice", "name" => "Alice"}]})
+
+      feed = PhotoShares.feed_json(share, PhotoShares.photos(share))
+      refute Map.has_key?(feed, :people)
+      refute inspect(feed) =~ "Alice"
+    end
+
+    test "rejects a share with neither tags nor people" do
+      u = user()
+      assert {:error, changeset} = PhotoShares.create_share(u.id, %{"tags" => [], "people" => []})
+      assert %{tags: ["pick at least one tag or person"]} = errors_on(changeset)
+    end
+  end
+
   describe "feed_json/2" do
     test "exposes neutral fields and share-routed file URLs only" do
       u = user()
