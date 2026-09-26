@@ -346,6 +346,9 @@ async function scanFaces() {
 interface ClusterRow {
   cluster: FaceCluster
   assign: string // selected contact id
+  // Faces left out of the tagging ("<photoId>:<index>"): a wrong match in
+  // the group stays unnamed and shows up again at the next scan.
+  excluded: string[]
   done?: string // contact name once tagged
 }
 
@@ -368,11 +371,40 @@ function chipSrc(photoId: string): string {
   return photo ? getThumbPath(photo) : ''
 }
 
+const faceKey = (face: FaceCluster['faces'][number]) =>
+  `${face.photoId}:${face.index}`
+
+// Per-row face lists with their exclusion state, derived once per change
+// instead of per chip in the template.
+const faceRowViews = computed(() =>
+  faceRows.value.map(row => {
+    const excluded = new Set(row.excluded)
+    const faces = row.cluster.faces.map(face => ({
+      face,
+      key: faceKey(face),
+      excluded: excluded.has(faceKey(face)),
+      title: photoById.value.get(face.photoId)?.title || 'Photo'
+    }))
+    const kept = faces.filter(item => !item.excluded).length
+    return { row, faces, kept, excludedCount: faces.length - kept }
+  })
+)
+
+function toggleFaceExcluded(row: ClusterRow, key: string) {
+  row.excluded = row.excluded.includes(key)
+    ? row.excluded.filter(item => item !== key)
+    : [...row.excluded, key]
+}
+
 function openFaceModal() {
   faceRows.value = clusterFaces(
     allPhotos.value,
     namedReferences(allPhotos.value)
-  ).map(c => ({ cluster: c, assign: c.suggestedPersonId || '' }))
+  ).map(c => ({
+    cluster: c,
+    assign: c.suggestedPersonId || '',
+    excluded: []
+  }))
   faceModalActive.value = true
 }
 
@@ -387,8 +419,10 @@ async function nameCluster(row: ClusterRow) {
   try {
     const byPhoto = new Map<string, number[]>()
     for (const r of row.cluster.faces) {
+      if (row.excluded.includes(faceKey(r))) continue
       byPhoto.set(r.photoId, [...(byPhoto.get(r.photoId) || []), r.index])
     }
+    if (!byPhoto.size) return
     for (const [photoId, indexes] of byPhoto) {
       const photo = photoById.value.get(photoId)
       if (!photo) continue
@@ -1392,39 +1426,64 @@ onUnmounted(() => {
               : 'Everyone is tagged.'
           }}
         </p>
+        <p v-if="faceRows.length" class="ph-faces-help">
+          Click a face that does not belong to the group to leave it out; it
+          stays unnamed.
+        </p>
         <div
-          v-for="(row, rowIndex) in faceRows"
+          v-for="(view, rowIndex) in faceRowViews"
           :key="rowIndex"
           class="ph-face-row"
-          :class="{ 'ph-face-row--done': row.done }"
+          :class="{ 'ph-face-row--done': view.row.done }"
         >
-          <div class="ph-face-chips">
-            <FaceChip
-              v-for="(face, faceIndex) in row.cluster.faces.slice(0, 5)"
-              :key="faceIndex"
-              :src="chipSrc(face.photoId)"
-              :box="face.face.box"
-            />
-          </div>
-          <span class="ph-face-count"
-            >{{ row.cluster.faces.length }}
-            {{ row.cluster.faces.length === 1 ? 'face' : 'faces' }}</span
-          >
-          <span v-if="row.done" class="ph-face-done">{{ row.done }}</span>
-          <template v-else>
-            <ComboBox
-              class="ph-face-pick"
-              v-model="row.assign"
-              :options="contactOptions"
-            />
-            <button
-              class="ph-btn ph-btn--primary"
-              :disabled="!row.assign || namingCluster"
-              @click="nameCluster(row)"
+          <div class="ph-face-head">
+            <span class="ph-face-count"
+              >{{ view.kept }} {{ view.kept === 1 ? 'face' : 'faces'
+              }}<template v-if="view.excludedCount">
+                ({{ view.excludedCount }} left out)</template
+              ></span
             >
-              Tag
+            <span v-if="view.row.done" class="ph-face-done">{{
+              view.row.done
+            }}</span>
+            <template v-else>
+              <ComboBox
+                class="ph-face-pick"
+                v-model="view.row.assign"
+                :options="contactOptions"
+              />
+              <button
+                class="ph-btn ph-btn--primary"
+                :disabled="!view.row.assign || !view.kept || namingCluster"
+                @click="nameCluster(view.row)"
+              >
+                Tag
+              </button>
+            </template>
+          </div>
+          <div class="ph-face-chips">
+            <button
+              v-for="item in view.faces"
+              :key="item.key"
+              type="button"
+              class="ph-face-toggle"
+              :class="{ 'ph-face-toggle--out': item.excluded }"
+              :aria-pressed="!item.excluded"
+              :aria-label="`Face in ${item.title}`"
+              :title="
+                item.excluded
+                  ? `${item.title}: left out, click to include`
+                  : `${item.title}: click to leave out`
+              "
+              :disabled="!!view.row.done"
+              @click="toggleFaceExcluded(view.row, item.key)"
+            >
+              <FaceChip
+                :src="chipSrc(item.face.photoId)"
+                :box="item.face.face.box"
+              />
             </button>
-          </template>
+          </div>
         </div>
         <div class="ph-modal-actions">
           <button class="ph-btn" @click="faceModalActive = false">Close</button>
@@ -2119,7 +2178,7 @@ onUnmounted(() => {
   gap: 0.5rem;
 }
 .ph-modal--faces {
-  max-width: 620px;
+  max-width: 1100px;
   max-height: 80vh;
   overflow-y: auto;
 }
@@ -2132,11 +2191,16 @@ onUnmounted(() => {
   color: var(--text-muted);
   font-size: 0.88rem;
 }
+.ph-faces-help {
+  margin: -0.5rem 0 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
 .ph-face-row {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 0.6rem;
-  padding: 0.6rem 0;
+  padding: 0.9rem 0;
   border-bottom: 1px solid var(--border);
 }
 .ph-face-row:last-of-type {
@@ -2146,12 +2210,10 @@ onUnmounted(() => {
 .ph-face-row--done {
   opacity: 0.55;
 }
-.ph-face-chips {
+.ph-face-head {
   display: flex;
-  gap: 4px;
-  flex-shrink: 1;
-  min-width: 0;
-  overflow: hidden;
+  align-items: center;
+  gap: 0.6rem;
 }
 .ph-face-count {
   font-family: var(--font-mono);
@@ -2161,13 +2223,48 @@ onUnmounted(() => {
 }
 .ph-face-pick {
   margin-left: auto;
-  width: 180px;
+  width: 220px;
   flex-shrink: 0;
 }
 .ph-face-done {
   margin-left: auto;
   color: var(--primary);
   font-size: 0.85rem;
+}
+/* Every face of the group, wrapping: the whole set is judged at once. */
+.ph-face-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ph-face-toggle {
+  position: relative;
+  display: flex;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+}
+.ph-face-toggle:hover:not(:disabled) {
+  border-color: var(--border);
+}
+.ph-face-toggle:disabled {
+  cursor: default;
+}
+.ph-face-toggle--out {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+.ph-face-toggle--out::after {
+  content: '×';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  color: var(--danger);
 }
 .ph-modal-suggestions {
   display: flex;
