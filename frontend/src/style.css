@@ -313,6 +313,14 @@ select {
   font-family: inherit;
 }
 
+/* Checkboxes and radios keep their intrinsic size: stretched to the text
+   field width, a radio pushes its row's label and avatar out of line. */
+input[type='checkbox'],
+input[type='radio'] {
+  width: auto;
+  padding: 0;
+}
+
 ::placeholder {
   color: var(--text-muted);
   opacity: 0.7;
