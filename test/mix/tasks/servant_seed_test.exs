@@ -36,12 +36,33 @@ defmodule Mix.Tasks.Servant.SeedTest do
       |> Map.new()
 
     for kind <- ~w(contact event calendar note checklist tracker tracker_log
-                   account bank_tx balance prefs invoice article file photo) do
+                   account bank_tx balance prefs invoice article file photo
+                   agent_memory commit activity) do
       assert Map.get(kinds, kind, 0) > 0, "no #{kind} entry seeded"
     end
 
     # Notes went through the Notes context: their wikilinks are in the graph.
     assert Repo.aggregate(from(link in NoteLink, where: link.user_id == ^user.id), :count) > 0
+
+    # Connectors exist with a sync history, but stay on demand: seeded fake
+    # credentials must never reach a real API.
+    connectors =
+      Repo.all(
+        from config in Servant.Connectors.ConnectorConfig, where: config.user_id == ^user.id
+      )
+
+    assert length(connectors) >= 5
+    assert Enum.all?(connectors, &(&1.enabled and &1.schedule == "on_demand"))
+    assert Repo.aggregate(Servant.Connectors.SyncLog, :count) > 0
+
+    # Relations form a network: a contact keeps every link written to it.
+    most_relations =
+      from(entry in Entry, where: entry.user_id == ^user.id and entry.kind == "contact")
+      |> Repo.all()
+      |> Enum.map(&length(&1.data["relations"] || []))
+      |> Enum.max()
+
+    assert most_relations >= 3
 
     # Photos went through the real pipeline: the blob and its thumbnail exist.
     photo = Repo.one!(from entry in Entry, where: entry.kind == "photo", limit: 1)

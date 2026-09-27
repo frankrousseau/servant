@@ -5,8 +5,8 @@ defmodule Mix.Tasks.Servant.Seed do
   Populates the database with random but plausible data for every app screen:
   contacts (birthdays, relations, tags), calendar agendas and events, notes
   with wikilinks, checklists, trackers with their logs, bank transactions with
-  running balances, savings and crypto snapshots, invoices, files and
-  generated photos.
+  running balances, savings and crypto snapshots, invoices, files, generated
+  landscape photos and agent memory files.
 
       $ mix servant.seed
       $ mix servant.seed --user alice
@@ -22,6 +22,9 @@ defmodule Mix.Tasks.Servant.Seed do
 
   alias Servant.Accounts
   alias Servant.Accounts.User
+  alias Servant.AgentMemory
+  alias Servant.Connectors.ConnectorConfig
+  alias Servant.Connectors.SyncLog
   alias Servant.Data
   alias Servant.Notes
   alias Servant.PhotosDav
@@ -62,6 +65,8 @@ defmodule Mix.Tasks.Servant.Seed do
     articles = seed_articles(user.id)
     files = seed_files(user.id)
     photos = seed_photos(user.id, Keyword.get(opts, :photos, 10))
+    agent_memory = seed_agent_memory(user.id)
+    connectors = seed_connectors(user.id)
 
     %{
       "contacts" => length(contacts),
@@ -73,7 +78,9 @@ defmodule Mix.Tasks.Servant.Seed do
       "invoices" => invoices,
       "articles" => articles,
       "files" => files,
-      "photos" => photos
+      "photos" => photos,
+      "agent memory files" => agent_memory,
+      "connectors (with their commits and activities)" => connectors
     }
   end
 
@@ -111,13 +118,13 @@ defmodule Mix.Tasks.Servant.Seed do
 
   # ----- Contacts -----
 
-  @first_names ~w(Alice Bruno Camille David Emma Farid Gabrielle Hugo Ines Jules
-                  Karim Lea Marc Nadia Oscar Paula Quentin Rosa Sami Theo)
-  @last_names ~w(Martin Bernard Dubois Robert Petit Durand Leroy Moreau Simon
-                 Laurent Girard Roux Fontaine Chevalier Gauthier)
-  @orgs ["Acme", "CG Wire", "Mairie", "Studio 41", "Boulangerie Paul", nil, nil]
-  @jobs ["CTO", "Designer", "Prof", "Medecin", "Artisan", nil, nil]
-  @contact_tags ~w(famille travail sport voisins)
+  @first_names ~w(Alice Ben Chloe Daniel Emma Felix Grace Henry Isla Jack
+                  Kate Liam Maya Noah Olivia Paul Quinn Rose Sam Tara)
+  @last_names ~w(Adams Baker Carter Davis Evans Foster Green Hughes Irving
+                 Jones King Lewis Morgan Nolan Parker)
+  @orgs ["Acme", "Northwind", "City Hall", "Studio 41", "Corner Bakery", nil, nil]
+  @jobs ["CTO", "Designer", "Teacher", "Doctor", "Carpenter", nil, nil]
+  @contact_tags ~w(family work sport neighbors)
 
   defp seed_contacts(user_id) do
     last_names = Enum.take(Stream.cycle(Enum.shuffle(@last_names)), 18)
@@ -135,10 +142,11 @@ defmodule Mix.Tasks.Servant.Seed do
           "title" => job,
           "emails" => [%{"value" => email, "type" => "home"}],
           "phones" => [
-            %{"value" => "+336#{:rand.uniform(89_999_999) + 10_000_000}", "type" => "cell"}
+            %{"value" => "+1 555 01#{:rand.uniform(89) + 10}", "type" => "cell"}
           ],
           "birthday" => maybe(0.6, fn -> random_birthday() end),
-          "note" => maybe(0.3, fn -> "Rencontre " <> pick(~w(meetup concert lycee travail)) end),
+          "note" =>
+            maybe(0.3, fn -> "Met at a " <> pick(~w(meetup concert conference party)) end),
           "tags" => Enum.take_random(@contact_tags, :rand.uniform(3) - 1)
         }
 
@@ -167,22 +175,43 @@ defmodule Mix.Tasks.Servant.Seed do
     Date.to_iso8601(Date.new!(year, month, day))
   end
 
-  # A few reciprocal relations so the graph screen has edges to draw.
-  defp link_contacts(user_id, contacts) do
-    contacts
-    |> Enum.take(8)
-    |> Enum.chunk_every(2, 2, :discard)
-    |> Enum.each(fn [a, b] ->
-      type = pick(~w(partner friend sibling colleague))
-      add_relation(user_id, a, b.id, type)
-      add_relation(user_id, b, a.id, type)
-    end)
-  end
+  # A small connected network so the graph screen has something to lay out:
+  # a family, a work team, a sports triangle, bridged by a few friendships.
+  # Pairs index into the contact list; each relation is written both ways.
+  @relation_edges [
+    {0, 1, "partner"},
+    {0, 2, "sibling"},
+    {1, 3, "friend"},
+    {2, 4, "friend"},
+    {4, 5, "colleague"},
+    {4, 6, "colleague"},
+    {5, 6, "colleague"},
+    {6, 7, "friend"},
+    {3, 8, "friend"},
+    {8, 9, "friend"},
+    {9, 10, "friend"},
+    {10, 8, "friend"},
+    {11, 5, "colleague"}
+  ]
 
-  defp add_relation(user_id, contact, other_id, type) do
-    relations = (contact.data["relations"] || []) ++ [%{"contact_id" => other_id, "type" => type}]
-    data = Map.put(contact.data, "relations", relations)
-    {:ok, _entry} = Data.update_entry(user_id, contact.id, %{data: data})
+  defp link_contacts(user_id, contacts) do
+    by_index = contacts |> Enum.with_index() |> Map.new(fn {contact, i} -> {i, contact} end)
+
+    @relation_edges
+    |> Enum.filter(fn {a, b, _type} -> by_index[a] && by_index[b] end)
+    |> Enum.flat_map(fn {a, b, type} ->
+      [{by_index[a], by_index[b].id, type}, {by_index[b], by_index[a].id, type}]
+    end)
+    |> Enum.group_by(fn {contact, _other, _type} -> contact end)
+    # One write per contact: the struct in hand is the pre-link version, so
+    # writing relation by relation would keep only the last one.
+    |> Enum.each(fn {contact, links} ->
+      relations =
+        for {_contact, other_id, type} <- links, do: %{"contact_id" => other_id, "type" => type}
+
+      data = Map.put(contact.data, "relations", relations)
+      {:ok, _entry} = Data.update_entry(user_id, contact.id, %{data: data})
+    end)
   end
 
   # Feeds the virtual Birthdays agenda of the calendar.
@@ -201,22 +230,22 @@ defmodule Mix.Tasks.Servant.Seed do
   # ----- Calendar -----
 
   @event_titles [
-    "Dentiste",
-    "Reunion equipe",
-    "Dejeuner",
-    "Cours de guitare",
-    "Garage",
-    "Apero",
-    "Kine",
-    "Visio client",
-    "Piscine",
-    "Cinema",
-    "Marche",
-    "Coiffeur"
+    "Dentist",
+    "Team meeting",
+    "Lunch",
+    "Guitar lesson",
+    "Car service",
+    "Drinks",
+    "Physio",
+    "Client call",
+    "Swimming",
+    "Movie night",
+    "Farmers market",
+    "Haircut"
   ]
 
   defp seed_calendar(user_id, tz, contacts) do
-    for {name, color} <- [{"Work", "#6c9bd0"}, {"Perso", "#e07c5a"}] do
+    for {name, color} <- [{"Work", "#6c9bd0"}, {"Personal", "#e07c5a"}] do
       {:ok, _cal} =
         Data.create_entry(user_id, %{
           kind: "calendar",
@@ -236,7 +265,7 @@ defmodule Mix.Tasks.Servant.Seed do
       end
 
     recurring =
-      for {title, rec, offset} <- [{"Sport", "weekly", 2}, {"Loyer", "monthly", 5}] do
+      for {title, rec, offset} <- [{"Running club", "weekly", 2}, {"Rent", "monthly", 5}] do
         date = Date.add(Date.utc_today(), offset)
         create_event(user_id, tz, title, date, false, nil, rec)
       end
@@ -268,8 +297,8 @@ defmodule Mix.Tasks.Servant.Seed do
       "end_at" => DateTime.to_iso8601(end_at),
       "all_day" => all_day,
       "location" =>
-        maybe(0.3, fn -> pick(["Nantes", "12 rue Pasteur", "Visio", "Chez Marc"]) end),
-      "calendar" => pick(["Work", "Perso", "Manual"]),
+        maybe(0.3, fn -> pick(["Downtown", "12 Baker Street", "Video call", "Liam's place"]) end),
+      "calendar" => pick(["Work", "Personal", "Manual"]),
       "recurrence" => recurrence,
       "contact_name" => contact && contact.data["display_name"],
       "contact_id" => contact && contact.id
@@ -298,34 +327,34 @@ defmodule Mix.Tasks.Servant.Seed do
 
   # ----- Notes -----
 
-  @note_folders ["", "projets", "recettes", "lectures"]
+  @note_folders ["", "projects", "recipes", "reading"]
 
   defp seed_notes(user_id) do
     titles = [
-      "Idees servant",
-      "Pain au levain",
-      "Voyage Bretagne",
-      "Budget maison",
+      "Servant ideas",
+      "Sourdough bread",
+      "Brittany trip",
+      "Home budget",
       "Ratatouille",
-      "Setup vim",
-      "Livres 2026",
-      "Jardin",
-      "Guitare morceaux",
-      "Velo entretien",
-      "Cadeaux",
-      "Domotique"
+      "Vim setup",
+      "Books 2026",
+      "Garden",
+      "Guitar songs",
+      "Bike maintenance",
+      "Gift ideas",
+      "Home automation"
     ]
 
     for {title, i} <- Enum.with_index(titles) do
       linked = pick(titles -- [title])
 
       body = """
-      Quelques notes sur #{String.downcase(title)}, voir aussi [[#{linked}]].
+      A few notes on #{String.downcase(title)}, see also [[#{linked}]].
 
-      - point #{i + 1} a creuser
-      - #{pick(["a relire", "en cours", "fait", "abandonne"])}
+      - point #{i + 1} to dig into
+      - #{pick(["to review", "in progress", "done", "dropped"])}
 
-      #{pick(~w(#idee #todo #perso #maison))}
+      #{pick(~w(#idea #todo #personal #home))}
       """
 
       {:ok, _note} =
@@ -343,17 +372,17 @@ defmodule Mix.Tasks.Servant.Seed do
 
   defp seed_checklists(user_id) do
     lists = [
-      {"Courses", "Maison", true,
-       [item("Lait"), item("Oeufs"), sub("Bio"), item("Riz"), item("Lessive")]},
-      {"Valise", "Voyages", true,
-       [item("Passeports"), item("Chargeurs"), item("Trousse de toilette"), sub("Brosse a dents")]},
-      {"Administratif", "", false,
+      {"Groceries", "Home", true,
+       [item("Milk"), item("Eggs"), sub("Free range"), item("Rice"), item("Laundry detergent")]},
+      {"Packing list", "Travel", true,
+       [item("Passports"), item("Chargers"), item("Toiletry bag"), sub("Toothbrush")]},
+      {"Paperwork", "", false,
        [
-         item("Payer le loyer", due: Date.add(Date.utc_today(), 8)),
-         item("Declaration impots", due: Date.add(Date.utc_today(), 25)),
-         item("Rdv banque")
+         item("Pay the rent", due: Date.add(Date.utc_today(), 8)),
+         item("Tax return", due: Date.add(Date.utc_today(), 25)),
+         item("Bank appointment")
        ]},
-      {"Routine matin", "", true, [item("Etirements"), item("Cafe"), item("Journal")]}
+      {"Morning routine", "", true, [item("Stretching"), item("Coffee"), item("Journal")]}
     ]
 
     for {title, folder, recurring, items} <- lists do
@@ -365,7 +394,7 @@ defmodule Mix.Tasks.Servant.Seed do
           data: %{
             "folder" => folder,
             "recurring" => recurring,
-            "show_on_dashboard" => title == "Routine matin",
+            "show_on_dashboard" => title == "Morning routine",
             "items" => items
           }
         })
@@ -389,10 +418,10 @@ defmodule Mix.Tasks.Servant.Seed do
 
   defp seed_trackers(user_id) do
     trackers = [
-      {"Guitare", %{"type" => "check", "unit" => nil}},
-      {"Alcool", %{"type" => "count", "unit" => "doses"}},
-      {"Poids", %{"type" => "value", "unit" => "kg"}},
-      {"Depenses",
+      {"Guitar practice", %{"type" => "check", "unit" => nil}},
+      {"Coffee", %{"type" => "count", "unit" => "cups"}},
+      {"Weight", %{"type" => "value", "unit" => "kg"}},
+      {"Spending",
        %{
          "type" => "entry",
          "unit" => "EUR",
@@ -418,9 +447,9 @@ defmodule Mix.Tasks.Servant.Seed do
     by_name = Map.new(created)
 
     logs =
-      log_days(user_id, by_name["Guitare"], fn -> if :rand.uniform(10) <= 6, do: 1 end) +
-        log_days(user_id, by_name["Alcool"], fn -> maybe(0.4, fn -> :rand.uniform(3) end) end) +
-        log_days(user_id, by_name["Poids"], fn ->
+      log_days(user_id, by_name["Guitar practice"], fn -> if :rand.uniform(10) <= 6, do: 1 end) +
+        log_days(user_id, by_name["Coffee"], fn -> maybe(0.8, fn -> :rand.uniform(3) end) end) +
+        log_days(user_id, by_name["Weight"], fn ->
           maybe(0.3, fn -> 73.0 + :rand.uniform(30) / 10 end)
         end)
 
@@ -449,14 +478,14 @@ defmodule Mix.Tasks.Servant.Seed do
   # ----- Finance -----
 
   @spend [
-    {"CARREFOUR MARKET", "courses", 15..90},
-    {"BOULANGERIE", "courses", 2..8},
-    {"SNCF", "transport", 15..60},
-    {"TOTAL ENERGIE", "maison", 40..120},
-    {"AMAZON", "achats", 10..80},
-    {"RESTAURANT", "sorties", 20..70},
-    {"PHARMACIE", "sante", 5..40},
-    {"NETFLIX", "abonnements", 14..14}
+    {"WHOLE FOODS", "groceries", 15..90},
+    {"CORNER BAKERY", "groceries", 2..8},
+    {"RAIL TICKETS", "transport", 15..60},
+    {"CITY POWER", "home", 40..120},
+    {"AMAZON", "shopping", 10..80},
+    {"RESTAURANT", "dining", 20..70},
+    {"PHARMACY", "health", 5..40},
+    {"NETFLIX", "subscriptions", 14..14}
   ]
 
   defp seed_finance(user_id) do
@@ -464,11 +493,11 @@ defmodule Mix.Tasks.Servant.Seed do
       Data.create_entry(user_id, %{
         kind: "account",
         source: "finance_app",
-        title: "Compte courant",
+        title: "Checking account",
         data: %{
           "type" => "bank",
           "currency" => "EUR",
-          "identifier" => "Compte courant",
+          "identifier" => "Checking account",
           "shared" => false
         }
       })
@@ -477,7 +506,7 @@ defmodule Mix.Tasks.Servant.Seed do
       Data.create_entry(user_id, %{
         kind: "account",
         source: "finance_app",
-        title: "Livret A",
+        title: "Savings",
         data: %{"type" => "livret", "currency" => "EUR", "shared" => false}
       })
 
@@ -501,7 +530,7 @@ defmodule Mix.Tasks.Servant.Seed do
         }
       })
 
-    txs = seed_bank_txs(user_id, "Compte courant")
+    txs = seed_bank_txs(user_id, "Checking account")
     snapshots = seed_balances(user_id, savings, wallet)
     3 + 1 + txs + snapshots
   end
@@ -531,8 +560,8 @@ defmodule Mix.Tasks.Servant.Seed do
   defp day_txs(date) do
     fixed =
       case date.day do
-        2 -> [{"VIREMENT SALAIRE", "salaire", 2500.0}]
-        5 -> [{"LOYER AGENCE", "maison", -750.0}]
+        2 -> [{"SALARY ACME", "salary", 2500.0}]
+        5 -> [{"RENT", "home", -750.0}]
         _day -> []
       end
 
@@ -584,7 +613,7 @@ defmodule Mix.Tasks.Servant.Seed do
         Data.create_entry(user_id, %{
           kind: "balance",
           source: "finance_app",
-          title: "Livret A: #{amount} EUR",
+          title: "Savings: #{amount} EUR",
           occurred_at: DateTime.new!(date, ~T[12:00:00]),
           data: %{"account_id" => savings.id, "amount" => amount, "currency" => "EUR"}
         })
@@ -610,7 +639,7 @@ defmodule Mix.Tasks.Servant.Seed do
 
   defp seed_invoices(user_id) do
     invoices =
-      for i <- 0..5, provider <- ["ovh", "free"] do
+      for i <- 0..11, provider <- ["ovh"] do
         date = Date.add(Date.utc_today(), -30 * i - :rand.uniform(5))
         amount = Float.round(:rand.uniform(40) + :rand.uniform(99) / 100, 2)
 
@@ -665,6 +694,180 @@ defmodule Mix.Tasks.Servant.Seed do
     length(titles)
   end
 
+  # ----- Connectors -----
+
+  # Enabled but on demand: the workers start and show as healthy, yet never
+  # sync on their own, so the fake credentials below never reach a real API.
+  # The entries they "imported" (articles, bank transactions, invoices) come
+  # from the sections above; commits and activities are seeded here.
+  @connector_specs [
+    {"rss", "Tech news", %{"url" => "https://example.com/feed.xml"}},
+    {"bank_csv", "Checking account",
+     %{"preset" => "generic", "account_name" => "Checking account"}},
+    {"ovh", "OVH invoices",
+     %{
+       "application_key" => "seed-app-key",
+       "application_secret" => "seed-app-secret",
+       "consumer_key" => "seed-consumer-key"
+     }},
+    {"github", "GitHub", %{"token" => "seed-token", "username" => "demo"}},
+    {"strava", "Strava",
+     %{
+       "client_id" => "seed-client",
+       "client_secret" => "seed-secret",
+       "refresh_token" => "seed-refresh"
+     }},
+    {"ical", "Team calendar",
+     %{"url" => "https://example.com/team.ics", "calendar_name" => "Team"}}
+  ]
+
+  defp seed_connectors(user_id) do
+    for {type, name, config} <- @connector_specs do
+      last_sync = DateTime.add(DateTime.utc_now(:second), -:rand.uniform(50) * 60, :second)
+
+      connector =
+        %ConnectorConfig{user_id: user_id}
+        |> ConnectorConfig.changeset(%{
+          connector_type: type,
+          name: name,
+          enabled: true,
+          schedule: "on_demand",
+          config: config,
+          last_synced_at: last_sync
+        })
+        |> Repo.insert!()
+
+      seed_sync_logs(connector, last_sync)
+    end
+
+    length(@connector_specs) + seed_commits(user_id) + seed_activities(user_id)
+  end
+
+  # A week of runs, newest first; one transient failure keeps the log honest.
+  defp seed_sync_logs(connector, last_sync) do
+    for day <- 0..6 do
+      started = DateTime.add(last_sync, -day * 86_400, :second)
+      failed = day == 4 and connector.connector_type == "strava"
+
+      %SyncLog{}
+      |> SyncLog.changeset(%{
+        connector_config_id: connector.id,
+        status: if(failed, do: "failed", else: "completed"),
+        entries_count: if(failed, do: 0, else: :rand.uniform(12)),
+        error: if(failed, do: "Rate limit exceeded, retrying later"),
+        started_at: started,
+        finished_at: DateTime.add(started, 2 + :rand.uniform(20), :second)
+      })
+      |> Repo.insert!()
+    end
+  end
+
+  @commit_messages [
+    "Add weather widget to the dashboard",
+    "Fix timezone offset in the planting calendar",
+    "Refactor the sowing schedule parser",
+    "Bump dependencies",
+    "Document the API rate limits",
+    "Add frost alerts",
+    "Speed up the plant search",
+    "Handle empty harvest logs"
+  ]
+
+  defp seed_commits(user_id) do
+    for {message, i} <- Enum.with_index(@commit_messages) do
+      repo = pick(["demo/garden-planner", "demo/recipes-api"])
+      sha = Base.encode16(:crypto.strong_rand_bytes(20), case: :lower)
+      at = DateTime.add(DateTime.utc_now(:second), -(i * 26 + :rand.uniform(20)) * 3600, :second)
+
+      {:ok, _commit} =
+        Data.create_entry(user_id, %{
+          kind: "commit",
+          source: "github",
+          external_id: sha,
+          title: "#{repo} - #{message}",
+          occurred_at: at,
+          data: %{
+            "repo" => repo,
+            "sha" => sha,
+            "message" => message,
+            "html_url" => "https://github.com/#{repo}/commit/#{sha}",
+            "author_name" => "Demo",
+            "authored_at" => DateTime.to_iso8601(at)
+          }
+        })
+    end
+
+    length(@commit_messages)
+  end
+
+  @activities [
+    {"Morning run", "Run", 8_200, 2_700},
+    {"Lunch ride", "Ride", 24_500, 3_600},
+    {"Evening run", "Run", 5_400, 1_800},
+    {"Hill repeats", "Run", 10_100, 3_500},
+    {"Sunday long ride", "Ride", 62_000, 9_000},
+    {"Recovery swim", "Swim", 1_500, 2_100}
+  ]
+
+  defp seed_activities(user_id) do
+    for {{name, sport, meters, seconds}, i} <- Enum.with_index(@activities) do
+      at = DateTime.add(DateTime.utc_now(:second), -(i * 2 + 1) * 86_400, :second)
+
+      {:ok, _activity} =
+        Data.create_entry(user_id, %{
+          kind: "activity",
+          source: "strava",
+          external_id: "seed-activity-#{i}",
+          title: name,
+          occurred_at: at,
+          data: %{
+            "sport_type" => sport,
+            "distance" => meters,
+            "distance_km" => Float.round(meters / 1000, 2),
+            "moving_time" => seconds,
+            "elapsed_time" => seconds + 120,
+            "total_elevation_gain" => :rand.uniform(400),
+            "average_speed" => Float.round(meters / seconds, 2)
+          }
+        })
+    end
+
+    length(@activities)
+  end
+
+  # ----- Agent memory -----
+
+  @agent_files [
+    {"memory/garden-planner/MEMORY.md",
+     "# Memory index\n\n- [Stack](stack.md) - Phoenix API + Vue SPA, SQLite\n" <>
+       "- [Release habits](release-habits.md) - small commits, deploy on Fridays\n"},
+    {"memory/garden-planner/stack.md",
+     "---\nname: stack\ndescription: tech stack of the garden planner\n---\n\n" <>
+       "Phoenix JSON API, Vue 3 SPA, SQLite. Weather comes from Open-Meteo.\n"},
+    {"memory/garden-planner/release-habits.md",
+     "---\nname: release-habits\ndescription: how releases go\n---\n\n" <>
+       "One logical commit per change. **Why:** easy reverts.\n"},
+    {"memory/recipes-api/MEMORY.md", "# Memory index\n\n- [API style](api-style.md)\n"},
+    {"memory/recipes-api/api-style.md",
+     "---\nname: api-style\ndescription: JSON conventions\n---\n\n" <>
+       "snake_case keys, ISO 8601 dates, errors as {error: message}.\n"},
+    {"skills/claude/changelog/SKILL.md",
+     "---\nname: changelog\ndescription: Draft a changelog from git history\n---\n\n" <>
+       "# Changelog\n\nGroup commits by theme since the last tag, one line each.\n"},
+    {"skills/shared/code-review/SKILL.md",
+     "---\nname: code-review\ndescription: Review the current diff\n---\n\n" <>
+       "# Code review\n\nCorrectness first, then naming, then tests.\n"},
+    {"rules/garden-planner/style.mdc",
+     "---\ndescription: Code style\nalwaysApply: true\n---\n\n" <>
+       "Prefer small functions and explicit names.\n"}
+  ]
+
+  defp seed_agent_memory(user_id) do
+    files = for {path, body} <- @agent_files, do: %{"path" => path, "body" => body}
+    {:ok, entries} = AgentMemory.upsert_all(user_id, files)
+    length(entries)
+  end
+
   # ----- Files -----
 
   defp seed_files(user_id) do
@@ -672,14 +875,18 @@ defmodule Mix.Tasks.Servant.Seed do
       Data.create_entry(user_id, %{
         kind: "file",
         source: "files_app",
-        title: "Administratif",
-        data: %{"filename" => "Administratif", "is_folder" => true, "parent_id" => nil}
+        title: "Paperwork",
+        data: %{"filename" => "Paperwork", "is_folder" => true, "parent_id" => nil}
       })
 
-    files = [{"notes-reunion.md", nil}, {"bail.txt", folder.id}, {"todo-maison.txt", folder.id}]
+    files = [
+      {"meeting-notes.md", nil},
+      {"lease.txt", folder.id},
+      {"home-todo.txt", folder.id}
+    ]
 
     for {name, parent_id} <- files do
-      content = "Fichier de demonstration genere par mix servant.seed (#{name}).\n"
+      content = "Demo file generated by mix servant.seed (#{name}).\n"
       tmp = Path.join(System.tmp_dir!(), "seed-#{name}")
       File.write!(tmp, content)
 
@@ -709,14 +916,35 @@ defmodule Mix.Tasks.Servant.Seed do
 
   # ----- Photos -----
 
-  @albums ["Camera", "Camera", "Vacances/Bretagne"]
+  @albums ["Camera", "Camera", "Holidays/Brittany"]
+
+  @photo_scenes [
+    {"sunset", "big-sur"},
+    {"sunset", "cornwall"},
+    {"day", "yosemite"},
+    {"day", "tuscany"},
+    {"night", "lofoten"},
+    {"snow", "alps"},
+    {"sea", "brittany"},
+    {"sea", "algarve"}
+  ]
+
+  # Sky gradient top/bottom, sun or moon, far and near hills, sea (or nil).
+  @scene_palettes %{
+    "sunset" => {"#2b1b4a", "#ff9a5a", "#ffe2a8", "#7a4a6e", "#3b2a44", nil},
+    "day" => {"#3d8bd9", "#bfe3ff", "#fff8d6", "#7fae8a", "#3d6b4f", nil},
+    "night" => {"#070b1f", "#24305e", "#e8ecff", "#1c2442", "#0e1428", nil},
+    "snow" => {"#8fb8de", "#eef5fb", "#fffbe8", "#c9d6e3", "#f4f7fa", nil},
+    "sea" => {"#4a90c8", "#d6ecf7", "#fff6d8", "#8aa9a0", "#c9b48a", "#2f6f9f"}
+  }
 
   defp seed_photos(_user_id, count) when count <= 0, do: 0
 
   defp seed_photos(user_id, count) do
     for i <- 1..count do
-      name = "seed-#{System.unique_integer([:positive])}-#{i}.jpg"
-      tmp = noise_jpeg!(name)
+      {scene, place} = pick(@photo_scenes)
+      name = "#{place}-#{scene}-#{i}.jpg"
+      tmp = landscape_jpeg!(name, scene)
       taken = DateTime.add(DateTime.utc_now(), -:rand.uniform(90) * 86_400, :second)
       segments = String.split(pick(@albums), "/") ++ [name]
 
@@ -727,25 +955,35 @@ defmodule Mix.Tasks.Servant.Seed do
     count
   end
 
-  # A colored-noise JPEG: three gaussian-noise bands joined into an sRGB image,
-  # enough for real thumbnails without shipping fixture binaries.
-  defp noise_jpeg!(name) do
-    bands =
-      for _band <- 1..3 do
-        {:ok, band} =
-          Vix.Vips.Operation.gaussnoise(320, 240,
-            mean: 40.0 + :rand.uniform(160),
-            sigma: 20.0 + :rand.uniform(40)
-          )
+  # A stylized landscape rendered from SVG by libvips: random hills and sun
+  # position, so the seeded gallery looks like photos without fixture files.
+  defp landscape_jpeg!(name, scene) do
+    {sky_top, sky_bottom, sun, far, near, sea} = @scene_palettes[scene]
+    sun_x = 120 + :rand.uniform(400)
+    sun_y = 90 + :rand.uniform(110)
+    far_y = 250 + :rand.uniform(40)
+    near_y = 320 + :rand.uniform(40)
 
-        band
-      end
+    sea_layer =
+      if sea, do: ~s(<rect y="#{near_y - 20}" width="640" height="200" fill="#{sea}"/>), else: ""
 
-    {:ok, joined} = Vix.Vips.Operation.bandjoin(bands)
-    {:ok, cast} = Vix.Vips.Operation.cast(joined, :VIPS_FORMAT_UCHAR)
-    {:ok, srgb} = Vix.Vips.Operation.copy(cast, interpretation: :VIPS_INTERPRETATION_sRGB)
+    svg = """
+    <svg xmlns="http://www.w3.org/2000/svg" width="640" height="480">
+      <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#{sky_top}"/><stop offset="1" stop-color="#{sky_bottom}"/>
+      </linearGradient></defs>
+      <rect width="640" height="480" fill="url(#sky)"/>
+      <circle cx="#{sun_x}" cy="#{sun_y}" r="#{28 + :rand.uniform(30)}" fill="#{sun}" opacity="0.9"/>
+      <path d="M0 #{far_y} Q#{80 + :rand.uniform(160)} #{far_y - 90} 320 #{far_y - 10} T640 #{far_y - 30} V480 H0Z" fill="#{far}"/>
+      #{sea_layer}
+      <path d="M0 #{near_y + 40} Q#{:rand.uniform(200)} #{near_y - 40} #{260 + :rand.uniform(120)} #{near_y + 10} T640 #{near_y + 60} V480 H0Z" fill="#{near}"/>
+    </svg>
+    """
+
+    {:ok, image} = Vix.Vips.Image.new_from_buffer(svg)
+    {:ok, flat} = Vix.Vips.Operation.flatten(image)
     path = Path.join(System.tmp_dir!(), name)
-    :ok = Vix.Vips.Image.write_to_file(srgb, path)
+    :ok = Vix.Vips.Image.write_to_file(flat, path)
     path
   end
 
