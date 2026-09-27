@@ -76,6 +76,22 @@ mix phx.server                 # back to the regular servant_dev.db
 `DEV_DB` composes with the seed task (`DEV_DB=demo mix servant.seed`) to maintain several
 populated databases side by side.
 
+### README screenshots
+
+The README gallery (`docs/screenshots/*.webp`) is captured from a seeded throwaway
+database by `frontend/scripts/screenshots.mjs` (playwright-core driving the local
+Chrome; `CHROME_PATH` points it at another Chromium):
+
+```bash
+DEV_DB=screenshots mix servant.seed          # fresh file only: the seed is not re-runnable
+DEV_DB=screenshots PORT=4011 mix phx.server  # serves the built SPA (cd frontend && npm run build first)
+cd frontend && npm run screenshots
+```
+
+The script logs in as `demo`, turns every built-in app on and saves one 1440x900
+WebP per screen. To reseed, delete `servant_dev_screenshots.db` first. Look at
+the captures before committing them: the seed is random.
+
 ## Project structure
 
 Not exhaustive: a map of the main subsystems, not every file.

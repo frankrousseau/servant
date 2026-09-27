@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "prettier --write \"src/**/*.{ts,vue,css}\" \"*.{ts,json,html}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,vue,css}\" \"*.{ts,json,html}\""
+    "format:check": "prettier --check \"src/**/*.{ts,vue,css}\" \"*.{ts,json,html}\"",
+    "screenshots": "node scripts/screenshots.mjs"
   },
   "dependencies": {
     "@fontsource/maple-mono": "^5.3.0",
@@ -34,6 +35,7 @@
     "@vue/test-utils": "^2.4.11",
     "@vue/tsconfig": "^0.9.0",
     "jsdom": "^29.1.1",
+    "playwright-core": "^1.63.0",
     "prettier": "^3.8.4",
     "swagger-ui-dist": "^5.32.11",
     "typescript": "^6.0.3",
