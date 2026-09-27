@@ -252,8 +252,7 @@ const CAL_PALETTE = [
 // per name (djb2 hash), so it survives agendas coming and going.
 function calColor(name: string): string {
   const stored = calendarEntityByName.value.get(name)?.data.color as
-    | string
-    | undefined
+    string | undefined
   if (stored) return stored
   let hash = 5381
   for (let i = 0; i < name.length; i++)
