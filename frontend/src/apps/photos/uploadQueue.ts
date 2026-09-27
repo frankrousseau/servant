@@ -1,5 +1,6 @@
 import type { AppContext, Entry } from '../types'
 import { createUploadQueue } from '../../lib/uploadQueue'
+import { heicExif, withExif } from './exifCarry'
 
 export type { UploadProgress } from '../../lib/uploadQueue'
 
@@ -26,7 +27,8 @@ export const isHeic = (f: File) =>
 // seconds of CPU per photo, so it runs in a Web Worker (heic-to/next,
 // lazy-created on the first HEIC): a big batch keeps the tab responsive.
 // ponytail: the original HEIC is not kept (the JPEG becomes the archived
-// file); revisit if originals matter.
+// file); revisit if originals matter. Its EXIF (date, location, camera) is
+// carried over into the JPEG, since the decode keeps pixels only.
 let heicWorker: Worker | null = null
 
 // A conversion that never settles (heic2any used to do that on iOS 18
@@ -69,7 +71,11 @@ function convertHeic(file: File): Promise<File> {
 
 async function toUploadable(file: File): Promise<File> {
   if (!isHeic(file)) return file
-  return convertHeic(file)
+  const tiff = heicExif(new Uint8Array(await file.arrayBuffer()))
+  const jpeg = await convertHeic(file)
+  if (!tiff) return jpeg
+  const tagged = withExif(new Uint8Array(await jpeg.arrayBuffer()), tiff)
+  return new File([tagged], jpeg.name, { type: 'image/jpeg' })
 }
 
 // Grid thumbnail for videos: decode in the browser (no server-side ffmpeg),
