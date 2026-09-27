@@ -130,7 +130,8 @@ defmodule Mix.Tasks.Servant.Seed do
     last_names = Enum.take(Stream.cycle(Enum.shuffle(@last_names)), 18)
 
     contacts =
-      for {first, last} <- Enum.zip(Enum.shuffle(@first_names), last_names) do
+      for {{first, last}, i} <-
+            Enum.with_index(Enum.zip(Enum.shuffle(@first_names), last_names)) do
         name = "#{first} #{last}"
         org = pick(@orgs)
         job = if org, do: pick(@jobs)
@@ -142,7 +143,8 @@ defmodule Mix.Tasks.Servant.Seed do
           "title" => job,
           "emails" => [%{"value" => email, "type" => "home"}],
           "phones" => [
-            %{"value" => "+1 555 01#{:rand.uniform(89) + 10}", "type" => "cell"}
+            # One number per contact: shared phones would read as duplicates.
+            %{"value" => "+1 555 01#{10 + i}", "type" => "cell"}
           ],
           "birthday" => maybe(0.6, fn -> random_birthday() end),
           "note" =>
