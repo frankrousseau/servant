@@ -37,6 +37,19 @@ defmodule Servant.Release do
     {ok, length(results)}
   end
 
+  @doc "Fills date and location of photos imported without them (iPhone HEIC)."
+  def backfill_photo_exif do
+    load_app()
+
+    {:ok, {updated, scanned}, _} =
+      Ecto.Migrator.with_repo(List.first(repos()), fn _ ->
+        Servant.Media.Exif.backfill_missing()
+      end)
+
+    IO.puts("exif backfill: #{updated} of #{scanned} photos updated")
+    {updated, scanned}
+  end
+
   defp repos do
     Application.fetch_env!(@app, :ecto_repos)
   end

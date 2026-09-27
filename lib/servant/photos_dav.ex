@@ -178,7 +178,7 @@ defmodule Servant.PhotosDav do
     cond do
       String.starts_with?(mime, "image/") or heic?(leaf) ->
         exif = if String.starts_with?(mime, "image/"), do: Exif.extract(absolute), else: %{}
-        Map.merge(exif_fields(exif), thumbnail_fields(relative, absolute))
+        Map.merge(Exif.entry_fields(exif), thumbnail_fields(relative, absolute))
 
       String.starts_with?(mime, "video/") ->
         case VideoMeta.creation_date(absolute) do
@@ -188,33 +188,6 @@ defmodule Servant.PhotosDav do
 
       true ->
         %{}
-    end
-  end
-
-  defp exif_fields(exif) do
-    fields = %{}
-
-    fields =
-      case exif do
-        %{date_taken: %DateTime{} = dt} -> Map.put(fields, "date_taken", DateTime.to_iso8601(dt))
-        _ -> fields
-      end
-
-    fields =
-      case exif do
-        %{gps: %{latitude: lat, longitude: lon}} when is_number(lat) and is_number(lon) ->
-          fields |> Map.put("latitude", lat) |> Map.put("longitude", lon)
-
-        _ ->
-          fields
-      end
-
-    case exif do
-      %{camera_make: make, camera_model: model} when is_binary(make) ->
-        Map.put(fields, "camera", String.trim("#{make} #{model || ""}"))
-
-      _ ->
-        fields
     end
   end
 

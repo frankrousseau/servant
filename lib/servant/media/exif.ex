@@ -3,11 +3,17 @@ defmodule Servant.Media.Exif do
   Extracts EXIF metadata from images: date taken, GPS coordinates,
   camera info. Returns nil values gracefully when data is missing.
 
-  JPEG files go through `ExifParser`; anything else falls back to the
-  `exif-*` header fields libvips exposes through Vix (libexif build),
-  which covers HEIC photos coming from phones over WebDAV.
+  JPEG files and HEIC photos (iPhone) go through `ExifParser`: the HEIC
+  Exif item is a plain TIFF block, found by its `Exif\\0\\0` marker, since the
+  libvips bundled with Vix has no HEIF loader. Anything else falls back to
+  the `exif-*` header fields libvips exposes.
   """
 
+  import Ecto.Query
+
+  alias Servant.Data.Entry
+  alias Servant.Repo
+  alias Servant.Storage
   alias Vix.Vips.Image
 
   @doc """
@@ -15,7 +21,7 @@ defmodule Servant.Media.Exif do
   Returns a map with normalized fields, or an empty map if no EXIF found.
   """
   def extract(path) do
-    case ExifParser.parse_jpeg_file(path) do
+    case parse_exif(path) do
       {:ok, exif} ->
         %{
           date_taken: extract_date(exif),
@@ -32,6 +38,100 @@ defmodule Servant.Media.Exif do
     end
   rescue
     _ -> %{}
+  end
+
+  @doc "Photo entry data fields (date_taken, latitude/longitude, camera) from `extract/1`."
+  def entry_fields(exif) do
+    fields = %{}
+
+    fields =
+      case exif do
+        %{date_taken: %DateTime{} = dt} -> Map.put(fields, "date_taken", DateTime.to_iso8601(dt))
+        _ -> fields
+      end
+
+    fields =
+      case exif do
+        %{gps: %{latitude: lat, longitude: lon}} when is_number(lat) and is_number(lon) ->
+          fields |> Map.put("latitude", lat) |> Map.put("longitude", lon)
+
+        _ ->
+          fields
+      end
+
+    case exif do
+      %{camera_make: make, camera_model: model} when is_binary(make) ->
+        Map.put(fields, "camera", String.trim("#{make} #{model || ""}"))
+
+      _ ->
+        fields
+    end
+  end
+
+  @doc """
+  Re-reads the EXIF of photos stored without a date or a location (HEIC
+  photos imported before HEIC EXIF was supported) and fills what it finds,
+  never overwriting a stored value. Returns `{updated, scanned}`.
+  """
+  def backfill_missing(user_id \\ nil) do
+    photos =
+      from(entry in Entry,
+        where: entry.kind == "photo",
+        where: fragment("json_extract(?, '$.date_taken') IS NULL", entry.data),
+        where: fragment("json_extract(?, '$.latitude') IS NULL", entry.data)
+      )
+      |> then(fn query -> if user_id, do: where(query, user_id: ^user_id), else: query end)
+      |> Repo.all()
+
+    updated = Enum.count(photos, &backfill_entry/1)
+    {updated, length(photos)}
+  end
+
+  defp backfill_entry(%Entry{data: %{"path" => "/files/" <> _ = public}} = entry) do
+    with {:ok, absolute} <-
+           Storage.resolve_owned_path(entry.user_id, Storage.relative_from_public(public)),
+         fields when map_size(fields) > 0 <- entry_fields(extract(absolute)),
+         {:ok, _entry} <-
+           entry |> Entry.changeset(%{data: Map.merge(fields, entry.data)}) |> Repo.update() do
+      true
+    else
+      _ -> false
+    end
+  end
+
+  defp backfill_entry(_entry), do: false
+
+  defp parse_exif(path) do
+    with {:error, _} <- ExifParser.parse_jpeg_file(path) do
+      parse_heic(path)
+    end
+  end
+
+  # ponytail: a marker scan instead of walking the ISOBMFF boxes (meta, iinf,
+  # iloc). Phones write the Exif item as "Exif\0\0" + TIFF header, and the
+  # TIFF magic right after the marker rules out a stray match in pixel data;
+  # walk iloc if a camera ever stores it differently.
+  @heic_max_bytes 64 * 1024 * 1024
+
+  defp parse_heic(path) do
+    with {:ok, <<_size::32, "ftyp", _rest::binary>> = data} <- read_head(path),
+         {:ok, tiff} <- find_tiff(data) do
+      ExifParser.parse_tiff_binary(tiff)
+    else
+      _ -> {:error, :no_exif}
+    end
+  end
+
+  defp read_head(path), do: File.open(path, [:read], &IO.binread(&1, @heic_max_bytes))
+
+  defp find_tiff(data) do
+    [<<"Exif", 0, 0, "MM", 0, 42>>, <<"Exif", 0, 0, "II", 42, 0>>]
+    |> Enum.find_value({:error, :no_exif}, fn marker ->
+      case :binary.match(data, marker) do
+        {offset, _length} -> {:ok, binary_part(data, offset + 6, byte_size(data) - offset - 6)}
+        :nomatch -> nil
+      end
+    end)
   end
 
   # libvips renders each EXIF entry as "value (value, type, n components,

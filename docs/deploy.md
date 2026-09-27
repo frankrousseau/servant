@@ -175,6 +175,13 @@ manually:
 docker compose exec servant bin/servant eval "Servant.Release.migrate"
 ```
 
+**Photo EXIF backfill** (one-off): HEIC photos (iPhone) imported before HEIC EXIF support
+have no date or location. Re-read them, without touching values already stored:
+
+```bash
+docker compose exec servant bin/servant eval "Servant.Release.backfill_photo_exif"
+```
+
 **Open a remote IEx console** on the running release:
 
 ```bash
