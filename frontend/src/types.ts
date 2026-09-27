@@ -172,6 +172,8 @@ export interface SharedPhoto {
   thumb: string | null
   src: string | null
   full: string | null
+  /** The owner's note on the photo, shown as a caption. */
+  note: string | null
 }
 
 export interface SharedFeed {

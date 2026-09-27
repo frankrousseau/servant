@@ -24,15 +24,22 @@ The same dialog lists the existing links, each with **Copy**, **Open** and
 with the same copy and revoke actions. Revoking a link cuts access at once:
 the page and its files stop resolving.
 
+## Adding context to a photo
+
+Open a photo, click **Info** and type in the **Note** field: it is saved when
+the field loses focus and shows as a caption under the photo, in the app and
+on every share link that includes it.
+
 ## What a visitor gets
 
 - The page at `/share/<token>`: a thumbnail grid, newest first, and a viewer
   with zoom, full-resolution and download. No delete, no in-app permalink,
   no sidebar, even for the logged-in owner (what they see is what a visitor
   gets).
-- Per photo, only the title, the date, the media type and the files
-  (original, thumbnail, display copy). EXIF location, camera, album, people
-  and the other tags stay private.
+- Per photo, only the title, the date, the media type, the files (original,
+  thumbnail, display copy) and the photo's note, shown as a caption in the
+  viewer: write it for whoever gets the link. EXIF location, camera, album,
+  people and the other tags stay private.
 - Files are served under `/share/<token>/files/…`, and only the files of a
   photo currently in the feed resolve there; the rest of your store is
   unreachable through the link.

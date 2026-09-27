@@ -20,6 +20,7 @@ const viewerIndex = ref(0)
 const viewerOpen = ref(false)
 let viewerDeleteCb: ((id: string) => void) | null = null
 let viewerCloseCb: (() => void) | null = null
+let viewerNoteCb: ((id: string, note: string) => void) | null = null
 
 const viewerAPI: ViewerAPI = {
   open(items, startIndex = 0) {
@@ -29,6 +30,9 @@ const viewerAPI: ViewerAPI = {
   },
   close() {
     viewerOpen.value = false
+  },
+  onNote(cb) {
+    viewerNoteCb = cb
   },
   onDelete(cb) {
     viewerDeleteCb = cb
@@ -47,6 +51,13 @@ const ctx = createAppContext(viewerAPI)
 function handleViewerClose() {
   viewerOpen.value = false
   if (viewerCloseCb) viewerCloseCb()
+}
+
+function handleViewerNote(id: string, note: string) {
+  viewerItems.value = viewerItems.value.map(item =>
+    item.id === id ? { ...item, note } : item
+  )
+  if (viewerNoteCb) viewerNoteCb(id, note)
 }
 
 function handleViewerDelete(id: string) {
@@ -73,6 +84,7 @@ async function loadApp(appId: string) {
   viewerOpen.value = false
   viewerDeleteCb = null
   viewerCloseCb = null
+  viewerNoteCb = null
 
   // Direct navigation to an installed app can land here before the store
   // has fetched the list; load() is a no-op when already fetched.
@@ -121,6 +133,7 @@ onUnmounted(() => {
       :start-index="viewerIndex"
       @close="handleViewerClose"
       @delete="handleViewerDelete"
+      @note="handleViewerNote"
     />
   </div>
 </template>

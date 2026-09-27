@@ -73,7 +73,8 @@ const viewerItems = computed<ViewerItem[]>(() =>
     fullSrc: photo.full || undefined,
     video: photo.video,
     title: photo.title || undefined,
-    subtitle: photo.occurred_at ? formatDate(photo.occurred_at) : undefined
+    subtitle: photo.occurred_at ? formatDate(photo.occurred_at) : undefined,
+    note: photo.note || undefined
   }))
 )
 

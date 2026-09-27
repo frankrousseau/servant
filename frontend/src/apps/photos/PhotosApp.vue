@@ -523,6 +523,24 @@ async function checkQuality() {
   checkingQuality.value = null
 }
 
+// The note travels with the photo, public share feed included.
+async function saveNote(id: string, note: string) {
+  const photo = photoById.value.get(id)
+  if (!photo) return
+  try {
+    const updated = await props.ctx.api.entries.update(id, {
+      data: { ...photo.data, note: note || null }
+    })
+    allPhotos.value = allPhotos.value.map(item =>
+      item.id === updated.id ? updated : item
+    )
+  } catch (err) {
+    uploadErrors.value.push(
+      `note: ${err instanceof Error ? err.message : 'save failed'}`
+    )
+  }
+}
+
 async function keepShot(photo: Entry) {
   try {
     const updated = await props.ctx.api.entries.update(photo.id, {
@@ -1066,8 +1084,10 @@ function openViewer(photoId: string, opts: { push?: boolean } = {}) {
   const photos = filtered.value
   const items = photos.map(photo => {
     const meta: Record<string, string | number | null> = {}
+    // Without EXIF, the date the grid sorts by (file date, else upload).
     if (photo.data.date_taken)
       meta['Date taken'] = formatDateTime(photo.data.date_taken as string)
+    else meta['Date'] = formatDateTime(photoDate(photo))
     if (photo.data.camera) meta['Camera'] = photo.data.camera as string
     if (photo.data.latitude != null)
       meta['Location'] =
@@ -1091,7 +1111,8 @@ function openViewer(photoId: string, opts: { push?: boolean } = {}) {
       video: isVideo(photo),
       title: photo.title || undefined,
       subtitle: (field(photo, 'album') as string) || undefined,
-      meta: Object.keys(meta).length ? meta : undefined
+      meta: Object.keys(meta).length ? meta : undefined,
+      note: (field(photo, 'note') as string) || undefined
     }
   })
   const idx = photos.findIndex(photo => photo.id === photoId)
@@ -1117,6 +1138,7 @@ onMounted(async () => {
     await props.ctx.api.entries.delete(id)
     await reload()
   })
+  props.ctx.viewer.onNote(saveNote)
   // Backdrop/Esc/Close must also drop the ?photo= deep link.
   props.ctx.viewer.onClose(() => {
     if (new URLSearchParams(window.location.search).get('photo')) {

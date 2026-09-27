@@ -25,7 +25,8 @@ const feed: SharedFeed = {
       video: false,
       thumb: '/share/tok123/files/u/apps/photos/a_thumb.jpg',
       src: '/share/tok123/files/u/apps/photos/a_display.jpg',
-      full: '/share/tok123/files/u/apps/photos/a.jpg'
+      full: '/share/tok123/files/u/apps/photos/a.jpg',
+      note: 'Low tide at the lighthouse, just before the storm'
     },
     {
       id: 'p2',
@@ -35,7 +36,8 @@ const feed: SharedFeed = {
       video: true,
       thumb: null,
       src: '/share/tok123/files/u/apps/photos/clip.mp4',
-      full: null
+      full: null,
+      note: null
     }
   ]
 }
@@ -90,6 +92,9 @@ describe('SharedFeedView', () => {
     expect(viewer.find('[aria-label="Delete"]').exists()).toBe(false)
     expect(viewer.find('[aria-label="Permalink"]').exists()).toBe(false)
     expect(viewer.find('[aria-label="Download original"]').exists()).toBe(true)
+    // The owner's note reads as a caption; a visitor cannot edit it.
+    expect(viewer.find('.mv-caption').text()).toBe(feed.photos[0].note)
+    expect(viewer.find('.mv-note-input').exists()).toBe(false)
   })
 
   it('tells a visitor when the link is gone', async () => {

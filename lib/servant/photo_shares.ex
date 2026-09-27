@@ -3,9 +3,10 @@ defmodule Servant.PhotoShares do
   Public photo feeds: a share is a random-token link over the owner's photos
   carrying one or more tags or people (`any` of them, or `all` of them).
   Anyone holding the link sees those photos, and only those: the JSON feed
-  exposes a few neutral fields per photo (no EXIF location, no people, not
-  even the people the share selects on), and the file route
-  serves a file only when it belongs to a photo currently in the feed.
+  exposes a few neutral fields per photo plus the owner's note (no EXIF
+  location, no people, not even the people the share selects on), and the
+  file route serves a file only when it belongs to a photo currently in the
+  feed.
 
   The token is stored as-is (not hashed) so the owner can copy the link again
   from the Photos app; it is 192 random bits, so guessing one is not a
@@ -136,6 +137,8 @@ defmodule Servant.PhotoShares do
       occurred_at: photo.occurred_at,
       mime_type: mime,
       video: video?,
+      # The owner writes it for whoever gets the link: context, not metadata.
+      note: data["note"],
       # The grid frame: the thumbnail, else the original (or nothing for a
       # video without a captured frame; the page then shows a play tile).
       thumb: share_url(share, thumb_source(data, video?)),

@@ -39,12 +39,16 @@ export interface ViewerItem {
   title?: string
   subtitle?: string
   meta?: Record<string, string | number | null>
+  note?: string
 }
 
 export interface ViewerAPI {
   open(items: ViewerItem[], startIndex?: number): void
   close(): void
   onDelete(cb: (id: string) => void): void
+  // Fired when the user edits an item's note in the info panel; the viewer
+  // already shows the new text, the app persists it.
+  onNote(cb: (id: string, note: string) => void): void
   // Fired on user-initiated closes (backdrop, Esc, Close button), not on
   // programmatic close(); lets the app sync its URL or state.
   onClose(cb: () => void): void

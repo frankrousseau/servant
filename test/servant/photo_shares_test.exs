@@ -146,7 +146,8 @@ defmodule Servant.PhotoSharesTest do
           "display_path" => "/files/#{u.id}/apps/photos/a_display.jpg",
           "mime_type" => "image/jpeg",
           "latitude" => 48.85,
-          "people" => [%{"id" => "x", "name" => "Someone"}]
+          "people" => [%{"id" => "x", "name" => "Someone"}],
+          "note" => "The view from the lighthouse"
         })
 
       {:ok, share} = PhotoShares.create_share(u.id, %{"tags" => ["beach"]})
@@ -158,6 +159,7 @@ defmodule Servant.PhotoSharesTest do
       assert row.thumb == "/share/#{share.token}/files/#{u.id}/apps/photos/a_thumb.jpg"
       assert row.src == "/share/#{share.token}/files/#{u.id}/apps/photos/a_display.jpg"
       assert String.ends_with?(row.full, ".jpg")
+      assert row.note == "The view from the lighthouse"
       refute Map.has_key?(row, :latitude)
       refute Map.has_key?(row, :people)
       refute Map.has_key?(row, :data)

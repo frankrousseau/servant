@@ -26,6 +26,8 @@ export interface ViewerItem {
   title?: string
   subtitle?: string
   meta?: Record<string, string | number | null>
+  /** Free-text context shown as a caption; editable unless readonly. */
+  note?: string
 }
 
 const props = defineProps<{
@@ -38,6 +40,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   delete: [id: string]
+  note: [id: string, note: string]
 }>()
 
 const dialogRef = ref<HTMLDialogElement | null>(null)
@@ -48,6 +51,19 @@ const showInfo = ref(false)
 const showFull = ref(false)
 
 const current = computed(() => props.items[currentIndex.value])
+
+// Edited in the info panel, saved on change (blur), re-read on navigation.
+const noteDraft = ref('')
+watch(
+  () => current.value?.note,
+  note => (noteDraft.value = note ?? ''),
+  { immediate: true }
+)
+function saveNote() {
+  const item = current.value
+  if (!item || noteDraft.value.trim() === (item.note ?? '')) return
+  emit('note', item.id, noteDraft.value.trim())
+}
 const displaySrc = computed(() =>
   showFull.value && current.value?.fullSrc
     ? current.value.fullSrc
@@ -243,7 +259,9 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             ><ExternalLink :size="18"
           /></router-link>
           <button
-            v-if="current?.meta && Object.keys(current.meta).length"
+            v-if="
+              (current?.meta && Object.keys(current.meta).length) || !readonly
+            "
             class="mv-btn"
             :class="{ 'mv-btn--active': showInfo }"
             @click="showInfo = !showInfo"
@@ -290,9 +308,22 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
         <ChevronRight :size="32" />
       </button>
 
+      <p v-if="current?.note" class="mv-caption">{{ current.note }}</p>
+
       <!-- Info panel -->
       <Transition name="mv-slide">
-        <div v-if="showInfo && current?.meta" class="mv-info-panel">
+        <div v-if="showInfo && current" class="mv-info-panel">
+          <label v-if="!readonly" class="mv-info-row mv-note">
+            <span class="mv-info-label">Note</span>
+            <textarea
+              v-model="noteDraft"
+              class="mv-note-input"
+              rows="3"
+              maxlength="1000"
+              placeholder="Add context, shown on shared links too"
+              @change="saveNote"
+            />
+          </label>
           <div
             v-for="(value, key) in current.meta"
             :key="key"
@@ -490,6 +521,37 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
+}
+
+.mv-note {
+  gap: 0.35rem;
+}
+
+.mv-note-input {
+  resize: vertical;
+  font-size: 0.9rem;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+/* Over the media, bottom center: the note reads as a caption. */
+.mv-caption {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translateX(-50%);
+  z-index: 3;
+  max-width: min(720px, calc(100% - 2rem));
+  margin: 0;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  white-space: pre-line;
+  text-align: center;
 }
 
 .mv-info-row {
