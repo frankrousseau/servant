@@ -8,7 +8,13 @@ file.
 
 - Track my alcool consumption
 - Track my amount of commits
-- Set daily and travel checklists
+
+# Organization
+
+- Follow my agenda
+- Set daily checklists
+- Set vacation checklists
+- Write notes to clarify ideas or gather knowledge about a topic (natural wine, matcha)
 
 # Social
 
