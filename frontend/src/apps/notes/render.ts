@@ -5,8 +5,9 @@ import { escapeHtml } from '../escapeHtml'
 const md = new MarkdownIt({ breaks: true, linkify: true })
 
 /**
- * Canonical form for note slugs and wikilink matching. Must mirror the
- * backend `Servant.Notes.canon/1` (trim, lower-case, collapse whitespace).
+ * Returns the canonical form used for note slugs and to match wikilinks.
+ * This function must do the same as the backend `Servant.Notes.canon/1`:
+ * trim, change to lower case, collapse whitespace.
  */
 export function canon(str: string): string {
   return str.trim().toLowerCase().replace(/\s+/g, ' ')
@@ -15,11 +16,12 @@ export function canon(str: string): string {
 export type MentionKind = 'contact' | 'event' | null
 
 /**
- * Enter pressed at `pos` in `value`: if the caret line is a list item
- * (`- `, `* `, `+ `, `- [ ] `, `1. `, `1) `), returns the edited text and new
- * caret so the list continues on the next line (numbers increment, checkboxes
- * reset to unchecked). An empty item exits the list: the marker is removed and
- * no newline is inserted. Returns null when the default newline should happen.
+ * Handles Enter pressed at `pos` in `value`. If the caret line is a list item
+ * (`- `, `* `, `+ `, `- [ ] `, `1. `, `1) `), returns the edited text and the
+ * new caret. The list then continues on the next line: numbers increment and
+ * checkboxes reset to unchecked. An empty item exits the list: the function
+ * removes the marker and inserts no newline. Returns null when the default
+ * newline must occur.
  */
 export function continueListEdit(
   value: string,
@@ -36,7 +38,7 @@ export function continueListEdit(
     lineEnd === -1 ? value.length : lineEnd
   )
   if (fullLine.trimEnd() === m[0].trimEnd()) {
-    // Empty item: drop the marker, exit the list.
+    // The item is empty: remove the marker and exit the list.
     return {
       value: value.slice(0, lineStart) + value.slice(pos),
       pos: lineStart
@@ -54,11 +56,12 @@ export function continueListEdit(
   }
 }
 
-// Apply `fn` only to the text between tags, never inside a tag or its
-// attributes. markdown-it (html:false) escapes any `<` in text content, so a
-// literal `<` only ever starts a real tag: injecting <a>/<span> markup this
-// way can't break out of an attribute (e.g. `[[x]]` sitting in a link's
-// title="…"). Runs of text and whole tags are matched alternately.
+// Apply `fn` only to the text between tags, never in a tag or its attributes.
+// markdown-it (html:false) escapes each `<` in text content. As a result, a
+// literal `<` always starts a real tag. For this reason, <a>/<span> markup
+// injected this way cannot break out of an attribute (for example, `[[x]]`
+// in the title="…" of a link). The regex matches runs of text and full tags
+// alternately.
 function inTextNodes(html: string, fn: (text: string) => string): string {
   return html.replace(/<[^>]*>|[^<]+/g, chunk =>
     chunk[0] === '<' ? chunk : fn(chunk)
@@ -66,17 +69,19 @@ function inTextNodes(html: string, fn: (text: string) => string): string {
 }
 
 /**
- * Renders markdown to HTML, then turns `@[[mentions]]` into contact/event
- * chips, `[[wikilinks]]` into anchors (flagged `--new` when the target note
- * doesn't exist yet, à la Obsidian) and `#tags` into pills. The three passes
- * run over text nodes only (never tag internals) so wikilink/tag text that
- * markdown-it left as literal brackets/hashes is rewritten without corrupting
- * attributes. Mentions are replaced first so the wikilink pass only sees
- * plain `[[...]]`.
+ * Renders markdown to HTML. Then it changes `@[[mentions]]` into contact or
+ * event chips, `[[wikilinks]]` into anchors and `#tags` into pills. An anchor
+ * has the `--new` flag when the target note does not exist yet (as in
+ * Obsidian). The three passes run only on text nodes, never on tag
+ * internals. As a result, they rewrite the wikilink text and tag text that
+ * markdown-it left as literal brackets and hashes, and do not corrupt
+ * attributes. The mention pass runs first, and then the wikilink pass sees
+ * only plain `[[...]]`.
  *
- * `resolve` returns the id of the note a wikilink points at (null when there
- * is none yet). A resolved link gets a real `href`, so ctrl/middle-click opens
- * the note in a new tab; the app still intercepts plain clicks.
+ * `resolve` returns the id of the note that a wikilink points at, or null
+ * when there is no such note yet. A resolved link gets a real `href`. As a
+ * result, ctrl-click or middle-click opens the note in a new tab. The app
+ * still intercepts plain clicks.
  */
 export function renderMarkdown(
   body: string,

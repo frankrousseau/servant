@@ -56,7 +56,7 @@ describe('fetchCryptoPrices', () => {
       expect(String(call[0])).not.toContain('dexscreener')
     }
 
-    // Resolution is cached: a second fetch skips the search request.
+    // The cache keeps the resolution: a second fetch skips the search request.
     const searches = () =>
       fetchMock.mock.calls.filter(c => String(c[0]).includes('/search')).length
     expect(searches()).toBe(1)
@@ -204,7 +204,7 @@ describe('fetchCryptoPrices', () => {
         })
       )
     )
-    // USD: no USDT conversion fetch.
+    // USD: there is no fetch for the USDT conversion.
     expect(await fetchCryptoPrices(['MYCOIN'], 'USD')).toEqual({ MYCOIN: 1.5 })
   })
 })

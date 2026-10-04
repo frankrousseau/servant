@@ -14,7 +14,7 @@ const mountEl = ref<HTMLElement | null>(null)
 const error = ref('')
 let currentApp: AppModule | null = null
 
-// Viewer state (shared with apps via context)
+// Viewer state (shared with apps through the context)
 const viewerItems = ref<ViewerItem[]>([])
 const viewerIndex = ref(0)
 const viewerOpen = ref(false)
@@ -42,10 +42,11 @@ const viewerAPI: ViewerAPI = {
   }
 }
 
-// Build the app context once, here in setup(): createAppContext calls
-// useRouter()/useAuthStore()/useConfirm(), which must run in a component's setup
-// context, not later inside the async loadApp() watch callback (where
-// useRouter's injection may resolve to undefined after an await).
+// Build the app context one time, here in setup(). createAppContext calls
+// useRouter(), useAuthStore() and useConfirm(). These must run in the setup
+// context of a component, not later inside the async loadApp() watch
+// callback. There, the injection of useRouter can resolve to undefined after
+// an await.
 const ctx = createAppContext(viewerAPI)
 
 function handleViewerClose() {
@@ -62,7 +63,7 @@ function handleViewerNote(id: string, note: string) {
 
 function handleViewerDelete(id: string) {
   if (viewerDeleteCb) viewerDeleteCb(id)
-  // Remove from items and adjust index
+  // Remove the item from the items and adjust the index.
   const idx = viewerItems.value.findIndex(item => item.id === id)
   if (idx >= 0) {
     viewerItems.value = viewerItems.value.filter(item => item.id !== id)
@@ -86,8 +87,8 @@ async function loadApp(appId: string) {
   viewerCloseCb = null
   viewerNoteCb = null
 
-  // Direct navigation to an installed app can land here before the store
-  // has fetched the list; load() is a no-op when already fetched.
+  // A direct navigation to an installed app can land here before the store
+  // fetches the list. load() is a no-op when the list is already fetched.
   await appsStore.load().catch(() => {})
 
   const def = appsStore.getDef(appId)

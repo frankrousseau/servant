@@ -23,7 +23,8 @@ const email = ref('')
 const timezone = ref('UTC')
 
 // Available IANA timezones for the picker. `supportedValuesOf` is widely
-// supported; fall back to a small common set (plus the browser's) otherwise.
+// supported. If it is not there, fall back to a small common set (plus the
+// timezone of the browser).
 const timezones: string[] = (() => {
   try {
     const supported = (
@@ -33,7 +34,7 @@ const timezones: string[] = (() => {
     ).supportedValuesOf
     if (supported) return supported('timeZone')
   } catch {
-    // fall through
+    // Fall through.
   }
   const browser = Intl.DateTimeFormat().resolvedOptions().timeZone
   return Array.from(
@@ -175,7 +176,7 @@ async function uploadAvatar(event: Event) {
     avatarUrl.value = avatar_path + '?t=' + Date.now()
     if (auth.user) auth.user.avatar_path = avatar_path
   } catch {
-    // ignore
+    // Ignore the error.
   } finally {
     avatarUploading.value = false
     input.value = ''
@@ -577,7 +578,7 @@ async function changePassword() {
   width: 220px;
   border-radius: 8px;
   margin-bottom: 0.5rem;
-  /* white quiet zone so scanners cope with the dark theme */
+  /* A white quiet zone, so that scanners work with the dark theme. */
   background: #fff;
 }
 .totp-secret {

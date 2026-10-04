@@ -1,13 +1,13 @@
 import MarkdownIt from 'markdown-it'
 
-// Renderer for agent reports: the text comes from a model, so it is treated as
-// untrusted input. html: false (the default) escapes any markup it emits, which
-// is what makes the result safe to inject with v-html; markdown-it's own
-// validateLink already rejects javascript: and data: URLs.
+// The renderer for agent reports. The text comes from a model, so it is
+// untrusted input. html: false (the default) escapes all markup from the
+// model. That makes the result safe to inject with v-html. The validateLink
+// of markdown-it already rejects javascript: and data: URLs.
 const md = new MarkdownIt({ breaks: true, linkify: true })
 
-// A report may well link outside the instance: open those in a new tab, and
-// never hand the opener over.
+// A report can link outside the instance. Open those links in a new tab, and
+// never give them the opener.
 const defaultLink =
   md.renderer.rules.link_open ||
   ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options))
@@ -22,13 +22,13 @@ md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
   return defaultLink(tokens, idx, options, env, self)
 }
 
-// A model asked for a comparison answers with a table, and a wide one would
-// otherwise stretch the whole panel: give it its own scroll area.
+// A model answers a request for a comparison with a table. A wide table
+// would stretch the full panel, so give the table its own scroll area.
 md.renderer.rules.table_open = () => '<div class="md-table-wrap"><table>'
 md.renderer.rules.table_close = () => '</table></div>'
 
-// Checklists read as checklists rather than as "[ ] item". Inputs are disabled:
-// a report is a record, not something to tick off.
+// Checklists show as checklists and not as "[ ] item". The inputs are
+// disabled: a report is a record, not a list to tick off.
 function renderTaskLists(html: string): string {
   return html.replace(
     /<li>(\s*)\[([ xX])\]\s/g,

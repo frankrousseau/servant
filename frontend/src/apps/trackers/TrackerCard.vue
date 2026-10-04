@@ -29,8 +29,9 @@ const emit = defineEmits<{
   open: []
 }>()
 
-// The date being edited: today by default, any heatmap cell on click
-// (logging yesterday's forgotten guitar session is a first-class gesture).
+// The date that the user edits: today by default, or the date of a heatmap
+// cell on click. To log the forgotten guitar session of yesterday is a
+// first-class gesture.
 const editDate = ref(props.today)
 watch(
   () => props.today,
@@ -75,10 +76,11 @@ function cellStyle(level: number): Record<string, string> {
   return { background: `rgba(${rgb.value}, ${ALPHAS[level]})` }
 }
 
-// Entry trackers are computed from existing entries: no editing gestures.
+// Entry trackers are computed from existing entries: they have no edit
+// gestures.
 const readOnly = computed(() => props.tracker.type === 'entry')
 
-// The selected cell spelled out (the heatmap only shows intensity).
+// The selected cell in full text (the heatmap shows only the intensity).
 const cellInfo = computed(() => {
   const value = editValue.value
   const label =
@@ -127,7 +129,7 @@ function onCellClick(date: string) {
   editDate.value = date
 }
 
-// Explicit way to fix a previous day (the heatmap cells do it too).
+// An explicit way to correct a previous day (the heatmap cells also do it).
 function onDatePick(value: string) {
   if (value && value <= props.today) editDate.value = value
 }

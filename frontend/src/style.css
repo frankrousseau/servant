@@ -1,19 +1,23 @@
 /*
- * Servant as a retro machine, one identity, four monitors. The default is
- * "Night terminal": black-blue CRT glass, electric-violet phosphor, pale
- * glow text. Display face is Maple Mono, a rounded modern monospace,
- * used sparingly (brand, headings, counters). The other themes swap the panel,
- * never the identity: Graphite (white phosphor on neutral black), Daylight
- * (violet ink on cool paper), Sepia (amber ink on warm paper). Themes are
- * selected with data-theme on <html> (see lib/theme.ts); no attribute
- * means Night. The selectors are attribute-only (not :root[...]) on
- * purpose: putting data-theme on any element re-themes its subtree, which
- * is how the Settings theme previews render themselves.
+ * Servant is a retro machine with one identity and four monitors. The default
+ * is "Night terminal": black-blue CRT glass, electric-violet phosphor, pale
+ * glow text. The display face is Maple Mono, a rounded modern monospace. The
+ * app uses it only in a few places (brand, headings, counters). The other
+ * themes change the panel, never the identity:
+ * - Graphite (white phosphor on neutral black)
+ * - Daylight (violet ink on cool paper)
+ * - Sepia (amber ink on warm paper)
+ *
+ * The data-theme attribute on <html> selects the theme (see lib/theme.ts).
+ * No attribute means Night. The selectors are attribute-only (not
+ * :root[...]) on purpose. When an element has data-theme, the theme applies
+ * to its subtree. The theme previews in Settings render themselves that way.
  */
 
 /*
- * Sections, in cascade order: tokens, then the bare elements, then the
- * shell, then what pages are built from, and third-party overrides last.
+ * The sections are in cascade order. The tokens come first, then the bare
+ * elements, then the shell. The pieces that make the pages come next, and
+ * the third-party overrides come last.
  *
  *   1. Design tokens and themes
  *   2. Base elements
@@ -25,8 +29,8 @@
  *   8. Modal
  *   9. Third-party overrides (flatpickr)
  *
- * Component-specific rules live in the component, scoped; what is here is
- * either shared by several of them or global by nature.
+ * The rules that are specific to a component are in the component, scoped.
+ * The rules here are shared by several components or are global by nature.
  */
 
 /* ----- 1. Design tokens and themes ----- */
@@ -108,8 +112,9 @@
   color-scheme: light;
 }
 
-/* Cyanotype: the blueprint print. Prussian blue ink on cold blue-white
-   paper; every gray in the page leans toward the blue of the process. */
+/* Cyanotype: the blueprint print. It has Prussian blue ink on cold
+   blue-white paper. Each gray in the page leans toward the blue of the
+   process. */
 [data-theme='cyanotype'] {
   --bg: #e9eff7;
   --bg-surface: #f5f8fc;
@@ -128,8 +133,9 @@
   color-scheme: light;
 }
 
-/* Dusty indigo rosewood: knit blankets and quiet mornings. Beige panels,
-   indigo text and navigation, rosewood as the accent; no pure black. */
+/* Dusty indigo rosewood: knit blankets and quiet mornings. It has beige
+   panels, indigo text and navigation, and rosewood as the accent. It has no
+   pure black. */
 [data-theme='rosewood'] {
   --bg: #e6d7cf;
   --bg-surface: #efe3dc;
@@ -205,8 +211,8 @@ a:hover {
 }
 
 /* All animation in the app is decorative (fades, hover transitions, the
-   auth-card glow); none of it carries information, so it can be disabled
-   wholesale for users who ask for reduced motion. */
+   auth-card glow). None of it carries information. As a result, this rule
+   can disable all of it for the users who ask for reduced motion. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -293,12 +299,19 @@ a:hover {
   color: var(--text-muted);
 }
 
-/* Two control sizes, shared by inputs, selects, buttons and the Servant
-   widgets (ComboBox, DateInput): the default form control computes to
-   ~40px (1rem text, 1.4 line-height, 0.5rem vertical padding, 1px
-   border), the compact `.small` tier to ~32px (0.85rem, 0.35rem), which
-   is also the toolbar standard the apps use. Buttons carry a transparent
-   border so both box heights match exactly. */
+/* There are two control sizes. These controls share them:
+   - the inputs
+   - the selects
+   - the buttons
+   - the Servant widgets (ComboBox, DateInput)
+   The default form control computes to ~40px:
+   - 1rem text
+   - 1.4 line-height
+   - 0.5rem vertical padding
+   - 1px border
+   The compact `.small` tier computes to ~32px (0.85rem, 0.35rem). The apps
+   also use that tier as the standard for toolbars. The buttons have a
+   transparent border so that the two box heights are exactly the same. */
 input,
 textarea,
 select {
@@ -313,8 +326,9 @@ select {
   font-family: inherit;
 }
 
-/* Checkboxes and radios keep their intrinsic size: stretched to the text
-   field width, a radio pushes its row's label and avatar out of line. */
+/* Checkboxes and radios keep their intrinsic size. A radio stretched to the
+   width of the text field pushes the label and the avatar of its row out of
+   line. */
 input[type='checkbox'],
 input[type='radio'] {
   width: auto;
@@ -342,8 +356,9 @@ select:focus {
   border-color: var(--primary);
 }
 
-/* Keyboard focus needs more than a 1px border-color change (contrast can fall
-   below 3:1 on some themes): add a visible ring for :focus-visible. */
+/* A 1px border-color change is not sufficient for keyboard focus: the
+   contrast can fall below 3:1 on some themes. Add a visible ring for
+   :focus-visible. */
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
@@ -363,10 +378,11 @@ button {
   transition: background 0.15s;
 }
 
-/* :where keeps this at element specificity (0-0-1): a component button
-   styled by a bare class (0-1-0, e.g. in an unscoped style block like
-   NotesApp's) keeps its own background and color on hover instead of
-   getting the primary repaint under its unchanged text color. */
+/* :where keeps this at element specificity (0-0-1). A bare class (0-1-0)
+   can style a component button, for example in an unscoped style block like
+   the one of NotesApp. Such a button keeps its own background and color on
+   hover. It does not get the primary repaint under its unchanged text
+   color. */
 button:where(:hover) {
   background: var(--primary-hover);
   color: var(--primary-contrast);
@@ -648,18 +664,20 @@ dd {
 
 /* ----- 8. Modal ----- */
 
-/* The reset's `margin: 0` (an author rule) beats the UA's `margin: auto` on
-   <dialog>, which is what centers a modal between the insets it is stretched
-   between. Give it back to every dialog, ours are all centered boxes. */
+/* The `margin: 0` of the reset (an author rule) beats the `margin: auto` of
+   the UA on <dialog>. That UA rule centers a modal between the insets that
+   stretch it. Give it back to every dialog: all our dialogs are centered
+   boxes. */
 dialog {
   margin: auto;
 }
 
-/* Native <dialog> frame: a transparent full-width strip in the top layer,
-   centered by the UA; the visible box is the child (.modal, .detail-panel).
-   Clicks that land on the dialog element itself (backdrop included, the
-   browser retargets them) mean "outside the box". The [open] guard keeps
-   the UA's display: none while closed. */
+/* The frame of a native <dialog>: a transparent full-width strip in the top
+   layer, which the UA centers. The visible box is the child (.modal,
+   .detail-panel). A click on the dialog element itself means "outside the
+   box". This includes a click on the backdrop, because the browser
+   retargets it. The [open] guard keeps the display: none of the UA while
+   the dialog is closed. */
 .modal-dialog {
   width: 100%;
   max-width: none;
@@ -720,21 +738,25 @@ dialog {
 
 /* ----- 9. Third-party overrides ----- */
 
-/* Flatpickr, themed by the variables above (global: the picker renders on
-   document.body; used by the Calendar app and components/DateInput.vue). */
+/* Flatpickr, with a theme from the variables above. These rules are global
+   because the picker renders on document.body. The Calendar app and
+   components/DateInput.vue use the picker. */
 .flatpickr-calendar {
   background: var(--bg-surface) !important;
   border-color: var(--border) !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
-  /* Breathing room; width auto lets the fixed-width day grid size the box. */
+  /* Space around the content. With width auto, the fixed-width day grid sets
+     the size of the box. */
   width: auto !important;
   padding: 0.85rem;
   border-radius: 12px !important;
 }
-/* flatpickr ships its own type scale: a 14px box, the month at 135% weight 300,
-   weekdays at 90% weight bolder, and a <select> plus a number input that fall
-   back to the browser font. Put the whole popup on the app's font and a single
-   scale. */
+/* flatpickr comes with its own type scale:
+   - a 14px box
+   - the month at 135%, weight 300
+   - the weekdays at 90%, weight bolder
+   - a <select> and a number input that fall back to the browser font
+   Put the full popup on the font of the app and on a single scale. */
 .flatpickr-calendar,
 .flatpickr-calendar input,
 .flatpickr-calendar select {
@@ -805,8 +827,12 @@ span.flatpickr-weekday {
 .numInputWrapper span svg path {
   fill: var(--text-muted) !important;
 }
-/* Remaining light-styled flatpickr pieces: the pointer arrow, the year
-   input, the month dropdown options, disabled days and the time bar. */
+/* The flatpickr pieces that still have a light style:
+   - the pointer arrow
+   - the year input
+   - the options of the month dropdown
+   - the disabled days
+   - the time bar */
 .flatpickr-calendar.arrowTop::before {
   border-bottom-color: var(--border) !important;
 }

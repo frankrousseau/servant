@@ -56,8 +56,8 @@ const pageItems = computed<Item[]>(() => {
     }))
 })
 
-// Entries of an opt-in slice the user has off (crypto) stay out of the
-// results, matching the dashboard; the data browser remains the raw view.
+// The entries of an opt-in slice that the user has off (crypto) stay out of
+// the results, as on the dashboard. The data browser stays the raw view.
 const visibleResults = computed(() => {
   const hidden = hiddenEntryKinds(auth.user?.enabled_apps)
   return results.value.filter(entry => !hidden.includes(entry.kind))
@@ -76,7 +76,8 @@ const entryItems = computed<Item[]>(() =>
 
 const items = computed<Item[]>(() => [...entryItems.value, ...pageItems.value])
 
-// Debounced entries search; a sequence counter drops out-of-order responses.
+// A debounced search of entries. A sequence counter drops the responses that
+// arrive out of order.
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 let seq = 0
 watch(query, text => {
@@ -97,7 +98,7 @@ watch(query, text => {
       })
       if (mySeq === seq) results.value = res.data
     } catch {
-      // stale or failed search: keep what we have
+      // Stale or failed search: keep the current results.
     }
   }, 200)
 })
@@ -114,7 +115,8 @@ function close() {
 }
 
 // showModal() gives the palette a focus trap and puts the autofocus on the
-// search input; flush: 'post' so the dialog is rendered open-ready first.
+// search input. flush: 'post' makes sure that the dialog renders first, ready
+// to open.
 watch(
   open,
   isOpen => {
@@ -124,8 +126,8 @@ watch(
   { flush: 'post' }
 )
 
-// Backdrop clicks target the dialog element itself; clicks inside the box
-// hit the inner panel (the dialog carries no padding of its own).
+// A click on the backdrop targets the dialog element itself. A click inside
+// the box hits the inner panel (the dialog has no padding of its own).
 function onDialogClick(event: MouseEvent) {
   if (event.target === dialogRef.value) close()
 }
@@ -217,7 +219,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* Bare top-layer frame near the top of the viewport; the visible box is
+/* A bare top-layer frame near the top of the viewport. The visible box is
    the inner panel. */
 .cp-dialog {
   width: min(560px, calc(100% - 2rem));
@@ -247,8 +249,8 @@ onBeforeUnmount(() => {
   font-size: 1rem;
   font-family: var(--font-mono);
 }
-/* The default focus ring would hug the input inside the panel; the visible
-   focus indicator is the accent border under the field instead. */
+/* The default focus ring would hug the input inside the panel. The visible
+   focus indicator is the accent border under the field. */
 .cp-input:focus {
   outline: none;
   border-bottom-color: var(--primary);
@@ -266,7 +268,8 @@ onBeforeUnmount(() => {
   cursor: pointer;
   font-size: 0.92rem;
 }
-/* Cursor row: violet rail + tint, same language as the rest of the system */
+/* The cursor row: a violet rail and a tint, the same language as the rest of
+   the system. */
 .cp-item--active {
   background: rgba(var(--primary-rgb), 0.1);
   box-shadow: inset 2px 0 0 var(--primary);

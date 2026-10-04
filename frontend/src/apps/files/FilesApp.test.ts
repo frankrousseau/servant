@@ -46,8 +46,8 @@ function makeCtx(files: Entry[]) {
   const ctx = {
     navigate: vi.fn(),
     confirm: { ask: vi.fn().mockResolvedValue(true) },
-    // Keep the virtual mounts (Notes, Photos, ...) out of the row list so
-    // .fs-name selectors hit real files only.
+    // Keep the virtual mounts (Notes, Photos, ...) out of the row list. As a
+    // result, the .fs-name selectors hit real files only.
     preferences: fakePreferences({ 'files.showVirtual': false }),
     api: {
       entries: {
@@ -145,7 +145,7 @@ describe('FilesApp folder creation', () => {
   })
 
   it('shows recursive contents and total size of a selected folder', async () => {
-    // Docs/ holds one file and a Sub/ folder holding another file.
+    // Docs/ holds one file and a Sub/ folder that holds another file.
     const { ctx } = makeCtx([
       fileEntry('f1', 'Docs', { is_folder: true }),
       fileEntry('f2', 'Sub', { is_folder: true, parent_id: 'f1' }),
@@ -163,7 +163,8 @@ describe('FilesApp folder creation', () => {
     await flushPromises()
 
     const meta = wrapper.find('.fs-detail-meta').text()
-    // Nested file and folder counted, the sibling outside Docs left out.
+    // The count includes the nested file and folder, but not the sibling
+    // outside Docs.
     expect(meta).toContain('2 files, 1 folder')
     expect(meta).toContain('2.9 KB')
   })

@@ -53,9 +53,10 @@ const isImage = (e: Entry) =>
   (field<string>(e, 'mime_type') || '').startsWith('image/')
 
 // ----- virtual read-only mounts (Notes, Photos, Invoices) -----
-// Other apps' entries surfaced as browse-only folders: notes keep their
-// folder tree, photos group by album, invoices by provider. Loaded lazily
-// on first navigation into each mount; no rename/move/delete/upload.
+// The entries of other apps, shown as browse-only folders: notes keep their
+// folder tree, photos group by album, invoices by provider. Each mount loads
+// lazily on the first navigation into it. There is no rename, move, delete
+// or upload.
 
 const VIRTUAL_ROOTS = [
   { id: 'v:notes', name: 'Notes', kind: 'note' },
@@ -200,8 +201,8 @@ const virtualKindOf = (folderId: string) =>
     root => folderId === root.id || folderId.startsWith(root.id + ':')
   )?.kind
 
-// ponytail: loaded once per app mount, no live refresh; search only covers
-// mounts already visited
+// ponytail: loads one time for each app mount, with no live refresh. The
+// search only covers the mounts that the user already visited.
 async function loadVirtual(folderId: string) {
   const kind = virtualKindOf(folderId)
   if (!kind || virtualLoaded.has(kind)) return
@@ -210,7 +211,7 @@ async function loadVirtual(folderId: string) {
   try {
     const entries = await props.ctx.api.entries.list({ kind })
     virtualFiles.value = [...virtualFiles.value, ...buildVirtual(kind, entries)]
-    // Rebuild the breadcrumb if we deep-linked into this mount before it loaded.
+    // Rebuild the breadcrumb if a deep link opened this mount before it loaded.
     if (currentFolder.value && virtualKindOf(currentFolder.value) === kind) {
       setFolder(currentFolder.value)
     }
@@ -221,8 +222,9 @@ async function loadVirtual(folderId: string) {
   }
 }
 
-// Invoice URLs are scraped verbatim from provider portals, so a hostile/MITM'd
-// portal could inject a javascript: URI: filter through safeUrl before any href.
+// The invoice URLs are scraped verbatim from the provider portals. As a
+// result, a hostile or MITM'd portal can inject a javascript: URI. Filter
+// each URL through safeUrl before you put it in an href.
 const invoiceUrl = (e: Entry) =>
   field<string>(e, 'v') === 'invoice'
     ? safeUrl(field<string>(e, 'url') || '')
@@ -353,8 +355,9 @@ interface FolderStats {
   size: number
 }
 
-// Whole subtree, not just direct children: a folder's weight is what it holds
-// at any depth. `seen` caps a corrupt parent_id cycle, like chainTo's guard.
+// The full subtree, not only the direct children: the weight of a folder is
+// what it holds at any depth. `seen` caps a corrupt parent_id cycle, like the
+// guard of chainTo.
 function folderStats(id: string): FolderStats {
   const stats: FolderStats = { files: 0, folders: 0, size: 0 }
   const seen = new Set<string>()
@@ -378,8 +381,8 @@ function folderStats(id: string): FolderStats {
 const selectedStats = computed(() => {
   const file = selected.value
   if (!file || !isFolder(file)) return null
-  // A virtual mount only lists its children once opened: don't call it empty
-  // before that.
+  // A virtual mount lists its children only after it is opened. Do not call
+  // it empty before that.
   if (isVirtual(file) && !childrenByParent.value.has(file.id)) return null
   return folderStats(file.id)
 })
@@ -393,8 +396,8 @@ const contentsLabel = computed(() => {
   return parts.length ? parts.join(', ') : 'Empty'
 })
 
-// Searching looks across the whole tree (flat results, files only);
-// otherwise we list the current folder.
+// A search looks across the full tree (flat results, files only). Without a
+// search, the list shows the current folder.
 const displayed = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (q) {
@@ -430,8 +433,8 @@ async function reload() {
   }
 }
 
-// Folder navigation goes through the browser history (?folder=<id>) so
-// back/forward work as expected.
+// Folder navigation goes through the browser history (?folder=<id>). As a
+// result, back and forward work as expected.
 function setFolder(id: string | null, opts: { push?: boolean } = {}) {
   // A virtual deep link (URL restore, back button) lands at the root when
   // the mounts are hidden.
@@ -464,7 +467,7 @@ function openFolder(file: Entry) {
   }
 }
 
-// Jump from a search result to its containing folder.
+// Jump from a search result to the folder that contains it.
 function goToFolderOf(e: Entry) {
   searchQuery.value = ''
   setFolder(parentId(e), { push: true })
@@ -475,9 +478,9 @@ function onPopState() {
   setFolder(new URLSearchParams(window.location.search).get('folder'))
 }
 
-// No naming dialog: the folder is created with a placeholder name and its
-// row goes straight into inline rename. Leaving the name empty (or Esc)
-// deletes the just-created entry.
+// There is no dialog for the name: the app creates the folder with a
+// placeholder name and its row goes directly into inline rename. An empty
+// name (or Esc) deletes the new entry.
 async function newFolder() {
   const created = await props.ctx.api.entries.create({
     kind: 'file',
@@ -496,9 +499,10 @@ async function newFolder() {
   if (file) startRename(file)
 }
 
-// Upload state and pipeline live in ./uploadQueue (module scope) so a batch
-// survives navigating to another app mid-upload. While mounted, insert each
-// created file as it lands and true-up with one reload when the queue drains.
+// The upload state and pipeline are in ./uploadQueue (module scope). As a
+// result, a batch survives a navigation to another app in the middle of an
+// upload. While mounted, insert each created file when it arrives. Then
+// true-up with one reload when the queue drains.
 watch(lastCreated, created => {
   if (created && !allFiles.value.some(file => file.id === created.id)) {
     allFiles.value.push(created)
@@ -513,27 +517,28 @@ function uploadFiles(files: File[]) {
 function onFileInput(event: Event) {
   const input = event.target as HTMLInputElement
   if (input.files?.length) uploadFiles(Array.from(input.files))
-  // Reset so picking the same file(s) again re-triggers the change event.
+  // Reset, so that the change event fires again when the user picks the same
+  // file(s) again.
   input.value = ''
 }
 
 function onDrop(event: DragEvent) {
   dragover.value = false
   // An internal row drag that missed a folder target is a no-op, not an
-  // upload; virtual mounts are read-only.
+  // upload. Virtual mounts are read-only.
   if (draggingId.value || inVirtual.value) return
   if (event.dataTransfer?.files.length)
     uploadFiles(Array.from(event.dataTransfer.files))
 }
 
 // ----- rename (files & folders) -----
-// Inline, in the row itself: double-click the name (or the Rename button in
-// the detail panel). Enter/blur commits, Esc cancels.
+// Inline, in the row itself: double-click the name (or use the Rename button
+// in the detail panel). Enter or blur commits, Esc cancels.
 
 const renamingId = ref<string | null>(null)
 const renameValue = ref('')
-// Function ref: a plain ref inside v-for collects an array, breaking
-// .select()/.blur(); only one rename input ever renders at a time.
+// Function ref: a plain ref inside v-for collects an array, which breaks
+// .select() and .blur(). Only one rename input renders at a time.
 const renameInput = ref<HTMLInputElement | null>(null)
 
 function setRenameInput(el: unknown) {
@@ -542,7 +547,8 @@ function setRenameInput(el: unknown) {
 
 let renameCancelled = false
 
-// Entry created by newFolder and still being named; aborting deletes it.
+// The entry that newFolder created and that the user did not name yet. An
+// abort deletes it.
 const creatingId = ref<string | null>(null)
 
 function startRename(file: Entry) {
@@ -557,7 +563,8 @@ function cancelRename() {
   renameInput.value?.blur()
 }
 
-// Commit on blur only: Enter just blurs, so the save can't double-fire.
+// Commit on blur only: Enter only blurs. As a result, the save cannot fire
+// two times.
 async function onRenameBlur() {
   const cancelled = renameCancelled
   renameCancelled = false
@@ -610,7 +617,7 @@ function onRowDragEnd() {
   dropTargetId.value = null
 }
 
-// A folder can't be dropped into itself, one of its descendants, or a
+// The user cannot drop a folder into itself, one of its descendants, or a
 // read-only virtual mount.
 function canDropOn(target: Entry): boolean {
   const id = draggingId.value
@@ -634,12 +641,12 @@ function onRowDragLeave(file: Entry) {
 function onRowDrop(file: Entry, event: DragEvent) {
   if (draggingId.value) {
     if (canDropOn(file)) void moveTo(file.id)
-    // Only clear the highlight here; draggingId lives until dragend:
-    // clearing it now lets a stray dragover between drop and dragend
-    // re-light the upload glow (visible blink).
+    // Only clear the highlight here. draggingId lives until dragend. If you
+    // clear it now, a stray dragover between drop and dragend can light the
+    // upload glow again (visible blink).
     dropTargetId.value = null
   } else {
-    onDrop(event) // OS files dropped on a row upload into the current folder
+    onDrop(event) // OS files dropped on a row upload into the current folder.
   }
 }
 
@@ -1010,7 +1017,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   min-width: 0;
   justify-content: flex-end;
 }
-/* The search takes whatever the breadcrumbs leave, up to a sane cap. */
+/* The search takes the space that the breadcrumbs leave, up to a sane cap. */
 .fs-search {
   flex: 1;
   min-width: 160px;
@@ -1056,7 +1063,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 /* Upload progress + errors, same language as Photos */
 .fs-uploading {
   display: flex;
-  flex-wrap: wrap; /* the bar takes its own full row: label changes can't resize it */
+  flex-wrap: wrap; /* the bar takes its own full row: label changes cannot resize it */
   align-items: center;
   gap: 0.35rem 0.75rem;
   padding: 0.5rem 1rem;

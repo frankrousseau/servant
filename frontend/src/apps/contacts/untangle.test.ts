@@ -52,7 +52,7 @@ describe('untangle', () => {
     untangle(nodes, links)
 
     expect(crossingCount(nodes, links)).toBe(0)
-    // The triangle keeps its shape: rotated as a block around Carol.
+    // The triangle keeps its shape: it rotates as a block around Carol.
     const leo = nodes.get('leo')!
     const mia = nodes.get('mia')!
     expect(Math.hypot(leo.x - mia.x, leo.y - mia.y)).toBeCloseTo(

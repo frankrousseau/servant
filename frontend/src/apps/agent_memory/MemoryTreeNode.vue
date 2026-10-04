@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { TreeNode } from './tree'
 
-// Harness roots (depth 0) and their sections (depth 1) stay open;
-// expand/collapse all acts on the third level (projects, skills).
+// The harness roots (depth 0) and their sections (depth 1) stay open.
+// Expand/collapse all acts on the third level (projects, skills).
 withDefaults(
   defineProps<{
     node: TreeNode
@@ -136,8 +136,8 @@ details[open] > .folder .folder-caret::before {
   border-radius: 0 6px 6px 0;
 }
 
-/* Deleted in Servant, waiting for the machines to sync: still listed so it
-   can be restored or purged. */
+/* The file is deleted in Servant, and the machines did not sync yet. It stays
+   in the list so that the user can restore it or purge it. */
 .file--deleted {
   color: var(--text-muted);
   text-decoration: line-through;

@@ -1,10 +1,11 @@
 import type { StoredFace } from './faces'
 
-// Browser-side face detection: @vladmandic/face-api (SSD MobileNet detector,
-// 68-point landmarks for alignment, 128-d recognition descriptors), loaded
-// on first use only (~1.3MB of JS + 12MB of weights served from /models,
-// see frontend/public/models). Everything runs locally; no image ever
-// leaves the machine.
+// Face detection in the browser. It uses @vladmandic/face-api: the SSD
+// MobileNet detector, 68-point landmarks for alignment and 128-d descriptors
+// for recognition. The library loads only on the first use: approximately
+// 1.3MB of JS and 12MB of weights, which /models serves (see
+// frontend/public/models). All the steps run locally. No image goes out of
+// the machine.
 
 type FaceApi = typeof import('@vladmandic/face-api')
 
@@ -39,8 +40,8 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 
 const round4 = (n: number) => Math.round(n * 10_000) / 10_000
 
-// Detects faces on an image URL (the photo's display JPEG). Returns the
-// storable face records; [] when no face is found.
+// Detects the faces on an image URL (the display JPEG of the photo). Returns
+// the face records that can be stored. Returns [] when it finds no face.
 export async function detectFaces(src: string): Promise<StoredFace[]> {
   const f = await api()
   const img = await loadImage(src)

@@ -78,7 +78,7 @@ function makeCtx() {
   })
   return {
     navigate: vi.fn(),
-    // Crypto is opt-in; these cases exercise it, so the fixture opts in.
+    // Crypto is opt-in. These cases use it, so the fixture opts in.
     enabledApps: ['crypto'],
     confirm: { ask: vi.fn().mockResolvedValue(true) },
     preferences: fakePreferences(),
@@ -115,7 +115,7 @@ describe('FinanceApp tabs', () => {
       'Cryptos',
       'Taxes'
     ])
-    // The landing tab answers "where am I", management waits in Accounts.
+    // The landing tab answers "where am I", and management is in Accounts.
     expect(wrapper.find('.ov-hero').exists()).toBe(true)
 
     await tabs[1].trigger('click')
@@ -127,8 +127,8 @@ describe('FinanceApp tabs', () => {
     expect(wrapper.findAll('.ftx-row').length).toBe(2)
   })
 
-  // Crypto off (the default): the app is tradfi only, and a wallet account
-  // plus a portfolio snapshot must leave no trace, including in the totals.
+  // Crypto is off (the default): the app is tradfi only. A wallet account
+  // plus a portfolio snapshot must leave no trace, the totals included.
   it('drops everything crypto when the user has not opted in', async () => {
     const ctx = makeCtx()
     ctx.enabledApps = []
@@ -169,10 +169,11 @@ describe('FinanceApp tabs', () => {
       'Taxes'
     ])
 
-    // The 9 999 EUR portfolio snapshot must not sneak into the headline.
+    // The portfolio snapshot of 9 999 EUR must not get into the headline.
     expect(wrapper.find('.ov-total').text()).toContain('500')
     expect(wrapper.text()).not.toContain('9 999')
-    // One universe left, so the per-universe split line has nothing to say.
+    // Only one universe is left, so the per-universe split line has nothing
+    // to say.
     expect(wrapper.find('.ov-splits').exists()).toBe(false)
 
     await tabs[1].trigger('click')
@@ -197,7 +198,7 @@ describe('FinanceApp tabs', () => {
     await chip.trigger('click')
     await flushPromises()
 
-    // Landed on the Spending tab, transactions list shown.
+    // The app is now on the Spending tab and shows the transactions list.
     expect(wrapper.find('.ftx').exists()).toBe(true)
     expect(wrapper.findAll('.ftx-row').length).toBe(2)
   })
@@ -230,7 +231,8 @@ describe('FinanceApp tabs', () => {
       .element as HTMLInputElement
     expect(qty.value).toBe('1.5')
 
-    // Same token again: records a quantity, no duplicate account.
+    // Same token again: the app records a quantity and creates no duplicate
+    // account.
     await wrapper.find('.fin-crypto-token').setValue('ETH')
     await wrapper.find('.fin-crypto-qty').setValue('2')
     await wrapper.find('.fin-crypto-add').trigger('submit')
@@ -256,7 +258,8 @@ describe('FinanceApp tabs', () => {
     await input.trigger('change')
     await flushPromises()
 
-    // new1 is the account, new2 the day's balance record: updated in place.
+    // new1 is the account and new2 is the balance record of the day. The app
+    // updates new2 in place.
     expect(ctx.api.entries.update).toHaveBeenCalledWith(
       'new2',
       expect.objectContaining({
@@ -279,7 +282,8 @@ describe('FinanceApp tabs', () => {
     await wrapper.find('.fin-crypto-add').trigger('submit')
     await flushPromises()
 
-    // Scoped: the crypto summary bar has its own caret with the same class.
+    // The selector is scoped, because the crypto summary bar has its own
+    // caret with the same class.
     await wrapper.find('.fin-accounts .fin-account-caret').trigger('click')
     const row = wrapper.find('.fin-history-row')
     const recordInput = row.find('input')
@@ -309,7 +313,7 @@ describe('FinanceApp tabs', () => {
 
     // The thousands separator depends on the host locale.
     expect(wrapper.find('.fin-crypto-price').text()).toMatch(/^3.000 EUR$/)
-    // No manual rate: the spot estimate steps in, marked approximate.
+    // No manual rate: the spot estimate replaces it, marked as approximate.
     expect(wrapper.find('.fin-account-converted').text()).toMatch(
       /^≈ 4.500 EUR$/
     )
@@ -325,7 +329,7 @@ describe('FinanceApp tabs', () => {
     await wrapper.find('.fin-crypto-add').trigger('submit')
     await flushPromises()
 
-    // 1.5 ETH at spot 3000, no manual rate: approximate total.
+    // 1.5 ETH at spot 3000 and no manual rate: the total is approximate.
     expect(wrapper.find('.fin-crypto-summary .fin-total').text()).toMatch(
       /^≈ 4.500 EUR$/
     )
@@ -340,7 +344,8 @@ describe('FinanceApp tabs', () => {
       })
     )
 
-    // Same day again: correct the day's snapshot instead of stacking.
+    // Same day again: the app corrects the snapshot of the day and does not
+    // stack snapshots.
     await wrapper.find('.fin-crypto-snapshot').trigger('click')
     await flushPromises()
     expect(ctx.api.entries.update).toHaveBeenCalledWith(
@@ -356,7 +361,7 @@ describe('FinanceApp tabs', () => {
     )
     expect(portfolioCreates.length).toBe(1)
 
-    // History behind the caret, deletable like any snapshot.
+    // The history is behind the caret, and it is deletable like any snapshot.
     await wrapper
       .find('.fin-crypto-summary .fin-account-caret')
       .trigger('click')
@@ -410,8 +415,8 @@ describe('FinanceApp tabs', () => {
     await flushPromises()
     await wrapper.findAll('.fin-tab')[3].trigger('click')
 
-    // No wallet accounts left, but the snapshot still counts toward other
-    // totals: the summary bar must stay reachable, not hidden behind
+    // No wallet accounts are left, but the snapshot still counts toward other
+    // totals. The summary bar must stay reachable, not hidden behind
     // "No tokens yet".
     expect(wrapper.find('.fin-crypto-summary').exists()).toBe(true)
 

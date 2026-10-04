@@ -1,4 +1,5 @@
-// Single source of truth in ../types to keep the apps and views from drifting.
+// Single source of truth in ../types, so that the apps and the views do not
+// drift.
 export type { Entry } from '../types'
 import type { Entry } from '../types'
 
@@ -16,9 +17,9 @@ export interface EntriesAPI {
   delete(id: string): Promise<void>
   stats(): Promise<Record<string, number>>
   /**
-   * Server-side COUNT/SUM of entries bucketed by local day/week/month/year
-   * in the user's timezone. Same filters as list (kind, source, from, to, q)
-   * plus agg, field (for sum), bucket and tz.
+   * Server-side COUNT or SUM of the entries, in buckets by local day, week,
+   * month or year in the user's timezone. Takes the same filters as list
+   * (kind, source, from, to, q), plus agg, field (for sum), bucket and tz.
    */
   aggregate(params: Record<string, string>): Promise<AggregateBucket[]>
 }
@@ -46,11 +47,11 @@ export interface ViewerAPI {
   open(items: ViewerItem[], startIndex?: number): void
   close(): void
   onDelete(cb: (id: string) => void): void
-  // Fired when the user edits an item's note in the info panel; the viewer
-  // already shows the new text, the app persists it.
+  // Fires when the user edits the note of an item in the info panel. The
+  // viewer already shows the new text, and the app persists it.
   onNote(cb: (id: string, note: string) => void): void
-  // Fired on user-initiated closes (backdrop, Esc, Close button), not on
-  // programmatic close(); lets the app sync its URL or state.
+  // Fires when the user closes the viewer (backdrop, Esc, Close button), not
+  // on a programmatic close(). Lets the app sync its URL or state.
   onClose(cb: () => void): void
 }
 
@@ -65,20 +66,20 @@ export interface ConfirmAPI {
 
 export interface AppContext {
   navigate(path: string): void
-  // What the user kept enabled in Settings > Apps; null means the default
-  // set. A getter on the context object, so it stays live.
+  // What the user kept enabled in Settings > Apps. null means the default
+  // set. This is a getter on the context object. As a result, it stays live.
   readonly enabledApps: string[] | null
   confirm: ConfirmAPI
-  // UI preferences stored on the account, so they follow the user from one
-  // device to the next. Keys are namespaced "<app>.<name>"; get() is reactive
-  // and set() saves that one key (null removes it).
+  // UI preferences stored on the account. As a result, they follow the user
+  // from one device to the next. The keys have the namespace "<app>.<name>".
+  // get() is reactive and set() saves that one key (null removes it).
   preferences: {
     get<T>(key: string, fallback: T): T
     set(key: string, value: unknown): void
   }
   // Live entry changes from the user's data channel (created, updated, or
-  // deleted, the latter carrying only `id`). Returns an unsubscribe; call it
-  // in the app's teardown.
+  // deleted; a deleted entry carries only `id`). Returns an unsubscribe
+  // function. Call it in the teardown of the app.
   events: {
     onEntryChange(cb: (entry: Entry) => void): () => void
   }

@@ -20,8 +20,8 @@ import { contactField, contactInitials, contactName } from '../../lib/contact'
 import { formatDate } from '../../lib/datetime'
 import { openDialog } from '../../lib/dialog'
 import { safeUrl } from '../../lib/url'
-// Photos owns the shape of a stored face; read it through its helper rather
-// than re-deriving `data.faces` here.
+// Photos owns the shape of a stored face. Read it through the Photos helper.
+// Do not derive `data.faces` again here.
 import { facesOf } from '../photos/faces'
 import {
   findDuplicateGroups,
@@ -53,19 +53,20 @@ interface Labeled {
 
 const allContacts = ref<Entry[]>([])
 const searchQuery = ref('')
-// Several tags can be active at once, and they narrow: a contact must carry
-// all of them. Clicking an active chip drops it again.
+// Several tags can be active at the same time, and they narrow the list: a
+// contact must have all of them. A click on an active chip makes its tag
+// inactive again.
 const activeTags = ref<string[]>([])
 const query = new URLSearchParams(window.location.search)
 const selectedId = ref<string | null>(query.get('selected'))
-// The detail column shows one view at a time and the URL says which, so a
-// reload or a shared link lands where you left off.
+// The detail column shows one view at a time, and the URL tells which one.
+// As a result, a reload or a shared link opens the view that you left.
 const graphOpen = ref(query.get('view') === 'graph')
 const loading = ref(true)
 const loadError = ref('')
 
-// The detail column is the single workplace: it shows the full contact,
-// edits it in place, and hosts creation (no modal, no separate page).
+// The detail column is the single workplace. It shows the full contact,
+// edits it in place, and hosts the creation (no modal, no separate page).
 const mode = ref<'view' | 'edit' | 'create'>('view')
 const saving = ref(false)
 const formError = ref('')
@@ -88,8 +89,8 @@ const form = reactive({
 const fld = contactField
 const getInitials = contactInitials
 
-// Deterministic tint per contact: hash the name into a hue, keep the
-// avatar's translucent-bg + tinted-text look.
+// Deterministic tint for each contact: hash the name into a hue. Keep the
+// translucent-bg + tinted-text look of the avatar.
 function avatarStyle(name: string) {
   let h = 0
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 360
@@ -156,7 +157,8 @@ function toggleTagFilter(tag: string) {
     : [...activeTags.value, tag]
 }
 
-// A removed tag must release the filter, or the list locks on "No match."
+// A removed tag must release the filter. If not, the list locks on
+// "No match."
 watch(allTags, tags => {
   const kept = activeTags.value.filter(t => tags.includes(t))
   if (kept.length !== activeTags.value.length) activeTags.value = kept
@@ -178,8 +180,8 @@ const websiteHref = computed(() =>
   selected.value ? safeUrl(fld(selected.value, 'url')) : null
 )
 
-// Query for the current view; the detail column can only show one, so the
-// selected contact wins over the graph and the creation form.
+// Sets the URL query for the current view. The detail column can show only
+// one view, so the selected contact wins over the graph and the creation form.
 function syncUrl() {
   const view = selectedId.value
     ? `?selected=${selectedId.value}`
@@ -191,8 +193,8 @@ function syncUrl() {
   history.replaceState(null, '', '/apps/contacts' + view)
 }
 
-// Picking a contact is always the way out of the graph and of the form:
-// the click means "show me this one".
+// The selection of a contact always closes the graph and the form: the
+// click means "show me this one".
 function selectContact(id: string) {
   selectedId.value = id
   graphOpen.value = false
@@ -216,9 +218,10 @@ const linkedEvents = ref<Entry[]>([])
 const mentioningNotes = ref<Entry[]>([])
 const linkedPhotos = ref<Entry[]>([])
 const PHOTO_PREVIEW = 8
-// The opt-in list (whose birthdays show in the calendar and on the dashboard)
-// lives in its own entry (kind prefs, title birthdays) rather than on the
-// contact: vCard connector re-syncs replace contact data wholesale.
+// The opt-in list tells whose birthdays show in the calendar and on the
+// dashboard. It is in its own entry (kind prefs, title birthdays), not on
+// the contact. The reason: a re-sync of the vCard connector replaces the
+// full contact data.
 const dashPrefs = ref<Entry | null>(null)
 
 async function loadLinked() {
@@ -229,13 +232,13 @@ async function loadLinked() {
   if (!id) return
   try {
     const [events, notesRes, prefs, photos] = await Promise.all([
-      // q narrows server-side (the id appears in data.contact_id); the
-      // filter below makes the match exact.
+      // q narrows the list on the server side (the id is in
+      // data.contact_id). The filter below makes the match exact.
       props.ctx.api.entries.list({ kind: 'event', q: id }),
       props.ctx.api.fetch(`/api/notes/mentioning/${id}`),
       props.ctx.api.entries.list({ kind: 'prefs' }),
-      // Same trick: the id appears in data.faces[].person_id once a face has
-      // been named in Photos.
+      // Same trick: the id is in data.faces[].person_id after the user names
+      // a face in Photos.
       props.ctx.api.entries.list({ kind: 'photo', q: id })
     ])
     if (id !== selectedId.value) return
@@ -256,14 +259,14 @@ async function loadLinked() {
     }
     dashPrefs.value = prefs.find(p => p.title === 'birthdays') || null
   } catch {
-    // linked sections simply stay empty
+    // The linked sections stay empty.
   }
 }
 
 const photoThumb = (p: Entry) => (p.data.thumb_path || p.data.path) as string
 
-// Linked rows are anchors: ctrl/middle-click opens the target in a new tab,
-// a plain click stays in the SPA.
+// Linked rows are anchors. A ctrl-click or a middle-click opens the target
+// in a new tab. A plain click stays in the SPA.
 function onLinkClick(to: string, e: MouseEvent) {
   if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button > 0) return
   e.preventDefault()
@@ -294,7 +297,7 @@ async function toggleBirthdayOnDashboard() {
       })
     }
   } catch {
-    // leave the checkbox as-is
+    // Leave the checkbox as it is.
   }
 }
 
@@ -303,15 +306,16 @@ async function toggleBirthdayOnDashboard() {
 const mePrefs = ref<Entry | null>(null)
 const meId = computed(() => (mePrefs.value?.data.contact_id as string) || null)
 
-// Once a me contact exists, only it shows the toggle (to unset).
+// When a me contact exists, only that contact shows the toggle (to unset it).
 const showMeToggle = computed(
   () => !meId.value || meId.value === selected.value?.id
 )
 
 // ----- relations graph view -----
 
-// The graph takes the whole detail column: opening it drops what was on
-// screen, so the URL never claims a contact the view is not showing.
+// The graph takes the whole detail column. When the graph opens, it removes
+// what was on screen. As a result, the URL never names a contact that the
+// view does not show.
 function toggleGraph() {
   graphOpen.value = !graphOpen.value
   if (graphOpen.value) {
@@ -339,15 +343,16 @@ async function toggleMe() {
       })
     }
   } catch {
-    // the checkbox reflects the stored state
+    // The checkbox shows the stored state.
   }
 }
 
 const newTag = ref('')
 
-// All immediate saves (tags, relations) share one serialized chain and
-// re-derive from the freshest entry inside it: the backend replaces data
-// wholesale, so two in-flight updates on one entry would clobber each other.
+// All immediate saves (tags, relations) share one serialized chain. Inside
+// the chain, each save derives its data again from the most recent entry.
+// The backend replaces the full data. Without the chain, two in-flight
+// updates on one entry overwrite each other.
 let saveChain: Promise<void> = Promise.resolve()
 
 function queueDataSave(
@@ -366,9 +371,9 @@ function queueDataSave(
       )
     })
     .catch(() => {
-      // a failed write re-syncs with the server state on the next load; a
+      // A failed write syncs again with the server state on the next load. A
       // failed reciprocal write can leave a one-sided relation, and the x
-      // on either card removes both sides
+      // on either card removes the two sides.
     })
 }
 
@@ -385,7 +390,8 @@ function mutateTags(mutate: (cur: string[]) => string[]) {
   })
 }
 
-// Only tags the contact does not already carry; selecting one adds it.
+// Lists only the tags that the contact does not have. When the user selects
+// one, the app adds it.
 const tagSuggestions = computed(() => {
   if (!selected.value) return []
   const current = tagsOf(selected.value)
@@ -421,9 +427,9 @@ function commitRenameTag() {
   const to = renameTagValue.value.trim().toLowerCase()
   renamingTag.value = null
   if (!from || !to || to === from) return
-  // Every carrier is rewritten through the same serialized chain as a single
-  // tag edit, so a rename can't clobber a queued write; a contact that already
-  // carries the target tag just ends up with one instead of two.
+  // The rename rewrites every carrier through the same serialized chain as a
+  // single tag edit, so a rename cannot overwrite a queued write. A contact
+  // that already has the target tag gets one tag, not two.
   for (const contact of allContacts.value) {
     if (!tagsOf(contact).includes(from)) continue
     queueDataSave(contact.id, entry => {
@@ -435,7 +441,7 @@ function commitRenameTag() {
       }
     })
   }
-  // The filter follows the tag it was pointing at.
+  // The filter follows the tag that it pointed at.
   activeTags.value = activeTags.value.map(tag => (tag === from ? to : tag))
 }
 
@@ -444,8 +450,8 @@ function commitRenameTag() {
 const newRelType = ref<string>('friend')
 const newRelId = ref('')
 
-// Free text with suggestions, not a closed list: the six built-in types plus
-// whatever custom ones the address book already uses.
+// Free text with suggestions, not a closed list. The suggestions are the six
+// built-in types plus the custom types that the address book already uses.
 const relTypeOptions = computed(() => {
   const used = new Set<string>()
   for (const contact of allContacts.value) {
@@ -459,8 +465,8 @@ const relTargets = computed(() =>
   allContacts.value.filter(contact => contact.id !== selectedId.value)
 )
 
-// Options carry the contact id, so two contacts sharing a display name
-// stay distinct targets.
+// The options hold the contact id, so two contacts that share a display
+// name stay distinct targets.
 const relTargetOptions = computed(() =>
   relTargets.value.map(contact => ({
     value: contact.id,
@@ -630,10 +636,10 @@ async function saveForm() {
 
   try {
     if (mode.value === 'edit' && selected.value) {
-      // Drain queued tag/relation saves first: this PATCH replaces data
-      // wholesale, and edit mode queues nothing new. The id is captured
-      // before the await so a selection switch during the drain cannot
-      // redirect the PATCH onto another contact.
+      // First, drain the queued saves of tags and relations: this PATCH
+      // replaces the full data, and edit mode queues nothing new. Capture
+      // the id before the await. Then a selection switch during the drain
+      // cannot redirect the PATCH to a different contact.
       const id = selected.value.id
       await saveChain
       const base = allContacts.value.find(candidate => candidate.id === id)
@@ -667,7 +673,8 @@ async function saveForm() {
 // ----- duplicates (merge candidates sharing an email, a phone or a name) -----
 
 const duplicatesOpen = ref(false)
-// Chosen survivor per group, keyed by the group's first contact id.
+// The chosen survivor of each group. The key is the id of the first contact
+// of the group.
 const survivorChoice = ref<Record<string, string>>({})
 const merging = ref<string | null>(null)
 const mergeError = ref('')
@@ -682,8 +689,8 @@ const duplicateGroups = computed(() => findDuplicateGroups(allContacts.value))
 
 const groupKey = (group: DuplicateGroup) => group.contacts[0].id
 
-// Values held by more than one contact of the group, so the card can show
-// what the candidates have in common next to what sets them apart.
+// Returns the values that more than one contact of the group holds. The card
+// can then show what the candidates share next to what makes them different.
 function sharedValues(values: string[][]): Set<string> {
   const seen = new Set<string>()
   const shared = new Set<string>()
@@ -808,8 +815,8 @@ async function mergeGroup(row: (typeof duplicateRows.value)[number]) {
       syncUrl()
     }
     if (selectedId.value === merged.id) void loadLinked()
-    // Other contacts' relations were repointed server side; reload them so
-    // the graph and the detail column agree with the database.
+    // The server repointed the relations of other contacts. Reload them so
+    // that the graph and the detail column agree with the database.
     void reload()
   } catch (err) {
     mergeError.value = err instanceof Error ? err.message : 'Merge failed'
@@ -841,7 +848,7 @@ async function deleteContact() {
     selectedId.value = null
     syncUrl()
   } catch {
-    // the contact stays listed; a retry goes through the same button
+    // The contact stays in the list. A retry goes through the same button.
   }
 }
 
@@ -865,7 +872,7 @@ async function reload() {
     const prefs = await props.ctx.api.entries.list({ kind: 'prefs' })
     mePrefs.value = prefs.find(entry => entry.title === 'me') || null
   } catch {
-    // the ME badge just stays hidden
+    // The ME badge stays hidden.
   }
 }
 
@@ -873,7 +880,7 @@ onMounted(() => {
   document.addEventListener('keydown', onKeydown)
   reload()
   if (selectedId.value) void loadLinked()
-  // ?view=new opens the form with its blank rows, same as the button.
+  // ?view=new opens the form with its blank rows, the same as the button.
   if (query.get('view') === 'new') openCreate()
 })
 onUnmounted(() => document.removeEventListener('keydown', onKeydown))
@@ -1856,7 +1863,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .ct-tag-add :deep(input:focus) {
   border-style: solid;
 }
-/* The wrapper is chip-sized; let the suggestion list breathe past it. */
+/* The wrapper is chip-sized. Let the suggestion list extend past it. */
 .ct-tag-add :deep(.ac-list) {
   min-width: 160px;
   right: auto;
@@ -2420,8 +2427,8 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   letter-spacing: 0.1em;
   color: var(--primary);
 }
-/* Label column in mono, values wrap instead of being cut: comparing two
-   emails is the whole point of the card. */
+/* The label column is in mono. The values wrap and are not cut, because
+   the comparison of two emails is the whole purpose of the card. */
 .ct-dup-fields {
   display: grid;
   grid-template-columns: auto 1fr;

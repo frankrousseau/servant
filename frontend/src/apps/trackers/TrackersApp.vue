@@ -39,14 +39,15 @@ const searchEl = ref<HTMLInputElement | null>(null)
 
 // ----- heatmap window: as many weeks as the width fits, browsable back -----
 
-// 11px cell + 3px gap; keep in sync with TrackerCard.vue styles.
+// 11px cell + 3px gap. Keep in sync with the styles of TrackerCard.vue.
 const CELL = 14
 // layout padding + card padding + borders around the heatmap.
 const CHROME = 76
 
 const layoutEl = ref<HTMLElement | null>(null)
 const weeksVisible = ref(16)
-// Last day of the heatmap window; today unless browsing the past.
+// The last day of the heatmap window. It is today, unless the user browses
+// the past.
 const windowEnd = ref(todayInUserTz())
 let resizeObs: ResizeObserver | null = null
 
@@ -69,15 +70,18 @@ function shiftWindow(dir: 1 | -1) {
   windowEnd.value = next >= today.value ? today.value : next
 }
 
-// Day values of entry-based trackers, computed server-side in the user's
-// timezone; a failing aggregate (revoked scope, deleted kind) shows empty.
-// No `to` bound: the streak/7d stats always need the recent days.
-// Window navigation and the ResizeObserver can fire overlapping loads; a stale
-// (slower) response must not clobber the current window's data.
+// The day values of entry-based trackers. The server computes them in the
+// time zone of the user. An aggregate that fails (revoked scope, deleted
+// kind) shows empty. There is no `to` bound: the streak stats and the 7d
+// stats always use the recent days.
+// The window navigation and the ResizeObserver can fire loads that overlap.
+// A stale (slower) response must not overwrite the data of the current
+// window.
 let aggregateSeq = 0
 
-// COUNT of the tracked kind by default; SUM over the configured field when
-// the tracker asks for it. Shared by the windowed and the detail loads.
+// COUNT of the tracked kind by default. SUM of the configured field when
+// the tracker asks for it. The windowed loads and the detail loads share
+// these parameters.
 function aggregateParams(tracker: Tracker): Record<string, string> {
   const params: Record<string, string> = { kind: tracker.entryKind! }
   if (tracker.agg === 'sum' && tracker.field) {
@@ -115,7 +119,7 @@ async function loadAggregates(trackers: Entry[]) {
 
 async function reload() {
   try {
-    // entries.list pages through everything internally.
+    // entries.list pages through all the entries internally.
     const [trackers, logs] = await Promise.all([
       ctx.api.entries.list({ kind: 'tracker' }),
       ctx.api.entries.list({ kind: 'tracker_log' })
@@ -130,7 +134,7 @@ async function reload() {
   }
 }
 
-// ----- detail view: per-tracker aggregates, deep-linked via ?tracker= -----
+// ----- detail view: per-tracker aggregates, deep-linked through ?tracker= -----
 
 const selectedTrackerId = ref<string | null>(null)
 
@@ -141,9 +145,10 @@ const selectedTracker = computed<Tracker | null>(() => {
   return entry ? trackerFromEntry(entry) : null
 })
 
-// Entry trackers have no logs: the detail view needs its own server
-// rollups over the whole history (entryMaps is windowed). All three
-// periods load at once so the selector switches without a spinner.
+// Entry trackers have no logs. For the detail view, separate server rollups
+// of the full history are necessary (entryMaps is windowed). The three
+// periods load at the same time. As a result, the selector switches without
+// a spinner.
 const detailRollups = ref<Record<RollupPeriod, RollupRow[]> | null>(null)
 const detailState = ref<'idle' | 'loading' | 'error'>('idle')
 const detailCache = new Map<string, Record<RollupPeriod, RollupRow[]>>()
@@ -229,13 +234,14 @@ const mapsById = computed(() => {
   return maps
 })
 
-// One log per tracker per day: update the day's entry when it exists,
-// create it otherwise.
+// One log for each tracker and each day: update the entry of the day when
+// it exists. If not, create it.
 const inFlight = new Set<string>()
 
 async function setValue(tracker: Tracker, date: string, value: number) {
-  // Two quick taps both miss the not-yet-created log and each create one,
-  // producing duplicate logs for the same tracker/day. Serialize per (tracker, day).
+  // Two quick taps do not find the log, because it is not created yet. Each
+  // tap then creates one, which gives duplicate logs for the same tracker and
+  // day. Serialize for each (tracker, day).
   const key = `${tracker.id}:${date}`
   if (inFlight.has(key)) return
   inFlight.add(key)
@@ -265,7 +271,7 @@ async function setValue(tracker: Tracker, date: string, value: number) {
       logEntries.value = [...logEntries.value, created]
     }
   } catch {
-    // the card keeps showing the stored value
+    // The card continues to show the stored value.
   } finally {
     inFlight.delete(key)
   }
@@ -300,8 +306,9 @@ function openModal() {
   void loadKindOptions()
 }
 
-// Existing kinds (with entry counts) feed the entry-tracker dropdown; the
-// trackers' own kinds would be circular and are left out.
+// The existing kinds (with entry counts) supply the entry-tracker dropdown.
+// The kinds of the trackers themselves are circular, and the list excludes
+// them.
 async function loadKindOptions() {
   try {
     const stats = await ctx.api.entries.stats()
@@ -314,7 +321,7 @@ async function loadKindOptions() {
   }
 }
 
-// Numeric data fields of a recent entry of the chosen kind, for SUM.
+// The numeric data fields of a recent entry of the selected kind, for SUM.
 watch([draftKind, draftAgg], async ([kind, agg]) => {
   draftField.value = ''
   fieldOptions.value = []
@@ -331,7 +338,7 @@ watch([draftKind, draftAgg], async ([kind, agg]) => {
     if (fieldOptions.value.length === 1)
       draftField.value = fieldOptions.value[0].value
   } catch {
-    // keep the empty list; the create button stays disabled
+    // Keep the empty list. The create button stays disabled.
   }
 })
 
@@ -418,7 +425,8 @@ onUnmounted(() => {
   window.removeEventListener('popstate', onPopState)
 })
 
-// Moving or resizing the window changes the dates entry trackers need.
+// A move or a resize of the window changes the dates that are necessary for
+// entry trackers.
 watch([windowEnd, weeksVisible], () => {
   if (loadState.value === 'ready') void loadAggregates(trackerEntries.value)
 })

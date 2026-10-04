@@ -72,7 +72,8 @@ const rangeOptions = computed(() => [
   RANGE_ALL_YEARS
 ])
 
-// Table columns and chart bars: months, or years when aggregating.
+// The table columns and the chart bars: months, or years when the range
+// aggregates by year.
 const periods = computed<string[]>(() => {
   if (range.value === RANGE_ALL_YEARS) return [...years.value].reverse()
   if (range.value === RANGE_LAST3) return spending.value.months.slice(-3)
@@ -102,7 +103,7 @@ const CHART_TYPES = ['Bars', 'Pie']
 const chartType = ref('Bars')
 
 // The pie reads one period of the current range: a month, or a year when
-// the range aggregates by year. Defaults to the most recent.
+// the range aggregates by year. The default is the most recent period.
 const piePeriod = ref('')
 const piePeriodOptions = computed(() => [...periods.value].reverse())
 
@@ -126,7 +127,8 @@ function toggleCategory(category: string) {
     : [...hiddenList.value, category]
 }
 
-// Solo on a fresh legend, back to everything when already solo.
+// Shows only this category on a fresh legend. Shows everything again when
+// this category is already solo.
 function soloCategory(category: string) {
   const others = allRows.value
     .map(row => row.category)
@@ -140,11 +142,11 @@ function showAll() {
   hiddenList.value = []
 }
 
-// Table and legend ordering: by cost (default) or alphabetical.
+// The order of the table and the legend: by cost (default) or alphabetical.
 const sortMode = ref<'total' | 'alpha'>('total')
 
-// Every category with spending in range: the legend shows them all,
-// hidden included, so they can be brought back.
+// Every category with spending in range. The legend shows all of them,
+// hidden included, so that the user can show them again.
 const allRows = computed(() =>
   spending.value.rows
     .map(row => {
@@ -166,7 +168,7 @@ const allRows = computed(() =>
     )
 )
 
-// What the chart and table consolidate.
+// The rows that the chart and the table consolidate.
 const rows = computed(() =>
   allRows.value.filter(row => !hidden.value.has(row.category))
 )
@@ -174,8 +176,9 @@ const rows = computed(() =>
 const periodTotal = (period: string) =>
   rows.value.reduce((sum, row) => sum + (row.byPeriod[period] || 0), 0)
 
-// Spending is read as magnitudes across a grid of periods: cents add width
-// and noise without ever changing a reading, so everything here is rounded.
+// The user reads spending as magnitudes across a grid of periods. Cents add
+// width and noise and never change what the user reads, so everything here
+// is rounded.
 const fmt = (value: number) =>
   formatAmount(value, props.refCurrency, { maxDigits: 0 })
 const cell = (row: { byPeriod: Record<string, number> }, period: string) =>
@@ -227,7 +230,7 @@ function tickStep(max: number): number {
   )
 }
 
-// Clip for one stack: square at the baseline, rounded where it ends.
+// Clip for one stack: square at the baseline, rounded at its end.
 function barCapPath(x: number, y: number, w: number, h: number): string {
   const r = Math.min(BAR_RADIUS, w / 2, h)
   const round = (value: number) => value.toFixed(1)
@@ -297,7 +300,7 @@ const chart = computed(() => {
 // ----- hover readout -----
 // One readout at a time: the column under the pointer, plus the slice when
 // the pointer is on one. The chart is role="img" and stays out of the tab
-// order: the table below carries the same numbers for keyboard and AT.
+// order. The table below gives the same numbers for keyboard and AT.
 const hover = ref<{ period: string; category: string | null } | null>(null)
 
 const READOUT_ROWS = 7
@@ -310,15 +313,16 @@ const readout = computed(() => {
   const ranked = [...column.slices].sort((a, b) => b.value - a.value)
   const rest = ranked.slice(READOUT_ROWS)
   return {
-    // Full period here, not the axis's short label: the readout names what
-    // it reads in the same words as the range selector.
+    // Use the full period here, not the short label of the axis. The readout
+    // names what it reads in the same words as the range selector.
     period: column.period,
     total: column.totalText,
     rows: ranked.slice(0, READOUT_ROWS),
     restCount: rest.length,
     restAmount: fmt(rest.reduce((sum, slice) => sum + slice.value, 0)),
     category: target.category,
-    // Sit opposite the column being read, so the bar stays visible.
+    // Put the readout opposite the column that it reads, so the bar stays
+    // visible.
     side: column.centerX > W / 2 ? 'left' : 'right'
   }
 })
@@ -380,7 +384,7 @@ const pie = computed(() => {
   return { slices, breakdown, total: fmt(total) }
 })
 
-// Hovering a slice (or its breakdown row) swaps what the donut reads.
+// A hover on a slice (or on its breakdown row) changes what the donut reads.
 const pieHover = ref<string | null>(null)
 
 const pieCenter = computed(() => {
@@ -758,8 +762,8 @@ const pieCenter = computed(() => {
   max-width: 100%;
   flex-shrink: 0;
 }
-/* Shared by the donut slices and the stacked-bar slices: whatever is not
-   being read steps back. */
+/* The donut slices and the stacked-bar slices share this. The slices that
+   the user does not read become dim. */
 .sp-slice {
   transition: opacity 0.15s ease;
 }
@@ -794,7 +798,7 @@ const pieCenter = computed(() => {
   color: var(--text-muted);
   cursor: default;
 }
-/* Hovered anywhere (row or slice): the pair lights up together. */
+/* On a hover anywhere (row or slice), the pair lights up together. */
 .sp-breakdown-row--on {
   background: var(--bg-hover);
   color: var(--text);
@@ -930,8 +934,8 @@ const pieCenter = computed(() => {
   fill: transparent;
   pointer-events: all;
 }
-/* Reading one column dims the others: the stack under the pointer is the
-   only lit channel, the rest stays as context. */
+/* When the user reads one column, the others become dim. The stack under
+   the pointer is the only lit channel, and the rest stays as context. */
 .sp-col {
   transition: opacity 0.15s ease;
 }
@@ -1023,7 +1027,7 @@ const pieCenter = computed(() => {
   flex-shrink: 0;
   opacity: 0.7;
 }
-/* The slice actually under the pointer, called out among its column. */
+/* The slice that is under the pointer, called out in its column. */
 .sp-readout-row--on {
   color: var(--text);
   font-weight: 600;

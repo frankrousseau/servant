@@ -14,7 +14,7 @@ import type { AppContext, Entry } from '../types'
 const props = defineProps<{
   ctx: AppContext
   txs: Entry[]
-  // Set by the Accounts tab to land here filtered on one account.
+  // The Accounts tab sets this to open this section filtered on one account.
   focusAccount?: string | null
 }>()
 const emit = defineEmits<{ updated: [tx: Entry]; deleted: [id: string] }>()
@@ -74,8 +74,8 @@ watch([accountFilter, categoryFilter, flowFilter], () => {
   shown.value = PAGE
 })
 
-// Case-insensitive: an account's identifier may not match the imported
-// casing exactly.
+// Case-insensitive: it is possible that the identifier of an account does
+// not match the imported casing exactly.
 watch(
   () => props.focusAccount,
   value => {
@@ -132,7 +132,7 @@ async function saveCategory(tx: Entry, value: string) {
     emit('updated', updated)
     editingId.value = null
   } catch {
-    // keep the editor open
+    // Keep the editor open.
   } finally {
     saving.value = false
   }
@@ -183,7 +183,7 @@ async function saveLink(tx: Entry, id: string, title: string | null) {
     })
     emit('updated', updated)
   } catch {
-    // ignore
+    // Ignore the error.
   }
   linkingId.value = null
 }
@@ -226,7 +226,7 @@ async function applyBulkCategory(value: string) {
         })
         emit('updated', updated)
       } catch {
-        // keep going
+        // Continue.
       }
     }
     selected.value = new Set()
@@ -238,8 +238,8 @@ async function applyBulkCategory(value: string) {
 
 // ----- auto-categorize: guess from already-categorized labels -----
 
-// Digits and punctuation vary between occurrences of the same merchant
-// ("CB CARREFOUR 12/07"); the letters are the stable part.
+// Digits and punctuation change between occurrences of the same merchant
+// ("CB CARREFOUR 12/07"). The letters are the stable part.
 function guessKey(label: string): string {
   return label
     .toLowerCase()
@@ -255,7 +255,8 @@ const autoGroups = ref<{ category: string; txs: Entry[]; checked: boolean }[]>(
 const autoApplying = ref(false)
 
 function openAutoCat() {
-  // Most frequent category per label key, learned from categorized txs.
+  // The most frequent category for each label key, learned from the
+  // categorized txs.
   const counts = new Map<string, Map<string, number>>()
   for (const tx of props.txs) {
     const category = categoryOf(tx)
@@ -302,7 +303,7 @@ async function applyAutoCat() {
           })
           emit('updated', updated)
         } catch {
-          // keep going
+          // Continue.
         }
       }
     }
@@ -314,11 +315,12 @@ async function applyAutoCat() {
 
 // ----- duplicates -----
 
-// The same movement imported twice (overlapping CSVs, CSV + bank API)
-// rarely matches exactly: each source words the label its own way and the
+// The same movement imported twice (CSVs that overlap, CSV + bank API)
+// rarely matches exactly. Each source words the label differently, and the
 // booking date can shift by a day or two. Candidates: same amount, civil
-// dates at most 2 days apart. The account is shown but not part of the
-// key, the same real account is named differently per source.
+// dates at most 2 days apart. The app shows the account, but the account is
+// not part of the key. The reason: each source gives a different name to
+// the same real account.
 const DUP_DAYS = 2
 const dedupOpen = ref(false)
 const dupSelected = ref<Set<string>>(new Set())
@@ -352,9 +354,9 @@ const dupGroups = computed(() => {
   )
 })
 
-// Twins worth preselecting: labels sharing a word, or two different sources
-// reporting the same movement. Same-source rows with unrelated labels stay
-// unchecked, those are probably two real purchases.
+// Finds the twins to preselect: labels that share a word, or two different
+// sources that report the same movement. Same-source rows with unrelated
+// labels stay unchecked, because they are probably two real purchases.
 function likelyDup(txA: Entry, txB: Entry): boolean {
   if (txA.source !== txB.source) return true
   const words = new Set(guessKey(labelOf(txA)).split(' ').filter(Boolean))
@@ -364,8 +366,9 @@ function likelyDup(txA: Entry, txB: Entry): boolean {
     .some(word => words.has(word))
 }
 
-// Keep one per group: prefer a tx carrying a balance (it feeds the curve),
-// else the oldest import; preselect the likely twins for deletion.
+// Keep one tx for each group. Prefer a tx that has a balance (it feeds the
+// curve). If there is none, keep the oldest import. Preselect the likely
+// twins for deletion.
 function openDedup() {
   const selected = new Set<string>()
   for (const group of dupGroups.value) {
@@ -397,7 +400,7 @@ async function deleteDuplicates() {
       await props.ctx.api.entries.delete(id)
       emit('deleted', id)
     } catch {
-      // keep going; a leftover shows up on the next scan
+      // Continue. A leftover shows on the next scan.
     }
   }
   dedupOpen.value = false
@@ -413,12 +416,12 @@ async function deleteTx(tx: Entry) {
     await props.ctx.api.entries.delete(tx.id)
     emit('deleted', tx.id)
   } catch {
-    // ignore
+    // Ignore the error.
   }
 }
 
-// Invoices open their provider URL when they have one; everything else
-// lands on its app surface.
+// Invoices open their provider URL when they have one. All other documents
+// open on their app surface.
 async function openLinked(tx: Entry) {
   const id = tx.data.linked_entry_id as string
   if (!id) return
@@ -428,7 +431,8 @@ async function openLinked(tx: Entry) {
     if (doc.kind === 'invoice' && url) window.open(url, '_blank', 'noopener')
     else props.ctx.navigate(entryRoute(doc))
   } catch {
-    // linked document gone; keep the chip, the title still informs
+    // The linked document is gone. Keep the chip, because the title still
+    // gives information.
   }
 }
 </script>
@@ -682,8 +686,8 @@ async function openLinked(tx: Entry) {
 </template>
 
 <style scoped>
-/* Mirrors FinanceApp's .fin-universe card look (scoped styles don't cross
-   component boundaries). */
+/* Mirrors the .fin-universe card look of FinanceApp (scoped styles do not
+   cross component boundaries). */
 .ftx {
   margin-bottom: 2rem;
   border: 1px solid var(--border);

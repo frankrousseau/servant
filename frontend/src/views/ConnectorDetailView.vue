@@ -117,7 +117,7 @@ const connectorId = computed(() => route.params.id as string)
 const isEnableBanking = computed(
   () => connector.value?.connector_type === 'enable_banking'
 )
-// Fixed callback registered once in the Enable Banking application.
+// Fixed callback, registered one time in the Enable Banking application.
 const ebRedirectUrl = `${window.location.origin}/connectors/eb-callback`
 const ebConnecting = ref(false)
 const ebError = ref('')
@@ -145,8 +145,9 @@ async function ebConnect() {
   }
 }
 
-// `silent` skips the loading toggle so background polling doesn't tear the whole
-// view down to a "Loading…" state every 2s (and drop focus on the title).
+// `silent` skips the loading toggle. Without it, the background polling
+// replaces the full view with a "Loading…" state every 2s (and the title
+// loses the focus).
 async function fetchConnector(silent = false) {
   if (!silent) loading.value = true
   try {
@@ -185,22 +186,22 @@ async function saveName(event: Event) {
 
 async function syncNow() {
   syncing.value = true
-  // Clear current error immediately for visual feedback
+  // Clear the current error immediately for visual feedback.
   if (connector.value) {
     connector.value.error = null
   }
   try {
     await syncConnector(connectorId.value)
   } catch {
-    // Connector may not be running, try start first
+    // The connector possibly does not run. Try to start it first.
     try {
       await startConnector(connectorId.value)
       await syncConnector(connectorId.value)
     } catch {
-      // ignore
+      // Ignore the error.
     }
   }
-  // Poll for completion
+  // Poll for completion.
   pollSync()
 }
 
@@ -220,7 +221,8 @@ function pollSync() {
     attempts++
     await fetchLogs(true)
     await fetchConnector(true)
-    // Stop polling when the latest log is no longer "running", or after 60s
+    // Stop the polling when the latest log is no longer "running", or after
+    // 60s.
     const latest = logs.value[0]
     if (!latest || latest.status !== 'running' || attempts >= 30) {
       stopPolling()
@@ -253,7 +255,7 @@ async function updateSchedule(schedule: Schedule) {
     await updateConnector(connectorId.value, { schedule })
     connector.value.schedule = schedule
   } catch {
-    // ignore
+    // Ignore the error.
   }
 }
 
@@ -261,9 +263,9 @@ async function toggleEnabled() {
   if (!connector.value) return
   const newState = !connector.value.enabled
   try {
-    // Update the flag in DB
+    // Update the flag in the database.
     await updateConnector(connectorId.value, { enabled: newState })
-    // Start or stop the worker accordingly
+    // Start or stop the worker to match the flag.
     if (newState) {
       await startConnector(connectorId.value)
     } else {
@@ -297,9 +299,9 @@ async function saveConfig() {
   configSaving.value = true
   configErrorMsg.value = ''
   try {
-    // Start from the stored config: untouched keys (sync cursors, hint
-    // values) survive the wholesale replace, and redacted secrets round-trip
-    // as their marker, which the backend swaps back for the stored value.
+    // Start from the stored config. The untouched keys (sync cursors, hint
+    // values) survive the full replace. The redacted secrets round-trip as
+    // their marker, and the backend replaces the marker with the stored value.
     const merged: Record<string, unknown> = { ...connector.value.config }
     for (const field of configFields.value) {
       const value = (configForm.value[field.key] || '').trim()
@@ -330,7 +332,7 @@ async function deleteConnector() {
     await removeConnector(connectorId.value)
     router.push('/connectors')
   } catch {
-    // ignore
+    // Ignore the error.
   }
 }
 
@@ -834,7 +836,7 @@ onMounted(async () => {
   border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
   border-radius: var(--radius);
 }
-/* Error payloads are API messages: mono, and free to wrap however long. */
+/* Error payloads are API messages: mono, and free to wrap at any length. */
 .connector-error-text {
   flex: 1;
   min-width: 0;

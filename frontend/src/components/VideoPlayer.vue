@@ -48,8 +48,9 @@ function togglePlay() {
   wake()
 }
 
-// `timeupdate` only fires ~4x/s; drive the seekbar with rAF while playing so
-// it moves smoothly. The event stays as the paused-state fallback (seeks).
+// `timeupdate` fires only ~4x/s. Drive the seekbar with rAF during playback,
+// so that it moves smoothly. The event stays as the fallback for the paused
+// state (seeks).
 let rafId: number | undefined
 function tick() {
   if (!scrubbing.value) currentTime.value = video.value?.currentTime || 0
@@ -102,8 +103,9 @@ function onVolumeChange() {
   muted.value = media.muted
 }
 
-// YouTube-style auto-hide: controls fade out after inactivity while playing,
-// and immediately when the pointer leaves the player.
+// Auto-hide in the style of YouTube. During playback, the controls fade out
+// after a time with no activity. They fade out immediately when the pointer
+// leaves the player.
 let hideTimer: ReturnType<typeof setTimeout> | undefined
 function wake() {
   controlsVisible.value = true
@@ -140,7 +142,7 @@ function endScrub(event: PointerEvent) {
 }
 
 // Keyboard scrubbing on the seek slider. stopPropagation keeps the arrows
-// local: inside a MediaViewer they would otherwise also switch media.
+// local: inside a MediaViewer, without it, they would also change the media.
 function onSeekKeydown(event: KeyboardEvent) {
   const media = video.value
   if (!media || !duration.value) return
@@ -180,7 +182,7 @@ function onFsChange() {
   fullscreen.value = !!document.fullscreenElement
 }
 
-// Space / K toggle playback (unless typing somewhere).
+// Space and K toggle the playback, unless the user types in a field.
 function onKeydown(event: KeyboardEvent) {
   if (event.key !== ' ' && event.key !== 'k') return
   const target = event.target as HTMLElement
@@ -362,13 +364,14 @@ onUnmounted(() => {
   bottom: 0;
   padding: 1rem 0.75rem 0.35rem;
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
-  /* Fade back in quickly… */
+  /* The controls fade back in quickly. */
   transition: opacity 0.15s ease-out;
 }
 .vp--idle .vp-controls {
   opacity: 0;
   pointer-events: none;
-  /* …but fade out slowly (the rule of the state being entered wins). */
+  /* But they fade out slowly: the rule of the state that the element enters
+     wins. */
   transition: opacity 0.5s ease;
 }
 .vp-seek {

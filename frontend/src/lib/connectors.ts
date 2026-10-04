@@ -1,6 +1,6 @@
 import type { Schedule } from '../types'
 
-// How a connector's sync cadence is written in the UI.
+// The UI text for the sync cadence of a connector.
 export const SCHEDULE_LABELS: Record<Schedule, string> = {
   on_demand: 'On demand',
   every_5_minutes: 'Every 5 minutes',

@@ -1,15 +1,15 @@
 import { useAuthStore } from '../stores/auth'
 
-// Single HTTP client for the whole app (Vue views via useApi and the imperative
-// apps via createContext). Handles the Bearer header, 401 -> logout, and error
-// parsing in one place.
+// The single HTTP client for the full app. The Vue views use it through useApi,
+// and the imperative apps use it through createContext. It handles the Bearer
+// header, the logout on a 401, and error parsing in one place.
 
 export interface ApiOptions extends RequestInit {
   params?: Record<string, string>
 }
 
-// Turns an API error payload into a readable message: either `{error: "..."}`
-// or a changeset-style `{errors: {field: ["msg", ...]}}`.
+// Changes an API error payload into a readable message. The payload is
+// `{error: "..."}` or a changeset-style `{errors: {field: ["msg", ...]}}`.
 export function apiErrorMessage(err: unknown): string | null {
   if (typeof err !== 'object' || err === null) return null
   const e = err as { error?: unknown; errors?: unknown }

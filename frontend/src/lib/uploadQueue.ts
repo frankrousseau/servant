@@ -2,17 +2,18 @@ import { ref, type Ref } from 'vue'
 import type { Entry } from '../apps/types'
 import { apiJson } from '../composables/apiClient'
 
-// Generic module-level upload queue. Each app instantiates one at module
-// scope so a running batch survives the app's component unmounting (drop
-// 200 files, navigate away, come back). The component only reads the refs.
+// A generic upload queue at module level. Each app creates one at module
+// scope. As a result, a batch in progress survives the unmount of the app
+// component (drop 200 files, navigate away, come back). The component only
+// reads the refs.
 
 export interface UploadProgress {
   index: number
   total: number
   name: string
   pct: number // whole-batch progress in bytes
-  converting: boolean // client-side decode before sending (HEIC)
-  processing: boolean // bytes sent, waiting on server work
+  converting: boolean // client-side decode before the upload (HEIC)
+  processing: boolean // bytes sent, server work in progress
 }
 
 export interface ProcessTools {
@@ -24,10 +25,11 @@ export interface UploadQueue<T> {
   uploading: Ref<boolean>
   uploadProgress: Ref<UploadProgress | null>
   uploadErrors: Ref<string[]>
-  // Last entry created by the worker: a mounted app watches it to insert
-  // the item into its view without a full reload.
+  // The last entry that the worker created. A mounted app watches it to
+  // insert the item into its view without a full reload.
   lastCreated: Ref<Entry | null>
-  // Bumped when the queue drains: a mounted app watches it to true-up.
+  // Increments when the queue is empty again. A mounted app watches it to
+  // make its data correct again.
   batchesDone: Ref<number>
   enqueue(items: T[]): void
 }
@@ -39,7 +41,8 @@ export function createUploadQueue<T>(opts: {
 }): UploadQueue<T> {
   const uploading = ref(false)
   const uploadProgress = ref<UploadProgress | null>(null)
-  // One entry per failed item; a failure never aborts the rest of the batch.
+  // One entry for each failed item. A failure never aborts the rest of the
+  // batch.
   const uploadErrors = ref<string[]>([])
   const lastCreated = ref<Entry | null>(null)
   const batchesDone = ref(0)
@@ -50,8 +53,8 @@ export function createUploadQueue<T>(opts: {
   let totalBytes = 0
   let doneBytes = 0
 
-  // Items enqueued while a batch is running join it: totals grow, the
-  // single worker keeps going.
+  // The items that arrive during a batch join that batch: the totals grow,
+  // and the single worker continues.
   function enqueue(items: T[]) {
     if (!items.length) return
     queue.push(...items)
@@ -93,8 +96,8 @@ export function createUploadQueue<T>(opts: {
       } catch (e) {
         const message = e instanceof Error ? e.message : 'upload failed'
         uploadErrors.value.push(`${opts.itemName(item)}: ${message}`)
-        // Browser-side failures never reach the server on their own; mirror
-        // them into the Audit error logs. Fire-and-forget.
+        // Browser-side failures never reach the server by themselves. Mirror
+        // them into the Audit error logs. Do not wait for the reply.
         void apiJson('POST', '/api/client_errors', {
           body: {
             context: 'upload',
@@ -104,7 +107,7 @@ export function createUploadQueue<T>(opts: {
       } finally {
         doneBytes += size
       }
-      // Breathe between items so a big batch can't starve rendering.
+      // Pause between items so that a big batch cannot starve the render.
       await new Promise(resolve => setTimeout(resolve))
     }
     uploadProgress.value = null

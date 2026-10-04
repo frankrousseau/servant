@@ -22,8 +22,8 @@ import {
 } from './finance'
 import type { Entry } from '../types'
 
-// The finance landing page: one number, one curve, and what needs doing.
-// Everything here is read-only; management lives in the Accounts tab.
+// The finance landing page: one number, one curve, and what the user must do.
+// Everything here is read-only. Management is in the Accounts tab.
 
 const props = defineProps<{
   accounts: Account[]
@@ -58,9 +58,9 @@ const cryptoUniverseCurve = computed(() =>
   )
 )
 
-// Tax adjustments (Accounts, Taxes): the tradfi curve carries the fixed
-// provision as a flat shift (the 30d delta is unaffected), the crypto
-// curve is scaled by the configured haircut. Defaults leave both alone.
+// Tax adjustments (Accounts, Taxes). The tradfi curve has the fixed
+// provision as a flat shift (this does not change the 30d delta). The
+// configured haircut scales the crypto curve. The defaults change neither.
 const tradfiNetPoints = computed(() =>
   adjustCurve(tradfiCurve.value.points, 1, -(props.taxProvision ?? 0))
 )

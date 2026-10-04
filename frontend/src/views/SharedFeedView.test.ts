@@ -65,7 +65,8 @@ describe('SharedFeedView', () => {
       '/api/shares/tok123',
       expect.anything()
     )
-    // No name: the tags title the page, joined with + for an "all" feed.
+    // No name: the tags are the title of the page, joined with + for an
+    // "all" feed.
     expect(wrapper.find('.shared-title').text()).toBe('#beach #family')
     expect(wrapper.find('.shared-tags').text()).toBe('#beach + #family')
     expect(wrapper.find('.shared-count').text()).toContain('2 items')
@@ -92,7 +93,7 @@ describe('SharedFeedView', () => {
     expect(viewer.find('[aria-label="Delete"]').exists()).toBe(false)
     expect(viewer.find('[aria-label="Permalink"]').exists()).toBe(false)
     expect(viewer.find('[aria-label="Download original"]').exists()).toBe(true)
-    // The owner's note reads as a caption; a visitor cannot edit it.
+    // The note of the owner shows as a caption. A visitor cannot edit it.
     expect(viewer.find('.mv-caption').text()).toBe(feed.photos[0].note)
     expect(viewer.find('.mv-note-input').exists()).toBe(false)
   })

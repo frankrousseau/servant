@@ -26,14 +26,14 @@ export interface ViewerItem {
   title?: string
   subtitle?: string
   meta?: Record<string, string | number | null>
-  /** Free-text context shown as a caption; editable unless readonly. */
+  /** Free-text context, shown as a caption. It is editable unless readonly. */
   note?: string
 }
 
 const props = defineProps<{
   items: ViewerItem[]
   startIndex?: number
-  /** Browsing only (a public feed): no delete, no in-app permalink. */
+  /** View only (a public feed): no delete, no in-app permalink. */
   readonly?: boolean
 }>()
 
@@ -52,7 +52,8 @@ const showFull = ref(false)
 
 const current = computed(() => props.items[currentIndex.value])
 
-// Edited in the info panel, saved on change (blur), re-read on navigation.
+// The user edits the note in the info panel. A change (blur) saves it, and a
+// navigation reads it again.
 const noteDraft = ref('')
 watch(
   () => current.value?.note,
@@ -72,9 +73,9 @@ const displaySrc = computed(() =>
 const hasPrev = computed(() => currentIndex.value > 0)
 const hasNext = computed(() => currentIndex.value < props.items.length - 1)
 
-// Keep the index in range when items shrink (e.g. deleting the last item while
-// the viewer is open) so `current` doesn't become undefined ("Image
-// unavailable" + a bogus "3 / 2" counter).
+// Keep the index in range when the list of items becomes shorter (for example
+// a delete of the last item while the viewer is open). If not, `current`
+// becomes undefined ("Image unavailable" and a wrong "3 / 2" counter).
 watch(
   () => props.items.length,
   len => {
@@ -124,8 +125,9 @@ async function handleDelete() {
   if (ok) emit('delete', current.value.id)
 }
 
-// Escape prevents the dialog's native cancel too, so closing goes through
-// the parent's v-if unmount in a single deterministic path.
+// Escape also prevents the native cancel of the dialog. As a result, the
+// close goes through the v-if unmount of the parent, in a single
+// deterministic path.
 function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     event.preventDefault()
@@ -136,14 +138,15 @@ function onKeydown(event: KeyboardEvent) {
   else if (event.key === '-') zoomOut()
 }
 
-// OpenStreetMap permalink for a "lat, lon" meta value.
+// Returns the OpenStreetMap permalink for a "lat, lon" meta value.
 function osmLink(location: string): string {
   const [lat, lon] = location.split(', ')
   return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=15/${lat}/${lon}`
 }
 
-// The viewer exists only while open (parent v-if), so the dialog goes
-// modal on mount: focus trap and focus restoration come with it.
+// The viewer exists only while it is open (parent v-if), so the dialog
+// becomes modal on mount. The focus trap and the focus restoration come
+// with it.
 onMounted(() => {
   dialogRef.value?.showModal()
   document.addEventListener('keydown', onKeydown)
@@ -160,8 +163,9 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
       @click.self="emit('close')"
       @cancel.prevent="emit('close')"
     >
-      <!-- Main image / video. The stage fills the overlay, so a click beside
-           the media must close too, not only one on the overlay itself. -->
+      <!-- Main image / video. The stage fills the overlay. As a result, a
+           click beside the media must also close the viewer, not only a
+           click on the overlay itself. -->
       <div class="mv-stage" @click.self="emit('close')">
         <VideoPlayer
           v-if="current && current.video && !imgError"
@@ -348,9 +352,9 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 </template>
 
 <style scoped>
-/* Fullscreen dialog in the top layer (no z-index needed): the dialog is
-   the dark surface itself, its backdrop stays unused. The [open] guard
-   keeps the UA's display: none while the dialog is not open yet. */
+/* A fullscreen dialog in the top layer (no z-index is necessary). The dialog
+   is the dark surface itself, and its backdrop stays unused. The [open]
+   guard keeps the display: none of the UA while the dialog is not open. */
 .mv-overlay {
   position: fixed;
   inset: 0;
@@ -368,7 +372,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   flex-direction: column;
 }
 
-/* Stage: the media fills the space under the top bar */
+/* Stage: the media fills the space under the top bar. */
 .mv-stage {
   flex: 1;
   display: flex;
@@ -535,7 +539,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   color: #fff;
 }
 
-/* Over the media, bottom center: the note reads as a caption. */
+/* Over the media, at the bottom center: the note shows as a caption. */
 .mv-caption {
   position: fixed;
   left: 50%;

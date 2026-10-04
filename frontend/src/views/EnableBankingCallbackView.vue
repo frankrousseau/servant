@@ -10,7 +10,7 @@ const router = useRouter()
 const error = ref('')
 
 // The bank redirected here after the consent screen: ?code on success
-// (?error otherwise), ?state carrying the connector config id.
+// (?error if not), and ?state, which carries the id of the connector config.
 onMounted(async () => {
   const code = route.query.code as string | undefined
   const configId = route.query.state as string | undefined

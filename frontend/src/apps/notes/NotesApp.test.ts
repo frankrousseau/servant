@@ -40,7 +40,7 @@ function makeCtx(notes: Entry[]) {
       const id = path.split('/').pop()!
       const attrs = JSON.parse(opts.body as string)
       await update(id, attrs)
-      // Mirror the backend: absent fields keep their current value.
+      // Do the same as the backend: absent fields keep their current value.
       const found = notes.find(n => n.id === id)!
       return jsonRes({
         ...found,
@@ -73,7 +73,7 @@ function makeCtx(notes: Entry[]) {
 
 describe('NotesApp', () => {
   beforeEach(() => {
-    // Selection pushes ?selected=<id>; keep tests URL-independent.
+    // A selection pushes ?selected=<id>. Keep the tests independent of the URL.
     history.replaceState(null, '', '/apps/notes')
   })
 
@@ -104,7 +104,7 @@ describe('NotesApp', () => {
     expect(titles()).toContain('Alpha')
 
     await wrapper.find('.nt-tree-toggle').trigger('click')
-    // Folder rows survive, notes inside collapsed folders do not.
+    // The folder rows stay. The notes in collapsed folders do not.
     expect(wrapper.text()).toContain('Proj')
     expect(titles()).not.toContain('Alpha')
     expect(titles()).not.toContain('Beta')
@@ -151,11 +151,12 @@ describe('NotesApp', () => {
     expect(row.element.tagName).toBe('A')
     expect(row.attributes('href')).toBe('/apps/notes?selected=1')
 
-    // jsdom cannot follow the link ("Not implemented: navigation"): cancel the
-    // default action once the app's own handler has let the click through.
+    // jsdom cannot follow the link ("Not implemented: navigation"). Cancel the
+    // default action after the handler of the app lets the click through.
     row.element.addEventListener('click', event => event.preventDefault())
 
-    // A modified click is left to the browser: no in-app selection.
+    // The app leaves a modified click to the browser: there is no in-app
+    // selection.
     await row.trigger('click', { ctrlKey: true })
     await flushPromises()
     expect(wrapper.find('input.nt-title').exists()).toBe(false)
@@ -206,7 +207,8 @@ describe('NotesApp', () => {
           if (opts?.method === 'PUT') {
             const attrs = JSON.parse(opts.body as string)
             putBodies.push(attrs.body)
-            // Hold the response so the user can keep typing meanwhile.
+            // Hold the response. During this time, the user can continue to
+            // type.
             await new Promise<void>(resolve => {
               releasePut = resolve
             })
@@ -229,7 +231,7 @@ describe('NotesApp', () => {
     await flushPromises()
     expect(putBodies).toEqual(['x1'])
 
-    // Still typing while the server has the previous version.
+    // The user continues to type while the server has the previous version.
     await body.setValue('x12')
     releasePut!()
     await flushPromises()
@@ -377,7 +379,7 @@ describe('NotesApp', () => {
     await wrapper.find('.nt-attach-btn').trigger('click')
     await flushPromises()
 
-    // Folders are not attachable; the file is.
+    // Folders are not attachable. The file is attachable.
     const options = wrapper.findAll('.nt-attach-option')
     expect(options.map(option => option.text())).toEqual(['bail.txt'])
     await options[0].trigger('click')

@@ -121,7 +121,8 @@ onUnmounted(() => {
 
 // ----- resources helpers -----
 
-// In Docker the cgroup limit is the real budget; the host numbers otherwise.
+// In Docker, the cgroup limit is the real budget. In other cases, the host
+// numbers are the budget.
 const ramUsed = computed(() => {
   const memory = stats.value?.memory
   if (!memory) return null
@@ -467,8 +468,8 @@ const ms = (us: number) =>
   font-family: var(--font-mono);
   white-space: nowrap;
 }
-/* Outranks the `.au-table th` left alignment so numeric headers sit over
-   their right-aligned cells */
+/* Outranks the left alignment of `.au-table th`, so that the numeric headers
+   are above their right-aligned cells. */
 .au-table th.au-num,
 .au-table td.au-num {
   text-align: right;

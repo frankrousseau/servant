@@ -92,9 +92,10 @@ function openEventContact(event: Entry) {
   if (id) props.ctx.navigate(`/contacts/${id}`)
 }
 
-// Virtual yearly events derived from contact birthdays, never stored; they
-// live under the hideable "Birthdays" agenda and click through to the contact.
-// Strictly opt-in: only contacts flagged on their page (prefs/birthdays entry).
+// Virtual yearly events that come from the birthdays of the contacts. The app
+// never stores them. They are in the "Birthdays" agenda, which the user can
+// hide, and a click opens the contact. They are strictly opt-in: only the
+// contacts flagged on their page (prefs/birthdays entry) have one.
 const birthdayEvents = computed<Entry[]>(() => {
   const optedIn = new Set(
     (birthdayPrefs.value?.data.contact_ids as string[]) || []
@@ -124,10 +125,12 @@ const birthdayEvents = computed<Entry[]>(() => {
   })
 })
 
-// Virtual all-day events from checklist item deadlines (items carry an
-// optional due "YYYY-MM-DD"); pending items only, checking one off removes
-// it from the calendar. Same mechanics as birthdays: never stored, own
-// hideable "Deadlines" agenda, click-through to the checklist.
+// Virtual all-day events that come from the deadlines of the checklist items
+// (an item can carry an optional due "YYYY-MM-DD"). Only the pending items
+// have one: when the user checks off an item, it goes out of the calendar.
+// The mechanics are the same as for birthdays. The app never stores these
+// events. They have their own "Deadlines" agenda, which the user can hide.
+// A click opens the checklist.
 const deadlineEvents = computed<Entry[]>(() =>
   checklists.value.flatMap(list => {
     const items = (list.data.items as ChecklistItem[]) || []
@@ -154,10 +157,10 @@ const deadlineEvents = computed<Entry[]>(() =>
 )
 
 // ----- calendars ("agendas") -----
-// An agenda is an entry of kind "calendar", created through the manage
-// dialog; events reference it by name in data.calendar. Names coming from
-// synced events (iCal connectors) appear in the list too, without an entity
-// behind them. "Manual" is the ever-present default.
+// An agenda is an entry of kind "calendar". The user creates it in the manage
+// dialog. The events refer to it by name in data.calendar. The names that
+// come from synced events (iCal connectors) are in the list too, but they
+// have no entity behind them. "Manual" is the default and is always there.
 
 const calendarOf = (event: Entry) =>
   ((event.data.calendar as string) || 'Manual').trim() || 'Manual'
@@ -204,7 +207,7 @@ async function setCalendarColor(name: string, event: Event) {
       data: { ...entity.data, color }
     })
   } else {
-    // Synced agenda (no entity yet): materialize one to carry the color.
+    // A synced agenda has no entity yet: create one to carry the color.
     await props.ctx.api.entries.create({
       kind: 'calendar',
       source: 'calendar_app',
@@ -217,8 +220,8 @@ async function setCalendarColor(name: string, event: Event) {
   })
 }
 
-// ponytail: deleting a non-empty calendar is refused rather than reassigning
-// its events; add a bulk "move to Manual" if that ever gets tedious.
+// ponytail: the app refuses to delete a calendar that is not empty, and does
+// not reassign its events. Add a bulk "move to Manual" if that becomes tedious.
 async function deleteCalendar(name: string) {
   manageError.value = ''
   const entity = calendarEntityByName.value.get(name)
@@ -248,8 +251,9 @@ const CAL_PALETTE = [
   '#5ca0ff'
 ]
 
-// The color stored on the calendar entity wins; otherwise a stable default
-// per name (djb2 hash), so it survives agendas coming and going.
+// The color stored on the calendar entity wins. If there is none, each name
+// gets a stable default (djb2 hash). As a result, the color stays the same
+// when agendas come and go.
 function calColor(name: string): string {
   const stored = calendarEntityByName.value.get(name)?.data.color as
     string | undefined
@@ -260,7 +264,8 @@ function calColor(name: string): string {
   return CAL_PALETTE[Math.abs(hash) % CAL_PALETTE.length]
 }
 
-// Per-chip CSS vars consumed by the stylesheet (rail, tint, time color).
+// The CSS vars of each chip. The stylesheet uses them for the rail, the tint
+// and the time color.
 function calVars(event: Entry): Record<string, string> {
   const hex = calColor(calendarOf(event))
   const red = parseInt(hex.slice(1, 3), 16)
@@ -283,7 +288,8 @@ const calendars = computed(() => {
       name,
       count,
       color: calColor(name),
-      // Entity-backed (created here) or "derived" from synced events only.
+      // An entity backs the agenda (created here), or the agenda is only
+      // "derived" from synced events.
       owned: calendarEntityByName.value.has(name)
     }))
 })
@@ -314,8 +320,9 @@ let fpStart: flatpickr.Instance | null = null
 let fpEnd: flatpickr.Instance | null = null
 
 // Civil "YYYY-MM-DD" of a picked Date (from flatpickr, in the browser's tz):
-// the calendar-day the user actually clicked. This is a wall-clock label, later
-// combined with the picked time and interpreted in the user's tz on save.
+// the calendar day that the user clicked. This is a wall-clock label. On
+// save, the app combines it with the picked time and interprets the result
+// in the user's tz.
 function formatISODate(date: Date): string {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
@@ -323,8 +330,8 @@ function formatISODate(date: Date): string {
   return `${y}-${m}-${d}`
 }
 
-// Day header for the list view. `dateStr` is a civil date label; format it
-// without any tz shift (it's not an instant).
+// Day header for the list view. `dateStr` is a civil date label, not an
+// instant. Format it without a tz shift.
 function formatDateHeader(dateStr: string): string {
   const [year, month, day] = dateStr.split('-').map(Number)
   return new Date(year, month - 1, day).toLocaleDateString(undefined, {
@@ -335,7 +342,8 @@ function formatDateHeader(dateStr: string): string {
   })
 }
 
-// The user-timezone calendar date(s) an event's UTC instant falls on.
+// The calendar date, or dates, on which the UTC instant of an event falls,
+// in the timezone of the user.
 function eventDateStr(iso: string): string {
   return utcToZonedParts(iso).date
 }
@@ -364,8 +372,9 @@ interface Cell {
 }
 
 const calendarCells = computed<Cell[]>(() => {
-  // Weekday of the 1st is a civil-calendar fact (tz-independent). Cells carry a
-  // pure "YYYY-MM-DD" label; events are bucketed by their user-tz date.
+  // The weekday of the 1st is a fact of the civil calendar (tz-independent).
+  // The cells carry a pure "YYYY-MM-DD" label. The events go in buckets by
+  // their date in the user's tz.
   const firstDay = new Date(currentYear.value, currentMonth.value, 1)
   let startDow = firstDay.getDay() - 1
   if (startDow < 0) startDow = 6
@@ -393,8 +402,8 @@ const calendarCells = computed<Cell[]>(() => {
 
 const upcomingDays = computed(() => {
   // Group by the event's date in the user's timezone, from today (user tz) on.
-  // ponytail: a recurring event is listed once, at its next occurrence;
-  // expand the full horizon if that ever feels lacking.
+  // ponytail: the list shows a recurring event one time, at its next
+  // occurrence. Expand the full horizon if that is not sufficient.
   const today = todayInUserTz()
   const grouped: Record<string, Entry[]> = {}
   for (const event of visibleEvents.value) {
@@ -451,7 +460,8 @@ function openModal(dateStr: string) {
 
 function openEditModal(entry: Entry) {
   modalEditId.value = entry.id
-  // Show the stored UTC instant as wall-clock date/time in the user's timezone.
+  // Show the stored UTC instant as a wall-clock date and time in the user's
+  // timezone.
   const start = entry.occurred_at
     ? utcToZonedParts(entry.occurred_at)
     : { date: todayInUserTz(), time: '09:00' }
@@ -485,7 +495,7 @@ function closeModal() {
 }
 
 function onEventClick(id: string | undefined) {
-  // Birthdays are virtual: nothing to edit, open the contact instead.
+  // Birthdays are virtual and there is nothing to edit. Open the contact instead.
   if (id?.startsWith('birthday:')) {
     props.ctx.navigate(`/contacts/${id.slice('birthday:'.length)}`)
     return
@@ -511,8 +521,8 @@ function icalStamp(dateStr: string, timeStr: string, allDay: boolean): string {
 const draggedId = ref<string | null>(null)
 const dragOverDate = ref<string | null>(null)
 
-// Virtual events (birthdays, checklist deadlines) are derived, not stored:
-// there is nothing to move, so they stay undraggable.
+// Virtual events (birthdays, checklist deadlines) are derived, not stored.
+// There is nothing to move. As a result, the user cannot drag them.
 function draggable(entry: Entry): boolean {
   return !entry.id.startsWith('birthday:') && !entry.id.startsWith('deadline:')
 }
@@ -528,8 +538,9 @@ function onEventDragEnd() {
   dragOverDate.value = null
 }
 
-// Drop moves start and end by the same number of days, keeping both times.
-// A recurring event moves by its seed, so the whole series follows.
+// A drop moves the start and the end by the same number of days and keeps
+// the two times. A recurring event moves by its seed. As a result, the full
+// series follows.
 async function moveEventTo(dateStr: string) {
   const entry = events.value.find(event => event.id === draggedId.value)
   onEventDragEnd()
@@ -562,7 +573,7 @@ async function moveEventTo(dateStr: string) {
     })
     events.value = await props.ctx.api.entries.list({ kind: 'event' })
   } catch {
-    // the event stays where it was
+    // The event stays where it was.
   }
 }
 
@@ -576,7 +587,8 @@ async function saveEvent() {
   const endTimeStr = allDay ? '23:59' : modalEndTime.value || '23:59'
   const dtstart = icalStamp(modalDate.value, startTimeStr, allDay)
   const dtend = icalStamp(endDateStr, endTimeStr, allDay)
-  // Interpret the picked wall-clock time in the user's timezone, store as UTC.
+  // Interpret the picked wall-clock time in the user's timezone. Store it as
+  // UTC.
   const occurredAt = zonedToUtcISO(modalDate.value, startTimeStr)
   const endAt = zonedToUtcISO(endDateStr, endTimeStr)
 
@@ -626,7 +638,7 @@ async function deleteEvent() {
     events.value = await props.ctx.api.entries.list({ kind: 'event' })
     closeModal()
   } catch {
-    // ignore
+    // Ignore the error.
   }
 }
 
@@ -686,7 +698,7 @@ async function reload() {
       props.ctx.api.entries.list({ kind: 'event' }),
       props.ctx.api.entries.list({ kind: 'calendar' }),
       // Contacts, prefs and checklists only feed the association combobox,
-      // the birthday opt-ins and the deadline agenda; degrade gracefully.
+      // the birthday opt-ins and the deadline agenda. Degrade gracefully.
       props.ctx.api.entries
         .list({ kind: 'contact' })
         .catch(() => [] as Entry[]),
@@ -982,8 +994,9 @@ onUnmounted(destroyPickers)
         </div>
         <div class="cal-modal-row">
           <div class="cal-modal-field">
-            <!-- type=text (not date): flatpickr provides the themed calendar; a
-                 native date picker would open a second calendar on top of it. -->
+            <!-- type=text (not date): flatpickr supplies the themed calendar.
+                 With type=date, a native date picker opens a second calendar on
+                 top of it. -->
             <label>Start date</label
             ><input ref="startInput" type="text" readonly />
           </div>
@@ -1058,9 +1071,9 @@ onUnmounted(destroyPickers)
   font-family: var(--font-mono);
 }
 .cal-container {
-  /* The header and grid pad nothing themselves, and the app is now flush
-     against the window, so the breathing room lives here (same as finance
-     and trackers). */
+  /* The header and the grid have no padding of their own, and the app is now
+     flush against the window. As a result, the space around the content is
+     set here (same as finance and trackers). */
   padding: 1rem 1.25rem;
   height: 100vh;
   display: flex;
@@ -1129,7 +1142,7 @@ onUnmounted(destroyPickers)
   background: var(--primary);
   color: var(--primary-contrast);
 }
-/* :hover (0-2-1) outranks the modifier (0-2-0); keep the contrast text. */
+/* :hover (0-2-1) outranks the modifier (0-2-0). Keep the contrast text. */
 .cal-toggle-btn--active:hover {
   color: var(--primary-contrast);
 }
@@ -1176,7 +1189,7 @@ onUnmounted(destroyPickers)
   color: var(--primary);
   font-weight: 700;
 }
-/* Drop target while an event is dragged over it */
+/* Drop target while the user drags an event over it */
 .cal-cell--drop {
   background: rgba(var(--primary-rgb), 0.18);
   box-shadow: inset 0 0 0 2px var(--primary);
@@ -1186,9 +1199,9 @@ onUnmounted(destroyPickers)
   font-size: 0.8rem;
   color: var(--text-muted);
 }
-/* Event chips: colored rail + tint per agenda (--cal-color/--cal-rgb are set
-   inline per chip), mono time; same selection language as the rest of the
-   system */
+/* Event chips: a colored rail and a tint for each agenda, and a mono time.
+   Each chip sets --cal-color and --cal-rgb inline. The selection language is
+   the same as in the rest of the system. */
 .cal-cell-event {
   display: flex;
   align-items: baseline;
@@ -1520,5 +1533,5 @@ onUnmounted(destroyPickers)
 }
 </style>
 
-<!-- Flatpickr theme overrides live in style.css: the picker renders on
-     document.body and is shared with DateInput.vue. -->
+<!-- The overrides of the Flatpickr theme are in style.css: the picker renders
+     on document.body and DateInput.vue uses it too. -->

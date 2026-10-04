@@ -13,7 +13,7 @@ const props = defineProps<{
   tracker: Tracker
   byDate: Map<string, number>
   today: string
-  // entry trackers only: rollups fetched server-side by the parent
+  // entry trackers only: the parent fetches the rollups from the server
   serverRollups: Record<RollupPeriod, RollupRow[]> | null
   serverState: 'idle' | 'loading' | 'error'
 }>()
@@ -54,7 +54,7 @@ const allRows = computed<RollupRow[]>(() =>
     : rollup(props.byDate, props.tracker.type, period.value, props.today)
 )
 
-// The chart shows the recent past; the table below shows everything.
+// The chart shows the recent past. The table below shows all the rows.
 const CHART_BUCKETS: Record<RollupPeriod, number> = {
   week: 26,
   month: 24,
@@ -144,8 +144,8 @@ const chart = computed(() => {
   const scale = (H - PAD_TOP - PAD_BOTTOM) / top
   const baseline = H - PAD_BOTTOM
   const inlineValues = slot >= 38
-  // Label every bar when there is room, every Nth (anchored on the most
-  // recent one) otherwise.
+  // Label every bar when there is room. If not, label every Nth bar,
+  // anchored on the most recent one.
   const labelEvery = Math.max(1, Math.ceil(rows.length / 13))
 
   const gridlines = []
@@ -182,8 +182,8 @@ function axisLabel(bucket: string, slot: number): string {
   return bucket.slice(5)
 }
 
-// One readout at a time; the chart is role="img" and out of the tab
-// order, the table below carries the same numbers for keyboard and AT.
+// One readout at a time. The chart is role="img" and out of the tab order.
+// The table below gives the same numbers for keyboard and AT.
 const hover = ref<Bar | null>(null)
 </script>
 

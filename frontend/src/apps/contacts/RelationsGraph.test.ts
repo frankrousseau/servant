@@ -39,7 +39,8 @@ describe('RelationsGraph', () => {
       props: { contacts, meId: 'me' }
     })
 
-    // One deduplicated Alice-Bob edge; nothing touching me, Carol isolated.
+    // There is one deduplicated Alice-Bob edge. No edge touches me, and Carol
+    // is isolated.
     expect(wrapper.findAll('.rg-edge')).toHaveLength(1)
     const labels = wrapper.findAll('.rg-label').map(l => l.text())
     expect(labels.sort()).toEqual(['Alice', 'Bob'])
@@ -62,7 +63,7 @@ describe('RelationsGraph', () => {
     const xs = new Map(
       wrapper.findAll('.rg-node').map(g => [
         g.find('.rg-label').text(),
-        // circle 0 is the opaque underlay; both share cx.
+        // Circle 0 is the opaque underlay. The two circles share cx.
         parseFloat(g.find('circle').attributes('cx')!)
       ])
     )
@@ -84,13 +85,14 @@ describe('RelationsGraph', () => {
 
     const ds = wrapper.findAll('.rg-edge').map(e => e.attributes('d')!)
     expect(ds).toHaveLength(2)
-    // Quadratic arcs, and the two edges leaving Alice are not the same stroke.
+    // The edges are quadratic arcs, and the two edges that leave Alice are not
+    // the same stroke.
     expect(ds.every(d => d.includes('Q'))).toBe(true)
     expect(ds[0]).not.toBe(ds[1])
   })
 
-  // Signed distance from the chord's midpoint to the arc's control point:
-  // how far, and which way, an edge bows.
+  // Returns the signed distance from the chord's midpoint to the arc's
+  // control point: how far, and in which direction, an edge bows.
   function bowOf(d: string): number {
     const [x0, y0, cx, cy, x1, y1] = d.match(/-?\d+(\.\d+)?/g)!.map(Number)
     const vx = x1 - x0
@@ -117,17 +119,18 @@ describe('RelationsGraph', () => {
       .findAll('.rg-edge')
       .map(edge => bowOf(edge.attributes('d')!))
     expect(bows).toHaveLength(4)
-    // Slots are centered (-1.5, -0.5, +0.5, +1.5): two edges bow each way,
-    // and the outer pair bows about three times as wide as the inner one.
-    // Picking a side per edge instead would give every edge the same width.
+    // The slots are centered (-1.5, -0.5, +0.5, +1.5). Two edges bow in each
+    // direction, and the outer pair bows approximately three times as wide as
+    // the inner pair. If the code selects only a side for each edge, every
+    // edge gets the same width.
     expect(bows.filter(bow => bow > 0)).toHaveLength(2)
     const widths = bows.map(Math.abs)
     expect(Math.max(...widths) / Math.min(...widths)).toBeGreaterThan(2)
   })
 
   it('moves nodes aside so no edge runs over an unrelated contact', () => {
-    // A wheel: hub tied to six friends who also form a ring. Plenty of
-    // occasions for an edge to cut across a disc it does not touch.
+    // A wheel: a hub is tied to six friends who also form a ring. This gives
+    // many occasions for an edge to cut across a disc that it does not touch.
     const ring = ['r0', 'r1', 'r2', 'r3', 'r4', 'r5']
     const contacts = [
       contact(
@@ -174,8 +177,8 @@ describe('RelationsGraph', () => {
   })
 
   it('keeps every disc and name clear of the others, however crowded', () => {
-    // Two families plus a clique of colleagues: enough nodes that the old
-    // fixed 900x620 canvas piled them up on top of each other.
+    // Two families plus a clique of colleagues. There are enough nodes that
+    // the old fixed 900x620 canvas piled them up on top of each other.
     const contacts: Entry[] = []
     const families = ['Durand', 'Martin', 'Lefebvre']
     families.forEach((family, familyIndex) => {
@@ -258,8 +261,9 @@ describe('RelationsGraph', () => {
     const wrapper = mount(RelationsGraph, { props: { contacts, meId: null } })
 
     const svg = wrapper.find('svg')
-    // Rendered 1:1 (width/height in px matching the viewBox), so a large
-    // network scrolls at readable size instead of scaling down to fit.
+    // The svg renders 1:1 (the width and the height in px match the viewBox).
+    // As a result, a large network scrolls at a readable size and does not
+    // scale down to fit.
     const [, , viewWidth, viewHeight] = svg
       .attributes('viewBox')!
       .split(' ')

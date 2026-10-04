@@ -1,9 +1,10 @@
-// Carries a HEIC photo's EXIF (date, location, camera) over to the JPEG the
-// browser converts it to: the canvas-based decode keeps pixels only, and the
-// server reads a photo's date and position from the file it receives.
+// Copies the EXIF of a HEIC photo (date, location, camera) to the JPEG that
+// the browser makes from it. The canvas-based decode keeps only the pixels.
+// The server reads the date and the position of a photo from the file that
+// it receives.
 
-// Largest payload an APP1 segment can hold (its length field counts itself
-// and the "Exif\0\0" header too).
+// The largest payload that an APP1 segment can hold. The length field of the
+// segment also counts itself and the "Exif\0\0" header.
 const APP1_MAX_TIFF = 0xffff - 2 - 6
 
 const EXIF_HEADER = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00] // "Exif\0\0"
@@ -14,12 +15,12 @@ const matchesAt = (bytes: Uint8Array, at: number, pattern: number[]) =>
   pattern.every((byte, i) => bytes[at + i] === byte)
 
 /**
- * The TIFF block of a HEIC's Exif item, or null. Phones store the item as
- * "Exif\0\0" + TIFF header; the TIFF magic right after the marker rules out
- * a stray match in pixel data.
- * ponytail: a marker scan instead of walking the ISOBMFF boxes (the server
- * does the same); the block is cut at the APP1 limit, which the EXIF of a
- * phone photo stays well under.
+ * Returns the TIFF block of the Exif item of a HEIC, or null. Phones store
+ * the item as "Exif\0\0" + the TIFF header. The TIFF magic immediately after
+ * the marker prevents an accidental match in the pixel data.
+ * ponytail: this is a marker scan, not a walk through the ISOBMFF boxes (the
+ * server does the same). The function cuts the block at the APP1 limit. The
+ * EXIF of a phone photo stays much smaller than this limit.
  */
 export function heicExif(heic: Uint8Array): Uint8Array | null {
   for (let i = 0; i + 10 <= heic.length; i++) {
@@ -33,8 +34,9 @@ export function heicExif(heic: Uint8Array): Uint8Array | null {
 }
 
 /**
- * The converted pixels are already upright: an Orientation tag copied as is
- * would rotate the photo a second time, so IFD0's is set back to 1 (normal).
+ * The converted pixels are already upright. An Orientation tag copied as is
+ * rotates the photo a second time. To prevent this, the function sets the
+ * Orientation tag of IFD0 back to 1 (normal).
  */
 function withUprightOrientation(tiff: Uint8Array): Uint8Array {
   const out = tiff.slice()
@@ -53,7 +55,9 @@ function withUprightOrientation(tiff: Uint8Array): Uint8Array {
   return out
 }
 
-/** The JPEG with the TIFF block inserted as an APP1 segment after SOI. */
+/**
+ * Returns the JPEG with the TIFF block inserted as an APP1 segment after SOI.
+ */
 export function withExif(
   jpeg: Uint8Array<ArrayBuffer>,
   tiff: Uint8Array

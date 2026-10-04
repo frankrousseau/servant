@@ -23,8 +23,9 @@ const selectedPath = ref<string | null>(null)
 const editing = ref(false)
 const draft = ref('')
 const saving = ref(false)
-// Expand/collapse all: the tree is re-keyed on each toggle so every <details>
-// takes the new default even after a folder was toggled by hand.
+// Expand/collapse all: each toggle gives the tree a new key. As a result,
+// each <details> takes the new default, even after the user toggled a folder
+// by hand.
 const expanded = ref(true)
 const treeVersion = ref(0)
 
@@ -81,9 +82,9 @@ async function load() {
   }
 }
 
-// Live updates: agents push one file per POST, so a seed push is a burst;
-// coalesce into one silent refetch (no loading state, the draft being edited
-// is kept, the selection follows its path).
+// Live updates: agents push one file for each POST. As a result, a seed push
+// is a burst. Coalesce the burst into one silent refetch: there is no loading
+// state, the edited draft stays, and the selection follows its path.
 let refreshTimer: ReturnType<typeof setTimeout> | null = null
 let unsubscribe: (() => void) | null = null
 
@@ -133,7 +134,7 @@ async function save() {
   }
 }
 
-// Writing the current body back with origin: app clears the deleted mark.
+// A write of the current body with origin: app clears the deleted mark.
 async function restore() {
   if (!selected.value) return
   actionError.value = ''
@@ -155,8 +156,8 @@ async function restore() {
   }
 }
 
-// Soft delete: the file stays, marked, until every machine has pulled; purge
-// then removes it for good.
+// Soft delete: the file stays, with a mark, until each machine pulls. Then
+// purge removes it permanently.
 async function remove() {
   if (!selected.value) return
   const ok = await props.ctx.confirm.ask({
@@ -208,12 +209,13 @@ async function deleteRequest(purging: boolean) {
 
 onMounted(() => {
   load()
-  // A deleted entry only carries its id: refresh on those too.
+  // A deleted entry carries only its id. Refresh for these entries too.
   unsubscribe = props.ctx.events.onEntryChange(entry => {
     if (!entry.kind || entry.kind === 'agent_memory') scheduleRefresh()
   })
-  // Apps are mounted as separate Vue instances after a dynamic import, so the
-  // native `autofocus` attribute below is never honored; focus by hand.
+  // After a dynamic import, each app mounts as a separate Vue instance. As a
+  // result, the browser never honors the native `autofocus` attribute below.
+  // Set the focus by hand.
   searchInput.value?.focus()
 })
 
@@ -355,7 +357,7 @@ onUnmounted(() => {
                 <span class="am-frontmatter-value">{{ field.value }}</span>
               </div>
             </div>
-            <!-- markdown rendered by the shared Notes renderer, which escapes user data -->
+            <!-- The shared Notes renderer renders the markdown and escapes user data. -->
             <article v-if="!editing" class="markdown" v-html="rendered" />
           </div>
         </div>
@@ -585,7 +587,7 @@ onUnmounted(() => {
 }
 
 /* A fixed rem width (not ch): the column is the same for the mono block, the
-   headings and the body, so their left edges line up. */
+   headings and the body. As a result, their left edges line up. */
 .am-column {
   max-width: 44rem;
   margin: 0 auto;

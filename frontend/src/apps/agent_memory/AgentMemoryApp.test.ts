@@ -113,8 +113,9 @@ describe('AgentMemoryApp', () => {
       })
     })
 
-    // The row's size (a proxy for sha256/updated_at, neither rendered
-    // directly) reflects the server's manifest, not the stale local one.
+    // The size in the row shows the manifest of the server, not the stale
+    // local manifest. The size is a proxy for sha256 and updated_at, which
+    // the app does not render directly.
     expect(wrapper.find('.viewer-head').text()).toContain('999 bytes')
     expect(wrapper.find('.markdown').text()).toContain('edited body')
   })

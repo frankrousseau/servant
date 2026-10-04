@@ -2,8 +2,9 @@
 import { computed } from 'vue'
 import type { SnapshotPoint } from './finance'
 
-// Step chart for balance history: balances are observations, so the value
-// holds flat between two snapshots (no interpolation) and extends to today.
+// Step chart for the balance history. Balances are observations, so the
+// value stays flat between two snapshots (no interpolation) and extends to
+// today.
 
 const props = defineProps<{
   points: SnapshotPoint[]
@@ -32,9 +33,9 @@ const geometry = computed(() => {
   const values = props.points.map(point => point.amount)
   const lo = Math.min(...values)
   const hi = Math.max(...values)
-  // Baseline at 0 when everything is positive and 0 is close enough to keep
-  // proportions readable; otherwise fit the data so small variations on a
-  // big balance stay visible.
+  // Put the baseline at 0 when all values are positive and 0 is close enough
+  // to keep the proportions readable. If not, fit the data so that small
+  // variations on a large balance stay visible.
   let min = lo > 0 && lo <= (hi - lo) * 4 ? 0 : lo
   let max = hi
   if (min === max) {

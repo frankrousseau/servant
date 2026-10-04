@@ -4,12 +4,14 @@ import type { Entry } from '../types'
 import { relationLabel, relationsOf } from './relations'
 import { untangle } from './untangle'
 
-// The address book as a graph: contacts are nodes, declared relations are
-// edges. Relations to the me-contact are left out, everyone has one.
-// ponytail: static layout computed once per data change (deterministic
-// golden-angle seed + a fixed force relaxation). The canvas sizes itself to
-// the laid-out graph and the pane scrolls, so growth costs space, never
-// legibility; a collision pass guarantees discs and names stay apart.
+// The address book as a graph: the contacts are nodes, the declared relations
+// are edges. The graph omits the relations to the me-contact, because each
+// contact has one.
+// ponytail: the layout is static, computed once for each data change (a
+// deterministic golden-angle seed + a fixed force relaxation). The canvas
+// sets its size to the laid-out graph, and the pane scrolls. As a result,
+// growth costs space, never legibility. A collision pass makes sure that the
+// discs and the names stay apart.
 
 const props = defineProps<{ contacts: Entry[]; meId: string | null }>()
 const emit = defineEmits<{ select: [id: string] }>()
@@ -24,7 +26,7 @@ const nameOf = (contact: Entry) =>
     ''
   ).trim() || 'Unnamed'
 
-// Same hash as the avatar tint, so a contact keeps its color here.
+// This is the same hash as the avatar tint, so a contact keeps its color here.
 function hueOf(name: string): number {
   let hash = 0
   for (let i = 0; i < name.length; i++)
@@ -45,7 +47,8 @@ interface Edge {
   type: string
 }
 
-// Connected components, largest first (BFS over the edge adjacency).
+// Returns the connected components, largest first. It does a BFS over the
+// edge adjacency.
 function componentsOf(ids: string[], edges: Edge[]): string[][] {
   const adj = new Map<string, string[]>()
   for (const edge of edges) {
@@ -99,13 +102,15 @@ const graph = computed(() => {
 
   const ids = [...new Set(edges.flatMap(edge => [edge.from, edge.to]))]
 
-  // Disconnected groups each get their own patch of canvas (grid cell) and
-  // gravitate toward its center, so unrelated families never pile up.
+  // Each disconnected group gets its own patch of canvas (a grid cell) and
+  // gravitates toward the center of that cell. As a result, unrelated
+  // families never pile up.
   const comps = componentsOf(ids, edges)
   const cols = Math.ceil(Math.sqrt(comps.length))
   const rows = Math.ceil(comps.length / cols)
-  // The seed canvas grows with the population (~12 labeled nodes fit the
-  // base size comfortably); the pane scrolls when the result outgrows it.
+  // The seed canvas grows with the population: approximately 12 labeled nodes
+  // fit easily in the base size. The pane scrolls when the result is larger
+  // than the pane.
   const roominess = Math.max(1, Math.sqrt(ids.length / 12))
   const cellW = (W * roominess) / cols
   const cellH = (H * roominess) / rows
@@ -138,9 +143,10 @@ const graph = computed(() => {
         const nodeA = placed[i]
         const nodeB = placed[j]
         const dx = nodeA.x - nodeB.x
-        // The name sits under the disc, so a node is taller than it is wide
-        // and vertical crowding is what actually collides: distance is
-        // measured on a squashed axis, which spreads neighbours more in y.
+        // The name is below the disc, so a node is taller than it is wide.
+        // As a result, the real collisions are vertical. The code measures
+        // the distance on a squashed axis, and this spreads the neighbors
+        // more in y.
         const dy = (nodeA.y - nodeB.y) * 1.6
         const distSq = dx * dx + dy * dy || 1
         const dist = Math.sqrt(distSq)
@@ -163,9 +169,10 @@ const graph = computed(() => {
       nodeB.x -= (dx / dist) * force
       nodeB.y -= (dy / dist) * force
     }
-    // A node sitting on someone else's relation reads as part of it: chords
-    // push unrelated nodes aside (and drag their endpoints back a little),
-    // so the layout makes room instead of letting edges run over discs.
+    // A node that is on the relation of other contacts looks like a part of
+    // that relation. The chords push unrelated nodes aside, and they move
+    // their endpoints back a small distance. As a result, the layout makes
+    // room and the edges do not go over the discs.
     for (const edge of edges) {
       const nodeA = nodes.get(edge.from)!
       const nodeB = nodes.get(edge.to)!
@@ -201,13 +208,14 @@ const graph = computed(() => {
     }
   }
 
-  // Forces settle wherever the seed leads, sometimes with a branch folded
-  // over its neighbours: swing such branches around their contact first.
+  // The forces settle where the seed leads, and sometimes a branch folds
+  // over its neighbors. First, swing such branches around their contact.
   untangle(nodes, edges)
 
-  // Forces attract but guarantee nothing; these passes do. First separate
-  // every disc+name box, then walk the actual arcs and shove any unrelated
-  // node clear of them, until both properties hold together.
+  // The forces attract but guarantee nothing. These passes give the
+  // guarantee. First, separate every disc+name box. Then, go along the real
+  // arcs and push each unrelated node clear of them. Repeat until the two
+  // properties are true together.
   resolveCollisions(placed)
   let slots = fanSlots(edges, nodes)
   for (let round = 0; round < 8; round++) {
@@ -236,7 +244,8 @@ const graph = computed(() => {
         if (best >= EDGE_CLEAR) continue
         moved = true
         if (best < 1) {
-          // Node dead on the arc: push it off the chord's normal.
+          // The node is exactly on the arc: push it off along the chord's
+          // normal.
           const chordX = arc.end.x - arc.start.x
           const chordY = arc.end.y - arc.start.y
           const chordLen = Math.hypot(chordX, chordY) || 1
@@ -254,8 +263,8 @@ const graph = computed(() => {
     slots = fanSlots(edges, nodes)
   }
 
-  // The canvas fits the laid-out graph rather than the graph the canvas:
-  // small networks stay small, big ones scroll at full size.
+  // The canvas fits the laid-out graph, and the graph does not fit the
+  // canvas. Small networks stay small. Large networks scroll at full size.
   const PAD = 46
   let minX = Infinity
   let minY = Infinity
@@ -288,7 +297,7 @@ const graph = computed(() => {
 })
 
 const NODE_R = 14
-// Gap between two neighbouring strokes in a fan, at the arc's widest point.
+// Gap between two adjacent strokes in a fan, at the arc's widest point.
 const BOW_STEP = 26
 // Minimum distance from any point of an arc to an unrelated node's center.
 const EDGE_CLEAR = NODE_R + 10
@@ -298,8 +307,9 @@ const labelHalfW = (name: string) => Math.max(NODE_R + 4, name.length * 3.3 + 4)
 
 const pairKey = (edge: Edge) => `${edge.from}|${edge.to}`
 
-// Separate overlapping disc+name boxes pairwise, along whichever axis needs
-// the smaller shove, until every label is readable.
+// Separate the disc+name boxes that overlap, pair by pair. Move each pair
+// along the axis where the smaller push is necessary. Continue until every
+// label is readable.
 function resolveCollisions(placed: Node[]) {
   for (let iter = 0; iter < 60; iter++) {
     let moved = false
@@ -330,11 +340,12 @@ function resolveCollisions(placed: Node[]) {
   }
 }
 
-// Edges leaving one contact fan out instead of stacking: each edge takes a
-// slot in the fan of its two endpoints (incident edges ordered by the angle
-// they leave at), and the slot decides which way and how far its arc bows.
-// Two relations from the same contact can no longer share a stroke, however
-// close their directions are, and the middle one of a fan stays straight.
+// The edges that leave one contact fan out and do not stack. Each edge takes
+// a slot in the fan of each of its two endpoints. A fan is the incident
+// edges, in the order of the angle at which they leave. The slot sets the
+// direction and the distance of the bow of the arc. As a result, two
+// relations from the same contact cannot share a stroke, even when their
+// directions are almost the same. The middle edge of a fan stays straight.
 function fanSlots(
   edges: Edge[],
   nodes: Map<string, Node>
@@ -354,7 +365,7 @@ function fanSlots(
     ranked.forEach((edge, index) => {
       const slot = index - (ranked.length - 1) / 2
       // The arc's normal runs from -> to, so a slot read at the far end is
-      // mirrored. The busier endpoint, where crowding is worst, wins.
+      // mirrored. The busier endpoint wins, because it is the most crowded.
       const signed = edge.from === id ? slot : -slot
       const key = pairKey(edge)
       if (Math.abs(signed) > Math.abs(slots.get(key) ?? 0)) {
@@ -374,9 +385,10 @@ function leaveAngle(
   return Math.atan2(other.y - origin.y, other.x - origin.x)
 }
 
-// Endpoint moved off a node's border along the tangent at that end, which for
-// a quadratic curve points at the control point. Keeps the arc clear of the
-// discs it connects, and spreads a fan's attachment points around the rim.
+// Returns the endpoint, moved off the border of a node along the tangent at
+// that end. For a quadratic curve, this tangent points at the control point.
+// This keeps the arc clear of the discs that it connects. It also spreads
+// the attachment points of a fan around the rim.
 function pullBack(node: Node, cx: number, cy: number, off: number) {
   const dx = cx - node.x
   const dy = cy - node.y
@@ -384,16 +396,16 @@ function pullBack(node: Node, cx: number, cy: number, off: number) {
   return { x: node.x + (dx / dist) * off, y: node.y + (dy / dist) * off }
 }
 
-// Shallow arc from disc to disc. A straight edge passing behind an unrelated
-// node would read as attached to it, so even a lone pair keeps the curve form
-// (slot 0 simply bows by nothing).
+// Returns a shallow arc from disc to disc. A straight edge that goes behind
+// an unrelated node looks attached to it. As a result, even a lone pair
+// keeps the curve form (slot 0 bows by zero).
 function arcOf(edge: Edge, nodes: Map<string, Node>, slot: number) {
   const nodeA = nodes.get(edge.from)!
   const nodeB = nodes.get(edge.to)!
   const dx = nodeB.x - nodeA.x
   const dy = nodeB.y - nodeA.y
   const dist = Math.sqrt(dx * dx + dy * dy) || 1
-  // Short edges bow proportionally less, or the arc balloons past its nodes.
+  // Short edges bow proportionally less. If not, the arc swells past its nodes.
   const bow = slot * Math.min(BOW_STEP, dist * 0.25)
   const cx = (nodeA.x + nodeB.x) / 2 - (dy / dist) * bow
   const cy = (nodeA.y + nodeB.y) / 2 + (dx / dist) * bow
@@ -444,7 +456,7 @@ function edgePath(edge: Edge, nodes: Map<string, Node>, slot: number): string {
         @click="emit('select', node.id)"
         @keydown.enter="emit('select', node.id)"
       >
-        <!-- Opaque underlay: edges passing by never show through the disc. -->
+        <!-- Opaque underlay: no edge that passes by shows through the disc. -->
         <circle :cx="node.x" :cy="node.y" :r="NODE_R" class="rg-node-bg" />
         <circle
           :cx="node.x"
@@ -462,8 +474,8 @@ function edgePath(edge: Edge, nodes: Map<string, Node>, slot: number): string {
 </template>
 
 <style scoped>
-/* The svg renders at its natural size; margin auto centers a small graph
-   and a large one scrolls here instead of scaling down to fit. */
+/* The svg renders at its natural size. Margin auto centers a small graph.
+   A large graph scrolls here and does not scale down to fit. */
 .rg {
   height: 100%;
   display: flex;
@@ -504,7 +516,7 @@ function edgePath(edge: Edge, nodes: Map<string, Node>, slot: number): string {
   font-family: var(--font-mono);
   font-size: 11px;
   text-anchor: middle;
-  /* Halo: an edge running behind a name stays readable. */
+  /* Halo: an edge that goes behind a name stays readable. */
   paint-order: stroke;
   stroke: var(--bg-surface);
   stroke-width: 3px;

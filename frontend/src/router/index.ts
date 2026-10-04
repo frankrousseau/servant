@@ -1,8 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-// Only the auth entry views are eager. The dashboard is lazy too: it pulls in
+// Only the auth entry views are eager. The dashboard is lazy too. It pulls in
 // the connector catalog (hundreds of lines of inline SVG) and the phoenix
-// socket lib, which we don't want in the main bundle.
+// socket lib, and we do not want these in the main bundle.
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 
@@ -42,8 +42,8 @@ const router = createRouter({
       meta: { auth: true, title: 'Connectors' }
     },
     {
-      // Fixed PSD2 consent-flow return URL (registered once in the Enable
-      // Banking app); the connector config id travels in ?state.
+      // The fixed return URL of the PSD2 consent flow (registered one time in
+      // the Enable Banking app). The id of the connector config is in ?state.
       path: '/connectors/eb-callback',
       name: 'connector-eb-callback',
       component: () => import('../views/EnableBankingCallbackView.vue'),
@@ -86,7 +86,7 @@ const router = createRouter({
       meta: { auth: true }
     },
     {
-      // The contact page merged into the Contacts app; keep the permalink.
+      // The contact page merged into the Contacts app. Keep the permalink.
       path: '/contacts/:id',
       redirect: to => ({
         path: '/apps/contacts',
@@ -100,8 +100,8 @@ const router = createRouter({
       meta: { auth: true, title: 'Photo' }
     },
     {
-      // Public photo feed behind a share link: no session needed, the token
-      // in the URL is the credential (see Servant.PhotoShares).
+      // The public photo feed behind a share link. No session is necessary:
+      // the token in the URL is the credential (see Servant.PhotoShares).
       path: '/share/:token',
       name: 'shared-feed',
       component: () => import('../views/SharedFeedView.vue'),

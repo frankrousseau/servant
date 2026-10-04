@@ -201,8 +201,8 @@ function onDrop(target: string) {
   dragOverFolder.value = null
 
   if (draggingFolder.value) {
-    // Reorder: insert the dragged folder before the target (end when dropped
-    // on the tree background).
+    // Reorder: insert the dragged folder before the target. A drop on the
+    // tree background puts it at the end.
     const from = draggingFolder.value
     draggingFolder.value = null
     if (from === target) return
@@ -315,7 +315,7 @@ async function createList(folder = '') {
     el?.focus()
     el?.select()
   } catch {
-    // ignore
+    // Ignore the error.
   }
 }
 
@@ -337,7 +337,7 @@ async function deleteSelected() {
       history.replaceState(null, '', '/apps/checklists')
     }
   } catch {
-    // ignore
+    // Ignore the error.
   }
 }
 
@@ -380,10 +380,11 @@ function overdue(item: Item): boolean {
   return !!item.due && !item.done && item.due < todayLocalStr()
 }
 
-// Tab indents an item one level, Shift+Tab brings it back (outliner
-// convention). One sub-level only.
-// ponytail: indent is per-item cosmetic; drag-reorder and "Done last" can
-// separate a sub-item from its parent. Group moves if that ever hurts.
+// Tab indents an item by one level and Shift+Tab brings it back (outliner
+// convention). There is only one sub-level.
+// ponytail: the indent is cosmetic and set for each item. Drag-reorder and
+// "Done last" can separate a sub-item from its parent. Group the moves if
+// that becomes a problem.
 function setIndent(item: Item, e: KeyboardEvent) {
   const to = e.shiftKey ? 0 : 1
   if ((item.indent || 0) === to) return
@@ -465,8 +466,8 @@ async function copyMarkdown() {
   copiedTimer = setTimeout(() => (copied.value = false), 1500)
 }
 
-// Pasting a bullet / checkbox list into the add field imports one item per
-// line; anything that is not a list pastes normally.
+// A paste of a bullet or checkbox list into the add field imports one item
+// for each line. Text that is not a list pastes normally.
 function onAddPaste(event: ClipboardEvent) {
   const list = selected.value
   const parsed = parseListText(event.clipboardData?.getData('text/plain') || '')
@@ -483,7 +484,8 @@ function resetList() {
   saveNow()
 }
 
-// Stable partition: pending items keep their order, done ones sink.
+// Stable partition: the pending items keep their order and the done items
+// go to the bottom.
 function sortDoneLast() {
   const list = selected.value
   if (!list) return
@@ -949,8 +951,9 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   font-size: 0.85rem;
   border-radius: 6px;
 }
-/* A real link so a checklist opens in a new tab (middle or Ctrl+click);
-   plain clicks stay in the SPA via the prevented click handler */
+/* A real link, so that a checklist can open in a new tab (middle click or
+   Ctrl+click). A plain click stays in the SPA because the click handler
+   prevents the default action. */
 .cl-row {
   display: flex;
   align-items: center;
@@ -1095,7 +1098,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   gap: 0.6rem;
   padding: 0.15rem 0;
 }
-/* Reorder grip: invisible until the row is hovered */
+/* Reorder grip: invisible until the pointer is on the row */
 .cl-item-grip {
   cursor: grab;
   color: var(--text-muted);
@@ -1119,9 +1122,9 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 .cl-item--droptarget {
   box-shadow: inset 0 2px 0 var(--primary);
 }
-/* The global stylesheet gives every input width:100% + heavy padding; undo it
-   for checkboxes, and draw them in the terminal language: square cell,
-   phosphor fill + dark check when on. */
+/* The global stylesheet gives each input width:100% and heavy padding. Undo
+   that for the checkboxes. Draw them in the terminal language: a square cell,
+   with a phosphor fill and a dark check when on. */
 .cl-item input[type='checkbox'],
 .cl-recurring-toggle input {
   appearance: none;

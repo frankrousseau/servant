@@ -1,6 +1,7 @@
-// Turns flat files into the tree the app renders: one root per harness
-// (Claude Code, Cursor, Shared), then the section named by the path's first
-// segment (memory, skills, rules), then the remaining folders and the file.
+// Turns flat files into the tree that the app renders. There is one root for
+// each harness (Claude Code, Cursor, Shared). Below it comes the section that
+// the first segment of the path names (memory, skills, rules). Then come the
+// other folders and the file.
 
 export interface MemoryFile {
   id: string
@@ -10,7 +11,7 @@ export interface MemoryFile {
   sha256: string
   size: number
   updated_at: string
-  // Set by the app: agents apply it at their next pull.
+  // The app sets this field. The agents apply it at their next pull.
   pending?: 'deleted' | 'modified' | null
   body?: string
 }
@@ -46,7 +47,7 @@ export function buildTree(files: MemoryFile[]): TreeNode[] {
     const segments = memoryFile.path.split('/')
     const section = SECTIONS[segments[0]]
     if (!root || !section) continue
-    // skills/<tool>/<name>/... repeats the harness the root already names.
+    // skills/<tool>/<name>/... repeats the harness that the root already names.
     const folders = segments.slice(segments[0] === 'skills' ? 2 : 1, -1)
     let current = childFolder(root, section, `${root.path}/${segments[0]}`)
     for (const folder of folders) {

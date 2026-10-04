@@ -75,17 +75,17 @@ async function loadApiVersion() {
       '/api/version'
     )
   } catch {
-    // old backend without the endpoint: show the UI build alone
+    // An old backend does not have the endpoint: show the UI build alone.
   }
 }
 
 // ----- Built-in app toggles -----
 
-// Mirrors the user's preference; null on the account means the default set.
+// Mirrors the user's preference. null on the account means the default set.
 const enabledApps = ref<string[]>([...DEFAULT_ENABLED_APPS])
 
-// Agents keeps its own /agents route and Crypto is a slice across the app
-// rather than an app, but both toggle like a built-in one.
+// Agents keeps its own /agents route and Crypto is a slice across the app,
+// not an app, but the two toggle like a built-in app.
 const toggleableApps = [
   { id: 'agents', name: 'Agents' },
   { id: 'crypto', name: 'Crypto' },
@@ -100,8 +100,8 @@ watch(
   { immediate: true }
 )
 
-// Saves on every toggle (sidebar and palette follow live); rolled back if
-// the save fails.
+// Saves on each toggle (the sidebar and the palette follow live). Rolls back
+// if the save fails.
 async function toggleApp(id: string) {
   const previous = [...enabledApps.value]
   enabledApps.value = enabledApps.value.includes(id)
@@ -119,7 +119,7 @@ async function toggleApp(id: string) {
 
 const currentTheme = ref<ThemeId>(storedTheme())
 
-// Applies instantly, then persists; rolled back if the save fails.
+// Applies instantly, then persists. Rolls back if the save fails.
 async function selectTheme(id: ThemeId) {
   if (currentTheme.value === id) return
   const previous = currentTheme.value
@@ -135,8 +135,8 @@ async function selectTheme(id: ThemeId) {
 }
 
 // ----- Date and time display -----
-// Stored on the account beside the timezone; every app formats through
-// lib/datetime, so one save re-renders all of them.
+// Stored on the account next to the timezone. Each app formats through
+// lib/datetime. As a result, one save re-renders all of them.
 
 const BROWSER = 'Browser default'
 
@@ -162,7 +162,7 @@ const dateSample = computed(() => {
   return formatDate(nowIso)
 })
 
-// Applied on change, like the theme; rolled back if the save fails.
+// Applies on change, like the theme. Rolls back if the save fails.
 async function saveFormat(
   field: 'time_format' | 'date_format',
   formats: { id: string; label: string }[],
@@ -180,8 +180,8 @@ async function saveFormat(
   }
 }
 
-// Installed apps (git-installed only; generated apps live in the Agents
-// section's Builder tab)
+// Installed apps: git-installed only. The generated apps are in the Builder
+// tab of the Agents section.
 const gitApps = computed(() => apps.installed.filter(app => !app.generated))
 const appRepoUrl = ref('')
 const appInstalling = ref(false)
@@ -251,7 +251,8 @@ async function loadAiConfig() {
   try {
     aiConfig.value = (await api.get<{ data: AiConfig }>('/api/ai_config')).data
   } catch {
-    // section shows defaults; not fatal for the rest of settings
+    // The section shows the defaults. This is not fatal for the rest of the
+    // settings.
   }
 }
 
@@ -270,10 +271,10 @@ async function saveAiConfig(overrides: Partial<AiConfig> = {}) {
   }
 }
 
-// The checkbox is an uncontrolled `:checked` bound to aiConfig.value.enabled;
-// when the confirm dialog is cancelled or the save fails, aiConfig.value.enabled
-// does not change, so resetting the DOM checkbox to it at the end of every
-// path (success or not) keeps the two in sync.
+// The checkbox is an uncontrolled `:checked` bound to aiConfig.value.enabled.
+// When the user cancels the confirm dialog or the save fails,
+// aiConfig.value.enabled does not change. Reset the DOM checkbox to it at the
+// end of each path (success or not) to keep the two in sync.
 async function toggleAgents(event: Event) {
   if (!aiConfig.value.enabled) {
     const ok = await ask({
@@ -312,7 +313,8 @@ async function loadTokens() {
   try {
     apiTokens.value = (await api.get<{ data: ApiToken[] }>('/api/tokens')).data
   } catch {
-    // section shows empty; not fatal for the rest of settings
+    // The section shows empty. This is not fatal for the rest of the
+    // settings.
   }
 }
 
@@ -360,7 +362,7 @@ let copiedTimer: ReturnType<typeof setTimeout> | undefined
 async function copyCreatedToken() {
   if (!createdToken.value) return
   await navigator.clipboard.writeText(createdToken.value)
-  // Nothing else confirms the copy happened, and the token is shown once.
+  // Nothing else confirms the copy, and the app shows the token only one time.
   copiedToken.value = true
   clearTimeout(copiedTimer)
   copiedTimer = setTimeout(() => (copiedToken.value = false), 2000)
@@ -1017,8 +1019,9 @@ onMounted(() => {
   margin-bottom: 1.5rem;
 }
 
-/* Theme picker: each card carries its own data-theme, so the global palette
-   blocks in style.css re-resolve the variables inside the preview. */
+/* Theme picker: each card carries its own data-theme. As a result, the
+   global palette blocks in style.css resolve the variables again inside the
+   preview. */
 .theme-grid {
   display: flex;
   gap: 0.9rem;
@@ -1247,7 +1250,7 @@ onMounted(() => {
   padding: 0.4rem 0.85rem;
   font-size: 0.85rem;
 }
-/* Secondary to the copy: dismissing is not what you came for. */
+/* Secondary to the copy: the user did not come here to dismiss. */
 .tk-dismiss {
   background: transparent;
   border: 1px solid var(--border);
@@ -1389,9 +1392,9 @@ onMounted(() => {
   display: flex;
   justify-content: center;
 }
-/* Terminal checkbox, same language as the checklists app: square cell,
-   phosphor fill + dark check when on (the global stylesheet gives inputs
-   width:100% + heavy padding; undo it). */
+/* Terminal checkbox, same language as the checklists app: a square cell,
+   with a phosphor fill and a dark check when on. The global stylesheet gives
+   inputs width:100% and heavy padding. Undo that. */
 .tk-binary input[type='checkbox'] {
   appearance: none;
   -webkit-appearance: none;

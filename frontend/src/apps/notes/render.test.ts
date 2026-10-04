@@ -14,8 +14,8 @@ describe('renderMarkdown', () => {
 
   it('does not turn a javascript: link into an anchor href', () => {
     const html = renderMarkdown('[click](javascript:alert(1))', noneResolved)
-    // markdown-it's default validateLink rejects the scheme, so it stays inert
-    // text, never an executable href.
+    // The default validateLink of markdown-it rejects the scheme. As a result,
+    // the link stays inert text and never becomes an executable href.
     expect(html).not.toMatch(/href=["']?javascript:/i)
     expect(html).not.toContain('<a')
   })
@@ -51,8 +51,8 @@ describe('renderMarkdown', () => {
   })
 
   it('does not rewrite wikilink syntax sitting inside an attribute', () => {
-    // The [[y]] lives in the link's title="…"; rewriting it there would break
-    // out of the attribute. It must be left untouched inside the tag.
+    // The [[y]] is in the title="…" of the link. A rewrite there breaks out of
+    // the attribute. The [[y]] in the tag must stay as it is.
     const html = renderMarkdown(
       '[a](http://e.com "x [[y]] q")',
       resolvesTo('n1')

@@ -55,7 +55,8 @@ function makeCtx(trackers: Entry[], logs: Entry[] = []) {
 }
 
 describe('TrackersApp', () => {
-  // The detail view seeds itself from ?tracker=; leave a clean URL behind.
+  // The detail view seeds itself from ?tracker=. Leave a clean URL after each
+  // test.
   afterEach(() => {
     history.replaceState(null, '', '/')
   })

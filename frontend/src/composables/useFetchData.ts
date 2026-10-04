@@ -3,11 +3,11 @@ import { ref, onMounted, type Ref } from 'vue'
 interface UseFetchDataOptions<T> {
   /** Run the fetch automatically on mount (default: true). */
   immediate?: boolean
-  /** Value `data` holds before the first successful fetch (default: null). */
+  /** The value of `data` before the first successful fetch (default: null). */
   initialValue?: T
-  /** Message used when a thrown error carries none. */
+  /** The message to use when a thrown error has none. */
   fallbackError?: string
-  /** Called with the result after each successful fetch. */
+  /** The composable calls it with the result after each successful fetch. */
   onSuccess?: (data: T) => void
 }
 
@@ -19,9 +19,9 @@ interface UseFetchDataReturn<T> {
 }
 
 /**
- * Wraps the recurring "load some data into a ref with loading/error state"
- * pattern. Returns reactive `data`, `loading` and `error`, plus a `refetch`
- * to re-run the fetch on demand.
+ * Wraps the common pattern "load some data into a ref with loading/error
+ * state". Returns reactive `data`, `loading` and `error`, and a `refetch` to
+ * run the fetch again on demand.
  */
 export function useFetchData<T>(
   fetcher: () => Promise<T>,

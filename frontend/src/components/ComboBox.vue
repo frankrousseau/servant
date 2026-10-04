@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
-// Styled replacement for native <select>: the OS dropdown can't be themed,
-// this one speaks the night-terminal language (violet rail on the active
-// option). Closed-list single choice; long lists get an inline filter.
+// A styled replacement for the native <select>. The OS dropdown cannot have
+// a theme. This one uses the night-terminal language (a violet rail on the
+// active option). It is for a single choice in a closed list. Long lists get
+// an inline filter.
 
 type RawOption = string | { value: string; label: string }
 
@@ -33,7 +34,8 @@ const buttonEl = ref<HTMLButtonElement | null>(null)
 const listEl = ref<HTMLElement | null>(null)
 const searchEl = ref<HTMLInputElement | null>(null)
 
-// Long lists (timezones, albums…) get a filter box inside the panel.
+// Long lists (for example timezones, albums) get a filter box inside the
+// panel.
 const searchable = computed(() => opts.value.length > 12)
 
 const filtered = computed<Option[]>(() => {
@@ -53,13 +55,14 @@ watch(query, () => {
   activeIndex.value = filtered.value.length ? 0 : -1
 })
 
-// The panel teleports to <body> (overflow ancestors would clip an inline
-// dropdown) and is fixed-positioned from the control's rect; scrolling any
-// ancestor repositions it. Flips above when the viewport bottom is close.
+// The panel teleports to <body>, because overflow ancestors would clip an
+// inline dropdown. Its position is fixed and comes from the rect of the
+// control. A scroll of any ancestor positions it again. It flips above the
+// control when the bottom of the viewport is near.
 const panelStyle = ref<Record<string, string>>({})
-// Inside a modal <dialog>, the panel must live in that dialog: an open modal
-// sits in the browser's top layer, above anything in <body> whatever its
-// z-index, so a panel teleported to <body> would open hidden behind it.
+// Inside a modal <dialog>, the panel must be in that dialog. An open modal is
+// in the top layer of the browser, above all of <body> for any z-index. As a
+// result, a panel teleported to <body> would open hidden behind it.
 const panelHost = ref<HTMLElement | string>('body')
 
 function reposition() {
@@ -88,9 +91,10 @@ function watchViewport(on: boolean) {
 
 onBeforeUnmount(() => watchViewport(false))
 
-// On searchable combos the control itself becomes the filter input while
-// open; swapping focused elements fires a focusout with no related target,
-// which must not close the panel we just opened.
+// On a searchable combo, the control itself becomes the filter input while
+// the panel is open. The swap of the focused elements fires a focusout with
+// no related target. That focusout must not close the panel that we opened a
+// moment before.
 let swapping = false
 
 function openPanel() {
@@ -140,7 +144,8 @@ function scrollActiveIntoView() {
   ;(el as HTMLElement | null)?.scrollIntoView?.({ block: 'nearest' })
 }
 
-// Type-to-jump, like a native select (types straight through when closed).
+// Type to jump, like a native select. When the panel is closed, a typed key
+// selects the option directly.
 let typeBuffer = ''
 let typeTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -202,7 +207,8 @@ function onFocusout(event: FocusEvent) {
 <template>
   <div ref="root" class="cb" @keydown="onKeydown" @focusout="onFocusout">
     <!-- While a searchable combo is open, the control itself is the filter:
-         choices appear right away and typing narrows them in place. -->
+         the choices show immediately, and the typed text narrows them in
+         place. -->
     <input
       v-if="searchable && open"
       ref="searchEl"
@@ -272,8 +278,8 @@ function onFocusout(event: FocusEvent) {
   border: 1px solid var(--border);
   border-radius: var(--control-radius);
   color: var(--text);
-  /* Same vertical metrics as the global input rule, so a combo sitting
-     next to a text input lines up. */
+  /* The same vertical metrics as the global input rule, so a combo next to
+     a text input aligns with it. */
   padding: 0.5rem 0.9rem;
   font-size: 1rem;
   line-height: 1.4;
@@ -310,7 +316,7 @@ function onFocusout(event: FocusEvent) {
   color: var(--text-muted);
 }
 .cb-panel {
-  /* Teleported to <body>; sits above modal overlays (z 100). */
+  /* Teleported to <body>. It is above the modal overlays (z 100). */
   position: fixed;
   z-index: 200;
   width: max-content;
@@ -336,7 +342,8 @@ function onFocusout(event: FocusEvent) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Cursor option: violet rail + tint, same language as list rows */
+/* The cursor option: a violet rail and a tint, the same language as the
+   list rows. */
 .cb-option--active {
   background: rgba(var(--primary-rgb), 0.1);
   box-shadow: inset 2px 0 0 var(--primary);

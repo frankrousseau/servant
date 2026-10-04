@@ -1,4 +1,5 @@
-// Mirrors Servant.ApiTokens.Scopes on the backend: app domains + data wildcard.
+// Mirrors Servant.ApiTokens.Scopes on the backend: the app domains and the
+// data wildcard.
 export interface ScopeDomain {
   id: string
   label: string
@@ -19,7 +20,8 @@ export const SCOPE_DOMAINS: ScopeDomain[] = [
 
 export type AccessLevel = 'none' | 'read' | 'write'
 
-// Explicit opt-in for raw file downloads (/files); never implied by read/write.
+// The explicit opt-in for raw file downloads (/files). The read and write
+// levels never imply it.
 export const READ_BINARY_SCOPE = 'data:read-binary'
 
 export function scopeFor(domain: string, level: AccessLevel): string | null {
@@ -27,7 +29,7 @@ export function scopeFor(domain: string, level: AccessLevel): string | null {
   return domain === 'data' ? `data:${level}` : `app:${domain}:${level}`
 }
 
-// levels: domain id -> access level, from the creation form
+// levels: maps a domain id to an access level, from the creation form.
 export function buildScopes(
   levels: Record<string, AccessLevel>,
   readBinary = false

@@ -1,6 +1,7 @@
-// Theme = data-theme attribute on <html>, palettes in style.css. The choice
-// is persisted server-side (user preference, synced across devices) and
-// cached in localStorage so the right palette paints before /auth/me lands.
+// The theme is the data-theme attribute on <html>. The palettes are in
+// style.css. The server persists the choice (a user preference, synced across
+// devices). localStorage caches it, so the right palette paints before the
+// reply of /auth/me arrives.
 
 export const THEMES = [
   { id: 'night', name: 'Night', hint: 'CRT violet on black-blue glass' },
@@ -33,7 +34,7 @@ export function applyTheme(id: string | null | undefined) {
   try {
     localStorage.setItem(STORAGE_KEY, theme)
   } catch {
-    // private mode: the theme still applies for this session
+    // Private mode: the theme still applies for this session.
   }
 }
 

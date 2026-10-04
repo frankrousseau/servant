@@ -57,8 +57,8 @@ function noteKeys(note: Note): string[] {
   return [canon(title), canon(fullPath(noteFolder(note), title))]
 }
 
-// vcard contact titles look like "Name - org - email" (pre-July 2026 entries
-// used " — "); prefer the display name.
+// The titles of vcard contacts look like "Name - org - email" (the entries
+// from before July 2026 used " — "). Prefer the display name.
 function mentionName(entry: Entry): string {
   return (
     (entry.data.display_name as string) ||
@@ -90,7 +90,7 @@ const viewMode = ref<'split' | 'edit' | 'preview'>('split')
 const collapsed = reactive(new Set<string>())
 const loadState = ref<'loading' | 'ready' | 'error'>('loading')
 
-// Editor fields (synced from the selected note on selection change).
+// The editor fields. A selection change syncs them from the selected note.
 const editTitle = ref('')
 const editFolder = ref('')
 const editBody = ref('')
@@ -175,7 +175,8 @@ function sortNotes(list: Note[]): Note[] {
   )
 }
 
-// Pinned above the folder tree; the notes also keep their place in it.
+// These notes are pinned above the folder tree. They also keep their place
+// in the tree.
 const favoriteNotes = computed(() =>
   sortNotes(filteredNotes.value.filter(noteFavorite))
 )
@@ -221,12 +222,13 @@ interface TreeRow {
   path?: string
   id?: string
   collapsed?: boolean
-  folder?: string // containing folder path, for note rows
+  folder?: string // path of the folder that contains the note, for note rows
   favorite?: boolean
 }
 
-// Flatten the folder tree into rows honouring the collapsed set (everything is
-// expanded while searching), so the template renders a flat v-for.
+// Flatten the folder tree into rows. The rows obey the collapsed set, but all
+// the folders are expanded during a search. The template then renders a flat
+// v-for.
 const treeRows = computed<TreeRow[]>(() => {
   const searching = !!searchQuery.value.trim()
   const rows: TreeRow[] = []
@@ -278,13 +280,14 @@ function toggleFolder(path: string) {
   else collapsed.add(path)
 }
 
-// Opens the folder first so the new note shows up under it in the tree.
+// Opens the folder first. Then the tree shows the new note in this folder.
 function createNoteIn(path: string) {
   collapsed.delete(path)
   void createNote(path)
 }
 
-// Every folder path present in the tree (including intermediate segments).
+// Every folder path that is in the tree, with the intermediate segments
+// included.
 const allFolderPaths = computed(() => {
   const paths = new Set<string>()
   for (const note of notes.value) {
@@ -300,8 +303,8 @@ const allFolderPaths = computed(() => {
   return [...paths]
 })
 
-// One button for the whole tree: collapse everything, unless everything is
-// already collapsed, in which case expand it all back.
+// One button for the full tree. It collapses all the folders. If all the
+// folders are already collapsed, it expands them all again.
 const allCollapsed = computed(
   () =>
     allFolderPaths.value.length > 0 &&
@@ -318,7 +321,7 @@ function toggleAllFolders() {
 
 // ----- folder rename / drag & drop / ordering -----
 
-const renamingFolder = ref<string | null>(null) // full path being renamed
+const renamingFolder = ref<string | null>(null) // full path to rename
 const renameValue = ref('') // last segment only
 const draggingNoteId = ref<string | null>(null)
 const draggingFolderPath = ref<string | null>(null)
@@ -342,13 +345,13 @@ function onFolderSelect() {
   void flushSave()
 }
 
-// Moves/renames rewrite [[folder/title]] wikilinks server-side; reload so we
-// don't hold (and later save back) stale bodies.
+// On the server, a move or a rename rewrites the [[folder/title]] wikilinks.
+// Reload. If not, the app holds stale bodies and saves them back later.
 async function reloadNotes() {
   try {
     notes.value = await apiList()
   } catch {
-    // keep what we have
+    // Keep the notes that the app has.
   }
 }
 
@@ -385,7 +388,7 @@ async function commitRenameFolder() {
       })
     }
   } catch {
-    // partial rename: the reload below shows the actual state
+    // The rename is partial: the reload below shows the actual state.
   }
   folderOrder.rename(path, newPath)
   await reloadNotes()
@@ -419,8 +422,8 @@ async function moveNoteToFolder(id: string, folder: string) {
   await reloadNotes()
 }
 
-// Reordering only makes sense between siblings; dropping a root-level folder
-// on the tree background sends it to the end.
+// A reorder is only applicable between siblings. A drop of a root-level
+// folder on the tree background moves the folder to the end.
 function reorderFolder(from: string, target: string) {
   if (from === target) return
   const parent = parentOf(from)
@@ -487,8 +490,9 @@ async function save() {
   try {
     const updated = await apiUpdate(note.id, attrs)
     if (renamed) {
-      // A rename rewrites [[wikilinks]] in referencing notes server-side; reload
-      // so we don't hold (and later save back) stale bodies.
+      // On the server, a rename rewrites the [[wikilinks]] in the notes that
+      // refer to this note. Reload. If not, the app holds stale bodies and
+      // saves them back later.
       notes.value = await apiList()
     } else {
       notes.value = notes.value.map(note =>
@@ -515,17 +519,18 @@ function syncEditorFrom(note: Note | null) {
   editBody.value = note ? noteBody(note) : ''
 }
 
-// A note is addressable: `/apps/notes?selected=<id>` is the URL the app pushes
-// on selection, so every place that points at a note is a real anchor with an
-// href. Middle-click and "open in a new tab" then work like any link, while a
-// plain left click stays in-app (no reload).
+// A note is addressable: `/apps/notes?selected=<id>` is the URL that the app
+// pushes on selection. As a result, every place that points at a note is a
+// real anchor with an href. Middle-click and "open in a new tab" then work as
+// for all links. A plain left click stays in-app (no reload).
 function noteHref(id: string): string {
   return `/apps/notes?selected=${encodeURIComponent(id)}`
 }
 
-// True when the browser should handle the click itself (new tab or window).
+// Returns true when the browser must handle the click itself (new tab or new
+// window).
 function opensNewTab(event: MouseEvent): boolean {
-  // `> 0` and not `!== 0`: a synthetic click may leave `button` undefined.
+  // `> 0` and not `!== 0`: a synthetic click can leave `button` undefined.
   return (
     event.metaKey ||
     event.ctrlKey ||
@@ -616,7 +621,8 @@ async function createNamedNote(title: string) {
   }
 }
 
-// Open (or create) today's journal note: Journal/YYYY-MM-DD in the user's tz.
+// Open (or create) the journal note of today: Journal/YYYY-MM-DD in the time
+// zone of the user.
 async function openTodayNote() {
   const title = todayInUserTz()
   const existing = notes.value.find(
@@ -638,7 +644,7 @@ async function openTodayNote() {
 async function toggleFavorite() {
   const note = selected.value
   if (!note) return
-  // Flush first so a pending rename is not applied out of order.
+  // Flush first, to apply a pending rename in the correct order.
   await flushSave()
   try {
     const updated = await apiUpdate(note.id, { favorite: !noteFavorite(note) })
@@ -652,8 +658,9 @@ async function toggleFavorite() {
 
 // ----- attachments (Files app entries linked from the note) -----
 
-// Loaded on demand: when a note with attachments is shown (to resolve ids
-// into filenames) or when the picker opens. Folders are not attachable.
+// The app loads the files on demand: when it shows a note with attachments
+// (to resolve ids into filenames) or when the picker opens. Folders are not
+// attachable.
 const fileEntries = ref<Entry[]>([])
 const filesLoaded = ref(false)
 const attachOpen = ref(false)
@@ -669,7 +676,8 @@ async function ensureFiles() {
     fileEntries.value = entries.filter(entry => entry.data.is_folder !== true)
     filesLoaded.value = true
   } catch {
-    // chips fall back to "missing file"; the picker shows its empty state
+    // The chips show "missing file" as a fallback. The picker shows its empty
+    // state.
   }
 }
 
@@ -707,7 +715,7 @@ function openAttachPicker() {
 }
 
 async function setAttachments(note: Note, ids: string[]) {
-  // Flush first so a pending rename is not applied out of order.
+  // Flush first, to apply a pending rename in the correct order.
   await flushSave()
   try {
     const updated = await apiUpdate(note.id, { attachments: ids })
@@ -715,7 +723,7 @@ async function setAttachments(note: Note, ids: string[]) {
       item.id === updated.id ? updated : item
     )
   } catch {
-    // the chips keep showing the stored list
+    // The chips continue to show the stored list.
   }
 }
 
@@ -735,7 +743,7 @@ async function detachFile(id: string) {
   )
 }
 
-// Resolve ids into names as soon as an annotated note is displayed.
+// Resolve the ids into names when the app shows an annotated note.
 watch(selected, note => {
   if (note && noteAttachments(note).length) void ensureFiles()
 })
@@ -776,7 +784,7 @@ function onPreviewClick(event: MouseEvent) {
   }
   const link = target.closest('.nt-wikilink') as HTMLElement | null
   if (!link) return
-  // A resolved wikilink carries an href: let the browser open the new tab.
+  // A resolved wikilink has an href: let the browser open the new tab.
   if (opensNewTab(event) && link.getAttribute('href')) return
   event.preventDefault()
   const t = link.dataset.target || ''
@@ -816,7 +824,8 @@ function mentionItems(query: string, close: boolean): AcItem[] {
     }))
 }
 
-// Viewport coordinates of the caret in a textarea, via a hidden mirror div.
+// Returns the viewport coordinates of the caret in a textarea, through a
+// hidden mirror div.
 function caretViewportPosition(ta: HTMLTextAreaElement): {
   left: number
   top: number
@@ -911,8 +920,8 @@ async function updateAutocomplete() {
   acIndex.value = 0
   acVisible.value = true
 
-  // Anchor at the caret, clamped to the viewport; flip above the line if there
-  // is no room below. Measure after the popup renders.
+  // Anchor the popup at the caret, clamped to the viewport. Flip it above the
+  // line if there is no room below. Measure after the popup renders.
   const caret = caretViewportPosition(ta)
   await nextTick()
   const pop = document.querySelector('.nt-ac') as HTMLElement | null
@@ -944,7 +953,8 @@ function applyCompletion(item: AcItem) {
   scheduleSave()
 }
 
-// Enter inside a list line continues the list (Shift+Enter keeps the plain newline).
+// Enter in a list line continues the list. Shift+Enter keeps the plain
+// newline.
 function onEnterInList(event: KeyboardEvent) {
   const ta = bodyRef.value
   if (!ta || ta.selectionStart !== ta.selectionEnd) return
@@ -990,21 +1000,24 @@ function onBodyInput() {
 }
 
 function onBodyBlur() {
-  // Delay so a mousedown on a popup item still registers before it closes.
+  // Delay the close. Then a mousedown on a popup item still registers before
+  // the popup closes.
   setTimeout(hideAutocomplete, 150)
 }
 
 const viewModes = ['edit', 'split', 'preview'] as const
 
-// Re-fill the editor when the selection moves to another note. Deliberately
-// not on every object identity change: a save replaces the note object with
-// the server's copy, and re-filling from it would drop whatever was typed
-// during the round trip and send the caret to the end of the text.
+// Fill the editor again when the selection moves to another note. On purpose,
+// do not do this on every change of object identity. A save replaces the
+// note object with the copy from the server. A fill from this copy drops the
+// text typed during the round trip and sends the caret to the end of the
+// text.
 watch(selected, (note, previous) => {
   if (note && note.id !== previous?.id) syncEditorFrom(note)
 })
 
-// Remembered on the account, so reopening the app lands on the last note.
+// The account remembers the last note. As a result, the app opens on this
+// note the next time.
 watch(selectedId, id => {
   if (id) lastOpen.value = id
 })
@@ -1021,14 +1034,16 @@ onMounted(async () => {
     loadState.value = 'error'
   }
 
-  // URL selection wins; otherwise reopen the last note used.
+  // The selection in the URL has priority. If there is none, open the last
+  // used note again.
   const initial = new URLSearchParams(window.location.search).get('selected')
   const target = [initial, lastOpen.value].find(
     id => id && notes.value.some(note => note.id === id)
   )
   if (target) void selectNote(target, { push: false })
 
-  // Contacts and events feed @[[mention]] autocomplete/chips; degrade gracefully.
+  // Contacts and events supply the @[[mention]] autocomplete and chips. If
+  // this data is not available, the app continues without it.
   try {
     const [contacts, events] = await Promise.all([
       ctx.api.entries.list({ kind: 'contact' }),
@@ -1048,7 +1063,8 @@ onMounted(async () => {
     const eventItems = dedupeByName(
       events
         .slice()
-        // Recent first, so recurring event titles resolve to the latest one.
+        // Sort the most recent first. Then the title of a recurring event
+        // resolves to the latest event.
         .sort((a, b) =>
           (b.occurred_at || '').localeCompare(a.occurred_at || '')
         )
@@ -1060,7 +1076,7 @@ onMounted(async () => {
     )
     mentionables.value = [...contactItems, ...eventItems]
   } catch {
-    // mention chips render as unresolved without this data
+    // Without this data, the mention chips render as unresolved.
   }
 })
 
@@ -1422,8 +1438,8 @@ onBeforeUnmount(() => {
   </div>
 </template>
 
-<!-- Global (unscoped) so preview v-html content and the teleported popup are
-     styled exactly as before. -->
+<!-- This block is global (unscoped). As a result, the v-html content of the
+     preview and the teleported popup keep exactly the same style as before. -->
 <style>
 .nt-layout {
   display: flex;
@@ -1535,8 +1551,8 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   padding: 0.375rem 0.25rem;
 }
-/* Folders are structure: mono uppercase labels, clearly distinct from the
-   note titles they group. */
+/* Folders are structure: they have mono uppercase labels, clearly different
+   from the note titles that they group. */
 .nt-folder {
   display: flex;
   align-items: center;
@@ -1623,7 +1639,8 @@ onBeforeUnmount(() => {
 .nt-note:hover {
   background: var(--bg-hover);
 }
-/* Cursor row: violet rail + tint, same language as Contacts/Files */
+/* Cursor row: a violet rail and a tint, the same visual language as Contacts
+   and Files */
 .nt-note--active {
   background: rgba(var(--primary-rgb), 0.1);
   box-shadow: inset 2px 0 0 var(--primary);

@@ -1,5 +1,6 @@
-// Visual identity of an entry kind: a glyph and a tint, so a mixed list stays
-// readable without a legend. Kinds absent from the table fall back to neutral.
+// The visual identity of an entry kind: a glyph and a tint. With them, a mixed
+// list stays readable without a legend. The kinds that are not in the table
+// fall back to neutral.
 export const KIND_CONFIG: Record<string, { icon: string; color: string }> = {
   transaction: { icon: '↔', color: '#9d7bff' },
   bank_tx: { icon: '↔', color: '#4a9c6d' },

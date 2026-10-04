@@ -41,8 +41,9 @@ const auth = useAuthStore()
 
 const recentEntries = ref<Entry[]>([])
 
-// Kinds of an opt-in slice the user has off (crypto): a configured wallet
-// connector keeps syncing, so its entries exist; they just stay off-screen.
+// Kinds of an opt-in slice that the user set to off (crypto). A configured
+// wallet connector continues to sync. As a result, its entries exist, but
+// they stay off-screen.
 const hiddenKinds = computed(() => hiddenEntryKinds(auth.user?.enabled_apps))
 
 const visibleRecent = computed(() =>
@@ -59,7 +60,7 @@ const loading = ref(true)
 const { onEntryChange, onBulkChange } = useSocket()
 
 // Coalesce refetches: a connector sync can fire many entry events in a burst,
-// and each fetchData() is several requests. Debounce so we refresh once.
+// and each fetchData() is several requests. Debounce to refresh one time.
 const refresh = debounce(fetchData)
 onEntryChange(refresh)
 onBulkChange(refresh)
@@ -78,9 +79,9 @@ async function fetchData() {
       entryStats(),
       listConnectors(),
       fetchDailyStats(30),
-      // All events, not just future ones: recurring events (birthdays,
+      // All events, not only future ones: recurring events (birthdays,
       // weekly rituals) have past seed dates but upcoming occurrences.
-      // ponytail: per_page 1000, paginate if a calendar ever outgrows it.
+      // ponytail: per_page 1000. Paginate if a calendar gets more events.
       listEntriesPage({ kind: 'event', per_page: '1000' }),
       listEntriesPage({ kind: 'checklist', per_page: '100' })
     ])
@@ -92,7 +93,7 @@ async function fetchData() {
     events.value = eventsRes.data
     checklists.value = checklistsRes.data
   } catch {
-    // API not available yet
+    // The API is not available yet.
   } finally {
     loading.value = false
   }
@@ -100,7 +101,7 @@ async function fetchData() {
 
 // ----- Today panel -----
 
-// Local civil date, matching the checklists app's overdue rule.
+// Local civil date, the same as the overdue rule of the checklists app.
 const todayLocal = todayLocalStr()
 
 // Today's events, recurring ones included (they occur today when their
@@ -121,8 +122,8 @@ const todaysEvents = computed(() => {
     )
 })
 
-// Checklist deadlines compete for the "next" slot once they are less than
-// a week out (pending items only, virtual all-day events like the calendar).
+// Checklist deadlines compete for the "next" slot when they are less than
+// a week away (pending items only, virtual all-day events as in the calendar).
 const upcomingDeadlines = computed<Entry[]>(() => {
   const horizon = addDays(todayLocal, 7)
   const out: Entry[] = []
@@ -137,7 +138,8 @@ const upcomingDeadlines = computed<Entry[]>(() => {
         kind: 'event',
         title: `⏰ ${item.text}`,
         occurred_at: `${item.due}T12:00:00Z`,
-        // Open until the end of its civil day, so it stays "next" all day.
+        // Open until the end of its civil day. As a result, it stays "next"
+        // all day.
         data: { all_day: true, end_at: `${item.due}T23:59:59Z` }
       } as Entry)
     })
@@ -145,9 +147,9 @@ const upcomingDeadlines = computed<Entry[]>(() => {
   return out
 })
 
-// Next upcoming event on any day: earliest one not yet finished. Recurring
-// events are projected to their next occurrence (same wall-clock time) so
-// past seeds still compete for the slot.
+// Next upcoming event on any day: the earliest one that is not complete yet.
+// The code projects recurring events to their next occurrence (same
+// wall-clock time). As a result, past seeds still compete for the slot.
 const nextEvent = computed(() => {
   const now = new Date().toISOString()
   const { date: today, time: nowTime } = utcToZonedParts(now)
@@ -163,7 +165,7 @@ const nextEvent = computed(() => {
         time,
         nowTime
       )
-      // end_at belongs to the seed occurrence; drop it on the projection.
+      // end_at belongs to the seed occurrence. Drop it on the projection.
       return {
         ...event,
         occurred_at: zonedToUtcISO(occurrence, time),
@@ -181,7 +183,7 @@ const nextEvent = computed(() => {
   return upcoming[0] || null
 })
 
-// Time only if the next event is today, weekday + time otherwise; all-day
+// Time only if the next event is today, weekday + time if not. All-day
 // items (deadlines) carry no meaningful time.
 const nextEventStamp = computed(() => {
   const event = nextEvent.value
@@ -204,8 +206,8 @@ const nextEventStamp = computed(() => {
       })
 })
 
-// Only checklists explicitly flagged for the dashboard (per-list toggle).
-// Deadlined items surface first (soonest date on top of the 5-item cut).
+// Only the checklists explicitly flagged for the dashboard (per-list toggle).
+// The items with a deadline come first (soonest date on top of the 5-item cut).
 const pendingItems = computed(() => {
   const out: {
     listId: string
@@ -235,12 +237,12 @@ const pendingItems = computed(() => {
   })
 })
 
-// Clicking a pending item opens its checklist (checking off happens there).
+// A click on a pending item opens its checklist (the user checks it off there).
 function openChecklist({ listId }: { listId: string }) {
   router.push(`/apps/checklists?selected=${listId}`)
 }
 
-// Backend daily stats use UTC days; so does this key.
+// The daily stats of the backend use UTC days, and so does this key.
 const entriesToday = computed(() => {
   const key = new Date().toISOString().slice(0, 10)
   return Object.values(dailyStats.value).reduce(
@@ -257,10 +259,11 @@ const lastSyncAt = computed(() => {
   return stamps.length ? stamps[stamps.length - 1] : null
 })
 
-// Errored connectors first (they need attention), then most recently
-// synced first; never-synced ones sink to the bottom. The def rides along
-// so the template resolves it once per connector. Wallet connectors are out
-// while crypto is off (Settings > Apps).
+// Connectors with an error come first (they must get attention), then the most
+// recently synced. The connectors that never synced go to the bottom. The
+// def comes along with each connector. As a result, the template resolves it
+// one time for each connector. Wallet connectors are out while crypto is off
+// (Settings > Apps).
 const sortedConnectors = computed(() =>
   connectors.value
     .filter(
@@ -278,7 +281,7 @@ const sortedConnectors = computed(() =>
     }))
 )
 
-// Timestamp for a log line: time-of-day if today, short date otherwise.
+// Timestamp for a log line: time-of-day if today, short date if not.
 function logStamp(iso: string): string {
   return utcToZonedParts(iso).date === todayInUserTz()
     ? formatTime(iso)
@@ -319,8 +322,8 @@ const totalSpark = computed(() => {
   return sparkBars(merged)
 })
 
-// One row per stat card, total first; bars precomputed here so the template
-// does not rebuild every sparkline on unrelated re-renders.
+// One row for each stat card, total first. The bars are precomputed here, so
+// that the template does not rebuild each sparkline on unrelated re-renders.
 const statCards = computed(() => {
   const hiddenCount = hiddenKinds.value.reduce(
     (sum, kind) => sum + (stats.value[kind] ?? 0),
@@ -575,9 +578,9 @@ onMounted(fetchData)
   color: var(--text-muted);
 }
 
-/* ----- Layout: the dashboard owns the viewport, header on top, then three
-   independently scrolling columns. Full width (overrides the global 960px
-   cap meant for narrow settings-style views). ----- */
+/* ----- Layout: the dashboard owns the viewport, with the header on top, then
+   three columns that scroll independently. Full width (overrides the global
+   960px cap, which is for narrow settings-style views). ----- */
 
 .view {
   max-width: none;
@@ -611,9 +614,9 @@ onMounted(fetchData)
   overflow: hidden;
 }
 
-/* Two columns: stats keep their place next to the checklists, the activity
-   feed takes the full width underneath (explicit placement, the DOM order
-   would otherwise leave a hole). */
+/* Two columns: the stats keep their place next to the checklists, and the
+   activity feed takes the full width below. The placement is explicit,
+   because the DOM order leaves a hole. */
 @media (max-width: 1100px) {
   .dashboard-layout {
     grid-template-columns: minmax(0, 1fr) 280px;
@@ -653,7 +656,8 @@ onMounted(fetchData)
   margin-bottom: 2rem;
 }
 
-/* Modifier after its base so its margin-bottom wins the cascade. */
+/* The modifier comes after its base, so that its margin-bottom wins the
+   cascade. */
 .dashboard-section--fill {
   display: flex;
   flex-direction: column;
@@ -859,9 +863,9 @@ onMounted(fetchData)
   font-size: 0.85rem;
 }
 
-/* Errored connectors: red-tinted card, message shown in place of the
-   sync time (full text in the tooltip). Kept after the clickable rules
-   so the error hover wins the cascade. */
+/* Connectors with an error: a red-tinted card that shows the message in
+   place of the sync time (full text in the tooltip). Keep this after the
+   clickable rules, so that the error hover wins the cascade. */
 .connector-status-item--error {
   border-color: var(--danger);
   background: color-mix(in srgb, var(--danger) 7%, var(--bg-surface));

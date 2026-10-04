@@ -27,8 +27,8 @@ describe('ComboBox', () => {
   })
 
   it('opens its panel inside the modal dialog that holds it', async () => {
-    // A modal <dialog> is in the top layer: a panel left in <body> would
-    // open behind it, unreachable.
+    // A modal <dialog> is in the top layer. A panel that stays in <body>
+    // would open behind it, where the user cannot reach it.
     const dialog = document.createElement('dialog')
     document.body.appendChild(dialog)
     const wrapper = mount(ComboBox, {
@@ -86,7 +86,7 @@ describe('ComboBox', () => {
     const wrapper = make(many, 'Option 3')
     await wrapper.find('.cb-control').trigger('click')
 
-    // The full list is visible immediately; the control became the filter.
+    // The full list is visible immediately. The control is now the filter.
     expect(wrapper.findAll('.cb-option')).toHaveLength(20)
     const filter = wrapper.find('input.cb-filter')
     expect(filter.exists()).toBe(true)

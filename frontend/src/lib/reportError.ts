@@ -1,9 +1,10 @@
 import { apiJson } from '../composables/apiClient'
 
-// Mirror a browser-side error into the server Audit log so a self-hosted
-// operator can diagnose it (the console is never seen otherwise). Fire-and-forget,
-// and de-dupes consecutive identical messages so an error loop can't flood the
-// server-side ring buffer.
+// Mirrors a browser-side error into the Audit log of the server. Then a
+// self-hosted operator can diagnose it (without this, no one sees the
+// console). The call does not wait for the reply. It drops consecutive
+// identical messages, so an error loop cannot flood the ring buffer of the
+// server.
 let lastMessage = ''
 
 export function reportClientError(context: string, message: string) {

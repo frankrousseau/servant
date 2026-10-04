@@ -44,8 +44,8 @@ const CRYPTO_COLOR = '#6ccec9'
 type Tab = 'overview' | 'accounts' | 'spending' | 'cryptos' | 'taxes'
 const tab = ref<Tab>('overview')
 
-// Crypto is opt-in (Settings > Apps). With it off this app is tradfi only:
-// no Cryptos tab, no wallet accounts, no crypto line in the totals.
+// Crypto is opt-in (Settings > Apps). When it is off, this app is tradfi
+// only: no Cryptos tab, no wallet accounts, no crypto line in the totals.
 const showCrypto = computed(() => cryptoEnabled(ctx.enabledApps))
 
 const TABS = computed<Array<{ id: Tab; label: string }>>(() => [
@@ -64,7 +64,7 @@ const loadState = ref<'loading' | 'ready' | 'error'>('loading')
 
 async function reload() {
   try {
-    // entries.list pages through everything internally.
+    // entries.list goes through all the pages internally.
     const [accounts, balances, txs, prefsList] = await Promise.all([
       ctx.api.entries.list({ kind: 'account' }),
       ctx.api.entries.list({ kind: 'balance' }),
@@ -102,7 +102,7 @@ async function savePrefs(patch: Record<string, unknown>) {
           data
         })
   } catch {
-    // keep the previous prefs
+    // Keep the previous prefs.
   }
 }
 
@@ -127,7 +127,7 @@ const cryptoTaxPct = computed(
   () => Number(prefs.value?.data.crypto_tax_pct) || 0
 )
 
-// Saved on change, like the other inline finance edits.
+// Saves on change, like the other inline finance edits.
 function saveTax(field: 'tax_provision' | 'crypto_tax_pct', raw: string) {
   const value = parseFloat(raw.replace(',', '.'))
   const clean = Number.isFinite(value) && value > 0 ? value : 0
@@ -145,9 +145,9 @@ const accounts = computed(() => {
     : all.filter(account => account.universe !== 'crypto')
 })
 
-// Portfolio snapshots go with them: cryptoCurve treats a snapshot as the
-// curve even with no wallet account left, which would keep crypto money
-// inside the overview total while its split row was gone.
+// The portfolio snapshots go with them. cryptoCurve uses a snapshot as the
+// curve even when no wallet account is left. That would keep crypto money
+// in the overview total while its split row is gone.
 const visibleBalances = computed(() =>
   showCrypto.value
     ? balanceEntries.value
@@ -273,7 +273,7 @@ function txCount(account: Account): number {
   return accountTxs(account, bankTxs.value).length
 }
 
-// The accounts <-> transactions bridge: jump to the Spending tab with the
+// The accounts <-> transactions bridge: go to the Spending tab with the
 // transactions list filtered on this account.
 const txFocus = ref<string | null>(null)
 
@@ -328,14 +328,15 @@ async function createAccount() {
     })
     accountModalOpen.value = false
   } catch {
-    // leave the modal open
+    // Leave the modal open.
   } finally {
     accountSaving.value = false
   }
 }
 
-// ponytail: deleting an account with manual snapshots is refused rather than
-// cascading; delete the snapshots first (same rule as calendars).
+// ponytail: the app refuses to delete an account that has manual snapshots,
+// and it does not cascade. Delete the snapshots first (same rule as
+// calendars).
 async function deleteAccount(account: Account) {
   if (!account.entryId) return
   const snapshots = manualSnapshots(account)
@@ -358,7 +359,7 @@ async function deleteAccount(account: Account) {
       entry => entry.id !== account.entryId
     )
   } catch {
-    // ignore
+    // Ignore the error.
   }
 }
 
@@ -393,7 +394,7 @@ async function addSnapshot(account: Account) {
     balanceEntries.value = [...balanceEntries.value, created]
     snapshotFor.value = null
   } catch {
-    // keep the form open
+    // Keep the form open.
   } finally {
     snapshotSaving.value = false
   }
@@ -411,7 +412,7 @@ async function deleteSnapshot(snapshot: Entry) {
       entry => entry.id !== snapshot.id
     )
   } catch {
-    // ignore
+    // Ignore the error.
   }
 }
 
@@ -470,8 +471,9 @@ async function addCrypto() {
   if (!token || qty == null || cryptoSaving.value) return
   cryptoSaving.value = true
   try {
-    // One wallet account per asset; adding an existing token records a
-    // new quantity instead of duplicating the account.
+    // One wallet account for each asset. When the user adds a token that
+    // already exists, the app records a new quantity and does not duplicate
+    // the account.
     const existing = cryptoAccounts.value.find(
       account => account.entryId && account.currency === token
     )
@@ -491,7 +493,7 @@ async function addCrypto() {
     cryptoQty.value = ''
     void loadCryptoPrices()
   } catch {
-    // keep the form values
+    // Keep the form values.
   } finally {
     cryptoSaving.value = false
   }
@@ -507,11 +509,12 @@ async function updateQtyRecord(snapshot: Entry, account: Account, qty: number) {
       entry.id === updated.id ? updated : entry
     )
   } catch {
-    // ignore
+    // Ignore the error.
   }
 }
 
-// New record, or correction of the same day's figure (no stacking).
+// Creates a new record, or corrects the figure of the same day. It does not
+// stack records.
 async function upsertQty(account: Account, qty: number) {
   const todays = manualSnapshots(account).find(
     snapshot => snapshotDateLabel(snapshot) === today.value
@@ -527,7 +530,7 @@ async function setCryptoQty(account: Account, raw: string) {
   try {
     await upsertQty(account, qty)
   } catch {
-    // ignore
+    // Ignore the error.
   }
 }
 
@@ -550,7 +553,7 @@ async function loadCryptoPrices() {
       refCurrency.value
     )
   } catch {
-    // offline or blocked: quantities alone still work
+    // Offline or blocked: the quantities alone still work.
   } finally {
     cryptoPricesLoading.value = false
   }
@@ -558,8 +561,8 @@ async function loadCryptoPrices() {
 
 // ----- portfolio total + value snapshots -----
 
-// Expanded-set key for the portfolio history; account keys are UUIDs or
-// "bank:<name>", so this can never collide.
+// The key of the portfolio history in the expanded set. Account keys are
+// UUIDs or "bank:<name>", so this key can never collide.
 const PORTFOLIO_KEY = 'portfolio:crypto'
 
 const cryptoTotal = computed(() =>
@@ -595,9 +598,9 @@ function portfolioAmountLabel(snapshot: Entry): string {
 
 const cryptoSnapshotSaving = ref(false)
 
-// Record the displayed total as a dated observation, with the same
-// no-stacking rule as quantities: a second snapshot the same day corrects
-// the day's entry.
+// Record the shown total as a dated observation. The same no-stacking rule
+// as for quantities applies: a second snapshot on the same day corrects the
+// entry of that day.
 async function snapshotPortfolio() {
   if (cryptoSnapshotSaving.value) return
   const amount = Math.round(cryptoTotal.value.total * 100) / 100
@@ -627,7 +630,7 @@ async function snapshotPortfolio() {
       balanceEntries.value = [...balanceEntries.value, created]
     }
   } catch {
-    // nothing recorded; the button stays available for a retry
+    // The app recorded nothing. The button stays available for a retry.
   } finally {
     cryptoSnapshotSaving.value = false
   }
@@ -637,7 +640,8 @@ watch(tab, next => {
   if (next === 'cryptos') void loadCryptoPrices()
 })
 
-// Manual rate first (it feeds the curve); spot price as a fallback hint.
+// The manual rate comes first (it feeds the curve). The spot price is a
+// fallback hint.
 function cryptoValue(account: Account): { text: string; spot: boolean } | null {
   const point = lastPoint(account)
   if (!point) return null
@@ -656,8 +660,8 @@ function cryptoValue(account: Account): { text: string; spot: boolean } | null {
   return { text: 'no rate', spot: false }
 }
 
-// Unlike deleteAccount, deleting a token takes its history along: the
-// cryptos tab is a quantity sheet, not an archive.
+// Different from deleteAccount, the deletion of a token also deletes its
+// history: the cryptos tab is a quantity sheet, not an archive.
 async function deleteCrypto(account: Account) {
   if (!account.entryId) return
   const snapshots = manualSnapshots(account)
@@ -676,7 +680,7 @@ async function deleteCrypto(account: Account) {
       entry => entry.id !== account.entryId
     )
   } catch {
-    // partial deletes surface on reload
+    // Partial deletes show on reload.
   }
 }
 
@@ -693,11 +697,12 @@ async function patchAccount(account: Account, patch: Record<string, unknown>) {
       item.id === updated.id ? updated : item
     )
   } catch {
-    // ignore
+    // Ignore the error.
   }
 }
 
-// Saved on change; empty clears it and the account matches by name again.
+// Saves on change. An empty value clears it, and the account matches by
+// name again.
 function saveIdentifier(account: Account, raw: string) {
   void patchAccount(account, { identifier: raw.trim() || null })
 }
@@ -1335,7 +1340,7 @@ function saveShared(account: Account, shared: boolean) {
   height: 100vh;
   overflow-y: auto;
 }
-/* Spending wants the full width for its chart and table. */
+/* Spending uses the full width for its chart and table. */
 .fin-layout--wide {
   max-width: none;
 }
@@ -1624,9 +1629,10 @@ function saveShared(account: Account, shared: boolean) {
   font-size: 0.88rem;
   flex-shrink: 0;
 }
-/* The account list is a table: every column but the name is a fixed width,
-   so the name absorbs the slack and the cells line up row to row (header
-   included). The crypto tab has its own row shape and keeps auto widths. */
+/* The account list is a table. Every column but the name has a fixed
+   width. As a result, the name absorbs the slack and the cells align from
+   row to row (header included). The crypto tab has its own row shape and
+   keeps auto widths. */
 .fin-universe .fin-account-amount {
   width: 175px;
   text-align: right;

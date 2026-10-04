@@ -73,8 +73,8 @@ describe('CalendarApp drag and drop', () => {
     expect(id).toBe('e1')
     expect(attrs.occurred_at).toBe('2026-08-20T12:00:00.000Z')
     expect(attrs.data.end_at).toBe('2026-08-20T14:00:00.000Z')
-    // The iCal stamps are wall-clock (test-runner timezone): only assert the
-    // day moved, the instants above already pin the time.
+    // The iCal stamps are wall-clock (timezone of the test runner). Only make
+    // sure that the day moved. The instants above already pin the time.
     expect(attrs.data.dtstart).toMatch(/^20260820T/)
     expect(attrs.data.dtend).toMatch(/^20260820T/)
     vi.useRealTimers()

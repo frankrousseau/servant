@@ -20,12 +20,16 @@ const flushContent = computed(() => route.name === 'app')
 // logged-in owner: what they see is what a visitor gets.
 const publicPage = computed(() => route.meta.public === true)
 
-// Installed apps come from the API, so they can only load once authenticated;
-// the sidebar shows builtins in the meantime. Loaded here rather than in a
-// consumer: the sidebar, the palette, Settings and AppView all read the store.
-// Losing the session (expired cookie at boot, 401 mid-session) clears the auth
-// state outside any navigation, so the router guard never runs: send the user
-// to the login page from here.
+// The installed apps come from the API, so they can load only after the
+// authentication. Until then, the sidebar shows the builtins. This component
+// loads them, and not a consumer, because these all read the store:
+// - the sidebar
+// - the palette
+// - Settings
+// - AppView
+// The loss of the session (expired cookie at boot, 401 in the middle of a
+// session) clears the auth state outside all navigation. As a result, the
+// router guard never runs. Send the user to the login page from here.
 watch(
   () => auth.isAuthenticated,
   authed => {

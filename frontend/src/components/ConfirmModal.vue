@@ -8,18 +8,18 @@ const { visible, title, message, confirmLabel, danger, resolve } = useConfirm()
 
 const dialog = ref<HTMLDialogElement | null>(null)
 
-// The dialog element is only hit by clicks on its backdrop: the padding
-// lives on the inner .confirm-modal wrapper, so any click inside the box
-// targets that wrapper instead.
+// Only a click on the backdrop hits the dialog element. The padding is on
+// the inner .confirm-modal wrapper, so a click inside the box targets that
+// wrapper.
 function onDialogClick(event: MouseEvent) {
   if (event.target === dialog.value) resolve(false)
 }
 
-// Escape is handled at the document level (capture phase) instead of the
-// dialog's native cancel event so it can stop propagation: an underlying
-// MediaViewer's document-level Escape handler must not also fire and close
-// the layer beneath the confirm. preventDefault suppresses native cancel,
-// which would otherwise close the dialog a second time.
+// This handler gets Escape at the document level (capture phase), and not
+// through the native cancel event of the dialog. As a result, it can stop the
+// propagation. The document-level Escape handler of a MediaViewer below must
+// not also fire and close the layer below the confirm. preventDefault stops
+// the native cancel, which would close the dialog a second time.
 function onKeydown(event: KeyboardEvent) {
   if (!visible.value) return
   if (event.key === 'Escape') {
@@ -29,8 +29,8 @@ function onKeydown(event: KeyboardEvent) {
   }
 }
 
-// flush: 'post' so showModal() runs after the autofocus attributes have
-// been re-rendered for this ask(); the browser reads them at open time.
+// flush: 'post' makes showModal() run after the render of the autofocus
+// attributes for this ask(). The browser reads them when the dialog opens.
 watch(
   visible,
   isVisible => {
@@ -88,8 +88,8 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
 </template>
 
 <style scoped>
-/* The <dialog> is a bare, transparent frame in the top layer (no z-index
-   needed); the visible box is the inner wrapper. */
+/* The <dialog> is a bare, transparent frame in the top layer (no z-index is
+   necessary). The visible box is the inner wrapper. */
 .confirm-dialog {
   padding: 0;
   border: none;
@@ -102,8 +102,8 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
   background: rgba(0, 0, 0, 0.6);
 }
 
-/* Opening fade; closing is instant (display transitions would need
-   allow-discrete for little gain). */
+/* A fade when the dialog opens. The close is instant: transitions on display
+   would make allow-discrete necessary, for little gain. */
 .confirm-dialog,
 .confirm-dialog::backdrop {
   opacity: 1;

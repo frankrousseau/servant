@@ -105,11 +105,12 @@ const reportPage = ref(1)
 const reportTotal = ref(0)
 let reportSearchTimer: ReturnType<typeof setTimeout> | undefined
 
-// Both report kinds (ai_report from a prompt agent, report from a recipe one)
-// carry source "agent", so one paginated query covers them, newest first.
+// The two report kinds (ai_report from a prompt agent, report from a recipe
+// agent) carry source "agent". As a result, one paginated query covers them,
+// newest first.
 async function loadReports(opts: { append?: boolean } = {}) {
-  // A plain reload (after a run, on mount) starts over at the first page, so
-  // the list can't end up showing page 3 alone.
+  // A plain reload (after a run, on mount) starts again at the first page.
+  // As a result, the list cannot show page 3 alone.
   if (!opts.append) reportPage.value = 1
 
   const params: Record<string, string> = {
@@ -125,7 +126,8 @@ async function loadReports(opts: { append?: boolean } = {}) {
   reports.value = opts.append ? [...reports.value, ...res.data] : res.data
 }
 
-// Searching restarts at the first page; typing shouldn't fire a request per key.
+// A search starts again at the first page. A request must not fire for each
+// key that the user types.
 function onReportSearch() {
   clearTimeout(reportSearchTimer)
   reportSearchTimer = setTimeout(() => void loadReports(), 300)
@@ -146,8 +148,8 @@ function reportContent(report: Entry): string {
 
 const rawReport = ref(false)
 
-// The renderer escapes the model's HTML, so v-html below only injects markup
-// markdown-it produced itself (see lib/markdown.ts).
+// The renderer escapes the HTML of the model. As a result, v-html below only
+// injects markup that markdown-it produced itself (see lib/markdown.ts).
 function reportHtml(report: Entry): string {
   return renderMarkdown(reportContent(report))
 }
@@ -212,8 +214,8 @@ async function saveAgent() {
       .filter(Boolean),
     lookback_days: fLookback.value,
     schedule: fSchedule.value,
-    // Empty (or hourly, where it means nothing) leaves the agent on the
-    // interval-since-last-run rule.
+    // An empty value (or an hourly schedule, where it means nothing) leaves
+    // the agent on the interval-since-last-run rule.
     run_at_hour:
       fHour.value === '' || fSchedule.value === 'every_hour'
         ? null
@@ -229,7 +231,7 @@ async function saveAgent() {
     }
   } else {
     body.prompt = fPrompt.value.trim()
-    // Empty means "the model from Settings": the backend nils it out.
+    // An empty value means "the model from Settings": the backend sets it to nil.
     body.model = fModel.value.trim()
   }
   try {
@@ -1244,7 +1246,7 @@ onMounted(() => {
   overflow-x: auto;
   padding: 0.6rem 0.8rem;
 }
-/* A block already has the frame: the inner code tag shouldn't add a second. */
+/* A block already has the frame: the inner code tag must not add a second. */
 .report-rendered :deep(pre code) {
   background: none;
   border: none;

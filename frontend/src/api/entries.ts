@@ -1,6 +1,7 @@
-// Every call to /api/entries, named. Views and the app plugin context both go
-// through here, so paging, envelopes and query names live in one place instead
-// of being retyped at each call site.
+// This module gives a name to each call to /api/entries. The views and the
+// app plugin context both go through this module. As a result, paging,
+// envelopes and query names are in one place, and no call site types them
+// again.
 import type { Entry, PaginationMeta } from '../types'
 import { apiJson } from '../composables/apiClient'
 
@@ -12,7 +13,7 @@ export interface AggregateBucket {
 
 export type EntryFilters = Record<string, string>
 
-/** One page, with the meta a pager needs. */
+/** Returns one page, with the meta that is necessary for a pager. */
 export async function listEntriesPage(
   filters: EntryFilters = {}
 ): Promise<{ data: Entry[]; meta: PaginationMeta }> {
@@ -24,9 +25,10 @@ export async function listEntriesPage(
 }
 
 /**
- * Every match, paged through transparently. Bounded pages rather than one
- * huge per_page: a single capped request silently dropped entries past the cap
- * and sent one oversized payload.
+ * Returns every match, and goes through the pages for the caller. It uses
+ * bounded pages and not one very large per_page. A single capped request
+ * dropped the entries after the cap without a warning, and sent one payload
+ * that was too large.
  */
 export async function listEntries(
   filters: EntryFilters = {}
@@ -76,7 +78,10 @@ export async function deleteEntry(id: string): Promise<void> {
   await apiJson<void>('DELETE', `/api/entries/${id}`)
 }
 
-/** Bulk delete by kind and/or source: the same filters the list is read with. */
+/**
+ * Deletes in bulk by kind, by source or by both. The filters are the same as
+ * the filters that read the list.
+ */
 export async function deleteEntriesMatching(
   filters: EntryFilters
 ): Promise<{ deleted: number }> {
@@ -84,7 +89,10 @@ export async function deleteEntriesMatching(
   return apiJson<{ deleted: number }>('DELETE', `/api/entries?${query}`)
 }
 
-/** Per-kind counts, plus the overall total the dashboard headlines. */
+/**
+ * Returns the counts for each kind, and the full total that the dashboard
+ * shows as its headline.
+ */
 export async function entryStats(): Promise<{
   data: Record<string, number>
   total: number
@@ -95,7 +103,10 @@ export async function entryStats(): Promise<{
   )
 }
 
-/** Per-kind counts per local day, for the dashboard's activity strip. */
+/**
+ * Returns the counts for each kind and each local day, for the activity strip
+ * of the dashboard.
+ */
 export async function dailyStats(
   days: number
 ): Promise<Record<string, Record<string, number>>> {
@@ -105,7 +116,13 @@ export async function dailyStats(
   return res.data
 }
 
-/** Server-side COUNT/SUM bucketed by local day, week, month or year. */
+/**
+ * Returns a COUNT or a SUM that the server calculates. The bucket is one of:
+ * - a local day
+ * - a week
+ * - a month
+ * - a year
+ */
 export async function aggregateEntries(
   params: Record<string, string>
 ): Promise<AggregateBucket[]> {

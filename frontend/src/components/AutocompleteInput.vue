@@ -78,8 +78,8 @@ function onKeydown(event: KeyboardEvent) {
       @keydown="onKeydown"
     />
     <div v-if="open && filtered.length" class="ac-list" role="listbox">
-      <!-- mousedown.prevent keeps the input focused so blur doesn't
-           close the list before the option registers -->
+      <!-- mousedown.prevent keeps the focus on the input. As a result, blur
+           does not close the list before the option registers. -->
       <div
         v-for="(option, index) in filtered"
         :key="option"
@@ -124,7 +124,8 @@ function onKeydown(event: KeyboardEvent) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Cursor option: violet rail + tint, same language as list rows */
+/* The cursor option: a violet rail and a tint, the same language as the
+   list rows. */
 .ac-option--active {
   background: rgba(var(--primary-rgb), 0.1);
   box-shadow: inset 2px 0 0 var(--primary);

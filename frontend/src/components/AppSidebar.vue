@@ -33,8 +33,8 @@ import { agentsEnabled } from '../apps/registry'
 import { useAppsStore } from '../stores/apps'
 import { useAuthStore } from '../stores/auth'
 
-// An app declares its icon by name in the registry, which stays free of Vue
-// imports; the mapping to a component lives here, where they are rendered.
+// An app declares its icon by name in the registry, so the registry has no
+// Vue imports. The mapping to a component is here, where the icons render.
 const appIcons: Record<string, unknown> = {
   Brain,
   UserRound,
@@ -83,8 +83,9 @@ function handleLogout() {
       </svg>
       Servant
     </router-link>
-    <!-- The brand logo already lands on the dashboard; apps only here,
-         the config-flavored surfaces (Data, Sources, Agents) live below. -->
+    <!-- The brand logo already goes to the dashboard. This list has only the
+         apps. The surfaces for configuration (Data, Sources, Agents) are
+         below. -->
     <ul class="sidebar-nav">
       <li v-for="app in apps.defs" :key="app.id">
         <router-link :to="`/apps/${app.id}`">
@@ -145,9 +146,10 @@ function handleLogout() {
 </template>
 
 <style scoped>
-/* Moved here with the markup. `:deep(svg)` below finally applies: the
-   rule lived in the global sheet, where that Vue-only selector is
-   invalid, so lucide icons could shrink under a long app name. */
+/* These rules moved here with the markup. The `:deep(svg)` rule below now
+   applies. Before, the rule was in the global sheet, where that Vue-only
+   selector is invalid. As a result, the lucide icons sometimes shrank when
+   the app name was long. */
 .sidebar {
   position: fixed;
   top: 0;
@@ -161,7 +163,7 @@ function handleLogout() {
   padding: 1rem 0;
 }
 
-/* Owl-butler logo + wordmark, links back to the dashboard */
+/* The owl-butler logo and the wordmark. They link back to the dashboard. */
 .sidebar-brand {
   display: flex;
   align-items: center;
@@ -207,13 +209,14 @@ function handleLogout() {
   color: var(--text);
 }
 
-/* vue-router stamps aria-current="page" on the exact active link; styling
-   the attribute keeps the announced and visible states in sync. */
+/* vue-router sets aria-current="page" on the exact active link. A style on
+   the attribute keeps the announced state and the visible state in sync. */
 .sidebar-nav li a[aria-current='page'] {
   color: var(--text);
 }
 
-/* Global photo-upload pulse: the queue keeps running across app switches */
+/* The global pulse of the photo upload: the queue continues to run when the
+   user goes to another app. */
 .sidebar-upload {
   display: block;
   padding: 0.45rem 1.25rem;
@@ -248,8 +251,8 @@ function handleLogout() {
   transition: color 0.15s;
 }
 
-/* aria-current covers the exact page; .router-link-active stays for the
-   ancestor case, it keeps Sources lit on a child page (/connectors/:id). */
+/* aria-current covers the exact page. .router-link-active stays for the
+   ancestor case: it keeps Sources lit on a child page (/connectors/:id). */
 .sidebar-settings-link:hover,
 .sidebar-settings-link[aria-current='page'],
 .sidebar-settings-link.router-link-active {

@@ -37,7 +37,8 @@ const TXS = [
   tx('2026-07-02', -60, 'food')
 ]
 
-// Stands in for the account-backed preferences, shared across mounts.
+// This is a substitute for the account-backed preferences. The mounts share
+// it.
 let prefs: Record<string, unknown> = reactive({})
 const ctx = {
   preferences: {
@@ -139,7 +140,8 @@ describe('SpendingView', () => {
     const wrapper = mountView()
     const chartType = wrapper.findAllComponents({ name: 'ComboBox' }).at(0)!
     await chartType.vm.$emit('update:modelValue', 'Pie')
-    // Defaults to the most recent month: only food spent in 2026-07.
+    // The default is the most recent month. In 2026-07, the only spending is
+    // food.
     expect(wrapper.findAll('.sp-pie path').length).toBe(1)
     expect(wrapper.find('.sp-pie-period').text()).toBe('2026-07')
 
@@ -155,7 +157,7 @@ describe('SpendingView', () => {
 
   it('reads the hovered column, then the hovered slice inside it', async () => {
     const wrapper = mountView()
-    // One hit area per period in range: June and July 2026.
+    // There is one hit area for each period in range: June and July 2026.
     const columns = wrapper.findAll('.sp-hit')
     expect(columns.length).toBe(2)
 
@@ -166,7 +168,7 @@ describe('SpendingView', () => {
       'rent150 EUR79%',
       'food40 EUR21%'
     ])
-    // Nothing is called out until the pointer is on a slice.
+    // The readout calls out nothing until the pointer is on a slice.
     expect(readout.find('.sp-readout-row--on').exists()).toBe(false)
 
     await wrapper
@@ -241,7 +243,7 @@ describe('SpendingView', () => {
     ])
     const cells = wrapper.findAll('tbody td').map(c => c.text())
     expect(cells.some(c => c.includes('.'))).toBe(false)
-    // 12.34 + 1.40 rounded, not truncated.
+    // 12.34 + 1.40 is rounded, not truncated.
     expect(wrapper.find('tbody .sp-total').text()).toBe('14 EUR')
   })
 
