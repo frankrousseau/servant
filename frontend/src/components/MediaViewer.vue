@@ -75,7 +75,7 @@ const hasNext = computed(() => currentIndex.value < props.items.length - 1)
 
 // Keep the index in range when the list of items becomes shorter (for example
 // a delete of the last item while the viewer is open). If not, `current`
-// becomes undefined ("Image unavailable" and a wrong "3 / 2" counter).
+// becomes undefined ("Media unavailable" and a wrong "3 / 2" counter).
 watch(
   () => props.items.length,
   len => {

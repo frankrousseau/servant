@@ -1,6 +1,6 @@
 // Shared helpers for vCards and contacts. With them, the contacts app, the
-// contact detail view and the tagging of people on photos derive and clean a
-// name in the same way.
+// calendar app and the tagging of people on photos derive and clean a name
+// in the same way.
 import type { Entry } from '../types'
 
 // Returns a trimmed contact field, without the vCard `;` separators at its

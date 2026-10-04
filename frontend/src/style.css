@@ -1,12 +1,14 @@
 /*
- * Servant is a retro machine with one identity and four monitors. The default
+ * Servant is a retro machine with one identity and six monitors. The default
  * is "Night terminal": black-blue CRT glass, electric-violet phosphor, pale
  * glow text. The display face is Maple Mono, a rounded modern monospace. The
  * app uses it only in a few places (brand, headings, counters). The other
  * themes change the panel, never the identity:
  * - Graphite (white phosphor on neutral black)
  * - Daylight (violet ink on cool paper)
+ * - Cyanotype (Prussian blue on blueprint paper)
  * - Sepia (amber ink on warm paper)
+ * - Rosewood (dusty indigo and rosewood on warm beige)
  *
  * The data-theme attribute on <html> selects the theme (see lib/theme.ts).
  * No attribute means Night. The selectors are attribute-only (not

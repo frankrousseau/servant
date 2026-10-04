@@ -1,14 +1,14 @@
 defmodule ServantWeb do
   @moduledoc """
   The entrypoint that defines your web interface, such
-  as controllers, components, channels and other items.
+  as the router, the controllers and the channels.
 
   Use it in your application as follows:
 
       use ServantWeb, :controller
-      use ServantWeb, :html
+      use ServantWeb, :channel
 
-  Each controller, component and other item runs the
+  Each controller, channel and other item runs the
   definitions below. Keep them short and clean. Include
   only imports, uses and aliases.
 
@@ -65,7 +65,7 @@ defmodule ServantWeb do
   end
 
   @doc """
-  When used, dispatch to the applicable controller, live_view or other definition.
+  When used, dispatch to the applicable router, controller or other definition.
   """
   defmacro __using__(which) when is_atom(which) do
     apply(__MODULE__, which, [])

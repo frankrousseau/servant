@@ -8,7 +8,7 @@ defmodule Servant.Connectors.AppleHealth.XMLParser do
 
   @doc """
   Parses an export XML string of Apple Health and returns a list of record maps.
-  Groups the records by type and aggregates the step counts and similar records per day.
+  The parser does not aggregate. `AppleHealthConnector` groups the records per day.
   """
   def parse(xml_content) do
     case Saxy.parse_string(xml_content, __MODULE__, %{records: [], current: nil}) do

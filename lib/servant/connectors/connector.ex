@@ -20,7 +20,7 @@ defmodule Servant.Connectors.Connector do
 
   @doc """
   Returns the list of the schedules that this connector supports.
-  The default is all the schedules except :continuous.
+  The default is all the schedules except `"continuous"`.
   """
   @callback supported_schedules() :: [String.t()]
 

@@ -652,9 +652,9 @@ onMounted(() => {
   padding: 0.5rem 0 0;
 }
 
-/* Buttons are primary-filled by default. As a result, a filled "current page"
-   looked exactly like its neighbors. The row is neutral, and the current page
-   is the only filled one. */
+/* Buttons are primary-filled by default. With that default, a filled "current
+   page" looks exactly like its neighbors. For that reason, the row is
+   neutral, and the current page is the only filled one. */
 .pagination button {
   background: transparent;
   border: 1px solid var(--border);

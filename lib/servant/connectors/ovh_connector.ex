@@ -287,9 +287,8 @@ defmodule Servant.Connectors.OvhConnector do
     end
   end
 
-  # The entry dedup on external_id makes a new fetch of known bills harmless,
-  # so there is no cursor. The last @max_bills cover any realistic gap between
-  # syncs.
+  # There is no cursor: the caller gives only the ids that new_ids/2 kept. The
+  # entry dedup on external_id makes a new fetch of a known bill harmless.
   defp fetch_bills(state, ids, drift) do
     Enum.reduce_while(ids, {:ok, []}, fn id, {:ok, acc} ->
       case get_signed(state, "/me/bill/" <> URI.encode(to_string(id)), drift) do

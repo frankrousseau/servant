@@ -149,8 +149,6 @@ defmodule Servant.Connectors.WorkerTest do
     assert user_id == user.id
   end
 
-  # --- Config updates reaching a running worker ---
-
   # --- Failure handling ---
 
   defp start_worker(user, config_attrs, schedule \\ "on_demand") do

@@ -15,10 +15,10 @@ defmodule Servant.Application do
          repos: Application.fetch_env!(:servant, :ecto_repos), skip: skip_migrations?()},
         {Phoenix.PubSub, name: Servant.PubSub},
         {Registry, keys: :unique, name: Servant.Connectors.Registry},
+        Servant.Connectors.EVM.RateLimiter,
         # DynamicSupervisor and Scheduler are one rest_for_one unit. A collapse
         # of the worker supervisor must run start_all_enabled again. If not,
         # the connectors do not sync until the next full restart.
-        Servant.Connectors.EVM.RateLimiter,
         Servant.Connectors.WorkerSupervisor,
         Servant.Audit.LogBuffer,
         Servant.Auth.Throttle,

@@ -40,8 +40,9 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 
 const round4 = (n: number) => Math.round(n * 10_000) / 10_000
 
-// Detects the faces on an image URL (the display JPEG of the photo). Returns
-// the face records that can be stored. Returns [] when it finds no face.
+// Detects the faces on an image URL: the display JPEG of the photo, or the
+// original file when the photo has no display JPEG. Returns the face records
+// that can be stored. Returns [] when it finds no face.
 export async function detectFaces(src: string): Promise<StoredFace[]> {
   const f = await api()
   const img = await loadImage(src)

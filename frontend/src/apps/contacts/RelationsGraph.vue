@@ -516,7 +516,7 @@ function edgePath(edge: Edge, nodes: Map<string, Node>, slot: number): string {
   font-family: var(--font-mono);
   font-size: 11px;
   text-anchor: middle;
-  /* Halo: an edge that goes behind a name stays readable. */
+  /* Halo: a name stays readable when an edge goes behind it. */
   paint-order: stroke;
   stroke: var(--bg-surface);
   stroke-width: 3px;

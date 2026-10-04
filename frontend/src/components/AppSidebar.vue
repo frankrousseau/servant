@@ -215,8 +215,8 @@ function handleLogout() {
   color: var(--text);
 }
 
-/* The global pulse of the photo upload: the queue continues to run when the
-   user goes to another app. */
+/* The global pulse of the photo upload and of the file upload: each queue
+   continues to run when the user goes to another app. */
 .sidebar-upload {
   display: block;
   padding: 0.45rem 1.25rem;

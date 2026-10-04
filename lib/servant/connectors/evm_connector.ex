@@ -178,8 +178,8 @@ defmodule Servant.Connectors.EVMConnector do
 
       # A tx has one native transfer, so hash+type is unique. A tx can have many
       # ERC-20 transfers. Disambiguate them with the log index. The fallback is
-      # the token address, so that multiple transfers of an identical token
-      # still differ.
+      # the token address. It separates the transfers of different tokens, but
+      # not two transfers of the same token.
       defp external_id(%{log_index: log_index} = parsed, transfer)
            when not is_nil(log_index) do
         "#{parsed.tx_hash}-#{transfer.type}-#{log_index}"

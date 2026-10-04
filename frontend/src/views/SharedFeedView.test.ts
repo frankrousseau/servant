@@ -65,8 +65,8 @@ describe('SharedFeedView', () => {
       '/api/shares/tok123',
       expect.anything()
     )
-    // No name: the tags are the title of the page, joined with + for an
-    // "all" feed.
+    // No name: the tags are the title of the page. For an "all" feed, the
+    // tag line joins them with +.
     expect(wrapper.find('.shared-title').text()).toBe('#beach #family')
     expect(wrapper.find('.shared-tags').text()).toBe('#beach + #family')
     expect(wrapper.find('.shared-count').text()).toContain('2 items')

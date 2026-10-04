@@ -743,7 +743,7 @@ async function detachFile(id: string) {
   )
 }
 
-// Resolve the ids into names when the app shows an annotated note.
+// Resolve the ids into names when the app shows a note with attachments.
 watch(selected, note => {
   if (note && noteAttachments(note).length) void ensureFiles()
 })

@@ -3,7 +3,8 @@ defmodule Servant.Agents do
   Shared bookkeeping for the runs of the AI agents. Each run records its
   model, the tokens that it used and its duration (Sustainable AI manifesto).
   There are two recurrent modes: prompt reports (model-driven) and
-  deterministic recipes (local aggregation). v1 also includes the "builder"
+  deterministic recipes (local aggregation). The builder agent
+  (`Servant.Apps.Generator`) also records its runs here, with the "builder"
   type.
   """
 
@@ -216,9 +217,15 @@ defmodule Servant.Agents do
 
   @doc """
   Runs a recurring agent synchronously (for the tests and the scheduler).
-  Collects the context of the entries, asks the model for a report and stores
-  the report as an ai_report entry. Returns {:ok, entry, run} |
-  {:error, message, run}. A validation failure before the run returns
+  The mode of the agent selects the work:
+
+  - A prompt agent collects the context of the entries, asks the model for a
+    report and stores the report as an ai_report entry.
+  - A recipe agent runs its recipe on the entries, without a model call, and
+    stores the result as a report entry.
+
+  Returns {:ok, entry, run} | {:error, message, run}. A recipe that skips
+  returns {:ok, nil, run}. A validation failure before the run returns
   {:error, message} without a run.
   """
   def run_now(user, agent, ai_opts \\ []) do

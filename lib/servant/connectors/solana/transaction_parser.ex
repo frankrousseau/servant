@@ -125,7 +125,8 @@ defmodule Servant.Connectors.Solana.TransactionParser do
     pre_tokens = meta["preTokenBalances"] || []
     post_tokens = meta["postTokenBalances"] || []
 
-    # Build a map of {mint, owner} => {pre_amount, post_amount}.
+    # Build two maps of {mint, owner} => token balance: one before the
+    # transaction and one after.
     pre_map = token_balance_map(pre_tokens)
     post_map = token_balance_map(post_tokens)
 

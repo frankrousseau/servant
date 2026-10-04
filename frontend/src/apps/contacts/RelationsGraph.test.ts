@@ -177,8 +177,8 @@ describe('RelationsGraph', () => {
   })
 
   it('keeps every disc and name clear of the others, however crowded', () => {
-    // Two families plus a clique of colleagues. There are enough nodes that
-    // the old fixed 900x620 canvas piled them up on top of each other.
+    // Three families of a parent and seven children. There are enough nodes
+    // that the old fixed 900x620 canvas piled them up on top of each other.
     const contacts: Entry[] = []
     const families = ['Durand', 'Martin', 'Lefebvre']
     families.forEach((family, familyIndex) => {

@@ -47,7 +47,7 @@ defmodule Servant.Connectors.Solana.RPC do
 
   @doc """
   Fetches confirmed transaction signatures for a wallet address.
-  Options: :before (signature), :limit (default 100).
+  Options: :before (signature), :until (signature), :limit (default 100).
   """
   def get_signatures(address, opts \\ []) do
     config = %{limit: Keyword.get(opts, :limit, 100)}

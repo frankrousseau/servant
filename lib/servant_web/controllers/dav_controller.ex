@@ -3,6 +3,8 @@ defmodule ServantWeb.DavController do
   Minimal CalDAV (RFC 4791) + CardDAV (RFC 6352) server for phone sync.
   The discovery + sync flows of iOS and DAVx5 exercised it.
 
+  It also serves the Files and Photos apps over plain WebDAV.
+
   Layout: `/dav` -> `/dav/principals/:uid/` -> the calendar home and the
   address book home.
 
@@ -10,6 +12,8 @@ defmodule ServantWeb.DavController do
     Servant calendar, with `.ics` resources.
   - The address book home is `/dav/addressbooks/:uid/`. It has a single
     `contacts` collection, with `.vcf` resources.
+  - `/dav/files/` is the folder tree of the Files app (`Servant.FilesDav`).
+  - `/dav/photos/` is the tree of the Photos app (`Servant.PhotosDav`).
 
   Simplifications, on purpose:
 
@@ -85,7 +89,8 @@ defmodule ServantWeb.DavController do
         ["photos" | _] ->
           Scopes.can?(scopes, "photos", action)
 
-        # Root and principal serve the discovery of both trees.
+        # Root and principal serve the discovery of the calendar tree and of the
+        # contacts tree.
         _ ->
           Scopes.can?(scopes, "calendar", action) or Scopes.can?(scopes, "contacts", action)
       end

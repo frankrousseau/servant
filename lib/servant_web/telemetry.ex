@@ -11,7 +11,7 @@ defmodule ServantWeb.Telemetry do
   @impl true
   def init(_arg) do
     children = [
-      # The telemetry poller will do the given period measurements
+      # The telemetry poller will do the given periodic measurements
       # every 10_000ms. Learn more here: https://hexdocs.pm/telemetry_metrics
       {:telemetry_poller, measurements: periodic_measurements(), period: 10_000}
       # Add reporters as children of your supervision tree.

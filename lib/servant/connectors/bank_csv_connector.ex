@@ -39,7 +39,7 @@ defmodule Servant.Connectors.BankCSVConnector do
 
   @impl true
   def sync(state) do
-    # This connector does not sync automatically. import_csv/3 creates the entries.
+    # This connector does not sync automatically. import_csv/2 creates the entries.
     {:ok, [], state}
   end
 

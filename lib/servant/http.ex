@@ -2,7 +2,7 @@ defmodule Servant.HTTP do
   @moduledoc """
   Shared HTTP helpers for all connectors.
 
-  TLS certificates are **verified by default** (`verify_peer` through CAStore).
+  TLS certificates are **verified by default** (`verify_peer` with the CA certificates of the OS).
   A known OTP 27 regression makes the handshake reject some certificates that
   are valid in all other respects, with a `key_usage_mismatch` error (for
   example data.gouv.fr, some CDN certs). The error occurs before the call to

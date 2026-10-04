@@ -22,7 +22,10 @@ defmodule Servant.Media.Backfill do
     ]
   end
 
-  @doc "Starts a backfill for the user, unless a backfill already runs for this user."
+  @doc """
+  Starts a backfill task for the user. The task stops immediately if a
+  backfill already runs for this user.
+  """
   def start(user_id) do
     Task.Supervisor.start_child(@supervisor, fn -> run(user_id) end)
   end

@@ -70,10 +70,6 @@ function shiftWindow(dir: 1 | -1) {
   windowEnd.value = next >= today.value ? today.value : next
 }
 
-// The day values of entry-based trackers. The server computes them in the
-// time zone of the user. An aggregate that fails (revoked scope, deleted
-// kind) shows empty. There is no `to` bound: the streak stats and the 7d
-// stats always use the recent days.
 // The window navigation and the ResizeObserver can fire loads that overlap.
 // A stale (slower) response must not overwrite the data of the current
 // window.
@@ -91,6 +87,10 @@ function aggregateParams(tracker: Tracker): Record<string, string> {
   return params
 }
 
+// Loads the day values of entry-based trackers. The server computes them in
+// the time zone of the user. An aggregate that fails (revoked scope, deleted
+// kind) shows empty. There is no `to` bound: the streak stats and the 7d
+// stats always use the recent days.
 async function loadAggregates(trackers: Entry[]) {
   const seq = ++aggregateSeq
   const from = zonedToUtcISO(

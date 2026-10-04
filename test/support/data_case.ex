@@ -5,11 +5,11 @@ defmodule Servant.DataCase do
 
   You can define functions here and use them as helpers in your tests.
 
-  If the test case uses the database, the module starts the SQL sandbox.
-  Then the sandbox reverts the changes to the database at the end of each
-  test. If you use PostgreSQL, you can also run the database tests
-  asynchronously: set `use Servant.DataCase, async: true`. We do not
-  recommend this option for other databases.
+  The module starts the SQL sandbox for each test. Then the sandbox reverts
+  the changes to the database at the end of the test. A module can run its
+  tests asynchronously: set `use Servant.DataCase, async: true`. The
+  database is SQLite, and the writes of two async modules can collide
+  ("Database busy"). Keep a module serial when that occurs.
   """
 
   use ExUnit.CaseTemplate

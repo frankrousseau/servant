@@ -54,7 +54,7 @@ const isImage = (e: Entry) =>
 
 // ----- virtual read-only mounts (Notes, Photos, Invoices) -----
 // The entries of other apps, shown as browse-only folders: notes keep their
-// folder tree, photos group by album, invoices by provider. Each mount loads
+// folder tree, photos group by shot year, invoices by provider. Each mount loads
 // lazily on the first navigation into it. There is no rename, move, delete
 // or upload.
 

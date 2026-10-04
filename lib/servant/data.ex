@@ -188,8 +188,9 @@ defmodule Servant.Data do
   end
 
   @doc """
-  Bulk-inserts entries for a user in one `insert_all` (with
-  `on_conflict: :nothing` on the unique key). Then emits **one** aggregated
+  Bulk-inserts entries for a user with one `insert_all` for each chunk of
+  `@insert_chunk_size` rows (with `on_conflict: :nothing` on the unique key).
+  Then emits **one** aggregated
   broadcast, not one INSERT and one PubSub message for each entry. The
   connector syncs and the file imports use it, because a sync can give
   thousands of entries.

@@ -19,9 +19,8 @@ defmodule Servant.Media.ExifTest do
     {"exif-ifd3-GPSLongitudeRef", "E"}
   ]
 
-  # A file that is not a JPEG goes through the libvips header fallback. That is
-  # the path that the HEIC photos from phones take. The test uses a PNG, because
-  # a libvips build without HEIC support makes the test environment-dependent.
+  # A file that is not a JPEG or a HEIC goes through the libvips header
+  # fallback. The test uses a PNG.
   test "extracts date, GPS and camera from a non-JPEG through the vips fallback" do
     tmp = System.tmp_dir!()
     png = Path.join(tmp, "exif-test-#{System.unique_integer([:positive])}.png")
@@ -97,8 +96,6 @@ defmodule Servant.Media.ExifTest do
     assert exif.gps.longitude < 0
   end
 
-  # Tags the fixture through the exif-* mutable fields, then writes it to
-  # `path` in the format that its extension specifies.
   # The iPhone photos are HEIC, and the bundled libvips cannot decode HEIC. As a
   # result, the code reads the Exif item directly from the file. The fake HEIC
   # wraps the TIFF block of a tagged JPEG in the same way as the phones store it
@@ -129,6 +126,8 @@ defmodule Servant.Media.ExifTest do
     assert exif.camera_model == "iPhone 15 Pro"
   end
 
+  # Tags the fixture through the exif-* mutable fields, then writes it to
+  # `path` in the format that its extension specifies.
   defp write_image_with_exif(path, fields \\ @exif_fields) do
     source = Path.join(System.tmp_dir!(), "exif-src-#{System.unique_integer([:positive])}.jpg")
     File.write!(source, @jpeg)

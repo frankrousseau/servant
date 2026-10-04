@@ -160,7 +160,7 @@ async function submitSetup() {
     closeSetup()
     await fetchConnectors()
   } catch {
-    // Handle the error.
+    // Ignore the error: the setup dialog stays open.
   } finally {
     saving.value = false
   }

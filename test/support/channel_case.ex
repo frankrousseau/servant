@@ -5,9 +5,8 @@ defmodule ServantWeb.ChannelCase do
   These tests use `Phoenix.ChannelTest`. They also import other functions
   that help to build common data structures and to query the data layer.
 
-  If the test case uses the database, the module starts the SQL sandbox.
-  Then the sandbox reverts the changes to the database at the end of each
-  test.
+  The module starts the SQL sandbox for each test. Then the sandbox reverts
+  the changes to the database at the end of the test.
   """
 
   use ExUnit.CaseTemplate

@@ -6,11 +6,11 @@ defmodule ServantWeb.ConnCase do
   These tests use `Phoenix.ConnTest`. They also import other functions
   that help to build common data structures and to query the data layer.
 
-  If the test case uses the database, the module starts the SQL sandbox.
-  Then the sandbox reverts the changes to the database at the end of each
-  test. If you use PostgreSQL, you can also run the database tests
-  asynchronously: set `use ServantWeb.ConnCase, async: true`. We do not
-  recommend this option for other databases.
+  The module starts the SQL sandbox for each test. Then the sandbox reverts
+  the changes to the database at the end of the test. A module can run its
+  tests asynchronously: set `use ServantWeb.ConnCase, async: true`. The
+  database is SQLite, and the writes of two async modules can collide
+  ("Database busy"). Keep a module serial when that occurs.
   """
 
   use ExUnit.CaseTemplate
