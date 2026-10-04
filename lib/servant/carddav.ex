@@ -1,11 +1,13 @@
 defmodule Servant.CardDAV do
   @moduledoc """
-  Data access for the CardDAV endpoint: a single "contacts" address book
-  containing user-authored contacts only (source "manual" or "carddav").
-  Contacts of a vCard feed (source "vcard", a URL polled on a schedule) are
-  deliberately excluded: the next sync would undo whatever a phone edited.
-  A vCard file imported by hand is not a feed and lands as a "manual" contact,
-  so it does reach the phone (see `Servant.Connectors.VCardConnector`).
+  Data access for the CardDAV endpoint.
+
+  There is one "contacts" address book. It contains only the contacts that
+  the user wrote (source "manual" or "carddav"). The module deliberately
+  excludes the contacts of a vCard feed (source "vcard", a URL that a schedule
+  polls), because the next sync cancels each edit from a phone. A vCard file
+  that the user imports manually is not a feed. It becomes a "manual" contact,
+  so it does go to the phone (see `Servant.Connectors.VCardConnector`).
   """
 
   alias Servant.CardDAV.VCard
@@ -13,26 +15,27 @@ defmodule Servant.CardDAV do
 
   @exposed_sources ~w(manual carddav)
 
-  @doc "Contacts of the address book."
+  @doc "Returns the contacts of the address book."
   def contacts(user_id) do
     user_id
     |> Data.all_entries(%{"kind" => "contact"})
     |> Enum.filter(&(&1.source in @exposed_sources))
   end
 
-  @doc "Contact by its resource filename, or nil."
+  @doc "Returns the contact with this resource filename, or nil."
   def get_contact(user_id, filename) do
     Enum.find(contacts(user_id), &(resource_name(&1) == filename))
   end
 
-  @doc "Resource filename of a contact: client-chosen for phone-created ones."
+  @doc "Returns the resource filename of a contact. The client sets it for phone-created contacts."
   def resource_name(entry), do: entry.data["carddav_filename"] || "#{entry.id}.vcf"
 
   @doc """
-  Display name of every contact of the user, by entry id. Relations point at
-  entry ids while a vCard points at people, so rendering one contact's RELATED
-  lines needs the others' names. Connector-synced contacts are included even
-  though they are not exposed as resources: a relation may well point at one.
+  Returns the display name of each contact of the user, by entry id. A
+  relation points at an entry id, but a vCard points at a person. As a result,
+  the names of the other contacts are necessary to render the RELATED lines of
+  one contact. The result includes the connector-synced contacts, although
+  the module does not expose them as resources: a relation can point at one.
   """
   def contact_names(user_id) do
     user_id
@@ -78,9 +81,10 @@ defmodule Servant.CardDAV do
     end
   end
 
-  # By resource name first, then by UID over every exposed contact: a client
-  # re-pushing a card it fetched (an imported one keeps its original UID, an
-  # app-made one carries `<id>@servant`) must update it, not duplicate it.
+  # Search by resource name first, then by UID in all the exposed contacts. A
+  # client can push again a card that it fetched. An imported card keeps its
+  # initial UID, and an app-made card has `<id>@servant`. Such a push must
+  # update the card and must not make a duplicate.
   defp resolve_target(user_id, filename, uid) do
     contacts = contacts(user_id)
 

@@ -1,12 +1,12 @@
 defmodule ServantWeb.ShareController do
   @moduledoc """
-  The public side of photo-feed links: no authentication, the token in the
-  URL is the whole credential. Returns the feed as JSON for the
-  `/share/<token>` page; the photos' files are served by
-  `ServantWeb.ShareFileController`.
+  The public side of photo-feed links. There is no authentication: the token
+  in the URL is the whole credential. Returns the feed as JSON for the
+  `/share/<token>` page. `ServantWeb.ShareFileController` serves the files of
+  the photos.
 
-  An unknown or revoked token is a plain 404 with no distinction between the
-  two, so a leaked link tells nothing once revoked.
+  An unknown or revoked token is a plain 404, with no distinction between the
+  two. As a result, a leaked link tells nothing after it is revoked.
   """
 
   use ServantWeb, :controller

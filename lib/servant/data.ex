@@ -1,6 +1,6 @@
 defmodule Servant.Data do
   @moduledoc """
-  The Data context. All functions are scoped by user_id.
+  The Data context. user_id scopes all the functions.
   """
 
   import Ecto.Query
@@ -11,10 +11,11 @@ defmodule Servant.Data do
   @max_per_page 1000
 
   @doc """
-  Clamps a requested `per_page` into `[1, #{@max_per_page}]`, falling back to the
-  default for non-integers. Shared with the controller so pagination metadata
-  (total_pages) and the query LIMIT agree, and so `per_page=0` can't reach a
-  `total/per_page` division or `per_page` negative a `LIMIT -1`.
+  Clamps a requested `per_page` into `[1, #{@max_per_page}]`. Uses the default
+  for a value that is not an integer. The controller shares this function, so
+  that the pagination metadata (total_pages) and the query LIMIT agree. It
+  also prevents a `total/per_page` division with `per_page=0` and a
+  `LIMIT -1` with a negative `per_page`.
   """
   def clamp_per_page(val) do
     val |> Servant.Util.parse_int(@default_per_page) |> max(1) |> min(@max_per_page)
@@ -38,9 +39,9 @@ defmodule Servant.Data do
   end
 
   @doc """
-  All entries of the given kinds with occurred_at >= from, newest first,
-  unpaginated. Used by agent recipes: a truncated aggregate would be a
-  wrong number, and there is no token cost pushing for a cap.
+  Returns all the entries of the given kinds with occurred_at >= from, newest
+  first, without pagination. The agent recipes use it. A truncated aggregate
+  gives a wrong number, and no token cost makes a cap necessary.
   """
   def entries_window(user_id, kinds, from_dt) do
     Entry
@@ -68,8 +69,9 @@ defmodule Servant.Data do
   end
 
   @doc """
-  Per-kind daily entry counts (UTC days) for the trailing `days` window,
-  as `%{kind => %{"YYYY-MM-DD" => count}}`. Powers the dashboard sparklines.
+  Returns the daily counts of entries for each kind (UTC days) in the window
+  of the last `days` days, as `%{kind => %{"YYYY-MM-DD" => count}}`. The
+  dashboard sparklines use it.
   """
   def daily_stats(user_id, days) when is_integer(days) and days > 0 do
     cutoff =
@@ -89,11 +91,12 @@ defmodule Servant.Data do
   end
 
   @doc """
-  Bucketed aggregation over entries: COUNT of entries, or SUM of a numeric
-  `data` field, grouped by local day/week/month/year in the given IANA
-  timezone (week buckets are the ISO week's Monday). Takes the same filters
-  as `list_entries/2`; entries without `occurred_at` are skipped. Returns
-  `[%{bucket: "YYYY-MM-DD" | "YYYY-MM" | "YYYY", value: number}]` sorted.
+  Aggregates the entries in buckets. The value is the COUNT of the entries or
+  the SUM of a numeric `data` field. The buckets are the local day, week,
+  month or year in the given IANA timezone (a week bucket is the Monday of
+  the ISO week). Takes the same filters as `list_entries/2`. Skips the entries
+  without `occurred_at`. Returns the sorted list
+  `[%{bucket: "YYYY-MM-DD" | "YYYY-MM" | "YYYY", value: number}]`.
   """
   def aggregate_entries(user_id, filters, opts) do
     tz = opts[:tz] || "UTC"
@@ -123,8 +126,9 @@ defmodule Servant.Data do
           |> Repo.all()
       end
 
-    # ponytail: per-row tz shift in Elixir; switch to a segmented SQL GROUP BY
-    # (one constant offset per DST segment) if windows grow to 100k+ rows
+    # ponytail: Elixir does the tz shift for each row. Change to a segmented
+    # SQL GROUP BY (one constant offset for each DST segment) if the windows
+    # reach 100k rows or more.
     rows
     |> Enum.group_by(
       fn {dt, _value} ->
@@ -154,11 +158,11 @@ defmodule Servant.Data do
   end
 
   def create_entry(user_id, attrs) do
-    # Notes must go through Servant.Notes so their wikilinks/mentions are parsed
-    # into note_links; creating one here would leave the graph incomplete. Agent
-    # memory files must go through Servant.AgentMemory so the path is parsed and
-    # the body gets its server-side sha256; creating one here would skip both.
-    # Mirror of the guard in update_entry/3.
+    # Notes must go through Servant.Notes, which parses their wikilinks and
+    # mentions into note_links. A note created here leaves the graph
+    # incomplete. Agent memory files must go through Servant.AgentMemory, which
+    # parses the path and gives the body its server-side sha256. A file created
+    # here skips both. This guard mirrors the guard in update_entry/3.
     cond do
       get_attr(attrs, :kind) == "note" ->
         {:error, :notes_api_required}
@@ -184,16 +188,18 @@ defmodule Servant.Data do
   end
 
   @doc """
-  Bulk-inserts entries for a user in a single `insert_all` (with
-  `on_conflict: :nothing` on the unique key), then emits **one** aggregated
-  broadcast instead of one INSERT + one PubSub message per entry. Used by
-  connector syncs / file imports where a sync can yield thousands of entries.
+  Bulk-inserts entries for a user in one `insert_all` (with
+  `on_conflict: :nothing` on the unique key). Then emits **one** aggregated
+  broadcast, not one INSERT and one PubSub message for each entry. The
+  connector syncs and the file imports use it, because a sync can give
+  thousands of entries.
 
   Returns `{:ok, inserted_count}`.
   """
-  # Chunk size for bulk inserts: each row binds ~11 columns, so 500 rows ≈ 5.5k
-  # bound params, comfortably under SQLite's default 32k variable limit even if
-  # the schema grows, while keeping the number of round-trips low.
+  # The chunk size for bulk inserts. Each row binds approximately 11 columns,
+  # so 500 rows are approximately 5.5k bound params. This is well below the
+  # default 32k variable limit of SQLite, even if the schema grows. It also
+  # keeps the number of round-trips low.
   @insert_chunk_size 500
 
   def create_entries(_user_id, []), do: {:ok, 0}
@@ -252,11 +258,12 @@ defmodule Servant.Data do
     entry = get_entry!(user_id, id)
     target_kind = get_attr(attrs, :kind)
 
-    # Notes are entries too, but editing one here would skip the Notes context's
-    # link re-sync / rename propagation, leaving note_links stale. Route note
-    # edits through Servant.Notes instead. (Deletes are fine: note_links rows are
-    # cleaned by the FK on_delete.) Agent memory files carry the same guard:
-    # editing one here would skip Servant.AgentMemory's path parsing and sha256.
+    # Notes are also entries. But an edit of a note here skips the link re-sync
+    # and the rename propagation of the Notes context, and note_links becomes
+    # stale. Route the note edits through Servant.Notes. (Deletes are safe: the
+    # FK on_delete cleans the note_links rows.) Agent memory files have the
+    # same guard: an edit here skips the path parse and the sha256 of
+    # Servant.AgentMemory.
     cond do
       entry.kind == "note" ->
         {:error, :notes_api_required}
@@ -277,13 +284,13 @@ defmodule Servant.Data do
   end
 
   @doc """
-  Deletes every entry matching the filters (same kind/source/from/to
-  semantics as `list_entries/2`), cleaning up any files the entries
-  reference, then emits one aggregated broadcast. Callers must ensure at
-  least one filter is present.
+  Deletes each entry that matches the filters (same kind/source/from/to
+  semantics as `list_entries/2`). Also deletes the files that the entries
+  reference, then emits one aggregated broadcast. The caller must make sure
+  that at least one filter is present.
 
-  Returns the number of deleted entries. note_links rows are cleaned by the
-  FK on_delete, same as unitary deletes.
+  Returns the number of deleted entries. The FK on_delete cleans the
+  note_links rows, the same as for the delete of one entry.
   """
   def delete_entries_matching(user_id, filters) when is_map(filters) do
     base =
@@ -321,8 +328,9 @@ defmodule Servant.Data do
   defp delete_entry_file(user_id, %{data: data}) when is_map(data) do
     delete_public_path(user_id, data["path"])
     delete_public_path(user_id, data["thumb_path"])
-    # Photos also carry a full-size display JPEG; without this it would survive
-    # the delete on disk (and stay readable via its /files URL).
+    # Photos also have a full-size display JPEG. Without this call, the JPEG
+    # stays on disk after the delete (and stays readable through its /files
+    # URL).
     delete_public_path(user_id, data["display_path"])
     :ok
   end
@@ -343,9 +351,10 @@ defmodule Servant.Data do
     |> Repo.all()
   end
 
-  # Filters arrive with either atom keys (internal callers/tests) or string
-  # keys (controller params). Normalize once to strings so a single set of
-  # clauses covers both; a filter added on only one form can't slip through.
+  # The filters come with atom keys (internal callers and tests) or with
+  # string keys (controller params). Normalize the keys to strings one time,
+  # so that one set of clauses handles the two forms. As a result, no filter
+  # applies to only one of the forms.
   defp apply_filters(query, filters) do
     filters
     |> stringify_keys()
@@ -371,8 +380,8 @@ defmodule Servant.Data do
           _ -> q
         end
 
-      # Substring search over the title and the JSON data text (SQLite LIKE,
-      # case-insensitive for ASCII). Powers the command palette.
+      # Substring search in the title and in the JSON data text (SQLite LIKE,
+      # case-insensitive for ASCII). The command palette uses it.
       {"q", term}, q when is_binary(term) and term != "" ->
         pattern = "%" <> term <> "%"
         where(q, [e], like(e.title, ^pattern) or fragment("? LIKE ?", e.data, ^pattern))

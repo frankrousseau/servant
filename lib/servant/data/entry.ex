@@ -28,8 +28,8 @@ defmodule Servant.Data.Entry do
   end
 
   @doc """
-  Canonical JSON-serializable map for an entry. Single source of truth shared by
-  the entry/export controllers and the data channel.
+  Returns the canonical JSON-serializable map for an entry. It is the single
+  source of truth that the entry/export controllers and the data channel share.
   """
   def to_json(%__MODULE__{} = entry) do
     %{

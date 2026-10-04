@@ -1,18 +1,18 @@
 defmodule Servant.Connectors.OvhConnector do
   @moduledoc """
   OVH invoice connector on the official signed API: no browser, no password,
-  no 2FA at run time (unlike the Playwright provider it replaces).
+  no 2FA at run time (unlike the Playwright provider that it replaces).
 
-  Each new bill lands twice: as an `invoice` entry, and as its PDF stored in
-  the Files app under a root "Invoices" folder, with the invoice entry's
-  `data.url` pointing at the local copy.
+  The connector stores each new bill two times. The first is an `invoice`
+  entry. The second is its PDF, in the Files app under a root "Invoices"
+  folder. The `data.url` of the invoice entry points at the local copy.
 
-  Credentials are the application key / application secret / consumer key
-  triple created in one page at https://eu.api.ovh.com/createToken with the
-  rights `GET /me/bill` and `GET /me/bill/*` (validity "Unlimited"). Every
-  request carries OVH's signature: sha1 over
-  `secret+consumer+method+url+body+timestamp`, with the timestamp corrected
-  by the server clock from `/auth/time`.
+  The credentials are a triple: application key, application secret and
+  consumer key. Create the triple in one page at
+  https://eu.api.ovh.com/createToken with the rights `GET /me/bill` and
+  `GET /me/bill/*` (validity "Unlimited"). Every request has the signature of
+  OVH: sha1 over `secret+consumer+method+url+body+timestamp`. The server clock
+  from `/auth/time` corrects the timestamp.
   """
 
   use Servant.Connectors.Connector
@@ -93,9 +93,9 @@ defmodule Servant.Connectors.OvhConnector do
     end
   end
 
-  # A bill id maps 1:1 onto the entry external_id, so already-imported bills
-  # are dropped before their detail (and PDF) is ever fetched: every sync
-  # only pays for what is new, and no blob is ever stored twice.
+  # A bill id maps 1:1 onto the entry external_id. As a result, this function
+  # drops the imported bills before the fetch of their detail (and PDF). Every
+  # sync pays only for what is new, and no blob is stored two times.
   @doc false
   def new_ids(ids, known) do
     Enum.reject(ids, fn id -> "ovh-#{id}" in known end)
@@ -110,8 +110,8 @@ defmodule Servant.Connectors.OvhConnector do
   defp known_ids(_state), do: MapSet.new()
 
   # One bill becomes an invoice entry, plus a PDF file entry in the Files
-  # app when the download works; a failed download keeps the sync alive and
-  # the invoice entry falls back to OVH's remote link.
+  # app when the download works. A failed download does not stop the sync,
+  # and the invoice entry uses the remote link of OVH as the fallback.
   defp bill_entries(bill, state, folder_id) do
     case store_pdf(bill, state, folder_id) do
       {:ok, file_entry, local_path} -> [build_entry(bill, local_path), file_entry]
@@ -178,10 +178,10 @@ defmodule Servant.Connectors.OvhConnector do
     Enum.join(parts, "-") <> ".pdf"
   end
 
-  # The Files app is a flat entry tree; the shared "Invoices" root folder is
-  # found by name (whoever created it) or created once.
-  # ponytail: folder data lives in JSON, so the lookup scans the file entries
-  # in memory; index it if a file tree ever makes that visible.
+  # The Files app is a flat entry tree. This function finds the shared
+  # "Invoices" root folder by name (whoever created it), or creates it once.
+  # ponytail: the folder data is in JSON, so the lookup scans the file entries
+  # in memory. Add an index if a file tree makes that visible.
   defp invoices_folder_id(user_id) do
     folder =
       user_id
@@ -255,8 +255,9 @@ defmodule Servant.Connectors.OvhConnector do
     String.trim(to_string(config_value(config, key, "")))
   end
 
-  # The signature covers a timestamp OVH checks against its own clock, so a
-  # drifting server clock would 403 every call; sync on theirs once per run.
+  # The signature covers a timestamp that OVH compares with its own clock. If
+  # the server clock drifts, every call gets a 403. Sync on the OVH clock once
+  # per run.
   defp time_drift(state) do
     case Req.get(state.endpoint <> "/auth/time", Servant.HTTP.req_options()) do
       {:ok, %Req.Response{status: 200, body: server_time}} when is_integer(server_time) ->
@@ -276,8 +277,8 @@ defmodule Servant.Connectors.OvhConnector do
     end
   end
 
-  # No cap: new_ids/2 already reduces the work to unseen bills, so the full
-  # history only ever costs one first sync.
+  # No cap. new_ids/2 already reduces the work to the bills not seen before, so
+  # the full history costs only one first sync.
   defp list_bill_ids(state, drift) do
     case get_signed(state, "/me/bill", drift) do
       {:ok, ids} when is_list(ids) -> {:ok, Enum.sort(ids)}
@@ -286,8 +287,9 @@ defmodule Servant.Connectors.OvhConnector do
     end
   end
 
-  # Entry dedup on external_id makes refetching known bills harmless, so no
-  # cursor; the last @max_bills cover any realistic gap between syncs.
+  # The entry dedup on external_id makes a new fetch of known bills harmless,
+  # so there is no cursor. The last @max_bills cover any realistic gap between
+  # syncs.
   defp fetch_bills(state, ids, drift) do
     Enum.reduce_while(ids, {:ok, []}, fn id, {:ok, acc} ->
       case get_signed(state, "/me/bill/" <> URI.encode(to_string(id)), drift) do

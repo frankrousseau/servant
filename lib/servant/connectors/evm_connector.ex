@@ -1,11 +1,12 @@
 defmodule Servant.Connectors.EVMConnector do
   @moduledoc """
-  Generic EVM chain connector. Use this macro to create a connector
-  for any EVM chain with an Etherscan/Blockscout-compatible explorer API.
+  Generic EVM chain connector. Use this macro to create a connector for any
+  EVM chain with an explorer API compatible with Etherscan or Blockscout.
 
-  The wallet address may be a `.eth` name (ENS, resolved on mainnet); it is
-  resolved to the wallet address at sync time and cached for the worker's
-  lifetime, so a re-pointed name is picked up on the next restart.
+  The wallet address can be a `.eth` name (ENS, resolved on mainnet). The
+  connector resolves it to the wallet address at sync time and caches the
+  result for the lifetime of the worker. As a result, the next restart picks
+  up a name that points to a new address.
 
   ## Usage
 
@@ -66,8 +67,8 @@ defmodule Servant.Connectors.EVMConnector do
              %{
                wallet_address: address,
                resolved_address: nil,
-               # Trimmed: a key pasted with a stray space or newline would
-               # fail Etherscan with the same message as no key at all.
+               # Trimmed. A key pasted with a stray space or newline fails
+               # on Etherscan with the same message as no key at all.
                api_key: String.trim(to_string(config_value(config, "api_key"))),
                explorer_url: config_value(config, "explorer_url", unquote(default_explorer_url)),
                min_wei: config_value(config, "min_wei", @default_min_wei),
@@ -88,9 +89,8 @@ defmodule Servant.Connectors.EVMConnector do
       end
 
       @doc false
-      # Public for tests. Maps the configured address to the actual wallet
-      # address: `.eth` names are resolved through ENS, plain addresses pass
-      # through.
+      # Public for tests. Maps the configured address to the real wallet
+      # address. ENS resolves the `.eth` names. Plain addresses pass through.
       def resolve_wallet(%{resolved_address: address} = state) when is_binary(address),
         do: {:ok, state}
 
@@ -176,9 +176,10 @@ defmodule Servant.Connectors.EVMConnector do
         }
       end
 
-      # Native transfers are one-per-tx, so hash+type is unique. ERC-20 transfers
-      # can be many-per-tx; disambiguate with the log index (falling back to the
-      # token address so identical-token multi-transfers still differ).
+      # A tx has one native transfer, so hash+type is unique. A tx can have many
+      # ERC-20 transfers. Disambiguate them with the log index. The fallback is
+      # the token address, so that multiple transfers of an identical token
+      # still differ.
       defp external_id(%{log_index: log_index} = parsed, transfer)
            when not is_nil(log_index) do
         "#{parsed.tx_hash}-#{transfer.type}-#{log_index}"

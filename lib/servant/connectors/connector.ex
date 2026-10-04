@@ -2,11 +2,11 @@ defmodule Servant.Connectors.Connector do
   @moduledoc """
   Behaviour for connectors that sync external data sources.
 
-  Note: secrets and settings both live in the connector's `config` map
-  (encrypted at rest for sensitive keys, see `Servant.Encrypted.Map`). The
-  `credentials` argument to `init/2` is currently always `%{}`; `init/2` reads
-  what it needs from `config` via `config_value/2,3`. `required_credentials/0`
-  is advisory metadata only and does not gate anything today.
+  Note: the secrets and the settings are both in the `config` map of the
+  connector (encrypted at rest for sensitive keys, see `Servant.Encrypted.Map`).
+  The `credentials` argument of `init/2` is always `%{}` at this time. `init/2`
+  reads the necessary values from `config` through `config_value/2,3`.
+  `required_credentials/0` is advisory metadata only and gates nothing today.
   """
 
   @callback id() :: String.t()
@@ -19,34 +19,35 @@ defmodule Servant.Connectors.Connector do
               {:ok, [map()], state :: term()} | {:error, term(), state :: term()}
 
   @doc """
-  Returns the list of schedules this connector supports.
-  Defaults to all schedules except :continuous.
+  Returns the list of the schedules that this connector supports.
+  The default is all the schedules except :continuous.
   """
   @callback supported_schedules() :: [String.t()]
 
   @doc """
   Returns the default schedule for this connector.
-  Must be one of the supported schedules.
+  It must be one of the supported schedules.
   """
   @callback default_schedule() :: String.t()
 
   @doc """
-  Returns the subset of connector state that must be persisted back into the
-  stored config after a successful sync, typically an incremental cursor like
-  `last_block`/`last_signature` (or a rotated OAuth `refresh_token`). Persisting
-  it lets the connector resume instead of re-scanning from scratch on restart.
+  Returns the subset of the connector state to persist back into the stored
+  config after a successful sync. Typically, it is an incremental cursor such as
+  `last_block`/`last_signature` (or a rotated OAuth `refresh_token`). With the
+  persisted subset, the connector resumes on restart and does not scan again
+  from the start.
 
-  Defaults to `%{}` (nothing persisted). Keys should be strings (DB config maps
-  use string keys).
+  The default is `%{}` (nothing persisted). The keys must be strings (the DB
+  config maps use string keys).
   """
   @callback persisted_config(state :: term()) :: map()
 
   @optional_callbacks [supported_schedules: 0, default_schedule: 0, persisted_config: 1]
 
   @doc """
-  Fetches a value from a connector config, accepting either the string or
-  atom form of `key` (configs come from the DB with string keys but from
-  tests with atom keys). Returns `default` when neither key is present.
+  Fetches a value from a connector config. Accepts the string form or the atom
+  form of `key`. The configs come from the DB with string keys, but from the
+  tests with atom keys. Returns `default` when neither key is present.
   """
   def config_value(config, key, default \\ nil) when is_binary(key) do
     Map.get(config, key) || Map.get(config, safe_existing_atom(key)) || default

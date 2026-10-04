@@ -1,11 +1,12 @@
 defmodule ServantWeb.RangeFile do
   @moduledoc """
-  Sends a stored file with the headers every user-file response needs, honouring
-  single-range `Range` requests (206) so `<video>` seeking works. Shared by the
-  owner-only `/files` route and the public photo-share file route.
+  Sends a stored file with the headers that each user-file response must have.
+  Obeys single-range `Range` requests (206), so that a `<video>` seek works. The
+  owner-only `/files` route and the public file route of the photo shares use
+  this module.
 
-  Malformed or multi-range specs fall back to the full file, which RFC 9110
-  allows (the header is advisory).
+  For malformed or multi-range specs, the module sends the full file. RFC 9110
+  lets a server do this (the header is advisory).
   """
 
   import Plug.Conn
@@ -16,11 +17,11 @@ defmodule ServantWeb.RangeFile do
     conn
     |> put_resp_content_type(MIME.from_path(absolute))
     |> put_resp_header("accept-ranges", "bytes")
-    # The files store holds arbitrary user/connector content: keep the
-    # declared type honest (no MIME sniffing) and neutralize any stored
-    # .html/.svg by sandboxing the response, so navigating to it can't run
-    # script on the app origin. Sandbox doesn't affect <img>/<video>
-    # embedding (those aren't document contexts).
+    # The files store holds arbitrary content from users and connectors.
+    # Keep the declared type honest (no MIME sniffing). Sandbox the response
+    # to neutralize each stored .html or .svg file, so that navigation to it
+    # cannot run script on the app origin. The sandbox has no effect on
+    # <img> and <video> embeds (those are not document contexts).
     |> put_resp_header("x-content-type-options", "nosniff")
     |> put_resp_header("content-security-policy", "sandbox")
     |> send_range_or_all(absolute, size)

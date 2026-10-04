@@ -1,10 +1,10 @@
 defmodule Servant.BuildInfo do
   @moduledoc """
-  Git commit and date captured at compile time, so a running instance can
-  say which version it is (Settings shows it next to the UI build).
+  Git commit and date, captured at compile time. As a result, an instance
+  can tell its version at run time (Settings shows it next to the UI build).
   """
 
-  # Recompile when a commit lands, not only when this file changes.
+  # Recompile on each new commit, not only when this file changes.
   if File.exists?(".git/logs/HEAD") do
     @external_resource Path.expand(".git/logs/HEAD")
   end

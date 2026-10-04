@@ -1,16 +1,16 @@
 defmodule Servant.Connectors.WorkerSupervisor do
   @moduledoc """
-  Supervises the connector worker DynamicSupervisor together with the Scheduler,
-  using `:rest_for_one` so the two never drift apart.
+  Supervises the DynamicSupervisor of the connector workers together with the
+  Scheduler. Uses `:rest_for_one` so that the two never drift apart.
 
-  The Scheduler starts every enabled connector once, on boot. If the
-  DynamicSupervisor were a plain sibling of the Scheduler under the root
-  `:one_for_one` tree and its restart intensity were exceeded (several workers
-  crashing at once), the root would restart it *empty* and leave the Scheduler
-  untouched, so no worker would ever be re-started until a full app restart.
-  Ordered `:rest_for_one` (DynamicSupervisor first, Scheduler second) means the
-  DynamicSupervisor dying also restarts the Scheduler, which re-runs
-  `start_all_enabled/0`.
+  The Scheduler starts every enabled connector once, on boot. Assume that the
+  DynamicSupervisor is a plain sibling of the Scheduler under the root
+  `:one_for_one` tree. If several workers crash at the same time and exceed its
+  restart intensity, the root restarts it *empty* and does not touch the
+  Scheduler. Then no worker starts again until a full restart of the app. With
+  the ordered `:rest_for_one` (DynamicSupervisor first, Scheduler second), the
+  death of the DynamicSupervisor also restarts the Scheduler. The Scheduler
+  then runs `start_all_enabled/0` again.
   """
 
   use Supervisor

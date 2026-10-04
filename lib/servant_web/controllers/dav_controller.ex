@@ -1,19 +1,25 @@
 defmodule ServantWeb.DavController do
   @moduledoc """
-  Minimal CalDAV (RFC 4791) + CardDAV (RFC 6352) server for phone sync,
-  exercised against the discovery + sync flows of iOS and DAVx5.
+  Minimal CalDAV (RFC 4791) + CardDAV (RFC 6352) server for phone sync.
+  The discovery + sync flows of iOS and DAVx5 exercised it.
 
-  Layout: `/dav` -> `/dav/principals/:uid/` -> calendar home
-  `/dav/calendars/:uid/` (one collection per Servant calendar, `.ics`
-  resources) and address book home `/dav/addressbooks/:uid/` (single
-  `contacts` collection, `.vcf` resources).
+  Layout: `/dav` -> `/dav/principals/:uid/` -> the calendar home and the
+  address book home.
 
-  Simplifications, on purpose: PROPFIND ignores the requested prop list
-  and always answers the full supported set for the resource type
-  (clients ignore extras); calendar-query/addressbook-query return the
-  whole collection (clients filter locally); REPORT hrefs are extracted
-  with a regex rather than an XML parser. Upgrade to xmerl_sax if a
-  client chokes.
+  - The calendar home is `/dav/calendars/:uid/`. It has one collection per
+    Servant calendar, with `.ics` resources.
+  - The address book home is `/dav/addressbooks/:uid/`. It has a single
+    `contacts` collection, with `.vcf` resources.
+
+  Simplifications, on purpose:
+
+  - PROPFIND ignores the requested prop list. It always answers the full
+    supported set for the resource type (clients ignore extras).
+  - calendar-query/addressbook-query return the whole collection (clients
+    filter locally).
+  - A regex extracts the REPORT hrefs, not an XML parser.
+
+  Upgrade to xmerl_sax if a client fails on these simplifications.
   """
 
   use ServantWeb, :controller
@@ -339,8 +345,8 @@ defmodule ServantWeb.DavController do
 
   defp report(conn, _), do: send_resp(conn, 404, "")
 
-  # Client REPORT bodies are machine-generated; a regex is enough to pull
-  # the requested hrefs out.
+  # Client REPORT bodies are machine-generated. A regex is sufficient to
+  # extract the requested hrefs.
   defp extract_hrefs(body) do
     ~r|<[^>]*?href[^>]*?>\s*([^<]+?)\s*</|i
     |> Regex.scan(body, capture: :all_but_first)
@@ -501,7 +507,7 @@ defmodule ServantWeb.DavController do
   defp put_resource(conn, _), do: send_resp(conn, 404, "")
 
   # X-OC-MTime (Nextcloud dialect, unix seconds): the capture-date fallback
-  # for media without EXIF; PhotoSync and rclone both send it.
+  # for media without EXIF. PhotoSync and rclone both send it.
   defp oc_mtime(conn) do
     with [value] <- get_req_header(conn, "x-oc-mtime"),
          {seconds, ""} <- Integer.parse(value),
@@ -517,8 +523,8 @@ defmodule ServantWeb.DavController do
     if mtime, do: put_resp_header(conn, "x-oc-mtime", "accepted"), else: conn
   end
 
-  # Bodies can be large (photos, videos): stream chunks to a tmp file
-  # instead of the single 8MB read the ICS/vCard paths get away with.
+  # Bodies can be large (photos, videos). Stream the chunks to a tmp file.
+  # The single 8MB read is sufficient only for the ICS/vCard paths.
   defp stream_body_to_tmp(conn, user_id) do
     dir = Storage.tmp_workspace(user_id)
     path = Path.join(dir, "dav-body")
@@ -633,8 +639,8 @@ defmodule ServantWeb.DavController do
   end
 
   defp mkcol(conn, ["photos" | rest]) when rest != [] do
-    # Albums are virtual: answer 201 without persisting anything; resolve/2
-    # treats unknown extensionless paths as empty albums afterwards.
+    # Albums are virtual: answer 201 and persist nothing. After that, resolve/2
+    # treats unknown paths without an extension as empty albums.
     case PhotosDav.mkcol_status(PhotosDav.photos(user(conn).id), rest) do
       :created -> send_resp(conn, 201, "")
       :exists -> send_resp(conn, 405, "")
@@ -662,9 +668,9 @@ defmodule ServantWeb.DavController do
     end
   end
 
-  # Reads the request body, answering 413 rather than crashing on a body larger
-  # than Plug's default 8 MB limit (a huge multiget REPORT, a vCard with a big
-  # embedded photo).
+  # Reads the request body. Answers 413 and does not crash on a body larger
+  # than the default 8 MB limit of Plug (a huge multiget REPORT, a vCard with
+  # a big embedded photo).
   defp with_body(conn, fun) do
     case read_body(conn) do
       {:ok, body, conn} -> fun.(body, conn)
@@ -673,7 +679,7 @@ defmodule ServantWeb.DavController do
     end
   end
 
-  # If-Match precondition; absence always passes.
+  # If-Match precondition. An absent header always passes.
   defp etag_matches?(conn, existing) do
     case get_req_header(conn, "if-match") do
       [] -> true
@@ -775,7 +781,7 @@ defmodule ServantWeb.DavController do
   defp encode_segment(seg), do: URI.encode(seg, &URI.char_unreserved?/1)
 
   # ----- prop sets -----
-  # Fixed per resource type; see @moduledoc.
+  # They are fixed per resource type. See @moduledoc.
 
   defp root_props(u) do
     [

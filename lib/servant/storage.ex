@@ -24,8 +24,8 @@ defmodule Servant.Storage do
   end
 
   @doc """
-  Relative path for a photo thumbnail stored next to the original file.
-  Always uses `.jpg` regardless of the source format.
+  Returns the relative path for a photo thumbnail stored next to the original
+  file. Always uses `.jpg`, for all source formats.
   """
   def thumb_relative(relative_path) when is_binary(relative_path) do
     ext = Path.extname(relative_path)
@@ -33,8 +33,9 @@ defmodule Servant.Storage do
   end
 
   @doc """
-  Relative path of the full-size display JPEG derived from `relative_path`
-  (for formats browsers can't render, e.g. HEIC).
+  Returns the relative path of the full-size display JPEG made from
+  `relative_path` (for the formats that browsers cannot render, for example
+  HEIC).
   """
   def display_relative(relative_path) when is_binary(relative_path) do
     ext = Path.extname(relative_path)
@@ -83,7 +84,8 @@ defmodule Servant.Storage do
   end
 
   @doc """
-  Creates a temporary workspace directory for processing. Caller must call `cleanup_tmp/1`.
+  Creates a temporary workspace directory for processing. The caller must call
+  `cleanup_tmp/1`.
   """
   def tmp_workspace(user_id) do
     workspace_id = Ecto.UUID.generate()
@@ -98,10 +100,11 @@ defmodule Servant.Storage do
   end
 
   @doc """
-  Deletes a file referenced by a public URL (`/files/…` or legacy `/uploads/…`),
-  but only when it belongs to `user_id`. Scoped like the read path so a user
-  can't delete another user's file by pointing an entry's `data.path` at it.
-  Ignores missing or non-owned paths.
+  Deletes the file that a public URL references (`/files/…` or legacy
+  `/uploads/…`), but only when it belongs to `user_id`. The scope is the same
+  as for the read path. As a result, a user cannot delete the file of another
+  user with a `data.path` of an entry that points at it. Ignores the paths
+  that are missing or that the user does not own.
   """
   def delete_public_file(user_id, public_path)
       when is_binary(user_id) and is_binary(public_path) do
@@ -114,8 +117,8 @@ defmodule Servant.Storage do
   end
 
   @doc """
-  Turns a public file URL (`/files/…`, legacy `/uploads/…`, optionally with a
-  cache-busting `?v=` query) back into a storage-relative path.
+  Changes a public file URL (`/files/…`, legacy `/uploads/…`, optionally with
+  a cache-busting `?v=` query) back into a storage-relative path.
   """
   def relative_from_public(public_path) when is_binary(public_path) do
     public_path
@@ -127,9 +130,10 @@ defmodule Servant.Storage do
   end
 
   @doc """
-  Like `resolve_public_path/1`, but only succeeds when the resolved file belongs
-  to `user_id`, i.e. it lives under `FILES_DIR/<user_id>/`. Used to enforce
-  per-user ownership when serving `/files/…` behind authentication.
+  Same as `resolve_public_path/1`, but succeeds only when the resolved file
+  belongs to `user_id`, that is, when it is under `FILES_DIR/<user_id>/`. The
+  authenticated `/files/…` route uses it to enforce the ownership of each
+  user.
   """
   def resolve_owned_path(user_id, relative) when is_binary(user_id) and is_binary(relative) do
     normalized = relative |> URI.decode() |> String.trim_leading("/")
@@ -142,11 +146,11 @@ defmodule Servant.Storage do
         under_owner_root? =
           expanded == owner_root or String.starts_with?(expanded, owner_root <> "/")
 
-        # New-tree files live under FILES_DIR/<user_id>/ (physical check). Legacy
-        # files may resolve under UPLOADS_DIR (a different root) yet still belong
-        # to the user: their owner is encoded in the request path. `resolve_
-        # public_path` already rejected `..` traversal, so trusting that owner is
-        # safe.
+        # The files of the new tree are under FILES_DIR/<user_id>/ (physical
+        # check). Legacy files can resolve under UPLOADS_DIR (a different root)
+        # and still belong to the user: the request path encodes their owner.
+        # `resolve_public_path` already rejected `..` traversal, so it is safe
+        # to trust that owner.
         if under_owner_root? or claimed_owner(normalized) == user_id do
           {:ok, absolute}
         else
@@ -158,7 +162,7 @@ defmodule Servant.Storage do
     end
   end
 
-  # The user id a public/legacy path claims to belong to.
+  # Returns the user id that a public or legacy path claims as its owner.
   defp claimed_owner("app_files/" <> rest), do: rest |> String.split("/", parts: 2) |> hd()
   defp claimed_owner("avatars/" <> file), do: file |> String.split(".", parts: 2) |> hd()
   defp claimed_owner(relative), do: relative |> String.split("/", parts: 2) |> hd()
@@ -238,8 +242,9 @@ defmodule Servant.Storage do
     end
   end
 
-  # Resolve the path and confirm it stays under files_root/, so neither `..`
-  # segments nor absolute paths can escape the storage directory.
+  # Resolve the path and make sure that it stays under files_root/. As a
+  # result, `..` segments and absolute paths cannot escape the storage
+  # directory.
   defp path_safe?(relative) do
     root = Path.expand(files_root())
     expanded = Path.expand(relative, root)

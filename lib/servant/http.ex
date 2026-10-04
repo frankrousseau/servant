@@ -2,19 +2,21 @@ defmodule Servant.HTTP do
   @moduledoc """
   Shared HTTP helpers for all connectors.
 
-  TLS certificates are **verified by default** (`verify_peer` via CAStore).
-  A known OTP 27 regression makes the handshake reject some otherwise-valid
-  certificates with a `key_usage_mismatch` error (e.g. data.gouv.fr, some CDN
-  certs); it happens before `verify_fun` is invoked, so it can't be worked
-  around per-request. For those specific hosts only, pass `verify: false` at the
-  call site (e.g. `req_options(verify: false)`), never globally, so secret-
-  bearing flows (Strava OAuth, RPC/explorers) keep certificate verification.
+  TLS certificates are **verified by default** (`verify_peer` through CAStore).
+  A known OTP 27 regression makes the handshake reject some certificates that
+  are valid in all other respects, with a `key_usage_mismatch` error (for
+  example data.gouv.fr, some CDN certs). The error occurs before the call to
+  `verify_fun`, so a workaround for each request is not possible. For those
+  specific hosts only, pass `verify: false` at the call site (for example
+  `req_options(verify: false)`). Never pass it globally. As a result, the
+  flows that carry secrets (Strava OAuth, RPC and explorers) keep the
+  certificate verification.
   """
 
   @doc """
-  Returns default Req options. TLS peer verification is on by default; pass
-  `verify: false` to disable it for a single call (see the module doc for when
-  that's justified).
+  Returns the default Req options. TLS peer verification is on by default.
+  Pass `verify: false` to disable it for one call. The module doc tells when
+  there is a good reason for that.
   """
   def req_options(extra \\ []) do
     {verify, extra} = Keyword.pop(extra, :verify, true)
@@ -35,8 +37,9 @@ defmodule Servant.HTTP do
   end
 
   @doc """
-  Courtesy pause between calls to a rate-limited third-party API. Disabled in
-  tests (`config :servant, :connector_throttle, false`) so suites don't sleep.
+  Pauses between calls to a rate-limited third-party API, as a courtesy. The
+  pause is disabled in tests (`config :servant, :connector_throttle, false`),
+  so that the suites do not sleep.
   """
   def throttle(ms) do
     if Application.get_env(:servant, :connector_throttle, true), do: Process.sleep(ms)
@@ -44,13 +47,18 @@ defmodule Servant.HTTP do
   end
 
   @doc """
-  SSRF guard for user-supplied URLs (RSS/iCal feeds, etc.). Returns `:ok` only
-  for an `http`/`https` URL whose host resolves exclusively to public IPs;
-  otherwise `{:error, :blocked_url}`. Blocks loopback, private, link-local
-  (incl. the cloud metadata endpoint `169.254.169.254`) and unique-local ranges.
+  SSRF guard for the URLs that a user supplies (for example RSS and iCal
+  feeds). Returns `:ok` only for an `http` or `https` URL with a host that
+  resolves only to public IPs. If not, returns `{:error, :blocked_url}`.
+  Blocks these ranges:
 
-  Note: this is a best-effort check at validation time and does not defend
-  against DNS rebinding between this resolution and the actual request.
+  - loopback
+  - private
+  - link-local (this includes the cloud metadata endpoint `169.254.169.254`)
+  - unique-local
+
+  Note: this is a best-effort guard at validation time. It gives no
+  protection from DNS rebinding between this resolution and the request.
   """
   def ensure_public_url(url) when is_binary(url) do
     uri = URI.parse(url)
@@ -95,7 +103,7 @@ defmodule Servant.HTTP do
   # IPv6 loopback ::1 and unspecified ::
   defp private_ip?({0, 0, 0, 0, 0, 0, 0, 1}), do: true
   defp private_ip?({0, 0, 0, 0, 0, 0, 0, 0}), do: true
-  # IPv4-mapped IPv6 ::ffff:a.b.c.d: re-check the embedded v4
+  # IPv4-mapped IPv6 ::ffff:a.b.c.d: do the test again on the embedded v4.
   defp private_ip?({0, 0, 0, 0, 0, 0xFFFF, ab, cd}) do
     private_ip?({div(ab, 256), rem(ab, 256), div(cd, 256), rem(cd, 256)})
   end

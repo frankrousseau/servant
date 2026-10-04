@@ -1,9 +1,9 @@
 defmodule ServantWeb.FilesController do
   @moduledoc """
   Serves persisted files from `FILES_DIR` at `/files/…` (and legacy `/uploads/…`),
-  but only to their owner. Requests are authenticated by `ServantWeb.Plugs.FileAuth`
-  and scoped to `FILES_DIR/<user_id>/` by `Servant.Storage.resolve_owned_path/2`.
-  Range requests and the response headers are handled by `ServantWeb.RangeFile`.
+  but only to their owner. `ServantWeb.Plugs.FileAuth` authenticates the requests.
+  `Servant.Storage.resolve_owned_path/2` scopes them to `FILES_DIR/<user_id>/`.
+  `ServantWeb.RangeFile` handles the Range requests and the response headers.
   """
   use ServantWeb, :controller
 

@@ -1,15 +1,15 @@
 defmodule Servant.CalDAV.ICS do
   @moduledoc """
   Minimal iCalendar (RFC 5545) parsing and generation for the CalDAV
-  endpoint. Parses only the fields the Calendar app understands; the raw
-  payload a client PUT is stored alongside so alarms, attendees and
-  complex RRULEs survive round-trips untouched.
+  endpoint. It parses only the fields that the Calendar app understands.
+  Servant also stores the raw payload of the client PUT. As a result,
+  alarms, attendees and complex RRULEs stay unchanged through round-trips.
   """
 
   @doc """
-  Parses the first VEVENT of an ICS payload into calendar-app entry
-  attributes. `user_tz` anchors floating and all-day times, mirroring how
-  the app stores wall-clock values in the user's timezone.
+  Parses the first VEVENT of an ICS payload into entry attributes for the
+  Calendar app. `user_tz` anchors the floating times and the all-day times.
+  This mirrors how the app stores wall-clock values in the user's timezone.
 
   Returns `{:ok, %{uid:, title:, occurred_at:, data: %{...}}}` or
   `{:error, reason}`.
@@ -52,7 +52,7 @@ defmodule Servant.CalDAV.ICS do
     end
   end
 
-  # iCal spec: lines starting with space/tab continue the previous one.
+  # iCal spec: a line that starts with a space or a tab continues the previous line.
   defp unfold(text) do
     text
     |> String.replace(~r/\r?\n[ \t]/, "")
@@ -181,7 +181,7 @@ defmodule Servant.CalDAV.ICS do
     )
   end
 
-  # DST gaps/ambiguities: take the earliest valid wall clock, sync must not fail.
+  # DST gaps and ambiguities: take the earliest valid wall clock. The sync must not fail.
   defp from_naive_in_zone(naive, tz) do
     case DateTime.from_naive(naive, tz) do
       {:ok, dt} -> {:ok, dt}
@@ -197,15 +197,15 @@ defmodule Servant.CalDAV.ICS do
 
   defp start_utc({:utc, dt}, _tz), do: dt
 
-  # The app stores dtstart/dtend as wall-clock in the user's timezone
-  # ("20260713T100000") and date-only for all-day events ("20260713").
+  # The app stores dtstart/dtend as wall-clock values in the user's timezone
+  # ("20260713T100000"). For all-day events, it stores only the date ("20260713").
   defp wall_clock({:date, date}, _tz), do: Calendar.strftime(date, "%Y%m%d")
 
   defp wall_clock({:utc, dt}, user_tz) do
     dt |> DateTime.shift_zone!(user_tz) |> Calendar.strftime("%Y%m%dT%H%M%S")
   end
 
-  # iCal all-day DTEND is exclusive; the app stores the inclusive end date.
+  # The iCal all-day DTEND is exclusive. The app stores the inclusive end date.
   defp wall_dtend({:date, _}, {:date, end_date}, _tz) do
     Calendar.strftime(Date.add(end_date, -1), "%Y%m%d")
   end
@@ -242,8 +242,8 @@ defmodule Servant.CalDAV.ICS do
     end
   end
 
-  # Only bare FREQ rules map onto the app's simple recurrence field; anything
-  # richer stays in the stored raw ICS.
+  # Only bare FREQ rules map onto the simple recurrence field of the app. A
+  # richer rule stays in the stored raw ICS.
   defp simple_recurrence(nil), do: nil
 
   defp simple_recurrence({_params, value}) do
@@ -266,9 +266,9 @@ defmodule Servant.CalDAV.ICS do
   # --- generation ---
 
   @doc """
-  Renders an event entry as a VCALENDAR. Returns the raw ICS a client
-  stored if the entry was not touched since (lossless round-trip),
-  otherwise synthesizes a VEVENT from the entry fields.
+  Renders an event entry as a VCALENDAR. Returns the raw ICS that a client
+  stored if the entry did not change after that (lossless round-trip).
+  If not, synthesizes a VEVENT from the entry fields.
   """
   def to_ics(entry, user_tz) do
     fresh_raw(entry) || synthesize(entry, user_tz)
@@ -284,7 +284,7 @@ defmodule Servant.CalDAV.ICS do
     end
   end
 
-  @doc "UID exposed over CalDAV; client-supplied when available."
+  @doc "Returns the UID exposed over CalDAV: the client-supplied UID when there is one."
   def uid(entry), do: entry.external_id || "#{entry.id}@servant"
 
   defp synthesize(entry, user_tz) do

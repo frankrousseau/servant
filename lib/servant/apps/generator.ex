@@ -1,12 +1,14 @@
 defmodule Servant.Apps.Generator do
   @moduledoc """
   Builder agent: turns a plain-language description into an installed custom
-  app (contract in docs/custom-apps.md) with a single chat completion, no
-  tool use. Servant writes the manifest itself and the model only produces
-  the entry module, so the flow stays reliable with small local models.
+  app (contract in docs/custom-apps.md). It uses a single chat completion and
+  no tool use. Servant writes the manifest itself and the model only makes
+  the entry module. As a result, the flow stays reliable with small local
+  models.
 
-  Every action is tracked as a "builder" run in agent_runs (model, tokens,
-  duration). start_* variants run in a supervised Task; callers poll the run.
+  Servant tracks every action as a "builder" run in agent_runs (model, tokens,
+  duration). The start_* variants run in a supervised Task. The callers poll
+  the run.
   """
 
   alias Servant.Accounts
@@ -56,9 +58,10 @@ defmodule Servant.Apps.Generator do
   end
 
   @doc """
-  Synchronous create, used by tests. Returns `{:ok, app, run} | {:error, message, run}`
-  once a run row exists, or `{:error, message}` (no run) when validation fails before
-  one is created (agents disabled, blank name/description, unusable slug).
+  Synchronous create that the tests use. Returns
+  `{:ok, app, run} | {:error, message, run}` when a run row exists. Returns
+  `{:error, message}` (no run) when the validation fails before the creation of a
+  run row (agents disabled, blank name/description, unusable slug).
   """
   def generate_now(user, name, description, ai_opts \\ []) do
     with {:ok, run, slug} <- prepare_generate(user, name, description) do
@@ -75,9 +78,10 @@ defmodule Servant.Apps.Generator do
   end
 
   @doc """
-  Synchronous modify, used by tests. Returns `{:ok, app, run} | {:error, message, run}`
-  once a run row exists, or `{:error, :not_found} | {:error, message}` (no run) when
-  validation fails before one is created (agents disabled, unknown or non-generated
+  Synchronous modify that the tests use. Returns
+  `{:ok, app, run} | {:error, message, run}` when a run row exists. Returns
+  `{:error, :not_found} | {:error, message}` (no run) when the validation fails
+  before the creation of a run row (agents disabled, unknown or non-generated
   app, blank instruction).
   """
   def modify_now(user, app_id, instruction, ai_opts \\ []) do
@@ -86,7 +90,7 @@ defmodule Servant.Apps.Generator do
     end
   end
 
-  @doc "Extracts the last fenced js block; it must default-export the module."
+  @doc "Extracts the last fenced js block. The block must default-export the module."
   def extract_module(content) when is_binary(content) do
     case Regex.scan(~r/```(?:js|javascript)?\s*\n(.*?)```/s, content) do
       [] ->
@@ -103,7 +107,7 @@ defmodule Servant.Apps.Generator do
     end
   end
 
-  @doc "App id slug derived from the display name."
+  @doc "Returns the app id slug derived from the display name."
   def slugify(name) when is_binary(name) do
     name
     |> String.downcase()
@@ -178,9 +182,10 @@ defmodule Servant.Apps.Generator do
       {:ok, run} ->
         {:ok, run}
 
-      # Defensive: config["model"] is validated non-blank before agents can be
-      # enabled, so this changeset should never actually fail. Guard it anyway
-      # so a controller never has to JSON-encode a raw %Ecto.Changeset{}.
+      # Defensive: config["model"] is validated as non-blank before the user can
+      # enable the agents. As a result, this changeset never fails in normal
+      # operation. Guard it anyway, so that a controller never gets a raw
+      # %Ecto.Changeset{} to JSON-encode.
       {:error, %Ecto.Changeset{}} ->
         {:error, "could not create the run"}
     end
@@ -242,8 +247,8 @@ defmodule Servant.Apps.Generator do
     end
   end
 
-  # Chat (with one repair retry), then hand the module to `install` and
-  # record the outcome on the run.
+  # Chats (with one repair retry). Then it gives the module to `install` and
+  # records the outcome on the run.
   defp execute(run, user, messages, ai_opts, install) do
     config = Accounts.ai_config(user)
     messages = [%{role: "system", content: @system_prompt} | messages]
@@ -267,9 +272,9 @@ defmodule Servant.Apps.Generator do
           {:error, message, run}
       end
     rescue
-      # An unexpected raise (a File.write! I/O error, a crash inside install)
-      # would otherwise leave this run stuck at "running" forever, with the
-      # frontend polling it endlessly. Fail it, then re-raise so callers
+      # Fail the run on an unexpected raise (a File.write! I/O error, a crash
+      # inside install). If not, the run stays at "running" forever and the
+      # frontend polls it endlessly. Then re-raise. As a result, the callers
       # (and the supervised Task, for start_generate/start_modify) still see
       # the crash.
       exception ->

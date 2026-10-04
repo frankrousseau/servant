@@ -146,8 +146,9 @@ defmodule ServantWeb.UploadController do
     end
   end
 
-  # Browsers often send unknown formats (e.g. .heic on Linux) as
-  # application/octet-stream: fall back to the original file's extension.
+  # Browsers often send unknown formats (for example .heic on Linux) as
+  # application/octet-stream. In that case, use the extension of the original
+  # file.
   defp extension("application/octet-stream", original_name), do: Path.extname(original_name)
 
   defp extension(content_type, original_name) do
@@ -184,8 +185,8 @@ defmodule ServantWeb.UploadController do
     end
   end
 
-  # MP4/MOV carry their recording date in the moov/mvhd box; expose it the
-  # same way as photo EXIF so entries sort by capture date.
+  # MP4/MOV carry their recording date in the moov/mvhd box. Expose it the
+  # same way as photo EXIF, so that entries sort by capture date.
   defp maybe_video_date(response, "video/" <> _, absolute) do
     case Servant.Media.VideoMeta.creation_date(absolute) do
       {:ok, dt} -> Map.put_new(response, :date_taken, DateTime.to_iso8601(dt))
@@ -203,8 +204,8 @@ defmodule ServantWeb.UploadController do
           :error -> response
         end
 
-      # Fast 1920px JPEG for the viewer; the original stays archived and is
-      # loadable on demand.
+      # Fast 1920px JPEG for the viewer. The original stays archived, and the
+      # viewer can load it on demand.
       case Servant.Media.Thumbnail.create_display_for_storage(relative, absolute) do
         {:ok, display_url, _} -> Map.put(response, :display_path, display_url)
         :error -> response
@@ -219,7 +220,7 @@ defmodule ServantWeb.UploadController do
 
   defp heic?(path), do: String.ends_with?(String.downcase(path), [".heic", ".heif"])
 
-  # Photos uploads need app:photos:write; every other app id is file storage.
+  # Photos uploads must have app:photos:write. Each other app id is file storage.
   defp check_upload_scope(conn, _opts) do
     domain = if Map.get(conn.params, "app", "files") == "photos", do: "photos", else: "files"
 

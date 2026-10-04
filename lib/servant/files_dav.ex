@@ -1,12 +1,14 @@
 defmodule Servant.FilesDav do
   @moduledoc """
-  WebDAV view over the Files app: `file` entries (folders are entries with
-  `data.is_folder`, hierarchy via `data.parent_id`) backed by
-  `Servant.Storage`. Path segments resolve per folder on `data.filename`;
-  the first match wins when legacy duplicates exist.
+  WebDAV view of the Files app. It shows the `file` entries, with
+  `Servant.Storage` as the backend. A folder is an entry with
+  `data.is_folder`, and `data.parent_id` gives the hierarchy. The path
+  segments resolve in each folder on `data.filename`. The first match wins
+  when legacy duplicates exist.
 
-  Read the whole file tree once per request and walk it in memory; index
-  by parent in SQL if listings ever crawl at personal-archive scale.
+  Read the full file tree one time for each request and walk it in memory.
+  Add an index by parent in SQL if the listings become too slow at the scale
+  of a personal archive.
   """
 
   alias Servant.Data
@@ -38,7 +40,7 @@ defmodule Servant.FilesDav do
   end
 
   @doc """
-  Walks path segments from the root. Returns `{:folder, entry | nil}`
+  Walks the path segments from the root. Returns `{:folder, entry | nil}`
   (nil is the root), `{:file, entry}`, or `:not_found`.
   """
   def resolve(_entries, []), do: {:folder, nil}
@@ -60,7 +62,7 @@ defmodule Servant.FilesDav do
     end
   end
 
-  @doc "Creates the folder at the path. RFC 4918 semantics for errors."
+  @doc "Creates the folder at the path. The errors follow the RFC 4918 semantics."
   def mkcol(user_id, entries, segments) do
     {parents, [leaf]} = Enum.split(segments, -1)
 
@@ -69,7 +71,7 @@ defmodule Servant.FilesDav do
         parent_id = parent && parent.id
 
         if Enum.any?(children(entries, parent_id), &(name(&1) == leaf)) do
-          # Already exists: MKCOL must not overwrite.
+          # The name already exists: MKCOL must not overwrite.
           {:error, :exists}
         else
           Data.create_entry(user_id, %{
@@ -80,7 +82,7 @@ defmodule Servant.FilesDav do
           })
         end
 
-      # Missing intermediate collection.
+      # An intermediate collection is missing.
       _ ->
         {:error, :conflict}
     end
@@ -139,7 +141,7 @@ defmodule Servant.FilesDav do
           with {:ok, entry} <- Data.create_entry(user_id, attrs), do: {:ok, :created, entry}
 
         entry ->
-          # Replace: new blob first, then drop the old one.
+          # Replace: the new blob comes first, then drop the old blob.
           old_path = entry.data["path"]
 
           with {:ok, updated} <-

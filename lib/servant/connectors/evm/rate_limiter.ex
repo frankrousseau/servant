@@ -1,11 +1,12 @@
 defmodule Servant.Connectors.EVM.RateLimiter do
   @moduledoc """
-  Spaces explorer calls across every EVM connector sharing a key. Etherscan's
-  free tier allows 3 calls per second per API key, all chains together, and
-  each connector syncs in its own process: without a shared queue, a few
-  wallets syncing at once trip "Max calls per sec rate limit reached".
+  Spaces the explorer calls across every EVM connector that shares a key. The
+  limit of the free tier of Etherscan is 3 calls per second per API key, all
+  chains together. Each connector syncs in its own process. Without a shared
+  queue, a few wallets that sync at the same time trip "Max calls per sec rate
+  limit reached".
 
-  `wait/1` reserves the next free slot for the key and sleeps until it.
+  `wait/1` reserves the next free slot for the key and sleeps until that slot.
   """
 
   use GenServer
@@ -15,7 +16,7 @@ defmodule Servant.Connectors.EVM.RateLimiter do
 
   def start_link(_opts), do: GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
 
-  @doc "Blocks until the caller may send its next request for `key`."
+  @doc "Blocks until the caller can send its next request for `key`."
   @spec wait(term()) :: :ok
   def wait(key) do
     if Application.get_env(:servant, :connector_throttle, true) do

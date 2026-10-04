@@ -1,15 +1,17 @@
 defmodule ServantWeb.Plugs.DavAuth do
   @moduledoc """
-  HTTP Basic authentication for the CalDAV/CardDAV endpoint. DAV clients
-  only speak Basic auth, so the password field carries a Servant token:
-  an `srv_` API token (recommended; revocable and scoped to app:calendar
-  / app:contacts) or a session token. The username is informative only;
-  the token identifies the user. Failed `srv_` lookups feed the same
-  per-IP throttle as the JSON API.
+  HTTP Basic authentication for the CalDAV/CardDAV endpoint.
 
-  Every challenge logs why (missing header, other scheme, malformed
-  credentials, rejected token) so a phone client that "always gets 401"
-  can be diagnosed from the server log; the token itself is never logged.
+  DAV clients only speak Basic auth, so the password field carries a Servant
+  token. The token is an `srv_` API token or a session token. The `srv_` API
+  token is the recommended one: it is revocable and scoped to app:calendar
+  / app:contacts. The username is informative only. The token identifies
+  the user. Failed `srv_` lookups feed the same per-IP throttle as the JSON API.
+
+  Each challenge logs its cause (missing header, other scheme, malformed
+  credentials, rejected token). As a result, the server log is sufficient to
+  diagnose a phone client that "always gets 401". The log never contains the
+  token itself.
   """
 
   import Plug.Conn
@@ -75,6 +77,6 @@ defmodule ServantWeb.Plugs.DavAuth do
     |> halt()
   end
 
-  # Only the scheme word, never the credential that follows it.
+  # Returns only the scheme word, never the credential that follows it.
   defp scheme(header), do: header |> String.split(" ", parts: 2) |> hd()
 end

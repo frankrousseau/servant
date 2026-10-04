@@ -1,5 +1,5 @@
 defmodule ServantWeb.DataChannel do
-  @moduledoc "Per-user channel pushing entry-change events to the SPA."
+  @moduledoc "Per-user channel that pushes entry-change events to the SPA."
 
   use ServantWeb, :channel
 
@@ -7,7 +7,8 @@ defmodule ServantWeb.DataChannel do
 
   @impl true
   def join("data:" <> user_id, _payload, socket) do
-    # User IDs are binary_id (UUID) strings, so compare directly; never coerce to integer.
+    # User IDs are binary_id (UUID) strings. Compare them directly. Never coerce
+    # them to an integer.
     if socket.assigns.user_id == user_id do
       Phoenix.PubSub.subscribe(Servant.PubSub, Servant.Events.topic(user_id))
       {:ok, socket}
@@ -32,8 +33,8 @@ defmodule ServantWeb.DataChannel do
     {:noreply, socket}
   end
 
-  # Aggregated signal for bulk inserts (connector syncs / imports): the client
-  # should refetch rather than receive thousands of per-entry events.
+  # Aggregated signal for bulk inserts (connector syncs and imports). The client
+  # must refetch. It does not receive thousands of per-entry events.
   def handle_info({:entries_changed, payload}, socket) do
     push(socket, "entries_changed", payload)
     {:noreply, socket}

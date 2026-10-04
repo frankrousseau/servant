@@ -1,8 +1,9 @@
 defmodule ServantWeb.Plugs.Scope do
   @moduledoc """
-  Enforces API-token scopes for a controller (optionally per action via
+  Enforces API-token scopes for a controller (optionally per action through
   `plug ... when action in [...]`). Session tokens (`api_scopes: nil`) always
-  pass. GET/HEAD require `<domain>:read`, everything else `<domain>:write`.
+  pass. GET/HEAD must have `<domain>:read`, and all other methods must have
+  `<domain>:write`.
   """
 
   import Plug.Conn

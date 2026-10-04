@@ -1,6 +1,7 @@
 defmodule Servant.Connectors do
   @moduledoc """
-  The Connectors context. Manages connector configs and worker lifecycle.
+  The Connectors context. Manages the connector configs and the lifecycle of
+  the workers.
   """
 
   import Ecto.Query
@@ -27,8 +28,8 @@ defmodule Servant.Connectors do
     "enable_banking" => Servant.Connectors.EnableBankingConnector
   }
 
-  # Connector types that accept an uploaded file, mapped to the
-  # {module, function} used to turn file contents into entries.
+  # The connector types that accept an uploaded file. Each type maps to the
+  # {module, function} that changes the file contents into entries.
   @importable_types %{
     "bank_csv" => {Servant.Connectors.BankCSVConnector, :import_csv},
     "ical" => {Servant.Connectors.ICalConnector, :import_ical},
@@ -64,9 +65,10 @@ defmodule Servant.Connectors do
       |> ConnectorConfig.changeset(restore_redacted(attrs, config.config || %{}))
       |> Repo.update()
 
-    # A running worker builds its connector state once at init and would keep
-    # syncing with the old credentials/schedule forever; bounce it so the
-    # edit takes effect now (init re-reads the row from the DB).
+    # A worker builds its connector state one time, at init. Without a
+    # restart, it continues to sync with the old credentials and the old
+    # schedule. Restart the worker so that the edit applies immediately
+    # (init reads the row from the DB again).
     with {:ok, updated} <- result do
       if updated.config != config.config or updated.schedule != config.schedule do
         restart_if_running(user_id, id)
@@ -89,9 +91,9 @@ defmodule Servant.Connectors do
   end
 
   @doc """
-  Replaces the values of sensitive config keys (password/secret/token/…) with a
-  redaction marker so secrets never leave the API. Use before serializing a
-  connector config to a client.
+  Replaces the values of the sensitive config keys (password, secret, token
+  and others) with a redaction marker. As a result, secrets never leave the
+  API. Use this function before you serialize a connector config to a client.
   """
   def redact_config(config) when is_map(config) do
     Map.new(config, fn {k, v} ->
@@ -105,8 +107,8 @@ defmodule Servant.Connectors do
 
   def redact_config(other), do: other
 
-  # When a client sends back the redaction marker (because it round-tripped a
-  # redacted config), keep the stored secret instead of overwriting it.
+  # A client sends back the redaction marker when it returns a redacted
+  # config. In that case, keep the stored secret and do not overwrite it.
   defp restore_redacted(attrs, existing) do
     case Map.get(attrs, "config") do
       incoming when is_map(incoming) ->
@@ -181,9 +183,10 @@ defmodule Servant.Connectors do
     |> where(enabled: true)
     |> Repo.all()
     |> Enum.each(fn config ->
-      # A worker whose init/1 returns {:stop, reason} (bad config, removed
-      # provider) would otherwise die at boot with no log and no config.error,
-      # leaving an "enabled" connector silently dead. :ignore is normal.
+      # The init/1 of a worker can return {:stop, reason} (bad config, removed
+      # provider). Without this log, the worker dies at boot with no log and
+      # no config.error, and an "enabled" connector stays dead silently.
+      # :ignore is normal.
       case start_connector(config.user_id, config.id) do
         {:ok, _pid} ->
           :ok
@@ -205,17 +208,19 @@ defmodule Servant.Connectors do
   def connector_modules, do: @connector_modules
 
   @doc """
-  Merges the cursor returned by a connector's `persisted_config/1` into its
-  stored config after a successful sync, so incremental cursors (last_block,
-  last_signature, rotated refresh tokens, …) survive a restart.
+  Merges the cursor that the `persisted_config/1` of a connector returns into
+  its stored config, after a successful sync. As a result, the incremental
+  cursors (last_block, last_signature, rotated refresh tokens and others)
+  survive a restart.
 
-  A no-op when the cursor is empty.
+  Does nothing when the cursor is empty.
   """
   def persist_connector_cursor(_config_id, cursor) when map_size(cursor) == 0, do: :ok
 
   def persist_connector_cursor(config_id, cursor) when is_map(cursor) do
-    # Transaction so the read-merge-write is atomic; otherwise a concurrent API
-    # edit to the same config between the read and the write would be lost.
+    # The transaction makes the read-merge-write atomic. Without it, a
+    # concurrent API edit of the same config between the read and the write
+    # is lost.
     {:ok, result} =
       Repo.transaction(fn ->
         case Repo.get(ConnectorConfig, config_id) do
@@ -267,14 +272,14 @@ defmodule Servant.Connectors do
   end
 
   @doc """
-  Imports the contents of an uploaded file into the entries of a
-  file-import-capable connector, recording a sync log.
+  Imports the contents of an uploaded file into the entries of a connector
+  that supports file import. Also records a sync log.
 
   Returns:
     * `{:ok, %{imported: n, total: n, skipped: n}}` on success
     * `{:error, :unsupported}` if the connector type has no importer
     * `{:error, {:init_failed, reason}}` if the connector cannot init
-    * `{:error, {:import_failed, reason}}` if parsing the file fails
+    * `{:error, {:import_failed, reason}}` if the parse of the file fails
   """
   def import_file(user_id, config_id, %Plug.Upload{path: path, filename: filename}) do
     config = get_connector_config!(user_id, config_id)
@@ -282,8 +287,9 @@ defmodule Servant.Connectors do
     staged = Path.join(workspace, "import#{Path.extname(filename)}")
 
     try do
-      # Inside the try so a failing copy (e.g. disk full) still hits the `after`
-      # cleanup and doesn't leak the tmp workspace.
+      # The copy is in the try. As a result, a copy that fails (for example on
+      # a full disk) still goes through the `after` cleanup and does not leak
+      # the tmp workspace.
       File.cp!(path, staged)
       content = staged |> File.read!() |> Servant.Util.strip_bom()
 
@@ -296,9 +302,10 @@ defmodule Servant.Connectors do
             {:ok, state} ->
               {:ok, sync_log} = create_sync_log(config.id)
 
-              # Importers get the user id on top of their own state: turning
-              # something embedded in the file into a stored file (a vCard
-              # photo) needs to know whose storage to write to.
+              # The importers get the user id in addition to their own state.
+              # An importer can change an item embedded in the file (a vCard
+              # photo) into a stored file. For that, it must know which user
+              # owns the storage.
               import_state = Map.put(state, :user_id, user_id)
 
               run_import(
@@ -402,10 +409,10 @@ defmodule Servant.Connectors do
     expires_at = if expires_at, do: DateTime.truncate(expires_at, :second)
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
-    # Atomic upsert on the unique (connector_type, namespace, key) index: a plain
-    # get-then-insert races when two workers resolve the same new key at once
-    # (both see nil, the second insert hits the constraint). insert_all with
-    # on_conflict avoids the crash entirely.
+    # Atomic upsert on the unique (connector_type, namespace, key) index. A
+    # plain get-then-insert has a race when two workers resolve the same new
+    # key at the same time: both see nil, and the second insert hits the
+    # constraint. insert_all with on_conflict fully prevents the crash.
     Repo.insert_all(
       ConnectorEnvironment,
       [

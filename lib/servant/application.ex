@@ -1,6 +1,6 @@
 defmodule Servant.Application do
   # See https://hexdocs.pm/elixir/Application.html
-  # for more information on OTP Applications
+  # for more information on OTP Applications.
   @moduledoc false
 
   use Application
@@ -15,27 +15,29 @@ defmodule Servant.Application do
          repos: Application.fetch_env!(:servant, :ecto_repos), skip: skip_migrations?()},
         {Phoenix.PubSub, name: Servant.PubSub},
         {Registry, keys: :unique, name: Servant.Connectors.Registry},
-        # DynamicSupervisor + Scheduler as a rest_for_one unit: a collapse of the
-        # worker supervisor must re-run start_all_enabled, or connectors stop
-        # syncing until the next full restart.
+        # DynamicSupervisor and Scheduler are one rest_for_one unit. A collapse
+        # of the worker supervisor must run start_all_enabled again. If not,
+        # the connectors do not sync until the next full restart.
         Servant.Connectors.EVM.RateLimiter,
         Servant.Connectors.WorkerSupervisor,
         Servant.Audit.LogBuffer,
         Servant.Auth.Throttle,
-        # Builder agent generations run here (fire-and-forget, run row = status)
+        # The generations of the builder agent run here. They are
+        # fire-and-forget: the run row gives the status.
         {Task.Supervisor, name: Servant.Agents.TaskSupervisor},
         Servant.Agents.Scheduler,
-        # Start to serve requests, typically the last entry
+        # Start to serve requests. This is usually the last entry.
         ServantWeb.Endpoint
       ] ++ Servant.Media.Backfill.child_specs()
 
     # See https://hexdocs.pm/elixir/Supervisor.html
-    # for other strategies and supported options
+    # for other strategies and supported options.
     opts = [strategy: :one_for_one, name: Servant.Supervisor]
 
     with {:ok, _} = ok <- Supervisor.start_link(children, opts) do
-      # Mirror error-level logs into the audit buffer (idempotent: re-adding
-      # after a code reload returns {:error, :already_exist}, which is fine).
+      # Mirror the error-level logs into the audit buffer. This is idempotent:
+      # a second add after a code reload returns {:error, :already_exist}, and
+      # that result is not a problem.
       _ =
         :logger.add_handler(:servant_audit_errors, Servant.Audit.ErrorLogHandler, %{level: :error})
 
@@ -44,7 +46,7 @@ defmodule Servant.Application do
   end
 
   # Tell Phoenix to update the endpoint configuration
-  # whenever the application is updated.
+  # each time the application gets an update.
   @impl true
   def config_change(changed, _new, removed) do
     ServantWeb.Endpoint.config_change(changed, removed)
@@ -52,9 +54,10 @@ defmodule Servant.Application do
   end
 
   defp skip_migrations? do
-    # Migrations run at boot in releases, and in any env that opts in through
-    # :migrate_on_boot (dev does, so a fresh DEV_DB file is migrated on the
-    # fly). Test keeps running them through the mix alias instead.
+    # The migrations run at boot in releases, and in each env that opts in
+    # through :migrate_on_boot. Dev opts in. As a result, the boot migrates a
+    # new DEV_DB file automatically. Test continues to run them through the
+    # mix alias.
     System.get_env("RELEASE_NAME") == nil and
       not Application.get_env(:servant, :migrate_on_boot, false)
   end

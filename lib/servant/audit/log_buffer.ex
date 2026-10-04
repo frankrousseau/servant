@@ -1,9 +1,10 @@
 defmodule Servant.Audit.LogBuffer do
   @moduledoc """
-  In-memory ring buffers for the Audit page: one for HTTP access lines
-  (fed by `ServantWeb.Plugs.AccessLog`) and one for error-level log events
-  (fed by `Servant.Audit.ErrorLogHandler`). Newest first, capped, gone on
-  restart: a viewport on the running server, not an archive.
+  In-memory ring buffers for the Audit page. `ServantWeb.Plugs.AccessLog`
+  feeds one with HTTP access lines. `Servant.Audit.ErrorLogHandler` feeds
+  the other with error-level log events. The buffers are capped, keep the
+  newest entry first and are empty after a restart. They are a viewport on
+  the live server, not an archive.
   """
 
   use GenServer
@@ -30,8 +31,8 @@ defmodule Servant.Audit.LogBuffer do
 
   @impl true
   def handle_cast({:record, kind, entry}, state) do
-    # ponytail: Enum.take/2 on every insert is O(@max); switch to :queue if
-    # the buffers ever grow beyond a few hundred entries.
+    # ponytail: Enum.take/2 on every insert is O(@max). Change to :queue if
+    # the buffers become larger than a few hundred entries.
     {:noreply, Map.update!(state, kind, &Enum.take([entry | &1], @max))}
   end
 

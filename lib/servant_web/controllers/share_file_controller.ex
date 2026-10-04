@@ -1,9 +1,10 @@
 defmodule ServantWeb.ShareFileController do
   @moduledoc """
-  Serves the files of a public photo feed at `/share/<token>/files/…`: the
-  original, thumbnail or display copy of a photo currently in the feed, and
-  nothing else of the owner's store. No authentication, the token is the
-  credential; an unknown or revoked token is a plain 404.
+  Serves the files of a public photo feed at `/share/<token>/files/…`. These
+  are the original, the thumbnail or the display copy of a photo that is in
+  the feed at that time, and nothing else from the store of the owner. There
+  is no authentication: the token is the credential. An unknown or revoked
+  token is a plain 404.
   """
 
   use ServantWeb, :controller

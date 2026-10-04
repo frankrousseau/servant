@@ -2,10 +2,10 @@ defmodule ServantWeb.DocsController do
   @moduledoc """
   SwaggerUI page for the OpenAPI spec, served at /api/docs.
 
-  Replaces `OpenApiSpex.Plug.SwaggerUI`, whose page pulls its JS and CSS from a
-  CDN: a self-hosted instance is expected to work without internet access. The
-  assets are copied out of `swagger-ui-dist` into `priv/static/swagger` by the
-  frontend build, so a release that ships the SPA also ships them.
+  Replaces `OpenApiSpex.Plug.SwaggerUI`, because its page gets its JS and CSS
+  from a CDN. A self-hosted instance must work without internet access. The
+  frontend build copies the assets from `swagger-ui-dist` into
+  `priv/static/swagger`, so a release that ships the SPA also ships them.
   """
 
   use ServantWeb, :controller

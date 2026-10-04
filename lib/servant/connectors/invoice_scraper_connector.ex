@@ -1,8 +1,8 @@
 defmodule Servant.Connectors.InvoiceScraperConnector do
   @moduledoc """
-  Generic invoice scraper connector.
-  Uses Playwright (Node.js) provider scripts to login to various services
-  and extract invoice data. Each provider is a JS recipe in priv/scrapers/providers/.
+  Generic connector that scrapes invoices.
+  Uses provider scripts for Playwright (Node.js) to log in to different services
+  and extract the invoice data. Each provider is a JS recipe in priv/scrapers/providers/.
   """
 
   use Servant.Connectors.Connector
@@ -71,10 +71,11 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
     end
   end
 
-  # The provider name is interpolated into a filesystem path by the Node script
-  # (`providers/<name>.js`), so restrict it to a bare identifier (no path
-  # separators or `..`) to prevent traversal into (and execution of) arbitrary
-  # JS. Mirrors the guard in priv/scrapers/invoice_scraper.js.
+  # The Node script interpolates the provider name into a filesystem path
+  # (`providers/<name>.js`). Restrict the name to a bare identifier, with no
+  # path separators and no `..`. This prevents traversal into arbitrary JS and
+  # the execution of that JS. The guard in priv/scrapers/invoice_scraper.js is
+  # the same.
   defp valid_provider?(provider) when is_binary(provider),
     do: Regex.match?(~r/^[a-z0-9_]+$/, provider)
 
@@ -86,9 +87,9 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
     e -> {:error, "Failed to run scraper: #{Exception.message(e)}"}
   end
 
-  # Preflight the runtime requirements so a missing piece yields an actionable
-  # error instead of a raw :enoent (the default Docker image ships without
-  # Node.js; see docs/deploy.md).
+  # Make sure that the runtime requirements are present before the run. Then a
+  # missing piece gives an error that the user can act on, not a raw :enoent.
+  # The default Docker image does not include Node.js (see docs/deploy.md).
   defp do_run_scraper(state) do
     script = script_path()
     node = System.find_executable("node")
@@ -112,8 +113,8 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
   end
 
   defp run_node(node, script, state) do
-    # Only the (non-secret) provider goes on the command line. Secrets are
-    # passed via environment variables so they don't leak through `ps`/`/proc`.
+    # Only the provider (not a secret) goes on the command line. Pass the secrets
+    # through environment variables, so they do not leak through `ps`/`/proc`.
     args = [script, "--provider", state.provider]
 
     env =
@@ -129,15 +130,16 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
 
     Logger.info("Running invoice scraper for provider: #{state.provider}")
 
-    # `System.cmd/3` has no `:timeout` option (it was silently ignored), so a
-    # hung Playwright script would block this worker forever. Run it in a Task
-    # and enforce the timeout with Task.yield/2 + Task.shutdown/2.
+    # `System.cmd/3` has no `:timeout` option (it silently ignored the option).
+    # As a result, a hung Playwright script blocks this worker forever. Run the
+    # script in a Task and apply the timeout with Task.yield/2 + Task.shutdown/2.
     #
-    # stderr is folded into stdout: the script writes every diagnostic there
-    # (including the one line that says what actually broke), and letting it
-    # go to the OS's stderr put it out of reach of both the UI and the audit
-    # log. The JSON payload is the script's last write and holds no newline,
-    # so `parse_output/1` still finds it under the log lines.
+    # stderr goes into stdout. The script writes every diagnostic to stderr,
+    # and that includes the one line that says what broke. When that output
+    # went to the stderr of the OS, it was out of reach of the UI and of the
+    # audit log. The JSON payload is the last write of the script and contains
+    # no newline. As a result, `parse_output/1` still finds it under the log
+    # lines.
     task =
       Task.async(fn ->
         try do
@@ -158,8 +160,8 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
       {:ok, {:error, message}} ->
         {:error, "Failed to run scraper: #{message}"}
 
-      # Task.yield/2 returns {:exit, reason} if the task died abnormally; without
-      # this clause it would fall through as a CaseClauseError and crash the worker.
+      # Task.yield/2 returns {:exit, reason} if the task died abnormally. Without
+      # this clause, that result raises a CaseClauseError and crashes the worker.
       {:exit, reason} ->
         {:error, "Scraper crashed: #{inspect(reason)}"}
 
@@ -168,7 +170,7 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
     end
   end
 
-  # The payload is the script's last write; everything above it is log lines.
+  # The payload is the last write of the script. All the text above it is log lines.
   @doc false
   def parse_output(output) do
     case Jason.decode(last_line(output)) do
@@ -183,8 +185,9 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
     end
   end
 
-  # What to show the user out of a failed run: the line the script flagged as
-  # the error, or the tail of its log when it died without flagging one.
+  # This is the text to show to the user after a failed run. It is the line
+  # that the script flagged as the error. If the script died and flagged no
+  # line, it is the tail of the log of the script.
   @max_diagnostic 300
 
   @doc false
@@ -215,8 +218,9 @@ defmodule Servant.Connectors.InvoiceScraperConnector do
     |> String.trim()
   end
 
-  # Prefix common currencies with their symbol, otherwise suffix the code
-  # (e.g. "12.00 CHF"); never hard-code "$".
+  # Put the symbol before the amount for the common currencies. For the other
+  # currencies, put the code after the amount (for example "12.00 CHF"). Never
+  # hard-code "$".
   defp format_amount(amount, currency) do
     case String.upcase(to_string(currency)) do
       "USD" -> "$#{amount}"

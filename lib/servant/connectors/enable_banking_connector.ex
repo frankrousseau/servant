@@ -1,20 +1,22 @@
 defmodule Servant.Connectors.EnableBankingConnector do
   @moduledoc """
-  Connector syncing bank transactions through Enable Banking, a licensed
-  PSD2 aggregator covering most EU banks (La Banque Postale, CIC, ...).
+  Connector that syncs bank transactions through Enable Banking, a licensed
+  PSD2 aggregator that covers most EU banks (La Banque Postale, CIC, ...).
 
-  Setup happens in two steps. First the config: the Enable Banking
-  application id and its RSA private key (every request is authenticated
-  with a short-lived RS256 JWT signed here, no extra dependency). Then the
-  consent: the connector page asks for an authorization URL (`auth_url/3`),
-  the user approves at their bank and lands back on the SPA callback with a
-  code that `exchange_code/2` turns into a session (id, accounts, expiry)
-  persisted into the config. PSD2 consents expire after 90-180 days; syncs
-  then fail with a reconnect message until the user re-consents.
+  The setup has two steps. The first step is the config: the application id
+  of Enable Banking and its RSA private key. A short-lived RS256 JWT, signed
+  here with no extra dependency, authenticates every request.
 
-  Sync walks each account's transactions since a per-account booking-date
-  cursor, refetching a small overlap window; the entries upsert dedups on
-  `external_id`.
+  The second step is the consent. The connector page asks for an
+  authorization URL (`auth_url/3`). The user approves at their bank and comes
+  back to the SPA callback with a code. `exchange_code/2` changes that code
+  into a session (id, accounts, expiry), persisted into the config. PSD2
+  consents expire after 90-180 days. Then the syncs fail with a reconnect
+  message until the user gives consent again.
+
+  The sync walks the transactions of each account from a booking-date cursor
+  kept per account, and fetches a small overlap window again. The upsert of
+  the entries dedups on `external_id`.
   """
 
   use Servant.Connectors.Connector
@@ -116,9 +118,10 @@ defmodule Servant.Connectors.EnableBankingConnector do
         {:ok, entries, %{state | cursors: cursors}}
 
       {_, errs} ->
-        # Some accounts synced, others failed (e.g. a partially revoked consent).
-        # The worker marks the sync "completed" and clears config.error on {:ok},
-        # so without this the amputated accounts would be silently invisible.
+        # Some accounts synced, others failed (for example, a partially revoked
+        # consent). The worker marks the sync "completed" and clears config.error
+        # on {:ok}. Without this log, the amputated accounts are silently
+        # invisible.
         Logger.error(
           "enable_banking: #{length(errs)} account(s) failed to sync: #{Enum.join(errs, "; ")}"
         )
@@ -152,8 +155,8 @@ defmodule Servant.Connectors.EnableBankingConnector do
   # --- Consent flow (called by the connector controller, not the worker) ---
 
   @doc """
-  Builds the bank authorization URL for the consent flow. `state_param` is
-  echoed back on the redirect (the SPA passes the connector config id).
+  Builds the bank authorization URL for the consent flow. The redirect echoes
+  `state_param` back (the SPA passes the connector config id).
   """
   def auth_url(config, redirect_url, state_param) do
     with {:ok, state} <- init(%{}, config),
@@ -186,7 +189,12 @@ defmodule Servant.Connectors.EnableBankingConnector do
 
   @doc """
   Exchanges the authorization code for a session. Returns the config fields
-  to persist (session id, accounts, consent expiry, reset cursors).
+  to persist:
+
+  - session id
+  - accounts
+  - consent expiry
+  - reset cursors
   """
   def exchange_code(config, code) do
     with {:ok, state} <- init(%{}, config),

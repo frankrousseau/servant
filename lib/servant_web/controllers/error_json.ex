@@ -1,12 +1,12 @@
 defmodule ServantWeb.ErrorJSON do
   @moduledoc """
-  This module is invoked by your endpoint in case of errors on JSON requests.
+  Your endpoint invokes this module when errors occur on JSON requests.
 
   See config/config.exs.
   """
 
-  # If you want to customize a particular status code,
-  # you may add your own clauses, such as:
+  # To customize a particular status code,
+  # you can add your own clauses, such as:
   #
   # def render("500.json", _assigns) do
   #   %{errors: %{detail: "Internal Server Error"}}

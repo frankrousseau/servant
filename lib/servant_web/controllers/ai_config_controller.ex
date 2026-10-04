@@ -1,5 +1,5 @@
 defmodule ServantWeb.AiConfigController do
-  @moduledoc "Per-user AI agents configuration (Settings > Agents)."
+  @moduledoc "Per-user configuration of the AI agents (Settings > Agents)."
 
   use ServantWeb, :controller
   use OpenApiSpex.ControllerSpecs

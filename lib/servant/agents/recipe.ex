@@ -1,9 +1,10 @@
 defmodule Servant.Agents.Recipe do
   @moduledoc """
-  Declarative recipe for deterministic recurring agents: a fixed-shape,
-  strictly validated JSON object (where / group_by / aggregate / emit_if)
-  interpreted in memory over the agent's entry window. No model call at
-  run time; the LLM only drafts the recipe at authoring time.
+  Declarative recipe for the deterministic recurring agents. A recipe is a
+  JSON object with a fixed shape and a strict validation (where / group_by /
+  aggregate / emit_if). The interpreter runs it in memory over the entry
+  window of the agent. There is no model call at run time. The LLM only
+  drafts the recipe at authoring time.
   """
 
   @known_keys ~w(where group_by aggregate emit_if)
@@ -80,7 +81,7 @@ defmodule Servant.Agents.Recipe do
   defp valid_numeric_value?(value) when is_number(value), do: true
 
   defp valid_numeric_value?(value) when is_binary(value) do
-    # ISO date strings start with digits; reject arbitrary strings like "high"
+    # ISO date strings start with digits. Reject arbitrary strings such as "high".
     value != "" and String.at(value, 0) in ~w(0 1 2 3 4 5 6 7 8 9)
   end
 
@@ -151,9 +152,9 @@ defmodule Servant.Agents.Recipe do
   # ----- interpretation -----
 
   @doc """
-  Interprets a validated recipe over the window's entries (assumed sorted
-  by occurred_at desc). Returns {:ok, markdown} or :skip when emit_if is
-  false.
+  Interprets a validated recipe over the entries of the window. The
+  function assumes that the entries are sorted by occurred_at desc.
+  Returns {:ok, markdown}, or :skip when emit_if is false.
   """
   def run(recipe, entries) do
     filtered = apply_where(entries, Map.get(recipe, "where"))
@@ -232,8 +233,8 @@ defmodule Servant.Agents.Recipe do
 
   defp emit?(nil, _value), do: true
   defp emit?(_emit, nil), do: false
-  # Erlang term order would otherwise make gt always emit and lt never for a
-  # non-numeric value (e.g. "last" on a string field); never emit instead.
+  # Never emit for a non-numeric value (for example "last" on a string field).
+  # If not, the Erlang term order makes gt always emit and lt never emit.
   defp emit?(_emit, value) when not is_number(value), do: false
 
   defp emit?(%{"op" => op, "value" => expected}, value) do

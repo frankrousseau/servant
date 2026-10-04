@@ -1,11 +1,13 @@
 defmodule Servant.Auth.Throttle do
   @moduledoc """
-  In-memory failed-attempt throttle for the auth endpoints. Caps failures per
-  key within a rolling window so an attacker who has the password can't brute
-  force the 6-digit TOTP code, and a lone password can't be ground offline-fast
-  online. State lives in a public ETS table owned by this process; it is reset
-  on success and rolls over each window. No persistence: a restart clears it,
-  which is fine for a lockout.
+  In-memory throttle of the failed attempts for the auth endpoints.
+
+  It caps the failures per key in a rolling window. As a result, an attacker
+  who has the password cannot brute force the 6-digit TOTP code. And an
+  attacker cannot brute force a lone password online at an offline speed. The
+  state is in a public ETS table that this process owns. A success resets the
+  state, and the state rolls over at each window. There is no persistence: a
+  restart clears the state, which is satisfactory for a lockout.
   """
   use GenServer
 
@@ -22,8 +24,8 @@ defmodule Servant.Auth.Throttle do
   end
 
   @doc """
-  `:ok` when the key may attempt, or `{:error, retry_after_seconds}` when it is
-  locked for the rest of the current window.
+  Returns `:ok` when the key can attempt, or `{:error, retry_after_seconds}` when
+  the key is locked for the rest of the current window.
   """
   def check(key) do
     now = now_ms()
@@ -38,9 +40,10 @@ defmodule Servant.Auth.Throttle do
     end
   end
 
-  @doc "Records a failed attempt, starting a fresh window if the last expired."
-  # ponytail: read-then-write race can under/over-count by a hair under
-  # concurrent failures; irrelevant for a lockout threshold.
+  @doc "Records a failed attempt. Starts a new window if the last window is expired."
+  # ponytail: with concurrent failures, the read-then-write race can make the
+  # count a little too low or too high. This is not important for a lockout
+  # threshold.
   def record_failure(key) do
     now = now_ms()
 
@@ -55,7 +58,7 @@ defmodule Servant.Auth.Throttle do
     :ok
   end
 
-  @doc "Clears a key's counter (call on a successful auth)."
+  @doc "Clears the counter of a key. Call it on a successful auth."
   def reset(key) do
     :ets.delete(@table, key)
     :ok

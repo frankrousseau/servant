@@ -1,9 +1,10 @@
 defmodule Servant.Agents do
   @moduledoc """
-  Shared bookkeeping for AI agent runs. Every run records the model used,
-  the tokens consumed and its duration (Sustainable AI manifesto). Two
-  recurrent modes ship: prompt reports (model-driven) and deterministic
-  recipes (local aggregation). v1 also ships the "builder" type.
+  Shared bookkeeping for the runs of the AI agents. Each run records its
+  model, the tokens that it used and its duration (Sustainable AI manifesto).
+  There are two recurrent modes: prompt reports (model-driven) and
+  deterministic recipes (local aggregation). v1 also includes the "builder"
+  type.
   """
 
   import Ecto.Query
@@ -78,7 +79,7 @@ defmodule Servant.Agents do
 
   def delete_agent(%Agent{} = agent), do: Repo.delete(agent)
 
-  @doc "Sets last_run_at (programmatic field, never cast)."
+  @doc "Sets last_run_at. The code sets this field and never casts it."
   def touch_last_run(%Agent{} = agent, dt \\ nil) do
     dt = dt || DateTime.truncate(DateTime.utc_now(), :second)
 
@@ -88,13 +89,14 @@ defmodule Servant.Agents do
   end
 
   @doc """
-  Whether an agent should run at `now`. `tz` is the owner's timezone, used
-  only by agents pinned to an hour of the day.
+  Returns true if an agent must run at `now`. `tz` is the timezone of the
+  owner. Only the agents with a pinned hour of the day use it.
 
-  Without `run_at_hour`, an agent runs once the interval has elapsed since its
-  last run, so a daily agent drifts later every day by however long the run
-  took. Pinned to an hour, it fires in that local hour instead, at most once
-  per interval, which also keeps the daily one at the same time year round.
+  Without `run_at_hour`, an agent runs when the interval after its last run is
+  complete. As a result, a daily agent drifts later each day by the duration
+  of the run. With a pinned hour, the agent fires in that local hour, one time
+  at most for each interval. This also keeps the daily agent at the same time
+  all year.
   """
   def due?(agent, now, tz \\ "Etc/UTC")
 
@@ -104,8 +106,8 @@ defmodule Servant.Agents do
       when is_integer(hour) and schedule != "every_hour" do
     with {:ok, local} <- DateTime.shift_zone(now, tz),
          {:ok, slot} <- slot_at(local, hour) do
-      # Half an interval of slack: a run yesterday at the same hour is far
-      # enough, a weekly agent can't fire again the next day.
+      # The slack is half an interval. A run yesterday at the same hour is far
+      # enough. A weekly agent cannot fire again the next day.
       spacing = div(@intervals[schedule], 2)
 
       DateTime.compare(local, slot) != :lt and
@@ -113,7 +115,7 @@ defmodule Servant.Agents do
            (DateTime.compare(agent.last_run_at, slot) == :lt and
               DateTime.diff(now, agent.last_run_at) >= spacing))
     else
-      # An unknown timezone shouldn't freeze the agent: fall back to the
+      # An unknown timezone must not freeze the agent: fall back to the
       # interval rule.
       _ -> elapsed_due?(agent, now)
     end
@@ -128,7 +130,8 @@ defmodule Servant.Agents do
     DateTime.compare(next, now) != :gt
   end
 
-  # Today's occurrence of `hour` in the local zone, back in UTC-comparable form.
+  # Returns the occurrence of `hour` today in the local zone. The result has a
+  # form that you can compare with UTC.
   defp slot_at(local, hour) do
     with {:ok, naive} <- NaiveDateTime.new(DateTime.to_date(local), Time.new!(hour, 0, 0)) do
       DateTime.from_naive(naive, local.time_zone)
@@ -176,9 +179,9 @@ defmodule Servant.Agents do
   defp maybe_filter(query, field, value), do: where(query, [r], field(r, ^field) == ^value)
 
   defp sweep_stale_runs(user_id) do
-    # Tasks do not survive a server restart, so a run still "running" past
-    # this point was interrupted, not actually running; 30 min is far beyond
-    # the 300s AI timeout plus retry.
+    # Tasks do not survive a server restart. A run that is still "running"
+    # after this point does not run: something interrupted it. 30 min is much
+    # longer than the 300s AI timeout plus the retry.
     stale_cutoff = DateTime.add(DateTime.utc_now(), -30, :minute)
 
     Run
@@ -212,10 +215,11 @@ defmodule Servant.Agents do
   end
 
   @doc """
-  Runs a recurring agent synchronously (tests and the scheduler): gathers
-  the entries context, asks the model for a report, stores it as an
-  ai_report entry. Returns {:ok, entry, run} | {:error, message, run};
-  pre-run validation failures return {:error, message} without a run.
+  Runs a recurring agent synchronously (for the tests and the scheduler).
+  Collects the context of the entries, asks the model for a report and stores
+  the report as an ai_report entry. Returns {:ok, entry, run} |
+  {:error, message, run}. A validation failure before the run returns
+  {:error, message} without a run.
   """
   def run_now(user, agent, ai_opts \\ []) do
     with {:ok, run, agent} <- prepare_run(user, agent) do
@@ -226,7 +230,7 @@ defmodule Servant.Agents do
     end
   end
 
-  @doc "Async variant for the API: returns the run immediately, work happens in a supervised Task."
+  @doc "Async variant for the API. Returns the run immediately. A supervised Task does the work."
   def start_run(user, agent) do
     with {:ok, run, agent} <- prepare_run(user, agent) do
       {:ok, _pid} =
@@ -242,20 +246,21 @@ defmodule Servant.Agents do
   end
 
   @doc """
-  Runs every due enabled agent; each agent is rescued individually.
+  Runs each enabled agent that is due. A rescue protects each agent
+  individually.
 
-  Sequential by default: a self-hosted model server usually serves one request
-  at a time, so firing a batch at it would just queue at the far end while
-  holding connections open. An instance pointed at a hosted API can raise
-  `AGENT_CONCURRENCY` to overlap runs.
+  The runs are sequential by default. A self-hosted model server usually
+  serves one request at a time. A batch of requests only makes a queue on that
+  server and keeps connections open. An instance that points at a hosted API
+  can increase `AGENT_CONCURRENCY` to let the runs overlap.
   """
   def run_due(now \\ DateTime.utc_now()) do
     now
     |> due_agents()
     |> Task.async_stream(&run_due_agent/1,
       max_concurrency: max_concurrency(),
-      # A local model on CPU can take minutes; the run's own failure path is
-      # what bounds a hung request, not this.
+      # A local model on CPU can take minutes. The failure path of the run
+      # puts a limit on a hung request. This timeout does not.
       timeout: :infinity,
       ordered: false
     )
@@ -271,7 +276,8 @@ defmodule Servant.Agents do
       try do
         run_now(user, agent)
       rescue
-        # the run row was already failed by the execute rescue (report or recipe)
+        # The rescue of the execute function (report or recipe) already marked
+        # the run row as failed.
         _exception -> :error
       end
     end
@@ -286,9 +292,10 @@ defmodule Servant.Agents do
 
   @doc """
   Asks the configured model to translate a plain-language description
-  into a recipe (authoring time only; execution never calls the model).
-  The prompt carries entry kinds and data key names, never values. One
-  repair round on an invalid reply. Every draft is a tracked run.
+  into a recipe. This occurs only at authoring time: the execution never
+  calls the model. The prompt contains the entry kinds and the names of the
+  data keys, never the values. An invalid reply gets one repair round. Each
+  draft is a tracked run.
   """
   def draft_recipe(user, description, kinds, ai_opts \\ []) do
     config = Accounts.ai_config(user)
@@ -408,7 +415,7 @@ defmodule Servant.Agents do
       "Known data fields (from recent entries, names only): #{keys_line}"
   end
 
-  # Key names only: the draft never needs personal values.
+  # Key names only: personal values are never necessary for the draft.
   defp sample_keys(user_id, kinds) do
     user_id
     |> Data.list_entries(%{"kinds" => kinds, "per_page" => 20})
@@ -486,9 +493,10 @@ defmodule Servant.Agents do
     end
   end
 
-  # One AI config per user (base URL, key, model); an agent may override the
-  # model alone, e.g. a cheap local model for a daily digest and a stronger
-  # one for a weekly analysis, without a second endpoint to configure.
+  # Each user has one AI config (base URL, key, model). An agent can override
+  # only the model. For example, it can use a cheap local model for a daily
+  # digest and a stronger model for a weekly analysis. No second endpoint is
+  # necessary in the configuration.
   defp agent_config(user, agent) do
     config = Accounts.ai_config(user)
 
@@ -579,7 +587,7 @@ defmodule Servant.Agents do
     "- #{date} | #{entry.title || "-"} | #{Jason.encode!(compact_data(entry.data))}"
   end
 
-  # Long string values (raw payloads, base64) would eat the whole budget.
+  # Long string values (raw payloads, base64) can use all of the budget.
   defp compact_data(data) when is_map(data) do
     data
     |> Enum.reject(fn {_k, v} -> is_binary(v) and byte_size(v) > 200 end)

@@ -1,6 +1,7 @@
 defmodule Servant.Util do
   @moduledoc """
-  Small shared helpers used across contexts (kept here to avoid copies drifting).
+  Small shared helpers for all the contexts. They are here to prevent copies
+  that drift.
   """
 
   @doc "Strips a leading UTF-8 BOM from a binary, if present."
@@ -8,8 +9,9 @@ defmodule Servant.Util do
   def strip_bom(content), do: content
 
   @doc """
-  Parses an integer from a string, returning `default` on failure. Passes
-  integers through and falls back to `default` for anything else (e.g. `nil`).
+  Parses an integer from a string. Returns `default` on failure. Returns an
+  integer as is, and returns `default` for all other values (for example
+  `nil`).
   """
   def parse_int(val, default) when is_binary(val) do
     case Integer.parse(val) do

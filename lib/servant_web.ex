@@ -1,28 +1,29 @@
 defmodule ServantWeb do
   @moduledoc """
-  The entrypoint for defining your web interface, such
-  as controllers, components, channels, and so on.
+  The entrypoint that defines your web interface, such
+  as controllers, components, channels and other items.
 
-  This can be used in your application as:
+  Use it in your application as follows:
 
       use ServantWeb, :controller
       use ServantWeb, :html
 
-  The definitions below will be executed for every controller,
-  component, etc, so keep them short and clean, focused
-  on imports, uses and aliases.
+  Each controller, component and other item runs the
+  definitions below. Keep them short and clean. Include
+  only imports, uses and aliases.
 
   Do NOT define functions inside the quoted expressions
-  below. Instead, define additional modules and import
+  below. Define additional modules and import
   those modules here.
   """
 
   # `models` holds the face-detection weights (frontend/public/models).
-  # Every other file of frontend/public referenced by the SPA (logo.svg on the
-  # public share page, strava-logo.png) must be listed too, or it falls
-  # through to the SPA fallback and renders as a broken image.
-  # "swagger" holds the SwaggerUI assets the frontend build copies in, served
-  # to the /api/docs page (ServantWeb.DocsController).
+  # List here each other file of frontend/public that the SPA references
+  # (logo.svg on the public share page, strava-logo.png). If a file is not in
+  # the list, the request goes to the SPA fallback and the image renders as
+  # broken.
+  # "swagger" holds the SwaggerUI assets that the frontend build copies in.
+  # The /api/docs page (ServantWeb.DocsController) gets them.
   def static_paths,
     do:
       ~w(assets fonts images models swagger favicon.ico favicon.svg logo.svg strava-logo.png robots.txt index.html)
@@ -31,7 +32,7 @@ defmodule ServantWeb do
     quote do
       use Phoenix.Router, helpers: false
 
-      # Import common connection and controller functions to use in pipelines
+      # Import the common connection and controller functions for use in pipelines.
       import Plug.Conn
       import Phoenix.Controller
     end
@@ -64,7 +65,7 @@ defmodule ServantWeb do
   end
 
   @doc """
-  When used, dispatch to the appropriate controller/live_view/etc.
+  When used, dispatch to the applicable controller, live_view or other definition.
   """
   defmacro __using__(which) when is_atom(which) do
     apply(__MODULE__, which, [])

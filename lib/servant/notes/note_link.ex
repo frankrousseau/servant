@@ -1,10 +1,10 @@
 defmodule Servant.Notes.NoteLink do
   @moduledoc """
-  A directed link from one note to a target entry, maintained by
-  `Servant.Notes` on every note save. Two kinds:
+  A directed link from one note to a target entry. `Servant.Notes` updates
+  the links on every note save. There are two kinds:
 
     * `"wikilink"`: a `[[link]]` to another note (by title or folder/title
-      path); powers backlinks and, later, the note graph.
+      path). It powers the backlinks and, later, the note graph.
     * `"mention"`: a `@[[mention]]` of a contact or event entry.
 
   `target_note_id` is resolved when the target entry exists (a note for

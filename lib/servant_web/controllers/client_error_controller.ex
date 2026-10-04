@@ -1,9 +1,9 @@
 defmodule ServantWeb.ClientErrorController do
   @moduledoc """
-  Lets the SPA report client-side failures (upload conversions, etc.) so
-  they land in the Audit page's error tab, which mirrors server-side
-  `Logger.error` events and would otherwise never see browser-only
-  errors.
+  Lets the SPA report client-side failures (upload conversions, for example).
+  The failures then go to the error tab of the Audit page. That tab mirrors
+  the server-side `Logger.error` events. Without this controller, it never
+  sees browser-only errors.
   """
 
   use ServantWeb, :controller
@@ -48,8 +48,8 @@ defmodule ServantWeb.ClientErrorController do
     send_resp(conn, 204, "")
   end
 
-  # A non-string field (e.g. `{"message": {...}}`) has no String.Chars impl, so
-  # inspect it rather than let to_string/1 raise a 500.
+  # A non-string field (for example `{"message": {...}}`) has no String.Chars
+  # impl. Inspect it, so that to_string/1 does not raise a 500.
   defp truncate(value) when is_binary(value), do: String.slice(value, 0, @max_field)
   defp truncate(value), do: value |> inspect() |> String.slice(0, @max_field)
 end

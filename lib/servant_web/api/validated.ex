@@ -1,13 +1,14 @@
 defmodule ServantWeb.Api.Validated do
   @moduledoc """
-  Validates a controller's requests against the OpenAPI operation declared for
-  the action: a body or query param that contradicts the spec is rejected with
-  422 before the action runs, instead of the spec being documentation only.
+  Validates the requests of a controller against the OpenAPI operation declared
+  for the action. A body or a query param that contradicts the spec gets a 422
+  before the action runs. Without this module, the spec is documentation only.
 
-  `use ServantWeb.Api.Validated` after `use OpenApiSpex.ControllerSpecs`.
+  Add `use ServantWeb.Api.Validated` after `use OpenApiSpex.ControllerSpecs`.
 
-  Casting runs with `replace_params: false`: `conn.params` keeps the raw
-  string-keyed map every action here reads, so validation is the only effect.
+  The cast runs with `replace_params: false`. `conn.params` keeps the raw map
+  with string keys that each action here reads. As a result, validation is the
+  only effect.
   """
 
   defmacro __using__(_opts) do

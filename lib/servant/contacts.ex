@@ -1,11 +1,17 @@
 defmodule Servant.Contacts do
   @moduledoc """
-  Contact-specific operations over `contact` entries; the generic CRUD stays
-  in `Servant.Data`. Today: merging duplicates into one survivor, which is
-  the one operation that has to touch several kinds at once, because a
-  contact id is referenced from events (`data.contact_id`), photos
-  (`data.faces[].person_id`, `data.people[].id`), the birthday and "me"
-  prefs entries, other contacts' relations and the notes' mention links.
+  Contact-specific operations on `contact` entries. The generic CRUD stays
+  in `Servant.Data`.
+
+  At this time, there is one operation: the merge of duplicates into one
+  survivor. It is the only operation that must change several kinds at the
+  same time, because these items refer to a contact id:
+
+  - events (`data.contact_id`)
+  - photos (`data.faces[].person_id`, `data.people[].id`)
+  - the birthday and "me" prefs entries
+  - the relations of other contacts
+  - the mention links of the notes
   """
 
   import Ecto.Query
@@ -18,22 +24,26 @@ defmodule Servant.Contacts do
 
   @kind "contact"
 
-  # Fields a merge carries over; anything else (raw CardDAV payloads, ids of
-  # a source system) belongs to one card only and stays with the survivor.
+  # The fields that a merge copies. All the other data (raw CardDAV payloads,
+  # ids of a source system) belongs to one card only and stays with the
+  # survivor.
   @scalar_fields ~w(display_name org title url birthday address photo source_name)
   @list_fields ~w(emails phones)
   @referencing_kinds ~w(event photo prefs contact)
   @phone_suffix 9
 
   @doc """
-  Merges `duplicate_ids` into the contact `survivor_id`: the survivor keeps
-  its own values and takes the duplicates' where it had none (emails, phones,
-  tags and relations are unioned; notes are concatenated), every reference
-  to a duplicate is repointed at the survivor, and the duplicates are
-  deleted. All in one transaction; the realtime events go out after commit.
+  Merges `duplicate_ids` into the contact `survivor_id`.
 
-  Returns `{:ok, survivor}` or `{:error, reason}` with a string reason for a
-  bad request (unknown id, not a contact, survivor listed as duplicate).
+  The survivor keeps its own values. Where it has no value, it takes the
+  value of a duplicate. The merge makes the union of the emails, the phones,
+  the tags and the relations, and concatenates the notes. Then it points each
+  reference to a duplicate at the survivor and deletes the duplicates. All of
+  this occurs in one transaction. The realtime events go out after the commit.
+
+  Returns `{:ok, survivor}` or `{:error, reason}`. The reason is a string for
+  a bad request (unknown id, not a contact, survivor in the list of
+  duplicates).
   """
   @spec merge(String.t(), String.t(), [String.t()]) ::
           {:ok, Entry.t()} | {:error, String.t() | Ecto.Changeset.t()}
@@ -67,10 +77,15 @@ defmodule Servant.Contacts do
   end
 
   @doc """
-  The survivor's data after taking what the duplicates add: its own
-  non-blank values win, lists are unioned (survivor first, deduplicated on a
-  normalized value), tags are unioned, notes are concatenated, relations are
-  unioned minus the ones pointing at any merged contact.
+  Returns the data of the survivor with the additions of the duplicates.
+
+  - The non-blank values of the survivor win.
+  - The lists become a union (survivor first, deduplicated on a normalized
+    value).
+  - The tags become a union.
+  - The notes become a concatenation.
+  - The relations become a union, without the relations that point at a
+    merged contact.
   """
   @spec merge_data(map(), [map()], [String.t()]) :: map()
   def merge_data(survivor_data, duplicate_datas, merged_ids) do
@@ -89,7 +104,7 @@ defmodule Servant.Contacts do
     |> Map.new()
   end
 
-  @doc "The entry title the apps compose for a contact: \"Name - org - title - email\"."
+  @doc "Returns the entry title that the apps make for a contact: \"Name - org - title - email\"."
   @spec title_for(map()) :: String.t()
   def title_for(data) do
     name = blank_to_nil(data["display_name"]) || "Unnamed"
@@ -148,9 +163,10 @@ defmodule Servant.Contacts do
   end
 
   # A phone knows a contact by its resource name and UID. When the survivor
-  # has no CardDAV identity and a duplicate has one, the survivor takes it
-  # over: the phone then sees its contact updated instead of deleted. The raw
-  # payloads go, so the merged card is synthesized from the merged fields.
+  # has no CardDAV identity and a duplicate has one, the survivor takes that
+  # identity. The phone then sees an update of its contact, not a deletion.
+  # The merge drops the raw payloads, so the merged fields give the merged
+  # card.
   defp inherit_carddav_identity(data, duplicates) do
     phone = Enum.find(duplicates, &is_binary(&1.data["carddav_filename"]))
 
@@ -241,9 +257,9 @@ defmodule Servant.Contacts do
     end
   end
 
-  # Candidates: entries of the referencing kinds whose JSON text contains a
-  # duplicate id (the SQLite LIKE the palette search relies on too); the
-  # rewrite below then matches the exact fields.
+  # The candidates are the entries of the referencing kinds that contain a
+  # duplicate id in their JSON text. This is the same SQLite LIKE that the
+  # palette search uses. The rewrite below then matches the exact fields.
   defp referencing_entries(user_id, duplicate_ids) do
     duplicate_ids
     |> Enum.flat_map(fn id ->
@@ -310,8 +326,9 @@ defmodule Servant.Contacts do
               do: Map.put(relation, "contact_id", survivor_id),
               else: relation
           end)
-          # A contact related to a merged duplicate of itself would now point
-          # at itself; drop that, and keep one relation per contact.
+          # A contact with a relation to a merged duplicate of itself now
+          # points at itself. Drop that relation. Keep one relation for each
+          # contact.
           |> Enum.reject(&(is_map(&1) and &1["contact_id"] == id))
           |> Enum.uniq_by(&if(is_map(&1), do: &1["contact_id"], else: &1))
 
@@ -345,9 +362,9 @@ defmodule Servant.Contacts do
   defp value_of(value) when is_binary(value), do: String.trim(value)
   defp value_of(_), do: ""
 
-  # Emails compare case-insensitively; phones on their trailing digits, the
-  # same rule as the app's duplicate detection, so "+33 6 12 34 56 78" and
-  # "06 12 34 56 78" count as one line.
+  # Emails compare without case. Phones compare on their last digits. This is
+  # the same rule as the duplicate detection of the app. As a result,
+  # "+33 6 12 34 56 78" and "06 12 34 56 78" count as one line.
   defp normalize_value("emails", value), do: String.downcase(value)
 
   defp normalize_value("phones", value) do

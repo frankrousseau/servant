@@ -1,10 +1,10 @@
 defmodule Servant.Connectors.StravaConnector do
   @moduledoc """
-  Connector that fetches activities from Strava using the V3 API.
+  Connector that fetches activities from Strava with the V3 API.
 
-  Requires the user to create a Strava API app and provide their
+  The user must create a Strava API app and give their
   client_id, client_secret, and refresh_token in the config.
-  The connector handles access token refresh automatically.
+  The connector refreshes the access token automatically.
   """
 
   use Servant.Connectors.Connector
@@ -67,10 +67,10 @@ defmodule Servant.Connectors.StravaConnector do
 
   @impl true
   def sync(state) do
-    # Not a `with/else`: the token refresh may rotate `refresh_token` into a new
-    # `state`, and that rotated state must be returned on EVERY branch (including
-    # a later fetch error) or the rotated token is lost and the connector breaks
-    # permanently. A `with/else` would shadow `state` back to the original in the
+    # Not a `with/else`. The token refresh can rotate `refresh_token` into a new
+    # `state`. EVERY branch must return that rotated state (a later fetch error
+    # included). If not, the rotated token is lost and the connector breaks
+    # permanently. A `with/else` shadows `state` back to the original in the
     # else clauses, so we thread it explicitly through nested `case`s.
     case ensure_access_token(state) do
       {:ok, access_token, state} ->
@@ -122,7 +122,7 @@ defmodule Servant.Connectors.StravaConnector do
       when is_binary(access_token) and is_integer(expires_at) ->
         new_refresh = resp["refresh_token"]
 
-        # Cache the token with expiration
+        # Cache the token with its expiration.
         exp_dt = DateTime.from_unix!(expires_at)
 
         Servant.Connectors.put_env(
@@ -136,7 +136,7 @@ defmodule Servant.Connectors.StravaConnector do
           exp_dt
         )
 
-        # Update refresh_token if Strava rotated it
+        # Update refresh_token if Strava rotated it.
         new_state =
           if new_refresh && new_refresh != state.refresh_token do
             Logger.info("Strava refresh token rotated for client #{state.client_id}")
@@ -158,8 +158,8 @@ defmodule Servant.Connectors.StravaConnector do
 
   # --- Activities fetching ---
 
-  # Only fetch activities newer than the persisted cursor (Strava `after` is a
-  # unix timestamp), so we don't re-paginate the entire history every sync.
+  # Fetch only the activities newer than the persisted cursor (Strava `after`
+  # is a unix timestamp). Then a sync does not paginate the full history again.
   defp fetch_all_activities(access_token, after_ts) do
     fetch_activities_page(access_token, after_ts, 1, [])
   end
@@ -194,8 +194,8 @@ defmodule Servant.Connectors.StravaConnector do
     end
   end
 
-  # Advance the cursor to the most recent activity start time (unix seconds),
-  # keeping the previous value when this sync returned nothing newer.
+  # Move the cursor to the most recent activity start time (unix seconds).
+  # Keep the previous value when this sync returned nothing newer.
   defp latest_activity_epoch(activities, fallback) do
     epochs =
       activities

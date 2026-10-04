@@ -1,6 +1,6 @@
 defmodule Servant.Connectors.HyperEVMConnector do
   @moduledoc """
-  Connector for HyperEVM (Hyperliquid's EVM) wallet transactions.
+  Connector for the wallet transactions of HyperEVM (the EVM of Hyperliquid).
   """
 
   use Servant.Connectors.EVMConnector,

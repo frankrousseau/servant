@@ -1,13 +1,14 @@
 defmodule Servant.Apps do
   @moduledoc """
-  Installable user apps: cloned from a git repository, described by a
-  `servant-app.json` manifest at the repo root, and served to the SPA from
-  per-user file storage.
+  Installable user apps. The server clones an app from a git repository. A
+  `servant-app.json` manifest at the repo root describes the app. The server
+  serves the app to the SPA from the file storage of the user.
 
-  The manifest requires `id`, `name`, and `entry` (a repo-relative path to a
-  pre-built, self-contained ES module default-exporting an AppModule); `icon`
-  (lucide icon name) and `description` are optional. No build step runs on
-  the server, so the repository must commit its built entry file.
+  The manifest must contain `id`, `name` and `entry`. `entry` is a path,
+  relative to the repo, to a pre-built and self-contained ES module. The
+  default export of this module is an AppModule. `icon` (the name of a lucide
+  icon) and `description` are optional. No build step runs on the server, so
+  the repository must commit its built entry file.
   """
 
   import Ecto.Query
@@ -18,7 +19,8 @@ defmodule Servant.Apps do
 
   @manifest "servant-app.json"
 
-  # Builtin app ids plus SPA top-level routes an installed app must not shadow
+  # The ids of the builtin apps and the top-level routes of the SPA. An
+  # installed app must not shadow them.
   @reserved_ids ~w(calendar checklists contacts files finance notes photos
                    trackers dashboard data connectors settings profile audit
                    login register agents app apps)
@@ -35,7 +37,7 @@ defmodule Servant.Apps do
   end
 
   @doc """
-  Clones `repo_url` (https only) and installs the app it contains for
+  Clones `repo_url` (https only) and installs the app that it contains for
   `user_id`. Returns `{:ok, %UserApp{}}` or `{:error, message}`.
   """
   def install_from_git(user_id, repo_url) do
@@ -47,9 +49,9 @@ defmodule Servant.Apps do
   end
 
   @doc """
-  Re-clones the stored repo_url of an installed app, re-validates its
-  manifest (the id must not change) and replaces the app's files and
-  metadata. Returns `{:ok, %UserApp{}}`, `{:error, :not_found}` or
+  Clones the stored repo_url of an installed app again and validates its
+  manifest again (the id must not change). Then replaces the files and the
+  metadata of the app. Returns `{:ok, %UserApp{}}`, `{:error, :not_found}` or
   `{:error, message}`.
   """
   def update_from_git(user_id, app_id) do
@@ -67,9 +69,9 @@ defmodule Servant.Apps do
   end
 
   @doc """
-  Installs the app contained in `dir` (a checked-out repository). Exposed
-  separately from the git clone so tests can exercise the whole flow without
-  network access.
+  Installs the app that `dir` contains (a checked-out repository). This
+  function is separate from the git clone. As a result, the tests can go
+  through the full flow without network access.
   """
   def install_from_dir(user_id, dir, repo_url) do
     with {:ok, manifest} <- read_manifest(dir),
@@ -91,8 +93,9 @@ defmodule Servant.Apps do
   end
 
   @doc """
-  Updates an installed app from a checked-out repository. Exposed separately
-  from the git clone so tests can exercise the flow without network access.
+  Updates an installed app from a checked-out repository. This function is
+  separate from the git clone. As a result, the tests can go through the flow
+  without network access.
   """
   def update_from_dir(%UserApp{} = app, dir) do
     with {:ok, manifest} <- read_manifest(dir),
@@ -101,8 +104,8 @@ defmodule Servant.Apps do
          :ok <- validate_entry(dir, manifest["entry"]) do
       copy_app_files(app.user_id, app.app_id, dir)
 
-      # force: true bumps updated_at even when the manifest reproduces the
-      # same fields (?v= is the SPA's only ES-module cache-buster)
+      # force: true updates updated_at even when the manifest gives the same
+      # fields. ?v= is the only ES-module cache-buster of the SPA.
       app
       |> UserApp.changeset(manifest_attrs(manifest))
       |> Repo.update(force: true)
@@ -121,7 +124,7 @@ defmodule Servant.Apps do
     end
   end
 
-  @doc "Path the SPA imports the app's entry module from (cookie-authenticated)."
+  @doc "Returns the path from which the SPA imports the entry module (cookie-authenticated)."
   def entry_url(%UserApp{} = app) do
     "/files/#{app.user_id}/installed_apps/#{app.app_id}/#{app.entry}"
   end
@@ -130,18 +133,19 @@ defmodule Servant.Apps do
     Storage.join_files([user_id, "installed_apps", app_id])
   end
 
-  @doc "True when the app was written by the builder agent (no git repo)."
+  @doc "Returns true when the builder agent wrote the app (no git repo)."
   def generated?(%UserApp{repo_url: repo_url}), do: is_nil(repo_url)
 
-  @doc "True when the app has a restorable previous version on disk."
+  @doc "Returns true when the app has a restorable previous version on disk."
   def previous_version?(%UserApp{} = app) do
     generated?(app) and
       File.regular?(Path.join(install_dir(app.user_id, app.app_id), "index.prev.js"))
   end
 
   @doc """
-  Swaps a generated app's entry module with its saved previous version
-  (`index.prev.js`) and bumps updated_at so the SPA reloads the module.
+  Swaps the entry module of a generated app with its saved previous version
+  (`index.prev.js`). Also updates updated_at, so that the SPA reloads the
+  module.
   """
   def restore_previous(user_id, app_id) do
     app = get_app(user_id, app_id)
@@ -164,7 +168,7 @@ defmodule Servant.Apps do
         File.rename!(current, swap)
         File.rename!(prev, current)
         File.rename!(swap, prev)
-        # force: true bumps updated_at even without changes (?v= cache busting)
+        # force: true updates updated_at even without changes (?v= cache busting).
         app |> UserApp.changeset(%{}) |> Repo.update(force: true)
     end
   end
@@ -216,7 +220,8 @@ defmodule Servant.Apps do
   defp validate_repo_url(_), do: {:error, "repo_url must be an https:// git URL"}
 
   defp git_clone(url, dest) do
-    # GIT_TERMINAL_PROMPT=0 fails fast instead of hanging on a credential prompt
+    # GIT_TERMINAL_PROMPT=0 makes git fail fast. If not, git hangs on a
+    # credential prompt.
     case System.cmd(
            "git",
            ["clone", "--depth", "1", "--quiet", "--", url, dest],

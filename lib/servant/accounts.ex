@@ -9,8 +9,8 @@ defmodule Servant.Accounts do
   def register_user(attrs) do
     changeset = User.registration_changeset(%User{}, attrs)
 
-    # The first account created on a fresh instance is the operator (admin).
-    # Set programmatically, never cast, so it can't be mass-assigned.
+    # The first account on a new instance is the operator (admin). The code
+    # sets the admin flag and never casts it, so mass assignment cannot set it.
     changeset =
       if Repo.aggregate(User, :count) == 0 do
         Ecto.Changeset.put_change(changeset, :admin, true)
@@ -54,20 +54,21 @@ defmodule Servant.Accounts do
     "api_key" => nil
   }
 
-  @doc "AI agents config with defaults merged in (string keys)."
+  @doc "Returns the AI agents config, with the defaults for the missing keys (string keys)."
   def ai_config(%User{} = user), do: Map.merge(@ai_defaults, user.ai_config || %{})
 
   def ai_enabled?(%User{} = user), do: ai_config(user)["enabled"] == true
 
-  @doc "ai_config with the API key replaced by \"***\" (for API responses)."
+  @doc "Returns ai_config with \"***\" in the place of the API key (for API responses)."
   def masked_ai_config(%User{} = user) do
     config = ai_config(user)
     %{config | "api_key" => if(config["api_key"], do: "***", else: nil)}
   end
 
   @doc """
-  Updates the AI config from user-supplied attrs. Unknown keys are ignored;
-  an api_key of "***" keeps the stored one (that is what the API returns).
+  Updates the AI config from the attrs that the user supplies. The function
+  ignores unknown keys. An api_key of "***" keeps the stored key, because
+  "***" is the value that the API returns.
   """
   def update_ai_config(%User{} = user, attrs) when is_map(attrs) do
     current = ai_config(user)
@@ -103,8 +104,8 @@ defmodule Servant.Accounts do
     end
   end
 
-  # Non-binary garbage (e.g. api_key: 123 in the PUT JSON) keeps the current
-  # key instead of raising a FunctionClauseError.
+  # A value that is not a binary (for example api_key: 123 in the PUT JSON)
+  # keeps the current key and does not raise a FunctionClauseError.
   defp resolve_api_key(_key, current), do: current
 
   def update_avatar(user, %Plug.Upload{path: tmp_path, content_type: content_type}) do
@@ -131,8 +132,8 @@ defmodule Servant.Accounts do
     if Bcrypt.verify_pass(current_password, user.hashed_password) do
       user
       |> User.password_changeset(%{"password" => new_password})
-      # Invalidate existing sessions: a stolen token must not survive the very
-      # rotation a user reaches for after a compromise.
+      # Invalidate the existing sessions. A user rotates the password after a
+      # compromise, and a stolen token must not stay valid after that rotation.
       |> Ecto.Changeset.put_change(:token_version, user.token_version + 1)
       |> Repo.update()
     else
@@ -140,7 +141,7 @@ defmodule Servant.Accounts do
     end
   end
 
-  @doc "Bumps the user's token_version, invalidating every existing auth token."
+  @doc "Increments the token_version of the user. This invalidates every existing auth token."
   def bump_token_version(%User{} = user) do
     user
     |> Ecto.Changeset.change(%{token_version: user.token_version + 1})
@@ -148,17 +149,17 @@ defmodule Servant.Accounts do
   end
 
   # ----- TOTP (two-factor authentication) -----
-  # The secret is stored AES-256-GCM encrypted (Servant.Encrypted); the last
-  # accepted timestamp refuses code replays within the 30s window. Recovery
-  # is operator-side on a self-hosted instance: clear users.totp_secret in
-  # the database.
+  # Servant.Encrypted encrypts the stored secret with AES-256-GCM. The last
+  # accepted timestamp refuses a replay of a code in the 30s window. On a
+  # self-hosted instance, the operator does the recovery: clear
+  # users.totp_secret in the database.
 
-  @doc "Whether the user has two-factor authentication enabled."
+  @doc "Returns true if two-factor authentication is enabled for the user."
   def totp_enabled?(%User{totp_secret: secret}), do: is_binary(secret)
 
   @doc """
-  Enables TOTP once the user proved they scanned the secret (a fresh valid
-  code is required).
+  Enables TOTP after the user proves that they scanned the secret. A new valid
+  code is necessary.
   """
   def enable_totp(%User{} = user, secret, code)
       when is_binary(secret) and is_binary(code) do
@@ -174,7 +175,7 @@ defmodule Servant.Accounts do
     end
   end
 
-  @doc "Disables TOTP; requires a currently valid code."
+  @doc "Disables TOTP. A code that is valid at this time is necessary."
   def disable_totp(%User{} = user, code) do
     case verify_totp(user, code) do
       {:ok, user} ->
@@ -182,7 +183,7 @@ defmodule Servant.Accounts do
         |> Ecto.Changeset.change(%{
           totp_secret: nil,
           totp_last_used_at: nil,
-          # Removing the second factor invalidates existing sessions too.
+          # The removal of the second factor also invalidates the existing sessions.
           token_version: user.token_version + 1
         })
         |> Repo.update()
@@ -193,9 +194,9 @@ defmodule Servant.Accounts do
   end
 
   @doc """
-  Verifies a login code against the stored secret. Accepts each code once
-  (`since:` refuses anything at or before the last accepted timestamp) and
-  bumps that timestamp on success.
+  Compares a login code with the stored secret. Accepts each code one time
+  only: `since:` refuses a code at or before the last accepted timestamp. On
+  success, updates that timestamp.
   """
   def verify_totp(%User{totp_secret: encrypted} = user, code)
       when is_binary(encrypted) and is_binary(code) do

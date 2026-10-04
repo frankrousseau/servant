@@ -3,8 +3,8 @@ defmodule Servant.Connectors.EVM.ENS do
   Resolves ENS `.eth` names to wallet addresses.
   """
 
-  # ponytail: resolves via the public ensideas API (one GET, no keccak256 /
-  # eth_call plumbing); switch to on-chain resolution if it goes away.
+  # ponytail: resolves through the public ensideas API (one GET, no keccak256 /
+  # eth_call plumbing). Change to on-chain resolution if that API goes away.
   def resolve(name) do
     url = "https://api.ensideas.com/ens/resolve/#{URI.encode(name)}"
 

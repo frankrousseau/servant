@@ -1,6 +1,6 @@
 defmodule Servant.Connectors.Scheduler do
   @moduledoc """
-  On startup, loads all enabled connector configs and starts workers.
+  On startup, loads all the enabled connector configs and starts the workers.
   """
 
   use GenServer
@@ -8,7 +8,7 @@ defmodule Servant.Connectors.Scheduler do
 
   alias Servant.Connectors
 
-  # Sweep expired shared-env rows once a day so the table doesn't grow forever.
+  # Sweep the expired shared-env rows once a day, so the table does not grow forever.
   @cleanup_interval_ms :timer.hours(24)
 
   def start_link(opts) do
@@ -18,7 +18,7 @@ defmodule Servant.Connectors.Scheduler do
   @impl true
   def init(_opts) do
     # Repo and the Ecto.Migrator run before the Scheduler in the supervision
-    # tree, so `handle_continue` is safe here; no need for a hardcoded delay.
+    # tree, so `handle_continue` is safe here. A hardcoded delay is not necessary.
     {:ok, %{}, {:continue, :start_connectors}}
   end
 

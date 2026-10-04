@@ -1,14 +1,14 @@
 defmodule Servant.Connectors.AppleHealth.XMLParser do
   @moduledoc """
-  SAX parser for Apple Health export.xml files.
-  Streams the XML to handle large files (100MB+) without loading everything in memory.
+  SAX parser for the export.xml files of Apple Health.
+  Streams the XML to handle large files (100MB+) and does not load the full content in memory.
   """
 
   @behaviour Saxy.Handler
 
   @doc """
-  Parses an Apple Health export XML string and returns a list of record maps.
-  Groups records by type and aggregates step counts / similar per day.
+  Parses an export XML string of Apple Health and returns a list of record maps.
+  Groups the records by type and aggregates the step counts and similar records per day.
   """
   def parse(xml_content) do
     case Saxy.parse_string(xml_content, __MODULE__, %{records: [], current: nil}) do
@@ -21,7 +21,7 @@ defmodule Servant.Connectors.AppleHealth.XMLParser do
   end
 
   @doc """
-  Parses from a file path using streaming for memory efficiency.
+  Parses from a file path. Uses a stream to keep the memory use low.
   """
   def parse_file(path) do
     case Saxy.parse_stream(File.stream!(path, 64 * 1024), __MODULE__, %{records: [], current: nil}) do
@@ -158,14 +158,14 @@ defmodule Servant.Connectors.AppleHealth.XMLParser do
 
   @doc """
   Converts a raw record map to a normalized structure.
-  Returns nil for unknown/uninteresting record types.
+  Returns nil for record types that are unknown or not of interest.
   """
   def normalize_record(record) do
     type = record["type"]
 
     case Map.get(@type_mapping, type) do
       nil ->
-        # Handle workouts separately
+        # Handle workouts separately.
         if record["_tag"] == "Workout" do
           %{
             category: "workout",
@@ -217,7 +217,7 @@ defmodule Servant.Connectors.AppleHealth.XMLParser do
   defp parse_float(val), do: val
 
   @doc """
-  Parses Apple Health date format "2025-03-28 08:00:00 +0100" into DateTime.
+  Parses the date format of Apple Health ("2025-03-28 08:00:00 +0100") into a DateTime.
   """
   def parse_date(nil), do: nil
 
@@ -234,7 +234,7 @@ defmodule Servant.Connectors.AppleHealth.XMLParser do
         end
 
       _ ->
-        # Try ISO8601 directly
+        # Try ISO8601 directly.
         case DateTime.from_iso8601(str) do
           {:ok, dt, _} -> DateTime.truncate(dt, :second)
           _ -> nil

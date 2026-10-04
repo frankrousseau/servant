@@ -1,8 +1,8 @@
 defmodule ServantWeb.Plugs.RequireAdmin do
   @moduledoc """
   Halts with 403 unless the authenticated user is the operator (admin). Runs
-  after `ServantWeb.Auth`, which has already assigned `:current_user`. Gates
-  operator-only endpoints (the Audit page) whose data spans all users.
+  after `ServantWeb.Auth`, which assigns `:current_user` before this plug. Gates
+  the operator-only endpoints (the Audit page), where the data spans all users.
   """
   import Plug.Conn
 

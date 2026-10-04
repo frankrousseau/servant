@@ -82,7 +82,7 @@ defmodule Servant.Connectors.RSSConnector do
   end
 
   defp parse_rss(xml) when is_binary(xml) do
-    # Simple regex-based RSS parsing for <item> elements
+    # Simple RSS parser for <item> elements, based on a regex.
     ~r/<item>(.*?)<\/item>/s
     |> Regex.scan(xml)
     |> Enum.map(fn [_, item_xml] ->
@@ -108,9 +108,9 @@ defmodule Servant.Connectors.RSSConnector do
     |> String.replace(~r/\]\]>$/, "")
   end
 
-  # A stable, non-nil identifier so the (user_id, source, external_id) unique
-  # constraint actually dedupes. SQLite treats NULLs as distinct, so a nil
-  # external_id would let the same article be inserted again on every sync.
+  # A stable, non-nil identifier, so that the unique constraint on
+  # (user_id, source, external_id) dedupes. SQLite treats NULLs as distinct, so
+  # a nil external_id lets every sync insert the same article again.
   @doc false
   def external_id(item) do
     item.link || item.title || content_hash(item)
@@ -121,8 +121,8 @@ defmodule Servant.Connectors.RSSConnector do
     "sha256:" <> Base.encode16(:crypto.hash(:sha256, raw), case: :lower)
   end
 
-  # Parse the feed's own timestamp so entries sort chronologically. Falls back
-  # to now/0 only when the feed provides no parseable date.
+  # Parse the feed's own timestamp so that the entries sort chronologically.
+  # Uses now/0 as the fallback only when the feed gives no parseable date.
   @doc false
   def parse_pub_date(nil), do: now()
 
@@ -151,7 +151,7 @@ defmodule Servant.Connectors.RSSConnector do
     end
   end
 
-  # RSS <pubDate> uses RFC 822, e.g. "Mon, 06 Sep 2021 16:45:00 +0000" / "… GMT".
+  # RSS <pubDate> uses RFC 822, for example "Mon, 06 Sep 2021 16:45:00 +0000" / "… GMT".
   defp parse_rfc822(str) do
     re =
       ~r/(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([+-]\d{4})?/
@@ -185,8 +185,8 @@ defmodule Servant.Connectors.RSSConnector do
     end
   end
 
-  # Convert a parsed local time to UTC using the numeric offset (UTC = local - offset).
-  # Named zones (GMT/UT/Z) aren't captured and are treated as UTC.
+  # Convert a parsed local time to UTC with the numeric offset (UTC = local - offset).
+  # The regex does not capture the named zones (GMT/UT/Z). They are treated as UTC.
   defp apply_offset(dt, <<sign, h1, h2, m1, m2>>) when sign in [?+, ?-] do
     offset_min = to_int(<<h1, h2>>) * 60 + to_int(<<m1, m2>>)
     offset_min = if sign == ?-, do: -offset_min, else: offset_min

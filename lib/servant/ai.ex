@@ -1,23 +1,23 @@
 defmodule Servant.AI do
   @moduledoc """
-  Minimal client for OpenAI-compatible chat completion endpoints (Ollama,
-  LM Studio, vLLM, Mistral, OpenAI, Anthropic's compatibility layer). One
-  protocol, no per-vendor adapters: the user configures a base URL, a model
-  and an optional API key in Settings > Agents.
+  Minimal client for chat completion endpoints that are compatible with OpenAI
+  (Ollama, LM Studio, vLLM, Mistral, OpenAI, the compatibility layer of
+  Anthropic). There is one protocol and no adapter for each vendor. The user
+  configures a base URL, a model and an optional API key in Settings > Agents.
 
-  No SSRF guard on the base URL: pointing at localhost (a local Ollama) is
-  the nominal case and the URL is the user's own deliberate configuration.
+  There is no SSRF guard on the base URL. A base URL that points at localhost
+  (a local Ollama) is the usual case. The user sets the URL deliberately.
   """
 
-  # Local models on CPU can take minutes to produce a full app module.
+  # Local models on CPU can take minutes to generate a full app module.
   @receive_timeout 300_000
 
   @doc """
   Sends `messages` to `{base_url}/chat/completions`. Returns
-  `{:ok, %{content: binary, usage: usage}}` where `usage` is
-  `%{input_tokens: n, output_tokens: n}` or nil when the server does not
-  report it, or `{:error, message}`. `opts` are extra Req options (tests
-  inject `plug:` stubs through them).
+  `{:ok, %{content: binary, usage: usage}}` or `{:error, message}`. `usage` is
+  `%{input_tokens: n, output_tokens: n}`, or nil when the server does not
+  report it. `opts` are extra Req options. The tests inject `plug:` stubs
+  through them.
   """
   def chat(config, messages, opts \\ []) do
     url = String.trim_trailing(to_string(config["base_url"]), "/") <> "/chat/completions"

@@ -1,5 +1,5 @@
 defmodule Servant.Apps.UserApp do
-  @moduledoc "An app installed from a git repository, loaded by the SPA like a builtin app."
+  @moduledoc "An app installed from a git repository. The SPA loads it like a builtin app."
 
   use Ecto.Schema
   import Ecto.Changeset

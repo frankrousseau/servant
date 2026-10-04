@@ -6,7 +6,7 @@ defmodule ServantWeb.Router do
   pipeline :api do
     plug :accepts, ["json"]
     # Documented operations validate their own request against the spec
-    # (see ServantWeb.Api.Validated); the spec has to be in the conn for that.
+    # (see ServantWeb.Api.Validated). For that, the spec must be in the conn.
     plug OpenApiSpex.Plug.PutApiSpec, module: ServantWeb.ApiSpec
   end
 
@@ -55,7 +55,7 @@ defmodule ServantWeb.Router do
     scope "/" do
       pipe_through :auth
 
-      # Reachable by scoped API tokens; scope checks live in the controllers.
+      # Scoped API tokens can reach these routes. The scope checks are in the controllers.
       get "/entries/kinds", EntryController, :kinds
       get "/entries/sources", EntryController, :sources
       get "/entries/stats", EntryController, :stats
@@ -127,7 +127,7 @@ defmodule ServantWeb.Router do
         get "/connectors/:id/logs", ConnectorController, :logs
         get "/connectors/schedules/:connector_type", ConnectorController, :schedules
 
-        # Operator-only: server-wide stats + all users' access/error logs.
+        # Operator-only: server-wide stats, and the access and error logs of all users.
         scope "/" do
           pipe_through :admin
 
@@ -138,7 +138,7 @@ defmodule ServantWeb.Router do
     end
   end
 
-  # Enable LiveDashboard in development
+  # Turn on LiveDashboard in development.
   if Application.compile_env(:servant, :dev_routes) do
     import Phoenix.LiveDashboard.Router
 
@@ -161,7 +161,7 @@ defmodule ServantWeb.Router do
     match :*, "/*path", DavController, :dav
   end
 
-  # Authenticated, per-user file serving (must come before the SPA catch-all).
+  # Authenticated, per-user file routes. They must come before the SPA catch-all.
   scope "/", ServantWeb do
     pipe_through :file_auth
 
@@ -169,14 +169,14 @@ defmodule ServantWeb.Router do
     get "/uploads/*path", FilesController, :show
   end
 
-  # Files of a public photo feed (no auth: the share token is the credential;
-  # only the files of photos currently in the feed resolve). The page itself,
-  # /share/:token, is the SPA.
+  # Files of a public photo feed. There is no auth: the share token is the
+  # credential. Only the files of the photos that are in the feed at that time
+  # resolve. The page itself, /share/:token, is the SPA.
   scope "/", ServantWeb do
     get "/share/:token/files/*path", ShareFileController, :show
   end
 
-  # SPA catch-all: must be after /api and /dev routes
+  # SPA catch-all: it must be after the /api and /dev routes.
   scope "/", ServantWeb do
     get "/*path", SpaController, :index
   end

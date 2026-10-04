@@ -1,6 +1,6 @@
 defmodule Servant.Connectors.EthereumConnector do
   @moduledoc """
-  Connector for Ethereum mainnet wallet transactions.
+  Connector for the wallet transactions of the Ethereum mainnet.
   """
 
   use Servant.Connectors.EVMConnector,

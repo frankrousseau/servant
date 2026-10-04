@@ -115,11 +115,11 @@ defmodule ServantWeb.ExportController do
   defp format_ical_dt(nil), do: nil
 
   defp format_ical_dt(val) when is_binary(val) do
-    # Already in iCal format (e.g. "20250315T100000Z")
+    # The value is already in iCal format (for example "20250315T100000Z").
     if Regex.match?(~r/^\d{8}T?\d{0,6}Z?$/, val) do
       val
     else
-      # Try ISO8601
+      # Try ISO8601.
       case DateTime.from_iso8601(val) do
         {:ok, dt, _} -> Calendar.strftime(dt, "%Y%m%dT%H%M%SZ")
         _ -> nil

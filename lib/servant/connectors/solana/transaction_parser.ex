@@ -9,11 +9,12 @@ defmodule Servant.Connectors.Solana.TransactionParser do
   @doc """
   Parses a transaction for balance changes relevant to `wallet_address`.
 
-  Returns `{:ok, parsed}` with transfer details or `:skip` if the transaction
-  is failed, has no relevant changes, or changes are below the threshold.
+  Returns `{:ok, parsed}` with the transfer details. Returns `:skip` if the
+  transaction failed, has no relevant changes, or has changes below the threshold.
 
   Options:
-    - `:min_lamports`: minimum SOL change in lamports to include (default 1_000_000 = 0.001 SOL)
+    - `:min_lamports`: the minimum SOL change, in lamports, to include
+      (default 1_000_000 = 0.001 SOL)
   """
   def parse(tx, wallet_address, opts \\ []) do
     min_lamports = Keyword.get(opts, :min_lamports, 1_000_000)
@@ -100,7 +101,7 @@ defmodule Servant.Connectors.Solana.TransactionParser do
     pre_balances = meta["preBalances"] || []
     post_balances = meta["postBalances"] || []
 
-    # Find the account with the opposite balance change
+    # Find the account with the opposite balance change.
     pre_balances
     |> Enum.zip(post_balances)
     |> Enum.with_index()
@@ -109,9 +110,9 @@ defmodule Servant.Connectors.Solana.TransactionParser do
         other_diff = post - pre
 
         # The account whose balance moved the opposite way is the counterparty.
-        # Must be a single expression: a block's value is its LAST expression, so
-        # two separate `if`s would discard the first (the received-transfer case)
-        # and always return nil for incoming transfers.
+        # Keep this as a single expression. The value of a block is its LAST
+        # expression. Two separate `if`s discard the first one (the
+        # received-transfer case) and always return nil for received transfers.
         if (diff > 0 and other_diff < 0) or (diff < 0 and other_diff > 0) do
           pubkey_at(account_keys, idx)
         end
@@ -124,7 +125,7 @@ defmodule Servant.Connectors.Solana.TransactionParser do
     pre_tokens = meta["preTokenBalances"] || []
     post_tokens = meta["postTokenBalances"] || []
 
-    # Build a map of {mint, owner} => {pre_amount, post_amount}
+    # Build a map of {mint, owner} => {pre_amount, post_amount}.
     pre_map = token_balance_map(pre_tokens)
     post_map = token_balance_map(post_tokens)
 

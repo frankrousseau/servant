@@ -1,6 +1,6 @@
 defmodule Servant.Connectors.BankCSV.Parser do
   @moduledoc """
-  Parses bank transaction CSV files using configurable presets.
+  Parses CSV files of bank transactions with configurable presets.
   Each preset defines the CSV structure for a specific bank.
   """
 
@@ -48,8 +48,9 @@ defmodule Servant.Connectors.BankCSV.Parser do
       date_format: :iso,
       decimal_separator: "."
     },
-    # Export "Téléchargement des opérations" (labanquepostale.fr): account
-    # metadata lines above the real header, then Date;Libellé;Montant(EUROS)
+    # Export "Téléchargement des opérations" (labanquepostale.fr). The file has
+    # lines of account metadata above the real header, then
+    # Date;Libellé;Montant(EUROS).
     "banque_postale" => %{
       delimiter: ";",
       date_column: "Date",
@@ -60,8 +61,8 @@ defmodule Servant.Connectors.BankCSV.Parser do
       date_format: :eu_slash,
       decimal_separator: ","
     },
-    # CM-CIC export (cic.fr): either split Débit/Crédit columns or a single
-    # Montant column depending on the export screen; both are handled
+    # CM-CIC export (cic.fr). The export screen gives split Débit/Crédit columns
+    # or a single Montant column. The parser handles the two formats.
     "cic" => %{
       delimiter: ";",
       date_column: "Date",
@@ -149,15 +150,15 @@ defmodule Servant.Connectors.BankCSV.Parser do
     end
   end
 
-  # French bank exports (Banque Postale notably) are Latin-1/Windows-1252.
+  # French bank exports (Banque Postale in particular) are Latin-1/Windows-1252.
   defp ensure_utf8(bin) do
     if String.valid?(bin), do: bin, else: :unicode.characters_to_binary(bin, :latin1)
   end
 
-  # The header is the first line carrying both the date column and a
-  # description column: Banque Postale exports put account metadata lines
-  # above it, including a "Date ;<export date>" line that the date column
-  # alone would match.
+  # The header is the first line that contains the date column and a
+  # description column. The Banque Postale exports put lines of account
+  # metadata above it. One of them is a "Date ;<export date>" line, which a
+  # match on the date column alone accepts.
   defp find_header(lines, preset) do
     description = preset[:description_column] || List.first(preset[:description_columns] || [])
 
@@ -174,9 +175,9 @@ defmodule Servant.Connectors.BankCSV.Parser do
     end
   end
 
-  # Header spelling drifts between export screens ("Montant(EUROS)" vs
-  # "Montant (EUROS)"); compare and store header keys space- and
-  # case-insensitively.
+  # The header spelling changes between export screens ("Montant(EUROS)" or
+  # "Montant (EUROS)"). Ignore the spaces and the case when you compare and
+  # store the header keys.
   defp normalize_header(nil), do: nil
 
   defp normalize_header(header) do
@@ -239,8 +240,8 @@ defmodule Servant.Connectors.BankCSV.Parser do
   defp row_get(_row, nil), do: ""
   defp row_get(row, column), do: Map.get(row, normalize_header(column), "")
 
-  # Split Débit/Crédit columns (CIC) win over a single amount column; a
-  # debit is negative whichever sign the bank exported it with.
+  # Split Débit/Crédit columns (CIC) have priority over a single amount
+  # column. A debit is negative, whatever the sign in the bank export.
   defp row_amount(row, preset) do
     debit = parse_amount(row_get(row, preset[:debit_column]), preset.decimal_separator)
     credit = parse_amount(row_get(row, preset[:credit_column]), preset.decimal_separator)
@@ -276,11 +277,12 @@ defmodule Servant.Connectors.BankCSV.Parser do
   defp split_line(line, ",") do
     trimmed = String.trim(line)
 
-    # `parse_string/1` defaults to `skip_headers: true`, which would consume this
-    # single line as a header and return `[]`, so RFC4180 parsing never ran and
-    # every comma-delimited line fell through to the naive splitter, mis-splitting
-    # quoted fields that contain commas (e.g. "Smith, John"). Disable header
-    # skipping so the one line is actually parsed.
+    # The default of `parse_string/1` is `skip_headers: true`. That default
+    # consumes this single line as a header and returns `[]`. As a result, the
+    # RFC4180 parser never ran and every comma-delimited line went to the naive
+    # splitter. That splitter splits quoted fields that contain commas (for
+    # example "Smith, John") incorrectly. Disable the skip of headers so that
+    # the parser parses the one line.
     case NimbleCSV.RFC4180.parse_string(trimmed, skip_headers: false) do
       [fields | _] -> fields
       _ -> fallback_split(trimmed, ",")

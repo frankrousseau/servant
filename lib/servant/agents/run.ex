@@ -1,7 +1,7 @@
 defmodule Servant.Agents.Run do
   @moduledoc """
-  One AI agent run: which action ran, on which model, what it consumed
-  (tokens, duration) and how it ended. v1 only has type "builder".
+  One AI agent run. It records which action ran, on which model, what it
+  used (tokens, duration) and how it stopped. v1 only has type "builder".
   """
 
   use Ecto.Schema

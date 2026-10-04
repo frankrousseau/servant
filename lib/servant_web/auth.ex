@@ -1,9 +1,10 @@
 defmodule ServantWeb.Auth do
   @moduledoc """
-  Authenticates users from either an `Authorization: Bearer` header or the
-  HttpOnly `_servant_auth` cookie. The cookie lets the token stay out of
-  JavaScript-readable storage (defense in depth against XSS) and is sent
-  automatically on same-origin requests, including `<img src="/files/…">`.
+  Authenticates users from an `Authorization: Bearer` header or from the
+  HttpOnly `_servant_auth` cookie. The cookie keeps the token out of the
+  storage that JavaScript can read (defense in depth against XSS). The browser
+  sends the cookie automatically on same-origin requests, and
+  `<img src="/files/…">` is one of them.
   """
 
   import Plug.Conn
@@ -14,13 +15,14 @@ defmodule ServantWeb.Auth do
 
   def init(opts), do: opts
 
-  @doc "Name of the HttpOnly cookie carrying the auth token."
+  @doc "Returns the name of the HttpOnly cookie that carries the auth token."
   def auth_cookie_name, do: @auth_cookie
 
   @doc """
-  Sets the HttpOnly auth cookie carrying `token`. `SameSite=Lax` keeps
-  state-changing cross-site requests from carrying it (CSRF), while same-origin
-  API/file requests still send it. `Secure` only over HTTPS so dev over http works.
+  Sets the HttpOnly auth cookie that carries `token`. With `SameSite=Lax`,
+  cross-site requests that change state do not carry the cookie (CSRF), but
+  same-origin API and file requests continue to send it. The cookie is `Secure`
+  only over HTTPS, so that dev over http works.
   """
   def put_auth_cookie(conn, token) do
     Plug.Conn.put_resp_cookie(conn, @auth_cookie, token,
@@ -43,8 +45,9 @@ defmodule ServantWeb.Auth do
     end
   end
 
-  # API tokens (srv_ prefix): DB lookup by hash, scopes attached. Failed lookups
-  # feed the per-IP throttle so token values can't be brute forced.
+  # API tokens (srv_ prefix): the DB lookup is by hash and it attaches the scopes.
+  # Failed lookups feed the per-IP throttle, so a brute-force attack cannot find
+  # the token values.
   defp authenticate_request(conn, "srv_" <> _ = token) do
     case authenticate_api_token(conn, token) do
       {:ok, user, scopes} ->
@@ -63,7 +66,7 @@ defmodule ServantWeb.Auth do
     end
   end
 
-  # Session tokens (Phoenix.Token): full access, api_scopes stays nil.
+  # Session tokens (Phoenix.Token) give full access, and api_scopes stays nil.
   defp authenticate_request(conn, token) do
     case authenticate_token(conn, token) do
       {:ok, user} ->
@@ -77,9 +80,9 @@ defmodule ServantWeb.Auth do
   end
 
   @doc """
-  Authenticates an `srv_` API token with per-IP throttle bookkeeping.
-  Shared by this plug and `FileAuth` so every surface brute-force
-  throttles the same way. Returns `{:ok, user, scopes}`,
+  Authenticates an `srv_` API token and keeps the per-IP throttle up to date.
+  This plug and `FileAuth` share this function, so each surface throttles a
+  brute-force attack the same way. Returns `{:ok, user, scopes}`,
   `{:error, {:throttled, retry_after}}` or `:error`.
   """
   def authenticate_api_token(conn, "srv_" <> _ = token) do
@@ -110,7 +113,7 @@ defmodule ServantWeb.Auth do
     conn.remote_ip |> :inet.ntoa() |> to_string()
   end
 
-  # Bearer header takes precedence; fall back to the HttpOnly cookie.
+  # The Bearer header has priority. If it is absent, use the HttpOnly cookie.
   defp fetch_token(conn) do
     case get_req_header(conn, "authorization") do
       ["Bearer " <> token] ->
@@ -127,9 +130,9 @@ defmodule ServantWeb.Auth do
   end
 
   @doc """
-  Signs an auth token binding the user id to their current `token_version`.
-  Bumping `token_version` (logout, password change, TOTP disable) invalidates
-  every token signed before the bump.
+  Signs an auth token that binds the user id to the current `token_version` of
+  the user. An increment of `token_version` (logout, password change, TOTP
+  disable) invalidates each token signed before the increment.
   """
   def sign_token(conn, %{id: user_id} = user) do
     Phoenix.Token.sign(conn, "user auth", {user_id, Map.get(user, :token_version, 0)})
@@ -141,8 +144,8 @@ defmodule ServantWeb.Auth do
 
   @doc """
   Verifies a token and returns the live user only when the embedded
-  `token_version` still matches the stored one. Single source of truth for
-  both the HTTP plug and the socket so they can't drift.
+  `token_version` still matches the stored one. This function is the single
+  source of truth for the HTTP plug and the socket, so they cannot drift apart.
   """
   def authenticate_token(context, token) do
     with {:ok, {user_id, version}} <- verify_token(context, token),

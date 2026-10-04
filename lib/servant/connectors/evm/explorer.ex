@@ -1,10 +1,10 @@
 defmodule Servant.Connectors.EVM.Explorer do
   @moduledoc """
-  Generic Etherscan/Blockscout-compatible API client for fetching
-  transaction history on any EVM chain. Pass `chain_id:` and `api_key:`
-  in `opts` for Etherscan V2 (`https://api.etherscan.io/v2/api`), which
-  multiplexes every chain behind one URL and requires a (free) API key;
-  Blockscout instances ignore both parameters.
+  Generic API client, compatible with Etherscan and Blockscout, that fetches
+  the transaction history on any EVM chain. Pass `chain_id:` and `api_key:`
+  in `opts` for Etherscan V2 (`https://api.etherscan.io/v2/api`). Etherscan V2
+  multiplexes every chain behind one URL, and a (free) API key is necessary.
+  Blockscout instances ignore the two parameters.
   """
 
   alias Servant.Connectors.EVM.RateLimiter
@@ -12,7 +12,7 @@ defmodule Servant.Connectors.EVM.Explorer do
   @page_size 1000
   @max_pages 50
   # Retries of an explorer "rate limit" answer (HTTP 200, so Req never sees
-  # it): another client of the same key may still burst past our own pacing.
+  # it). Another client of the same key can still burst past our own pacing.
   @rate_limit_retries 3
   @rate_limit_backoff_ms 1_100
 
@@ -25,10 +25,10 @@ defmodule Servant.Connectors.EVM.Explorer do
   end
 
   @doc false
-  # Etherscan/Blockscout wrap everything in {status, message, result} over
-  # HTTP 200: a list result is data (possibly empty), a binary result on
+  # Etherscan and Blockscout wrap everything in {status, message, result} over
+  # HTTP 200. A list result is data (possibly empty). A binary result on
   # status "0" is an error message (deprecated endpoint, missing API key,
-  # rate limit) and must fail the sync instead of passing for zero
+  # rate limit). It must fail the sync, and must not pass for zero
   # transactions.
   def parse_body(%{"status" => "1", "result" => result}) when is_list(result), do: {:ok, result}
   def parse_body(%{"status" => "0", "result" => result}) when is_list(result), do: {:ok, []}
@@ -78,8 +78,9 @@ defmodule Servant.Connectors.EVM.Explorer do
   defp maybe_put(params, _key, ""), do: params
   defp maybe_put(params, key, value), do: Map.put(params, key, value)
 
-  # One queue per API key (Etherscan V2 serves every chain from one URL and
-  # counts calls per key), per explorer URL for keyless Blockscout instances.
+  # There is one queue per API key (Etherscan V2 serves every chain from one
+  # URL and counts the calls per key). For keyless Blockscout instances, there
+  # is one queue per explorer URL.
   defp request_paced(url, params, retries_left) do
     RateLimiter.wait(params[:apikey] || url)
 
@@ -100,8 +101,8 @@ defmodule Servant.Connectors.EVM.Explorer do
   @doc false
   def rate_limited?(message), do: String.match?(message, ~r/rate limit/i)
 
-  # Retries (429, 5xx, transport errors) are Req's job: it backs off
-  # exponentially and honors retry-after on safe methods.
+  # Req does the retries (429, 5xx, transport errors). It backs off
+  # exponentially and obeys retry-after on safe methods.
   defp do_request(url, params) do
     case Req.get(url, Servant.HTTP.req_options(params: params)) do
       {:ok, %Req.Response{status: 200, body: body}} ->

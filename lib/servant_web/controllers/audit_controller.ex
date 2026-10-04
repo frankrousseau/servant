@@ -1,5 +1,5 @@
 defmodule ServantWeb.AuditController do
-  @moduledoc "System stats and log buffers backing the Audit page."
+  @moduledoc "System stats and log buffers for the Audit page."
 
   use ServantWeb, :controller
   use OpenApiSpex.ControllerSpecs

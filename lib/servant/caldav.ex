@@ -1,12 +1,14 @@
 defmodule Servant.CalDAV do
   @moduledoc """
-  Data access for the CalDAV endpoint: one collection per calendar
-  ("agenda" entities of kind "calendar" plus the ever-present "Manual"),
-  containing user-authored events only (source "manual" or "caldav").
-  Connector-synced events (ical, ...) are deliberately excluded: they are
-  re-fetched on a schedule and don't preserve a phone's raw ICS payload, so
-  exposing them for editing over DAV would drop that payload on the next sync.
-  Subscribe to those feeds directly on the phone instead.
+  Data access for the CalDAV endpoint.
+
+  There is one collection for each calendar: the "agenda" entities of kind
+  "calendar" and the "Manual" calendar, which is always there. A collection
+  contains only the events that the user wrote (source "manual" or "caldav").
+  The module deliberately excludes the events that a connector syncs (ical,
+  ...). A schedule fetches these events again, and they do not keep the raw
+  ICS payload of a phone. If DAV exposes them for edits, the next sync drops
+  that payload. Subscribe to those feeds directly on the phone.
   """
 
   alias Servant.CalDAV.ICS
@@ -14,22 +16,22 @@ defmodule Servant.CalDAV do
 
   @exposed_sources ~w(manual caldav)
 
-  @doc "Calendar collection names for a user."
+  @doc "Returns the names of the calendar collections for a user."
   def calendars(user_id) do
     entity_names =
       user_id
       |> Data.all_entries(%{"kind" => "calendar"})
       |> Enum.map(&String.trim(&1.title || ""))
 
-    # Agendas can also exist purely as event references (the app derives its
-    # agenda list the same way): without these, a user-authored event filed
-    # under an entity-less agenda would be invisible to DAV clients.
+    # An agenda can also exist only as a reference in events (the app builds
+    # its agenda list the same way). Without these names, DAV clients cannot
+    # see a user-authored event in an agenda that has no entity.
     event_names = Enum.map(exposed_events(user_id), &calendar_of/1)
 
     Enum.uniq(["Manual" | Enum.reject(entity_names ++ event_names, &(&1 == ""))])
   end
 
-  @doc "Events of one calendar collection."
+  @doc "Returns the events of one calendar collection."
   def events(user_id, cal_name) do
     Enum.filter(exposed_events(user_id), &(calendar_of(&1) == cal_name))
   end
@@ -47,18 +49,18 @@ defmodule Servant.CalDAV do
     end
   end
 
-  @doc "Event of a collection by its resource filename, or nil."
+  @doc "Returns the event of a collection with this resource filename, or nil."
   def get_event(user_id, cal_name, filename) do
     Enum.find(events(user_id, cal_name), &(resource_name(&1) == filename))
   end
 
-  @doc "Resource filename of an event: client-chosen for phone-created events."
+  @doc "Returns the resource filename of an event. The client sets it for phone-created events."
   def resource_name(entry), do: entry.data["caldav_filename"] || "#{entry.id}.ics"
 
   @doc """
-  Creates or updates an event from an ICS payload. A filename or UID match
-  outside `cal_name` is treated as a move into this collection (CalDAV
-  clients PUT the new copy before deleting the old one).
+  Creates or updates an event from an ICS payload. A filename or a UID that
+  matches outside `cal_name` is a move into this collection: CalDAV clients
+  PUT the new copy before they delete the old copy.
   Returns `{:ok, entry, :created | :updated}` or `{:error, reason}`.
   """
   def put_event(user_id, cal_name, filename, ics_body, user_tz) do

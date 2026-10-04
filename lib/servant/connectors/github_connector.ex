@@ -1,36 +1,44 @@
 defmodule Servant.Connectors.GithubConnector do
   @moduledoc """
-  Connector that fetches the user's commit metadata from GitHub.
+  Connector that fetches the commit metadata of the user from GitHub.
 
-  Uses the commit Search API with `author:<username>`, so it covers every
-  repository the personal access token can see (public and private) without
-  maintaining a repo list. Only commit metadata is stored: repo, sha, message,
-  author, dates, URL; no diffs or per-commit stats.
+  Uses the commit Search API with `author:<username>`. As a result, it covers
+  every repository that the personal access token can see (public and private),
+  and no repo list is necessary. The connector stores only the commit metadata:
 
-  The search also matches copies of repositories the user contributed to
-  (someone re-uploading a project keeps its commit authors); the optional
+  - repo
+  - sha
+  - message
+  - author
+  - dates
+  - URL
+
+  It stores no diffs and no per-commit stats.
+
+  The search also matches copies of repositories that the user contributed to
+  (a person who uploads a project again keeps its commit authors). The optional
   `exclude_repos` config (comma-separated `owner/name` or `owner/*`) filters
-  those out.
+  out these copies.
 
-  Search results are capped at 1000 per query, so the sync walks history in
-  ascending author-date windows, advancing a persisted `last_author_date`
-  cursor. The cursor comparison is inclusive (`>=`) to avoid skipping
-  same-second commits; the resulting overlap is deduplicated by the entries
-  upsert on `external_id` (the commit sha).
+  GitHub caps the search results at 1000 per query. As a result, the sync walks
+  the history in windows of ascending author date and moves a persisted
+  `last_author_date` cursor forward. The cursor comparison is inclusive (`>=`),
+  so the sync does not skip commits of the same second. The upsert of the
+  entries on `external_id` (the commit sha) deduplicates the overlap.
 
-  The Search API allows ~30 requests/minute: consecutive requests within one
-  sync are spaced by ~2s and a rate-limited response is retried after the
-  advertised delay, so a full multi-year backfill completes in a single
-  (slow) sync instead of needing to be relaunched.
+  The limit of the Search API is ~30 requests/minute. In one sync, the connector
+  puts ~2s between consecutive requests. It retries a rate-limited response
+  after the advertised delay. As a result, a full backfill of many years
+  completes in a single (slow) sync, and a relaunch is not necessary.
   """
 
   use Servant.Connectors.Connector
 
   @api_base "https://api.github.com"
   @per_page 100
-  # GitHub Search returns at most 1000 results per query
+  # GitHub Search returns at most 1000 results per query.
   @search_cap 1000
-  # Search rate limit is ~30 req/min: stay just under it.
+  # The Search rate limit is ~30 req/min. Stay slightly below it.
   @throttle_ms 2_100
   @max_rate_limit_wait_ms 90_000
 
@@ -110,10 +118,10 @@ defmodule Servant.Connectors.GithubConnector do
 
   # --- Commit fetching ---
 
-  # Walks search windows until the whole history since `cursor` is covered.
-  # Each window pages up to the 1000-result search cap; when more results
-  # remain, the cursor advances to the newest author date seen and a new
-  # window starts.
+  # Walks the search windows until they cover the whole history from `cursor`.
+  # Each window pages up to the search cap of 1000 results. When more results
+  # remain, the cursor moves to the newest author date seen and a new window
+  # starts.
   defp fetch_all_commits(state, cursor, acc) do
     case fetch_window(state, cursor) do
       {:ok, items, total} ->
@@ -128,8 +136,9 @@ defmodule Servant.Connectors.GithubConnector do
         end
 
       {:error, reason} ->
-        # Keep the progress made before a mid-backfill error (rate limit,
-        # network); the persisted cursor lets the next sync resume from there
+        # Keep the progress made before an error in the middle of a backfill
+        # (rate limit, network). The persisted cursor lets the next sync resume
+        # from there.
         if acc == [] do
           {:error, reason}
         else
@@ -184,9 +193,9 @@ defmodule Servant.Connectors.GithubConnector do
     end
   end
 
-  # Sleeps out a rate-limited response (per the advertised delay) and retries
-  # instead of failing the sync; a 403 without rate-limit headers (bad scopes)
-  # falls through to the caller's error handling.
+  # Sleeps for the advertised delay after a rate-limited response, then
+  # retries. The sync does not fail. A 403 without rate-limit headers (bad
+  # scopes) goes to the error handling of the caller.
   defp search_request(url, headers, retries \\ 2) do
     case Req.get(url, Servant.HTTP.req_options(headers: headers)) do
       {:ok, %Req.Response{status: status} = resp}
@@ -232,7 +241,7 @@ defmodule Servant.Connectors.GithubConnector do
   defp search_query(username, nil), do: "author:#{username}"
   defp search_query(username, cursor), do: "author:#{username} author-date:>=#{cursor}"
 
-  # Items are sorted by ascending author date, so the last one is the newest
+  # The items are in ascending order of author date, so the last one is the newest.
   defp last_author_date(items) do
     case List.last(items) do
       nil -> nil
