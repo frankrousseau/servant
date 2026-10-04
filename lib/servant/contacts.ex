@@ -10,6 +10,7 @@ defmodule Servant.Contacts do
 
   import Ecto.Query
 
+  alias Servant.CardDAV.VCard
   alias Servant.Data.Entry
   alias Servant.Events
   alias Servant.Notes.NoteLink
@@ -135,11 +136,32 @@ defmodule Servant.Contacts do
 
   defp apply_merge(_user_id, survivor, duplicates) do
     merged_ids = [survivor.id | Enum.map(duplicates, & &1.id)]
-    data = merge_data(survivor.data, Enum.map(duplicates, & &1.data), merged_ids)
+
+    data =
+      survivor.data
+      |> merge_data(Enum.map(duplicates, & &1.data), merged_ids)
+      |> inherit_carddav_identity(duplicates)
 
     survivor
     |> Entry.changeset(%{"data" => data, "title" => title_for(data)})
     |> Repo.update()
+  end
+
+  # A phone knows a contact by its resource name and UID. When the survivor
+  # has no CardDAV identity and a duplicate has one, the survivor takes it
+  # over: the phone then sees its contact updated instead of deleted. The raw
+  # payloads go, so the merged card is synthesized from the merged fields.
+  defp inherit_carddav_identity(data, duplicates) do
+    phone = Enum.find(duplicates, &is_binary(&1.data["carddav_filename"]))
+
+    if phone && !data["carddav_filename"] do
+      data
+      |> Map.drop(["carddav_vcf", "carddav_vcf_at"])
+      |> Map.put("carddav_filename", phone.data["carddav_filename"])
+      |> Map.put("carddav_uid", VCard.uid(phone))
+    else
+      data
+    end
   end
 
   defp fill_scalars(acc, dup) do

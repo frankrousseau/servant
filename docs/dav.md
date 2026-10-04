@@ -51,6 +51,11 @@ them.
   round-trips even though the apps only understand their simple fields.
   Editing an item in Servant regenerates the payload from those fields
   (and drops the extras).
+- **Merging duplicates** (Contacts > Duplicates) hands the phone's resource
+  name and UID to the kept contact when it has none of its own, so the phone
+  sees its contact updated rather than deleted. A card pushed by the phone
+  whose UID matches an existing contact (an imported card keeps its original
+  UID) updates that contact instead of creating a second one.
 
 ## Files over WebDAV (`/dav/files`)
 

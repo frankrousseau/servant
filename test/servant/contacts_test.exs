@@ -102,6 +102,41 @@ defmodule Servant.ContactsTest do
       assert Repo.get(Data.Entry, dup.id) == nil
     end
 
+    test "the survivor takes over the phone's CardDAV identity when it has none" do
+      u = user()
+      keep = contact(u.id, "Alice Martin", %{"org" => "ACME", "carddav_vcf" => "BEGIN:VCARD..."})
+
+      {:ok, phone} =
+        Data.create_entry(u.id, %{
+          "kind" => "contact",
+          "source" => "carddav",
+          "external_id" => "IOS-UID-1",
+          "title" => "Alice",
+          "data" => %{
+            "display_name" => "Alice",
+            "carddav_filename" => "IOS-UID-1.vcf",
+            "carddav_vcf" => "BEGIN:VCARD...",
+            "carddav_vcf_at" => "2026-10-01T00:00:00Z"
+          }
+        })
+
+      assert {:ok, survivor} = Contacts.merge(u.id, keep.id, [phone.id])
+      # The phone keeps finding its resource, now pointing at the merged card.
+      assert Servant.CardDAV.get_contact(u.id, "IOS-UID-1.vcf").id == keep.id
+      assert Servant.CardDAV.VCard.uid(survivor) == "IOS-UID-1"
+      # The stale raw payloads are gone so the merged card is resynthesized.
+      refute Map.has_key?(survivor.data, "carddav_vcf")
+    end
+
+    test "a survivor already known to the phone keeps its own identity" do
+      u = user()
+      keep = contact(u.id, "Alice", %{"carddav_filename" => "mine.vcf"})
+      dup = contact(u.id, "Alice M.", %{"carddav_filename" => "other.vcf"})
+
+      assert {:ok, survivor} = Contacts.merge(u.id, keep.id, [dup.id])
+      assert survivor.data["carddav_filename"] == "mine.vcf"
+    end
+
     test "repoints events, photo faces and people, prefs, relations and note mentions" do
       u = user()
       keep = contact(u.id, "Alice")
