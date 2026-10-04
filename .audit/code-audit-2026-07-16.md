@@ -1,6 +1,6 @@
 # Audit de code - Servant
 
-**Date :** 2026-07-16, élagué le 2026-08-18
+**Date :** 2026-07-16, élagué le 2026-08-18, addendum CardDAV le 2026-10-04 (voir en fin de fichier)
 **Périmètre :** dépôt complet `servant` (backend Phoenix/Elixir + frontend Vue 3 SPA)
 **Contexte :** second audit complet; le précédent (2026-06-22) et l'intermédiaire (2026-07-03)
 ont été supprimés du dossier après remédiation (l'historique reste dans git). Les items encore
@@ -190,6 +190,12 @@ la fenêtre de `running?`.
 UID sur TOUS les calendriers : `If-None-Match: *` peut passer puis écraser l'événement d'un
 autre calendrier sans 412. Correction : résoudre la cible une fois dans le contrôleur et
 l'utiliser pour la précondition.
+Même schéma côté CardDAV depuis le 2026-10-04 : la précondition est évaluée sur
+`get_contact(u.id, name)` (par nom de fichier) alors que `resolve_target` (`carddav.ex`)
+rapproche aussi par UID sur tous les contacts exposés; un `If-None-Match: *` passe puis met à
+jour le contact trouvé par UID. Comportement voulu pour un client qui re-pousse sa carte, mais
+la correction ci-dessus (résoudre une fois, tester la précondition sur la cible) vaut pour les
+deux arbres.
 
 #### B2-14 [BASSE] Anti-replay TOTP non atomique
 `accounts.ex:200-212` : lecture de `totp_last_used_at` puis écriture après validation; deux
@@ -578,3 +584,52 @@ fichier est bien internationalisé via `Intl.DateTimeFormat`. Correction :
 #### FI10 [BASSE] Monnaie formatée en suffixe pour le fiat
 `finance.ts:487-491` : nombre localisé + `" EUR"`. Choix partagé fiat/crypto; la vraie
 correction est un split (`style: 'currency'` pour le fiat, suffixe pour le crypto).
+
+---
+
+# Addendum 2026-10-04 : audit CardDAV (sync iPhone)
+
+**Déclencheur :** contacts "disparus" de l'iPhone, contacts Servant ignorés par le téléphone,
+doublon à chaque création suivi d'une disparition après fusion. Audit ciblé de
+`lib/servant/carddav.ex`, `lib/servant/carddav/vcard.ex`, `lib/servant/contacts.ex`,
+`lib/servant_web/controllers/dav_controller.ex` (partie addressbooks) et
+`frontend/src/apps/contacts/duplicates.ts`. Tests CardDAV et fusion verts au départ (21), mais
+aucun des défauts ci-dessous n'était couvert.
+
+Constat préalable : rien n'avait été supprimé. Les contacts vivaient dans un autre compte iOS
+(iCloud ou local) et sont réapparus en retirant Servant comme compte par défaut. iOS ne déplace
+pas un contact entre comptes; le chemin de migration reste export .vcf puis Import (source
+`manual`).
+
+#### CD-1 [HAUTE, corrigé 58c270e] La fusion supprimait la copie connue du téléphone
+`Contacts.merge/3` supprimait les doublons et gardait le survivant tel quel. Le survivant
+proposé par défaut (`suggestedSurvivor`) est le plus riche puis le plus ancien, donc presque
+toujours l'ancien contact Servant : la ressource `carddav_filename` du téléphone disparaissait
+du carnet et iOS retirait le contact. Correction : quand le survivant n'a pas d'identité CardDAV,
+il reprend le nom de ressource et l'UID du doublon (`carddav_filename`, `carddav_uid`), les
+payloads bruts sont purgés pour forcer la resynthèse. Le téléphone voit une mise à jour.
+
+#### CD-2 [MOYENNE, corrigé f122edb] Rapprochement par UID limité à la source `carddav`
+`resolve_target/3` ne cherchait l'UID que parmi les entrées `source == "carddav"`. Un PUT dont
+l'UID correspond à un contact `manual` (un import garde l'UID d'origine en `external_id`) ou à
+la forme synthétisée `<id>@servant` créait une seconde entrée : deux ressources de même UID dans
+un carnet, interdit par RFC 6352. Correction : rapprochement sur tous les contacts exposés via
+`VCard.uid/1` (qui préfère désormais `carddav_uid`).
+
+#### CD-3 [DÉCISION] Les contacts d'un flux vCard ne sont jamais exposés au téléphone
+`@exposed_sources ~w(manual carddav)` : voulu et documenté (`docs/dav.md`), un flux pollé
+annulerait les éditions du téléphone. Mais si le carnet historique est venu par un connecteur
+vCard URL (source `vcard`), le téléphone ne le verra jamais et chaque contact recréé fera un
+doublon. À trancher après diagnostic (répartition des contacts par source en prod) : exposer
+`vcard` en lecture, ou réimporter en `manual` et retirer le flux.
+
+#### CD-4 [BASSE] `CardDAV.contacts/1` recharge le carnet entier deux fois par requête
+`addressbook_props/1` (ctag) puis la liste Depth:1 appellent chacun `contacts/1`, qui charge
+toutes les entrées `contact` avec leurs vCards brutes (photos base64 incluses) et filtre en
+Elixir. Même schéma que B1-5, qui le mentionnait déjà pour CalDAV; à traiter ensemble.
+
+#### CD-5 [AMÉLIORATION, livré fa38184] Détection de doublons trop stricte sur le nom
+`findDuplicateGroups` n'appariait que des noms normalisés identiques. Ajout d'une passe par
+paires : même mots dans un autre ordre, une faute de frappe (distance d'édition 1 dès 5
+caractères, 2 dès 10), et un prénom seul rapproché du seul contact qui le porte (plusieurs
+porteurs : rien, pour ne pas suggérer la fusion de deux personnes).

@@ -9,6 +9,9 @@ les items corrigés ont été retirés, les partiels décrivent ce qui reste. Re
 `checklist-2026-07-04.md`, `checklist-backend-2026-06-23.md`,
 `checklist-frontend-2026-06-23.md`.
 
+**Mise à jour 2026-10-04 :** items `CD-*` ajoutés depuis l'addendum CardDAV du rapport (trois
+livrés le jour même, cochés ci-dessous), note CardDAV sur B2-10 et B1-5.
+
 ### Légende
 
 - **Sévérité** : 🔴 critical · 🟠 high · 🟡 medium · ⚪ low
@@ -75,6 +78,16 @@ les items corrigés ont été retirés, les partiels décrivent ce qui reste. Re
 - [ ] **B2-10** · 🟡 medium · `dav_controller.ex:426`, `caldav.ex:100-105` · effort: medium
       Préconditions PUT DAV évaluées sur une autre ressource que celle écrite (résolution UID
       cross-calendriers) : écrasement possible sans 412.
+      Note 2026-10-04 : même schéma côté CardDAV (`get_contact` par nom vs `resolve_target`
+      par UID sur tous les contacts exposés); corriger les deux arbres ensemble.
+- [x] **CD-1** · 🟠 high · `lib/servant/contacts.ex` (apply_merge) · effort: small
+      La fusion supprimait la copie connue du téléphone (survivant par défaut = l'ancien
+      contact) : iOS retirait le contact. Le survivant hérite `carddav_filename` + `carddav_uid`.
+      Fait 2026-10-04 (58c270e), tests `contacts_test.exs`, `docs/dav.md`.
+- [x] **CD-2** · 🟡 medium · `lib/servant/carddav.ex` (resolve_target), `carddav/vcard.ex` · effort: quick
+      Rapprochement par UID limité à `source == "carddav"` : doublon de même UID à chaque
+      re-push. Rapprochement sur tous les contacts exposés via `VCard.uid/1`.
+      Fait 2026-10-04 (f122edb), tests `carddav_test.exs`.
 - [ ] **BE2-BUG-14** · 🟡 medium · `ical_connector.ex:155-156, 193-195` · effort: small
       TZID non résolus : la base tz est là (`{:tz, "~> 0.28"}` + config) mais le parser jette
       les paramètres DTSTART et force UTC. Lié à B1-6.
@@ -138,6 +151,8 @@ les items corrigés ont été retirés, les partiels décrivent ce qui reste. Re
 - [ ] **B1-5** · 🟡 medium · `caldav.ex:32-53`, `dav_controller.ex:295` · effort: medium
       DAV recharge toutes les entries par appel, N+1 sur multiget : charger une fois par
       requête ou filtrer en SQL.
+      Note 2026-10-04 (CD-4) : CardDAV idem, `contacts/1` chargé deux fois par PROPFIND (ctag
+      puis liste), vCards brutes et photos base64 comprises.
 - [ ] **B1-6** · 🟡 medium · `caldav/ics.ex`, `ical_connector.ex`, `export_controller.ex` · effort: large
       Trois implémentations iCal divergentes (heures flottantes user-tz vs UTC) : extraire
       `Servant.ICal`, aligner la sémantique, résoudre les TZID (recoupe BE2-BUG-14).
@@ -294,8 +309,17 @@ les items corrigés ont été retirés, les partiels décrivent ce qui reste. Re
 - [ ] **FE2-CLEAN-7** · ⚪ low · `frontend/src/apps/` · effort: small
       Kinds en littéraux (~131 occurrences); `lib/kind.ts` n'est que visuel : const partagée
       des noms de kinds.
+- [x] **CD-5** · ⚪ low · `frontend/src/apps/contacts/duplicates.ts` · effort: small
+      Détection de doublons trop stricte sur le nom : ordre des mots, une faute de frappe,
+      prénom seul rapproché du seul porteur. Fait 2026-10-04 (fa38184), `duplicates.test.ts`.
 
 ## Décisions en attente
+
+- [ ] **CD-3** · 🟡 medium · `lib/servant/carddav.ex:14` (`@exposed_sources`)
+      Les contacts d'un flux vCard (source `vcard`) ne sont jamais exposés au téléphone, par
+      design. Si le carnet historique est de cette source, le téléphone ne le verra jamais :
+      exposer `vcard` en lecture, ou réimporter en `manual` et retirer le flux. Diagnostic
+      préalable : répartition des contacts par source en prod.
 
 - [ ] **BE2-SEC-4** · 🟡 medium · `config/config.exs:13-15`
       Inscription ouverte par défaut (`registration_enabled: true`, fermable par env) :
