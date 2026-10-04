@@ -32,7 +32,7 @@ function swaggerAssets(): Plugin {
     closeBundle() {
       const require = createRequire(import.meta.url)
       const src = path.dirname(require.resolve('swagger-ui-dist/package.json'))
-      const dest = path.resolve(__dirname, '../priv/static/swagger')
+      const dest = path.resolve(import.meta.dirname, '../priv/static/swagger')
       mkdirSync(dest, { recursive: true })
       for (const f of files) {
         copyFileSync(path.join(src, f), path.join(dest, f))
@@ -49,8 +49,12 @@ export default defineConfig({
   },
   base: '/',
   build: {
-    outDir: path.resolve(__dirname, '../priv/static'),
+    outDir: path.resolve(import.meta.dirname, '../priv/static'),
     emptyOutDir: true,
+    // face-api (~1.3 MB) is one indivisible library, already loaded on demand
+    // by the face scan; the limit sits just above it so any other chunk that
+    // grows past it still warns.
+    chunkSizeWarningLimit: 1400,
     rollupOptions: {
       output: {
         // Split the rarely-changing framework core into a cacheable vendor

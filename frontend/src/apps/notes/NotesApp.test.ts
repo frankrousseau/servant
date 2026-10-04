@@ -151,6 +151,10 @@ describe('NotesApp', () => {
     expect(row.element.tagName).toBe('A')
     expect(row.attributes('href')).toBe('/apps/notes?selected=1')
 
+    // jsdom cannot follow the link ("Not implemented: navigation"): cancel the
+    // default action once the app's own handler has let the click through.
+    row.element.addEventListener('click', event => event.preventDefault())
+
     // A modified click is left to the browser: no in-app selection.
     await row.trigger('click', { ctrlKey: true })
     await flushPromises()
