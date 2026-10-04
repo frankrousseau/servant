@@ -33,8 +33,8 @@ defmodule Servant.Connectors.WorkerTest do
 
   test "a successful sync creates entries", %{user: user, config: config, pid: pid} do
     Worker.sync_now(user.id, config.id)
-    # Flush the cast: a following synchronous call returns only once the cast
-    # has been handled.
+    # Flush the cast: the next synchronous call returns only after the worker
+    # handled the cast.
     _ = :sys.get_state(pid)
 
     assert Data.count_entries(user.id) == 1
@@ -107,7 +107,7 @@ defmodule Servant.Connectors.WorkerTest do
       )
 
     Worker.sync_now(user.id, config.id)
-    # Handling the failed sync (below) proves the worker survived it
+    # The worker handles the failed sync (below). This proves that it survived.
     _ = :sys.get_state(pid)
 
     assert [log | _] = Connectors.list_sync_logs(config.id)
@@ -131,7 +131,7 @@ defmodule Servant.Connectors.WorkerTest do
            user_id: user.id,
            connector_module: Servant.FakeConnector,
            config_id: config.id,
-           # Deliberately stale: a supervisor restart would replay these opts.
+           # Stale on purpose: a supervisor restart replays these opts.
            config: %{"cursor" => "stale_cursor"},
            schedule: "on_demand"
          ]},
@@ -179,8 +179,8 @@ defmodule Servant.Connectors.WorkerTest do
     {config, pid}
   end
 
-  # A raise inside sync/1 would otherwise kill the worker and leave the sync
-  # log stuck in "running" forever.
+  # Without this protection, a raise inside sync/1 kills the worker and leaves
+  # the sync log stuck in "running" forever.
   test "a connector that raises fails the log and keeps the worker alive", %{user: user} do
     {config, pid} = start_worker(user, %{"config" => %{"raise_sync" => true}})
 
@@ -197,8 +197,8 @@ defmodule Servant.Connectors.WorkerTest do
     assert updated.error =~ "connector blew up"
   end
 
-  # A connector that took the trouble to write a sentence gets shown as one,
-  # not as an inspected blob.
+  # When a connector took the trouble to write a sentence, the worker shows it
+  # as a sentence, not as an inspected blob.
   test "a string error reaches the config verbatim", %{user: user} do
     {config, pid} = start_worker(user, %{"config" => %{"fail_sync" => "Token refresh failed"}})
 
@@ -229,8 +229,8 @@ defmodule Servant.Connectors.WorkerTest do
     assert %{timer_ref: nil} = :sys.get_state(pid)
   end
 
-  # Manual syncs used to stack parallel timer chains, each one firing its own
-  # sync forever after.
+  # Before, the manual syncs stacked parallel timer chains. Each chain then
+  # fired its own sync forever.
   test "a scheduled worker keeps exactly one pending timer", %{user: user} do
     {config, pid} = start_worker(user, %{"name" => "scheduled"}, "every_hour")
 
@@ -242,7 +242,7 @@ defmodule Servant.Connectors.WorkerTest do
 
     assert is_reference(second)
     assert second != first
-    # The superseded timer is cancelled, not left to fire on its own
+    # The worker cancels the superseded timer and does not let it fire by itself.
     assert Process.read_timer(first) == false
   end
 

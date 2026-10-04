@@ -1,5 +1,5 @@
 defmodule Servant.Media.ExifBackfillTest do
-  # System.put_env on the storage roots: keep serial.
+  # This module calls System.put_env on the storage roots. Keep it serial.
   use Servant.DataCase, async: false
 
   import Servant.Fixtures
@@ -22,11 +22,11 @@ defmodule Servant.Media.ExifBackfillTest do
     %{user: user_fixture()}
   end
 
-  # A HEIC whose Exif item carries a date and a position (TIFF block built
-  # by hand: big-endian, IFD0 -> EXIF IFD date, IFD0 -> GPS IFD).
+  # A HEIC with an Exif item that carries a date and a position. The TIFF block
+  # is built by hand: big-endian, IFD0 -> EXIF IFD date, IFD0 -> GPS IFD.
   defp heic_with_exif do
     date = "2024:07:14 18:30:12" <> <<0>>
-    # Offsets are from the TIFF header start.
+    # The offsets are from the start of the TIFF header.
     ifd0 = 8
     exif_ifd = ifd0 + 2 + 2 * 12 + 4
     date_at = exif_ifd + 2 + 12 + 4
@@ -72,7 +72,7 @@ defmodule Servant.Media.ExifBackfillTest do
     assert_in_delta data["latitude"], 47.5034, 0.001
     assert_in_delta data["longitude"], 2.3347, 0.001
 
-    # A photo that already has a date is left alone.
+    # The backfill does not change a photo that already has a date.
     assert Repo.reload!(dated).data["date_taken"] == "2020-01-01T00:00:00Z"
   end
 end

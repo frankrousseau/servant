@@ -1,7 +1,8 @@
 defmodule Servant.FakeConnector do
   @moduledoc """
-  Minimal connector used in worker tests. Emits one entry per sync and advances
-  a cursor, so we can assert the worker persists `persisted_config/1`.
+  This module is a minimal connector for the worker tests. It emits one entry
+  for each sync and advances a cursor. As a result, the tests can make sure
+  that the worker persists `persisted_config/1`.
   """
 
   use Servant.Connectors.Connector

@@ -79,8 +79,8 @@ defmodule Servant.Connectors.ImportFileTest do
     assert contact.source == "manual"
     assert contact.data["display_name"] == "John Doe"
 
-    # The card is served back as it was imported, photo included: a synthesized
-    # card carries no PHOTO line at all.
+    # The card comes back the same as the imported card, with the photo. A
+    # synthesized card has no PHOTO line.
     assert Servant.CardDAV.VCard.to_vcf(contact) =~ "PHOTO;ENCODING=b;TYPE=JPEG:"
   end
 

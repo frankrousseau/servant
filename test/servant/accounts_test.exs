@@ -114,8 +114,8 @@ defmodule Servant.AccountsTest do
       %{user: user_fixture(%{"username" => "fmtuser", "password" => "password123"})}
     end
 
-    # nil is the "render like the browser does" default, so nothing is set
-    # until the user picks something.
+    # nil is the default: "render like the browser does". As a result, no
+    # value is set until the user selects one.
     test "start unset", %{user: user} do
       assert user.time_format == nil
       assert user.date_format == nil

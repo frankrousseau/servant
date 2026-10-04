@@ -151,7 +151,7 @@ defmodule Servant.Connectors.HyperEVMConnectorTest do
       assert native["data"]["wallet"] == @wallet
       assert [%{symbol: "HYPE", direction: "sent"}] = native["data"]["transfers"]
 
-      # ERC-20 rows share a hash, so the log index disambiguates them
+      # The ERC-20 rows share a hash. As a result, the log index tells them apart.
       assert token["external_id"] == "0xbbb-erc20-3"
       assert token["title"] == "Received 1.5 USDC from 0xdead..0001"
 

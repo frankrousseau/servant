@@ -3,8 +3,8 @@ defmodule Servant.Connectors.EnableBankingConnectorTest do
 
   alias Servant.Connectors.EnableBankingConnector
 
-  # One key for the whole module: generating a 2048-bit RSA key per test made
-  # this file the slowest in the suite.
+  # One key for the full module. The generation of a 2048-bit RSA key for each
+  # test made this file the slowest in the suite.
   @pem_key :public_key.pem_encode([
              :public_key.pem_entry_encode(
                :RSAPrivateKey,
@@ -206,8 +206,8 @@ defmodule Servant.Connectors.EnableBankingConnectorTest do
              }
     end
 
-    # Banks book transactions late, so the refetch starts a week behind the
-    # cursor and lets the entries upsert dedup the overlap.
+    # The banks book transactions late. As a result, the refetch starts a week
+    # behind the cursor. The upsert of the entries dedups the overlap.
     test "refetches a week behind the stored cursor" do
       Req.Test.stub(Servant.HTTP, fn conn ->
         conn = Plug.Conn.fetch_query_params(conn)
@@ -252,8 +252,8 @@ defmodule Servant.Connectors.EnableBankingConnectorTest do
       assert message =~ "reconnect"
     end
 
-    # One account down must not silently amputate the sync: the others still
-    # produce entries and the failure is logged.
+    # One account that is down must not silently cut the sync. The other
+    # accounts still produce entries, and the connector logs the failure.
     test "keeps the accounts that did sync when another one fails" do
       Req.Test.stub(Servant.HTTP, fn conn ->
         case conn.request_path do

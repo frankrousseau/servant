@@ -22,8 +22,8 @@ defmodule ServantWeb.UserSocketTest do
     assert :error = connect(UserSocket, %{})
   end
 
-  # The socket must not outlive a logout: sign_token embeds the token version,
-  # and bumping it on the user invalidates every token already issued.
+  # The socket must not outlive a logout. sign_token embeds the token version,
+  # and a bump of the version on the user invalidates each token already issued.
   test "refuses a token issued before the user's tokens were revoked" do
     user = user_fixture()
     token = token_for(user)

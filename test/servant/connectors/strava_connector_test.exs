@@ -70,7 +70,7 @@ defmodule Servant.Connectors.StravaConnectorTest do
       )
     end
 
-    # One stub for the two hosts the connector talks to: the OAuth token
+    # One stub for the two hosts that the connector talks to: the OAuth token
     # endpoint (POST) and the activities endpoint (GET).
     defp stub_strava(opts) do
       token = Keyword.get(opts, :token, %{"access_token" => "at_1", "expires_at" => far_future()})
@@ -136,8 +136,8 @@ defmodule Servant.Connectors.StravaConnectorTest do
       assert %{"access_token" => "at_1"} = Connectors.get_env("strava", "tokens", "123")
     end
 
-    # The rotated refresh token must survive a later failure, otherwise the
-    # connector authenticates with a token Strava has already invalidated.
+    # The rotated refresh token must survive a later failure. If not, the
+    # connector authenticates with a token that Strava already invalidated.
     test "a rotated refresh token is kept even when the activity fetch fails" do
       Req.Test.stub(Servant.HTTP, fn conn ->
         case conn.method do

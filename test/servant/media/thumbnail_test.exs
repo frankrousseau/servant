@@ -183,8 +183,8 @@ defmodule Servant.Media.ThumbnailTest do
       assert length(Thumbnail.backfill_missing()) == 2
     end
 
-    # The stream keyset-paginates by id; more entries than one batch must all
-    # come back exactly once.
+    # The stream keyset-paginates by id. When there are more entries than one
+    # batch, each entry must come back exactly one time.
     test "walks past the batch size", %{user: user} do
       for i <- 1..101, do: photo_entry(user.id, %{"path" => "/files/missing/#{i}.jpg"})
 

@@ -56,8 +56,8 @@ defmodule Servant.EncryptedTest do
       assert :error = EncMap.dump(42)
     end
 
-    # A row that is neither ciphertext nor valid JSON must fail loudly rather
-    # than silently loading as an empty config.
+    # A row that is neither ciphertext nor valid JSON must fail loudly. It must
+    # not load silently as an empty config.
     test "load refuses a row that is neither ciphertext nor JSON" do
       assert :error = EncMap.load("not json, not encrypted")
       assert :error = EncMap.load(~s({"unterminated":))

@@ -1,5 +1,6 @@
 defmodule Servant.ContactsTest do
-  # SQLite: user inserts from two async modules collide ("Database busy"); keep serial.
+  # SQLite: the user inserts from two async modules collide ("Database busy").
+  # Keep this module serial.
   use Servant.DataCase, async: false
 
   import Ecto.Query
@@ -62,7 +63,7 @@ defmodule Servant.ContactsTest do
       assert merged["display_name"] == "Alice Martin"
       assert merged["org"] == "ACME"
       assert Enum.map(merged["emails"], & &1["value"]) == ["Alice@Example.com", "alice@acme.test"]
-      # National and international spellings of one line count once.
+      # The national and international spellings of one line count one time.
       assert Enum.map(merged["phones"], & &1["value"]) == ["+33 6 12 34 56 78"]
       assert merged["tags"] == ["family", "work"]
       assert merged["note"] == "met in Lyon\n\nbirthday in May"
@@ -121,10 +122,11 @@ defmodule Servant.ContactsTest do
         })
 
       assert {:ok, survivor} = Contacts.merge(u.id, keep.id, [phone.id])
-      # The phone keeps finding its resource, now pointing at the merged card.
+      # The phone still finds its resource, which now points at the merged card.
       assert Servant.CardDAV.get_contact(u.id, "IOS-UID-1.vcf").id == keep.id
       assert Servant.CardDAV.VCard.uid(survivor) == "IOS-UID-1"
-      # The stale raw payloads are gone so the merged card is resynthesized.
+      # The stale raw payloads are gone. As a result, the server synthesizes the
+      # merged card again.
       refute Map.has_key?(survivor.data, "carddav_vcf")
     end
 

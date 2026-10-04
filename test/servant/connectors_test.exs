@@ -95,7 +95,7 @@ defmodule Servant.ConnectorsTest do
       assert ConnectorConfig.schedule_interval_ms("every_hour") == 3_600_000
       assert ConnectorConfig.schedule_interval_ms("every_day") == 86_400_000
       assert ConnectorConfig.schedule_interval_ms("every_week") == 604_800_000
-      # The worker floors this one, see Worker's @continuous_floor_ms
+      # The worker floors this one. Refer to @continuous_floor_ms in Worker.
       assert ConnectorConfig.schedule_interval_ms("continuous") == 0
       assert ConnectorConfig.schedule_interval_ms("on_demand") == nil
     end

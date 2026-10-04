@@ -123,7 +123,7 @@ defmodule ServantWeb.Plugs.DavAuthTest do
 
     # Failed srv_ lookups feed the same per-IP throttle as the JSON API.
     test "repeated failures are throttled with a retry-after", %{user: user} do
-      # The throttle is global per IP, and other suites hit 127.0.0.1 too
+      # The throttle is global per IP, and other suites also hit 127.0.0.1.
       key = "api_token:127.0.0.1"
       Throttle.reset(key)
       on_exit(fn -> Throttle.reset(key) end)

@@ -1,17 +1,15 @@
 defmodule Servant.DataCase do
   @moduledoc """
-  This module defines the setup for tests requiring
-  access to the application's data layer.
+  This module defines the setup for the tests that must have access to
+  the data layer of the application.
 
-  You may define functions here to be used as helpers in
-  your tests.
+  You can define functions here and use them as helpers in your tests.
 
-  Finally, if the test case interacts with the database,
-  we enable the SQL sandbox, so changes done to the database
-  are reverted at the end of every test. If you are using
-  PostgreSQL, you can even run database tests asynchronously
-  by setting `use Servant.DataCase, async: true`, although
-  this option is not recommended for other databases.
+  If the test case uses the database, the module starts the SQL sandbox.
+  Then the sandbox reverts the changes to the database at the end of each
+  test. If you use PostgreSQL, you can also run the database tests
+  asynchronously: set `use Servant.DataCase, async: true`. We do not
+  recommend this option for other databases.
   """
 
   use ExUnit.CaseTemplate
@@ -42,7 +40,7 @@ defmodule Servant.DataCase do
   end
 
   @doc """
-  A helper that transforms changeset errors into a map of messages.
+  Converts the changeset errors into a map of messages.
 
       assert {:error, changeset} = Accounts.create_user(%{password: "short"})
       assert "password is too short" in errors_on(changeset).password

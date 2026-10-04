@@ -170,7 +170,7 @@ defmodule Servant.Connectors.GithubConnectorTest do
       assert hd(entries)["occurred_at"] == ~U[2026-07-01 10:00:00Z]
       assert hd(entries)["data"]["author_email"] == "frank@example.com"
 
-      # The newest author date becomes the cursor for the next sync
+      # The newest author date becomes the cursor for the next sync.
       assert new_state.last_author_date == "2026-07-02T11:00:00Z"
 
       assert GithubConnector.persisted_config(new_state) == %{
@@ -200,7 +200,8 @@ defmodule Servant.Connectors.GithubConnectorTest do
       assert {:ok, entries, new_state} = GithubConnector.sync(state)
 
       assert Enum.map(entries, & &1["external_id"]) == ["aaa"]
-      # Excluded commits still move the cursor: they were seen, just not kept
+      # The excluded commits still move the cursor: the sync saw them but did not
+      # keep them.
       assert new_state.last_author_date == "2026-07-03T10:00:00Z"
     end
 
@@ -229,14 +230,14 @@ defmodule Servant.Connectors.GithubConnectorTest do
       assert new_state.last_author_date == "2026-07-05T10:00:00Z"
     end
 
-    # GitHub caps a search at 1000 results, so a long history is walked in
-    # successive author-date windows rather than one paged query.
+    # GitHub caps a search at 1000 results. As a result, the connector walks a
+    # long history in successive author-date windows, not in one paged query.
     test "opens a new window when the search cap is hit" do
       full_page = fn day ->
         for i <- 1..100, do: item("sha-#{day}-#{i}", "2026-07-#{day}T10:00:00Z")
       end
 
-      # First window: 10 full pages (the 1000-result cap), more results left
+      # First window: 10 full pages (the 1000-result cap), and more results remain.
       for page <- 1..10 do
         Req.Test.expect(Servant.HTTP, fn conn ->
           conn = Plug.Conn.fetch_query_params(conn)
@@ -246,7 +247,7 @@ defmodule Servant.Connectors.GithubConnectorTest do
         end)
       end
 
-      # Second window resumes from the newest date of the first
+      # The second window resumes from the newest date of the first window.
       Req.Test.expect(Servant.HTTP, fn conn ->
         conn = Plug.Conn.fetch_query_params(conn)
         assert conn.params["q"] == "author:frankrousseau author-date:>=2026-07-01T10:00:00Z"
@@ -262,8 +263,8 @@ defmodule Servant.Connectors.GithubConnectorTest do
       assert new_state.last_author_date == "2026-07-09T10:00:00Z"
     end
 
-    # A backfill that dies halfway must keep what it already fetched: the
-    # persisted cursor is what lets the next sync resume instead of restarting.
+    # A backfill that dies halfway must keep the commits that it already
+    # fetched. The persisted cursor lets the next sync resume and not restart.
     test "keeps the commits already fetched when a later window fails" do
       for _page <- 1..10 do
         Req.Test.expect(Servant.HTTP, fn conn ->
@@ -272,12 +273,12 @@ defmodule Servant.Connectors.GithubConnectorTest do
         end)
       end
 
-      # 404, not 500: Req retries transient statuses on its own
+      # 404, not 500: Req retries the transient statuses by itself.
       Req.Test.expect(Servant.HTTP, fn conn -> Plug.Conn.send_resp(conn, 404, "boom") end)
 
       assert {:ok, entries, new_state} = GithubConnector.sync(state())
       assert length(entries) == 1000
-      # The cursor sits at the end of the window that did succeed
+      # The cursor is at the end of the window that succeeded.
       assert new_state.last_author_date == "2026-07-01T10:00:00Z"
     end
 
@@ -304,8 +305,8 @@ defmodule Servant.Connectors.GithubConnectorTest do
       assert message =~ "GitHub rejected the search: Invalid query"
     end
 
-    # A rate-limited response that advertises a delay is waited out and
-    # retried, rather than failing the whole sync.
+    # When a rate-limited response advertises a delay, the connector waits for
+    # the delay and retries. It does not fail the full sync.
     test "waits out an advertised rate limit and retries" do
       Req.Test.expect(Servant.HTTP, fn conn ->
         conn

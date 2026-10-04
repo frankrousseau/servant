@@ -4,8 +4,8 @@ defmodule Servant.Auth.ThrottleTest do
   alias Servant.Auth.Throttle
 
   setup do
-    # The table is owned by the app-started Throttle process; use a unique key
-    # per test so cases don't interfere.
+    # The Throttle process that the app starts owns the table. Use a unique
+    # key for each test so that the cases do not interfere.
     key = "test:#{System.unique_integer([:positive])}"
     on_exit(fn -> Throttle.reset(key) end)
     %{key: key}

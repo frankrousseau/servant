@@ -21,8 +21,9 @@ defmodule ServantWeb.OpenApiTest do
     refute body =~ "//cdn."
   end
 
-  # Known limitation: the check is path-keyed, so a second /api route reusing
-  # an already-documented action is not independently verified.
+  # Known limitation: the check uses the path as the key. As a result, it does
+  # not independently examine a second /api route that uses an
+  # already-documented action again.
   test "every /api route is documented in the spec" do
     spec = ServantWeb.ApiSpec.spec()
 

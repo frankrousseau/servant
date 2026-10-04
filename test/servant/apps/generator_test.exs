@@ -16,10 +16,11 @@ defmodule Servant.Apps.GeneratorTest do
   ```
   """
 
-  # Mirrors the on_exit cleanup in test/servant/apps_test.exs's setup block,
-  # attached per-user here (not in a top-level setup) because each test
-  # builds its own agents-enabled user through this helper rather than a
-  # shared context user; install_dir still ends up disposable.
+  # Mirrors the on_exit cleanup in the setup block of
+  # test/servant/apps_test.exs. Here the cleanup is attached per user, not in
+  # a top-level setup. The reason: each test builds its own agents-enabled
+  # user through this helper and does not use a shared context user.
+  # install_dir is still disposable at the end.
   defp user_with_agents do
     user = user_fixture()
     on_exit(fn -> File.rm_rf(Servant.Storage.join_files([user.id])) end)

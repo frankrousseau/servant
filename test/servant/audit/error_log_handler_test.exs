@@ -8,7 +8,7 @@ defmodule Servant.Audit.ErrorLogHandlerTest do
     before = length(LogBuffer.error_logs())
     ErrorLogHandler.log(%{level: :error, msg: msg, meta: meta}, %{})
 
-    # The buffer records through a cast; a call flushes it
+    # The buffer records through a cast. A call flushes it.
     entries = LogBuffer.error_logs()
     assert length(entries) == before + 1
     hd(entries)
@@ -51,8 +51,8 @@ defmodule Servant.Audit.ErrorLogHandlerTest do
     assert String.length(entry.message) == 2_000
   end
 
-  # A handler that raises would take the whole logger down with it: it swallows
-  # the event instead.
+  # If a handler raises, the full logger goes down with it. Instead, this
+  # handler swallows the event.
   test "a message it cannot format never raises" do
     before = length(LogBuffer.error_logs())
 

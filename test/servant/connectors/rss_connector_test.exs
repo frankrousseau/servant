@@ -50,14 +50,14 @@ defmodule Servant.Connectors.RSSConnectorTest do
       item = %{link: nil, title: nil, description: "body"}
       id = RSSConnector.external_id(item)
       assert String.starts_with?(id, "sha256:")
-      # stable for the same content
+      # The id is stable for the same content.
       assert id == RSSConnector.external_id(item)
     end
   end
 
   describe "sync/1" do
-    # A public IP literal, so the SSRF guard resolves without a DNS lookup and
-    # the test stays offline; Req.Test answers the request itself.
+    # A public IP literal. As a result, the SSRF guard resolves without a DNS
+    # lookup and the test stays offline. Req.Test itself answers the request.
     @feed_url "http://93.184.216.34/feed.xml"
 
     @rss """
@@ -114,8 +114,8 @@ defmodule Servant.Connectors.RSSConnectorTest do
       assert {:error, "HTTP 404", ^state} = RSSConnector.sync(state)
     end
 
-    # The feed URL comes from the user, so it must never be usable to reach
-    # the host's own network (SSRF).
+    # The feed URL comes from the user. As a result, it must never let a
+    # request reach the own network of the host (SSRF).
     test "refuses a URL that is not publicly routable" do
       Req.Test.stub(Servant.HTTP, fn _conn -> flunk("the guard should have refused") end)
 

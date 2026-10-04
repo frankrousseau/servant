@@ -1,5 +1,5 @@
 defmodule Mix.Tasks.Servant.SeedTest do
-  # System.put_env on the storage roots: keep serial.
+  # This module calls System.put_env on the storage roots. Keep it serial.
   use Servant.DataCase, async: false
 
   import Ecto.Query
@@ -41,11 +41,11 @@ defmodule Mix.Tasks.Servant.SeedTest do
       assert Map.get(kinds, kind, 0) > 0, "no #{kind} entry seeded"
     end
 
-    # Notes went through the Notes context: their wikilinks are in the graph.
+    # The notes went through the Notes context. Their wikilinks are in the graph.
     assert Repo.aggregate(from(link in NoteLink, where: link.user_id == ^user.id), :count) > 0
 
-    # Connectors exist with a sync history, but stay on demand: seeded fake
-    # credentials must never reach a real API.
+    # The connectors exist with a sync history, but they stay on demand. The
+    # seeded fake credentials must never reach a real API.
     connectors =
       Repo.all(
         from config in Servant.Connectors.ConnectorConfig, where: config.user_id == ^user.id
@@ -55,7 +55,7 @@ defmodule Mix.Tasks.Servant.SeedTest do
     assert Enum.all?(connectors, &(&1.enabled and &1.schedule == "on_demand"))
     assert Repo.aggregate(Servant.Connectors.SyncLog, :count) > 0
 
-    # Relations form a network: a contact keeps every link written to it.
+    # The relations form a network. A contact keeps each link written to it.
     most_relations =
       from(entry in Entry, where: entry.user_id == ^user.id and entry.kind == "contact")
       |> Repo.all()
@@ -64,7 +64,7 @@ defmodule Mix.Tasks.Servant.SeedTest do
 
     assert most_relations >= 3
 
-    # Photos went through the real pipeline: the blob and its thumbnail exist.
+    # The photos went through the real pipeline. The blob and its thumbnail exist.
     photo = Repo.one!(from entry in Entry, where: entry.kind == "photo", limit: 1)
     assert %{"path" => "/files/" <> relative, "thumb_path" => "/files/" <> _thumb} = photo.data
     assert {:ok, _absolute} = Servant.Storage.resolve_owned_path(user.id, relative)

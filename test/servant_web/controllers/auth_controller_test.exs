@@ -110,7 +110,7 @@ defmodule ServantWeb.AuthControllerTest do
         })
       end
 
-      # Even the correct password is refused while locked.
+      # During the lockout, the server refuses the correct password also.
       conn =
         post(conn, "/api/auth/login", %{"username" => "brutus", "password" => "password123"})
 
@@ -154,7 +154,7 @@ defmodule ServantWeb.AuthControllerTest do
 
       assert %{"data" => data, "token" => new_token} = json_response(conn, 200)
       assert data["id"] == user.id
-      # me/2 hands back a fresh token for the SPA to open the socket with
+      # me/2 gives back a fresh token. The SPA uses it to open the socket.
       assert is_binary(new_token)
     end
   end
@@ -203,8 +203,8 @@ defmodule ServantWeb.AuthControllerTest do
 
     @password "password123"
 
-    # Stores a known secret directly (encrypted, no last-used timestamp) so
-    # tests can mint codes without tripping the replay guard.
+    # Stores a known secret directly (encrypted, no last-used timestamp). As a
+    # result, the tests can mint codes and do not trip the replay guard.
     defp put_totp_secret(user, secret) do
       user
       |> Ecto.Changeset.change(%{
@@ -318,7 +318,7 @@ defmodule ServantWeb.AuthControllerTest do
       assert %{"totp_enabled" => true} = json_response(ok, 200)
       assert Accounts.totp_enabled?(Repo.get!(User, user.id))
 
-      # A consumed code is refused; reset the replay guard to mint a new one.
+      # The server refuses a consumed code. Reset the replay guard to mint a new code.
       user = Repo.get!(User, user.id)
       put_totp_secret(user, secret)
 

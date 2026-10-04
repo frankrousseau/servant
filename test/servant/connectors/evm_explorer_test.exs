@@ -14,9 +14,9 @@ defmodule Servant.Connectors.EVM.ExplorerTest do
       assert Explorer.parse_body(body) == {:ok, []}
     end
 
-    # Etherscan reports API errors as HTTP 200 + status "0" with the error in
-    # result; these must surface as sync failures, not empty syncs (the V1
-    # sunset went unnoticed for weeks because they were swallowed).
+    # Etherscan reports the API errors as HTTP 200 + status "0", with the error
+    # in result. These errors must show as sync failures, not as empty syncs.
+    # The V1 sunset went unnoticed for weeks because the code swallowed them.
     test "status 0 with an error message in result is an error" do
       deprecated =
         "You are using a deprecated V1 endpoint, switch to Etherscan API V2 " <>

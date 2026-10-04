@@ -50,8 +50,8 @@ defmodule Servant.Connectors.InvoiceScraperConnectorTest do
       assert inv["amount"] == "142.50"
     end
 
-    # stderr is folded into stdout so the diagnostics survive; the payload is
-    # still the last thing the script writes.
+    # stderr is merged into stdout so that the diagnostics survive. The payload
+    # is still the last thing that the script writes.
     test "reads the payload under the scraper's log lines" do
       output = """
       [scraper] Starting scraper for provider: OVH
@@ -74,8 +74,8 @@ defmodule Servant.Connectors.InvoiceScraperConnectorTest do
   end
 
   describe "diagnostic/1" do
-    # Verbatim from a run whose browser was missing: the actionable sentence
-    # sits on the ERROR line, above six lines of Playwright's banner.
+    # Verbatim output of a run that had no browser. The actionable sentence is
+    # on the ERROR line, above six lines of the Playwright banner.
     test "picks the error line out of a real failing run" do
       output = """
       [scraper] Starting scraper for provider: OVH
@@ -166,8 +166,8 @@ defmodule Servant.Connectors.InvoiceScraperConnectorTest do
     end
   end
 
-  # The provider name is interpolated into `providers/<name>.js` by the Node
-  # script, so anything but a bare identifier could execute arbitrary JS.
+  # The Node script interpolates the provider name into `providers/<name>.js`.
+  # As a result, a name that is not a bare identifier can execute arbitrary JS.
   describe "provider validation" do
     defp init_with(provider) do
       InvoiceScraperConnector.init(%{}, %{

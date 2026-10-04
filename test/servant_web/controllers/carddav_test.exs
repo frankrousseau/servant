@@ -1,5 +1,5 @@
 defmodule ServantWeb.CardDAVTest do
-  @moduledoc "CardDAV half of ServantWeb.DavController (CalDAV has its own suite)."
+  @moduledoc "CardDAV half of ServantWeb.DavController. CalDAV has its own suite."
 
   use ServantWeb.ConnCase, async: false
 
@@ -211,7 +211,7 @@ defmodule ServantWeb.CardDAVTest do
     put = dav(conn, "PUT", "/dav/addressbooks/#{user.id}/contacts/x.vcf", @vcf)
     assert put.status == 403
 
-    # Contacts token can still discover the shared principal.
+    # A contacts token can still discover the shared principal.
     {contacts_conn, user2} = basic_setup(build_conn(), ["app:contacts:read"])
     assert dav(contacts_conn, "PROPFIND", "/dav/principals/#{user2.id}").status == 207
     assert dav(contacts_conn, "PROPFIND", "/dav/calendars/#{user2.id}").status == 403

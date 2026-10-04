@@ -44,7 +44,8 @@ defmodule Servant.Connectors.OvhConnectorTest do
 
   describe "signature/6" do
     test "signs the request the way OVH expects" do
-      # Vector locked so a later reordering of the joined fields cannot pass.
+      # The vector is locked so that a later change in the order of the joined
+      # fields cannot pass.
       signature =
         OvhConnector.signature(
           "app-secret",
@@ -145,8 +146,9 @@ defmodule Servant.Connectors.OvhConnectorTest do
       )
     end
 
-    # Routes the three calls a sync makes: the clock, the bill list, one
-    # detail per bill (plus the PDF download, which lives on another host).
+    # Routes the three calls that a sync makes: the clock, the bill list, one
+    # detail for each bill. It also routes the PDF download, which is on a
+    # different host.
     defp stub_ovh(bills, opts \\ []) do
       Req.Test.stub(Servant.HTTP, fn conn ->
         case conn.request_path do
@@ -208,7 +210,7 @@ defmodule Servant.Connectors.OvhConnectorTest do
 
       assert Enum.map(entries, & &1["external_id"]) == ["ovh-FR2", "ovh-FR1"]
       assert hd(entries)["kind"] == "invoice"
-      # No user_id: no local PDF, the entry keeps OVH's own link
+      # Without a user_id, there is no local PDF. The entry keeps the link from OVH.
       assert hd(entries)["data"]["url"] == "https://www.ovh.com/FR2.pdf"
     end
 
@@ -327,7 +329,8 @@ defmodule Servant.Connectors.OvhConnectorTest do
       assert file["data"]["mime_type"] == "application/pdf"
       assert file["data"]["size"] == byte_size("%PDF-1.4 fake")
 
-      # The shared root folder is created once and the PDF filed under it
+      # The connector creates the shared root folder one time and files the PDF
+      # under it.
       folder = Enum.find(Data.all_entries(user.id, %{"kind" => "file"}), & &1.data["is_folder"])
       assert folder.data["filename"] == "Invoices"
       assert file["data"]["parent_id"] == folder.id

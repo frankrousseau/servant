@@ -30,7 +30,7 @@ defmodule ServantWeb.SpaControllerTest do
     assert csp =~ "default-src 'self'"
     assert csp =~ "script-src 'self'"
     assert csp =~ "object-src 'none'"
-    # scripts must NOT be allowed inline / eval
+    # The CSP must NOT let scripts run inline or through eval.
     refute csp =~ "'unsafe-eval'"
     refute csp =~ "script-src 'self' 'unsafe-inline'"
 
@@ -38,8 +38,9 @@ defmodule ServantWeb.SpaControllerTest do
     assert get_resp_header(conn, "x-frame-options") == ["DENY"]
   end
 
-  # A public file missing from static_paths falls through to the SPA fallback
-  # in production (Vite serves it in dev, so nothing shows until deployed).
+  # A public file that is missing from static_paths falls through to the SPA
+  # fallback in production. Vite serves it in dev. As a result, nothing shows
+  # before the deployment.
   test "every frontend/public file the SPA references is served" do
     frontend = Path.expand("../../../frontend", __DIR__)
 

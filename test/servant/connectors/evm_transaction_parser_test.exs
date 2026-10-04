@@ -81,7 +81,7 @@ defmodule Servant.Connectors.EVM.TransactionParserTest do
     end
 
     test "skips transactions below threshold" do
-      # 500 wei, well below default 1_000_000_000_000_000
+      # 500 wei, much less than the default of 1_000_000_000_000_000
       tx = native_tx(%{"value" => "500"})
       assert :skip = TransactionParser.parse_transaction(tx, @wallet)
     end
@@ -115,8 +115,9 @@ defmodule Servant.Connectors.EVM.TransactionParserTest do
     end
 
     test "captures logIndex so multi-transfer txs get distinct external_ids" do
-      # Two ERC-20 transfers sharing one tx hash (e.g. a swap) must be told apart
-      # by their log index, or on_conflict:nothing would drop all but the first.
+      # Two ERC-20 transfers can share one tx hash (for example, a swap). Their
+      # log index must tell them apart, or on_conflict:nothing drops all but the
+      # first.
       tx_a = token_tx(%{"logIndex" => "5"})
       tx_b = token_tx(%{"logIndex" => "6", "tokenSymbol" => "DAI"})
 

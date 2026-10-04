@@ -97,13 +97,13 @@ defmodule Servant.CardDAV.VCardTest do
       names = %{"c-bob" => "Bob", "c-zoe" => "Zoé Martin"}
       vcf = VCard.to_vcf(entry, names: names)
 
-      # Empty and non-string tags dropped; a comma inside a tag escaped so it
-      # can't split the list.
+      # to_vcf drops the empty tags and the non-string tags. It escapes a comma
+      # inside a tag so that the comma cannot split the list.
       assert vcf =~ "CATEGORIES:family,pa\\,ris"
       assert vcf =~ "RELATED;TYPE=SIBLING;VALUE=text:Bob"
-      # A type with a space can't be a bare param value.
+      # A type with a space cannot be a bare param value.
       assert vcf =~ ~s(RELATED;TYPE="climbing partner";VALUE=text:Zoé Martin)
-      # Unknown target and malformed relation are skipped.
+      # to_vcf skips an unknown target and a malformed relation.
       refute vcf =~ "c-gone"
       assert length(String.split(vcf, "RELATED")) == 3
     end

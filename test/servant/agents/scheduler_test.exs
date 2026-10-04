@@ -12,12 +12,12 @@ defmodule Servant.Agents.SchedulerTest do
     assert {:noreply, %{task_ref: ref}} = Scheduler.handle_info(:tick, %{task_ref: nil})
     assert is_reference(ref)
 
-    # The batch runs in the Agents task supervisor and answers the caller
+    # The batch runs in the Agents task supervisor and answers the caller.
     assert_receive {^ref, :ok}
   end
 
-  # Local models are slow: a batch still running must not be joined by a
-  # second one, or two runs of the same agent overlap.
+  # The local models are slow. A second batch must not join a batch that
+  # still runs, or two runs of the same agent overlap.
   test "a tick while a batch runs is skipped" do
     running = make_ref()
 

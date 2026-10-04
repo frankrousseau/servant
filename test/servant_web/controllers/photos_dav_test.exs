@@ -1,11 +1,11 @@
 defmodule ServantWeb.PhotosDavTest do
-  # System.put_env on the storage roots: keep serial.
+  # This module calls System.put_env on the storage roots. Keep it serial.
   use ServantWeb.ConnCase, async: false
 
   alias Servant.Data
 
-  # Smallest valid JPEG (1x1), same fixture as the thumbnail tests; real
-  # enough for libvips to thumbnail it when libvips is available.
+  # The smallest valid JPEG (1x1), the same fixture as in the thumbnail tests.
+  # It is real enough for libvips to thumbnail it when libvips is available.
   @jpeg Base.decode64!(
           "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDAREAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQBAQAAAAAAAAAAAAAAAAAAAAD/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCwAA//2Q=="
         )
@@ -162,7 +162,7 @@ defmodule ServantWeb.PhotosDavTest do
   test "MKCOL guards and empty-album PROPFIND", %{conn: conn} do
     assert dav(conn, "MKCOL", "/dav/photos/Fresh").status == 201
 
-    # A just-created album is virtual but must list as an empty collection.
+    # A new album is virtual, but it must list as an empty collection.
     listing = dav(conn, "PROPFIND", "/dav/photos/Fresh")
     assert listing.status == 207
 
