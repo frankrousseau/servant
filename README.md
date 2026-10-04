@@ -5,6 +5,7 @@ calendar, contacts, blockchain, etc.) via connectors and exposes it through a un
 
 ## Features
 
+- **Basic personal apps**: contacts, calendars, files, photos, checklists and notes
 - **Universal data model**: all data stored as typed entries with JSON payloads
 - **Connector plugin system**: pull data from external services on a schedule
 - **Single-user**: All UIs are designed for personal usages
