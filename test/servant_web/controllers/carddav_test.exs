@@ -93,6 +93,47 @@ defmodule ServantWeb.CardDAVTest do
     assert entry.data["display_name"] == "Jeanne Dupont-Martin"
   end
 
+  test "PUT whose UID matches an app contact updates it instead of duplicating",
+       %{conn: conn} do
+    {conn, user} = basic_setup(conn)
+
+    {:ok, imported} =
+      Data.create_entry(user.id, %{
+        "kind" => "contact",
+        "source" => "manual",
+        "external_id" => "card-uid-1",
+        "title" => "Jeanne",
+        "data" => %{"display_name" => "Jeanne"}
+      })
+
+    put_conn = dav(conn, "PUT", "/dav/addressbooks/#{user.id}/contacts/phone-name.vcf", @vcf)
+    assert put_conn.status == 204
+
+    [entry] = Data.all_entries(user.id, %{"kind" => "contact"})
+    assert entry.id == imported.id
+    assert entry.data["carddav_filename"] == "phone-name.vcf"
+    assert entry.data["display_name"] == "Jeanne Dupont"
+  end
+
+  test "PUT with the synthesized <id>@servant UID under a new name finds the contact",
+       %{conn: conn} do
+    {conn, user} = basic_setup(conn)
+
+    {:ok, manual} =
+      Data.create_entry(user.id, %{
+        "kind" => "contact",
+        "source" => "manual",
+        "title" => "Paul Martin",
+        "data" => %{"display_name" => "Paul Martin"}
+      })
+
+    vcf = String.replace(@vcf, "UID:card-uid-1", "UID:#{manual.id}@servant")
+    put_conn = dav(conn, "PUT", "/dav/addressbooks/#{user.id}/contacts/renamed.vcf", vcf)
+    assert put_conn.status == 204
+    assert [%{id: id}] = Data.all_entries(user.id, %{"kind" => "contact"})
+    assert id == manual.id
+  end
+
   test "DELETE removes the contact", %{conn: conn} do
     {conn, user} = basic_setup(conn)
     path = "/dav/addressbooks/#{user.id}/contacts/card-uid-1.vcf"

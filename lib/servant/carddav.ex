@@ -78,11 +78,14 @@ defmodule Servant.CardDAV do
     end
   end
 
+  # By resource name first, then by UID over every exposed contact: a client
+  # re-pushing a card it fetched (an imported one keeps its original UID, an
+  # app-made one carries `<id>@servant`) must update it, not duplicate it.
   defp resolve_target(user_id, filename, uid) do
     contacts = contacts(user_id)
 
     Enum.find(contacts, &(resource_name(&1) == filename)) ||
-      (uid && Enum.find(contacts, &(&1.source == "carddav" and &1.external_id == uid)))
+      (uid && Enum.find(contacts, &(VCard.uid(&1) == uid)))
   end
 
   def delete_contact(user_id, entry), do: Data.delete_entry(user_id, entry.id)

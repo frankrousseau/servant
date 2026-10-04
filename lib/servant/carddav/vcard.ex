@@ -108,8 +108,12 @@ defmodule Servant.CardDAV.VCard do
     end
   end
 
-  @doc "UID exposed over CardDAV; client-supplied when available."
-  def uid(entry), do: entry.external_id || "#{entry.id}@servant"
+  @doc """
+  UID exposed over CardDAV: the one inherited from a merged duplicate
+  (`carddav_uid`, see `Servant.Contacts.merge/3`), else the client-supplied
+  one, else a stable Servant-made value.
+  """
+  def uid(entry), do: entry.data["carddav_uid"] || entry.external_id || "#{entry.id}@servant"
 
   defp synthesize(entry, names) do
     d = entry.data
