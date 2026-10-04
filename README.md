@@ -86,3 +86,7 @@ project structure and architecture notes.
 - [docs/photo-sharing.md](docs/photo-sharing.md): share a photo feed by public link from one or more tags
 - [docs/custom-apps.md](docs/custom-apps.md): apps installable from git
 - [AGENTS.md](AGENTS.md): coding rules and conventions
+
+## License
+
+Servant is free software, released under the [GNU AGPL v3](LICENSE).

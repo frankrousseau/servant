@@ -10,6 +10,7 @@ defmodule Servant.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
+      package: [licenses: ["AGPL-3.0-only"]],
       listeners: [Phoenix.CodeReloader]
     ]
   end
