@@ -43,6 +43,36 @@ export function normalizeName(raw: string): string {
     .trim()
 }
 
+// Names that are not written the same but mean the same person: same words
+// in another order ("DUPONT Jeanne"), or one typo apart once long enough for
+// a typo to be the likeliest explanation.
+const TYPO_MIN_LENGTH = 5
+const TYPO_WIDE_LENGTH = 10
+
+export function similarNames(a: string, b: string): boolean {
+  if (a === b) return true
+  if (a.split(' ').sort().join(' ') === b.split(' ').sort().join(' '))
+    return true
+  const shortest = Math.min(a.length, b.length)
+  if (shortest < TYPO_MIN_LENGTH) return false
+  const budget = shortest >= TYPO_WIDE_LENGTH ? 2 : 1
+  return Math.abs(a.length - b.length) <= budget && editDistance(a, b) <= budget
+}
+
+// ponytail: plain Levenshtein on short strings; names are a few dozen chars.
+function editDistance(a: string, b: string): number {
+  let previous = Array.from({ length: b.length + 1 }, (_, i) => i)
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i]
+    for (let j = 1; j <= b.length; j++) {
+      const substitution = previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      current[j] = Math.min(previous[j] + 1, current[j - 1] + 1, substitution)
+    }
+    previous = current
+  }
+  return previous[b.length]
+}
+
 function labeledValues(entry: Entry, key: string): string[] {
   const list = entry.data[key]
   if (!Array.isArray(list)) return []
@@ -96,6 +126,31 @@ export function findDuplicateGroups(contacts: Entry[]): DuplicateGroup[] {
         matched.push({ a: other, b: index, reason })
         union(other, index)
       }
+    }
+  })
+
+  // Looser name matches need a pairwise pass: similar full names, and a bare
+  // first name against the one contact whose name carries it (two candidates
+  // would mean guessing, so that one stays alone).
+  const names = contacts.map(entry => {
+    const name = contactName(entry)
+    return name === UNNAMED ? '' : normalizeName(name)
+  })
+  names.forEach((name, index) => {
+    if (!name) return
+    for (let other = index + 1; other < names.length; other++) {
+      if (names[other] && similarNames(name, names[other])) {
+        matched.push({ a: index, b: other, reason: 'name' })
+        union(index, other)
+      }
+    }
+    if (name.includes(' ')) return
+    const carriers = names.flatMap((candidate, other) =>
+      other !== index && candidate.split(' ').includes(name) ? [other] : []
+    )
+    if (carriers.length === 1) {
+      matched.push({ a: index, b: carriers[0], reason: 'name' })
+      union(index, carriers[0])
     }
   })
 

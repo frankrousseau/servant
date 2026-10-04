@@ -501,7 +501,7 @@ describe('ContactsApp', () => {
     await flushPromises()
 
     const group = wrapper.find('.ct-dup-group')
-    expect(group.find('.ct-dup-reasons').text()).toBe('same email')
+    expect(group.find('.ct-dup-reasons').text()).toBe('same email, same name')
     // The fuller card (org set) is preselected as the survivor.
     expect(group.find('.ct-dup-card--keep .ct-dup-name').text()).toBe(
       'Alice Martin'

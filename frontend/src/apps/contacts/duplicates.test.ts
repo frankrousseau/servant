@@ -79,6 +79,49 @@ describe('findDuplicateGroups', () => {
     expect(groups[0].reasons).toEqual(['email', 'name'])
   })
 
+  it('matches names whatever the word order', () => {
+    const groups = findDuplicateGroups([
+      contact('a', 'Jeanne Dupont'),
+      contact('b', 'DUPONT Jeanne')
+    ])
+    expect(groups.map(group => group.contacts.map(entry => entry.id))).toEqual([
+      ['a', 'b']
+    ])
+    expect(groups[0].reasons).toEqual(['name'])
+  })
+
+  it('matches a bare first name to the one contact carrying it', () => {
+    const groups = findDuplicateGroups([
+      contact('a', 'Jeanne'),
+      contact('b', 'Jeanne Dupont'),
+      contact('c', 'Marc Dupont')
+    ])
+    expect(groups.map(group => group.contacts.map(entry => entry.id))).toEqual([
+      ['a', 'b']
+    ])
+  })
+
+  it('leaves a bare first name alone when several contacts carry it', () => {
+    const groups = findDuplicateGroups([
+      contact('a', 'Paul'),
+      contact('b', 'Paul Martin'),
+      contact('c', 'Paul Durand')
+    ])
+    expect(groups).toEqual([])
+  })
+
+  it('matches names one typo apart, but not short ones', () => {
+    const groups = findDuplicateGroups([
+      contact('a', 'Jeanne Dupont'),
+      contact('b', 'Jeanne Dupnot'),
+      contact('c', 'Ana'),
+      contact('d', 'Ann')
+    ])
+    expect(groups.map(group => group.contacts.map(entry => entry.id))).toEqual([
+      ['a', 'b']
+    ])
+  })
+
   it('ignores unnamed contacts and blank values', () => {
     const groups = findDuplicateGroups([
       contact('a', '', { emails: labeled('') }),
