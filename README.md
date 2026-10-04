@@ -10,10 +10,10 @@ calendar, contacts, blockchain, etc.) via connectors and exposes it through a un
 - **AI agents management**: scoped access tokens and a shared memory for your agents (Claude Code, Cursor)
 - **Universal data model**: all data stored as typed entries with JSON payloads
 - **Connector plugin system**: pull data from external services on a schedule
-- **Single-user**: All UIs are designed for personal usages
+- **Single-user**: all UIs are designed for personal use
 - **API access**: scoped, revocable tokens for scripts and agents
 - **Real-time**: entry changes are pushed to connected clients over websockets
-- **Self-hosted**: single binary deployment, SQLite database, runs on a Raspberry Pi
+- **Self-hosted**: ships as a single Elixir release (Docker image or [bare metal](docs/deploy.md#bare-metal-release)), SQLite database, runs on a Raspberry Pi
 
 ## Screenshots
 
