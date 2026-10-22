@@ -47,7 +47,9 @@ path_ok() {
 
 curl -sSf -H "Authorization: Bearer $SERVANT_TOKEN" \
   "$SERVANT_URL/api/agent_memory?project=$project&tool=$tool&include=body" |
-  jq -r '.data[] | [.path, .sha256, .updated_at, (.pending // ""), (.body | @base64)] | @tsv' |
+  # "-" stands for "no pending mark": tab is IFS whitespace, so read would merge
+  # the tabs around an empty field and shift the body into $pending.
+  jq -r '.data[] | [.path, .sha256, .updated_at, (.pending // "-"), (.body // "" | @base64)] | @tsv' |
   while IFS=$'\t' read -r path sha updated pending body64; do
     if ! path_ok "$path"; then
       echo "REJECTED  $path" >&2
