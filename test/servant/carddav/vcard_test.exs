@@ -42,6 +42,31 @@ defmodule Servant.CardDAV.VCardTest do
       assert parsed.data["note"] == "Une note, avec virgule"
     end
 
+    test "keeps the grouped and lowercase-typed properties an iPhone sends" do
+      vcf = """
+      BEGIN:VCARD
+      VERSION:3.0
+      PRODID:-//Apple Inc.//iPhone OS 18.0//EN
+      N:Doe;John;;;
+      FN:John Doe
+      TEL;type=CELL;type=VOICE;type=pref:+33 6 12 34 56 78
+      item1.TEL:01 23 45 67 89
+      item1.X-ABLabel:_$!<Other>!$_
+      item2.EMAIL;type=INTERNET;type=WORK:john@example.com
+      UID:ios-uid
+      END:VCARD
+      """
+
+      {:ok, parsed} = VCard.parse_contact(vcf)
+
+      assert parsed.data["phones"] == [
+               %{"value" => "+33 6 12 34 56 78", "type" => "cell"},
+               %{"value" => "01 23 45 67 89", "type" => "other"}
+             ]
+
+      assert parsed.data["emails"] == [%{"value" => "john@example.com", "type" => "work"}]
+    end
+
     test "rejects payloads without a vCard" do
       assert {:error, _} = VCard.parse_contact("nothing here")
     end

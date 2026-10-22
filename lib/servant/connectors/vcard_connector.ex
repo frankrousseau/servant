@@ -13,6 +13,11 @@ defmodule Servant.Connectors.VCardConnector do
   # something else and we leave it in the raw payload rather than store it.
   @max_photo_bytes 10_000_000
 
+  # vCard 2.1 writes types as bare params ("TEL;CELL:..."); the generic ones
+  # describe every value of the property and only win when nothing else does.
+  @bare_types ~w(WORK HOME CELL VOICE FAX PREF)
+  @generic_types ~w(pref voice internet)
+
   @impl true
   def id, do: "vcard"
 
@@ -192,11 +197,14 @@ defmodule Servant.Connectors.VCardConnector do
   defp parse_property(line) do
     case String.split(line, ":", parts: 2) do
       [key_part, value] ->
-        # Key may have params like "TEL;TYPE=WORK;VALUE=uri"
+        # Key may have params like "TEL;TYPE=WORK;VALUE=uri" and a group
+        # prefix like "item1.TEL" (iOS groups a property with its X-ABLabel)
         key =
           key_part
           |> String.split(";")
           |> List.first()
+          |> String.split(".")
+          |> List.last()
           |> String.upcase()
 
         type_param = extract_type_param(key_part)
@@ -207,16 +215,29 @@ defmodule Servant.Connectors.VCardConnector do
     end
   end
 
+  # iOS repeats lowercase params ("type=CELL;type=VOICE;type=pref") and vCard
+  # 3.0 allows a list ("TYPE=CELL,VOICE"): keep the first type that says what
+  # the value is, the generic ones only when there is nothing else.
   defp extract_type_param(key_part) do
-    key_part
-    |> String.split(";")
-    |> Enum.find_value(fn param ->
-      case String.split(param, "=", parts: 2) do
-        ["TYPE", type] -> String.downcase(type)
-        [t] when t in ["WORK", "HOME", "CELL", "VOICE", "FAX", "PREF"] -> String.downcase(t)
-        _ -> nil
-      end
-    end)
+    types =
+      key_part
+      |> String.split(";")
+      |> Enum.drop(1)
+      |> Enum.flat_map(fn param ->
+        case String.split(param, "=", parts: 2) do
+          [name, value] ->
+            if String.upcase(name) == "TYPE",
+              do: value |> String.trim(~s(")) |> String.split(","),
+              else: []
+
+          [bare] ->
+            if String.upcase(bare) in @bare_types, do: [bare], else: []
+        end
+      end)
+      |> Enum.map(&String.downcase/1)
+      |> Enum.reject(&(&1 == ""))
+
+    Enum.find(types, &(&1 not in @generic_types)) || List.first(types)
   end
 
   defp get_first(props, key) do
