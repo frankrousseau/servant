@@ -1,57 +1,54 @@
 # Sharing a photo feed by link
 
-The Photos app can publish a **public link over one or more tags or people**:
-anyone holding the link sees the photos carrying those tags or people (the
-contacts named on a photo), in a read-only gallery,
-without an account. The feed is computed when the link is opened, so photos
-you tag later show up on their own, and untagging a photo removes it. That
-is what makes it a feed rather than an album snapshot: tag the photos of an
-ongoing trip as you go, share the link once.
+The Photos app can make a **public link for one or more tags or people** (people are the
+contacts named on a photo). A person with the link sees the photos with these tags or people in
+a read-only gallery. This person does not need an account.
 
-## Creating a link
+Servant calculates the feed each time a person opens the link. Thus a photo that you tag later
+shows in the feed, and a photo that you untag goes out of it.
 
-1. In **Photos**, click **Share** in the toolbar (the button appears once at
-   least one photo carries a tag or a person).
-2. Pick tags, people, or both. With several, choose whether the feed keeps
-   photos carrying **any** of them (union) or **all** of them (intersection):
-   "Alice + beach" is the beach photos Alice is on.
-3. Optionally name the link (the name titles the public page; otherwise the
-   tags do, and a people-only link reads "Shared photos", since the page never
-   names anyone), then **Create link**. The URL is copied to the clipboard.
+## Make a link
 
-The same dialog lists the existing links, each with **Copy**, **Open** and
-**Revoke**; **Settings > API Tokens > Shared photo links** lists them too,
-with the same copy and revoke actions. Revoking a link cuts access at once:
-the page and its files stop resolving.
+1. In **Photos**, click **Share** in the toolbar. The button shows when one or more photos have
+   a tag or a person.
+2. Select tags, people, or both. With more than one, select how the feed keeps the photos:
+   - **any**: photos with one or more of them (union);
+   - **all**: photos with all of them (intersection). For example, "Alice + beach" gives the
+     beach photos with Alice.
+3. Optional: type a name for the link. The name is the title of the public page. Without a
+   name, the tags are the title. A link with only people has the title "Shared photos",
+   because the page never shows names of people.
+4. Click **Create link**. Servant copies the URL to the clipboard.
 
-## Adding context to a photo
+The same dialog shows the existing links, each with **Copy**, **Open** and **Revoke**.
+**Settings > API Tokens > Shared photo links** also shows them, with Copy and Revoke. When you
+revoke a link, access stops immediately: the page and its files do not resolve.
 
-Open a photo, click **Info** and type in the **Note** field: it is saved when
-the field loses focus and shows as a caption under the photo, in the app and
-on every share link that includes it.
+## Add a caption to a photo
 
-## What a visitor gets
+Open a photo, click **Info** and type text in the **Note** field. Servant saves the note when
+the field loses focus. The note shows as a caption under the photo, in the app and on each
+share link that contains the photo.
 
-- The page at `/share/<token>`: a thumbnail grid, newest first, and a viewer
-  with zoom, full-resolution and download. No delete, no in-app permalink,
-  no sidebar, even for the logged-in owner (what they see is what a visitor
-  gets).
-- Per photo, only the title, the date, the media type, the files (original,
-  thumbnail, display copy) and the photo's note, shown as a caption in the
-  viewer: write it for whoever gets the link. EXIF location, camera, album,
-  people and the other tags stay private.
-- Files are served under `/share/<token>/files/…`, and only the files of a
-  photo currently in the feed resolve there; the rest of your store is
-  unreachable through the link.
+## What a visitor sees
+
+- The page `/share/<token>`: a grid of thumbnails (newest first) and a viewer with zoom,
+  full resolution and download. There is no delete, no in-app permalink and no sidebar. The
+  owner sees the same page as a visitor.
+- For each photo, only: the title, the date, the media type, the files (original, thumbnail,
+  display copy) and the note. The viewer shows the note as a caption, so write it for the
+  persons with the link. The EXIF location, camera, album, people and other tags stay private.
+- Servant serves the files under `/share/<token>/files/…`. Only the files of a photo that is
+  in the feed now resolve there. The link gives no access to the other files.
 
 ## Security notes
 
-- The token is the whole credential: 192 random bits in the URL, no session
-  required. Treat the link like a password for those photos; anyone you
-  forward it to can forward it further. Revoke it when the sharing is over.
-- Tokens are stored as-is (not hashed) so the owner can copy a link again;
-  a database backup therefore contains working links.
-- Links are managed from a browser session only (`/api/photo_shares`); API
-  tokens, whatever their scopes, cannot create or list them.
-- The public JSON behind the page is `GET /api/shares/<token>` (documented
-  at `/api/docs`), usable from a script or another site.
+- The token is the only credential: 192 random bits in the URL, no session. Keep the link
+  safe, as a password for these photos. A person with the link can send it to other persons.
+  When the sharing is complete, revoke the link.
+- Servant stores the tokens as they are (not hashed), so the owner can copy a link again. Thus
+  a database backup contains links that work.
+- Only a browser session can manage links (`/api/photo_shares`). API tokens cannot make or
+  list links, with all scopes.
+- The page uses the public JSON route `GET /api/shares/<token>` (documented at `/api/docs`).
+  A script or a different site can also use it.

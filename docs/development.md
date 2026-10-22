@@ -1,25 +1,26 @@
 # Development Setup
 
-Coding rules and conventions live in [AGENTS.md](../AGENTS.md); production deployment is covered
-in [deploy.md](deploy.md).
+For the coding rules and conventions, see [AGENTS.md](../AGENTS.md). For production
+deployment, see [deploy.md](deploy.md).
 
 ## Prerequisites
 
-Install [asdf](https://asdf-vm.com/) and the required plugins:
+1. Install [asdf](https://asdf-vm.com/).
+2. Add the plugins:
 
-```bash
-asdf plugin add erlang
-asdf plugin add elixir
-asdf plugin add nodejs
-```
+   ```bash
+   asdf plugin add erlang
+   asdf plugin add elixir
+   asdf plugin add nodejs
+   ```
 
-Then install the pinned versions from `.tool-versions`:
+3. Install the versions pinned in `.tool-versions`:
 
-```bash
-asdf install
-```
+   ```bash
+   asdf install
+   ```
 
-This installs the versions pinned in `.tool-versions` (currently):
+The pinned versions are now:
 - Erlang 29.0.3
 - Elixir 1.20.2-otp-29
 - Node.js 22.18.0
@@ -30,7 +31,7 @@ This installs the versions pinned in `.tool-versions` (currently):
 mix setup
 ```
 
-This runs `deps.get`, creates the database, and runs migrations.
+This command runs `deps.get`, makes the database and runs the migrations.
 
 ## Frontend setup
 
@@ -41,7 +42,7 @@ npm install
 
 ## Running in development
 
-From the project root:
+Run these commands from the project root.
 
 **Terminal 1 (Phoenix API server, port 4001):**
 
@@ -55,46 +56,49 @@ mix phx.server
 cd frontend && npm run dev
 ```
 
-Open `http://localhost:5001` in your browser. Vite proxies `/api` and `/socket` requests to Phoenix on port 4001 (override with `PORT` / `PHOENIX_PORT`).
+Open `http://localhost:5001`. Vite sends the `/api` and `/socket` requests to Phoenix on port
+4001. To change the ports, set `PORT` and `PHOENIX_PORT`.
 
 ### Seeding and switching databases
 
-`mix servant.seed` fills the current dev database with random but plausible data for every
-app screen (contacts, events, notes, checklists, trackers, bank transactions, invoices,
-files, generated photos). On an empty database it first creates a `demo` account
-(password `demo1234`); otherwise it seeds the first account (`--user <name>` to pick
-another one, `--photos 0` to skip photo generation).
+`mix servant.seed` fills the current dev database with random data for each app screen
+(contacts, events, notes, checklists, trackers, bank transactions, invoices, files, generated
+photos).
 
-`DEV_DB=<name>` switches the backend to `servant_dev_<name>.db`; the file is created and
-migrated at boot, so testing the empty states is just:
+- On an empty database, it first makes a `demo` account (password `demo1234`).
+- Otherwise, it uses the first account. Use `--user <name>` to select a different account.
+- Use `--photos 0` to make no photos.
+
+`DEV_DB=<name>` makes the backend use `servant_dev_<name>.db`. The backend makes and migrates
+this file at start. To test the empty states:
 
 ```bash
-DEV_DB=empty mix phx.server    # boots on servant_dev_empty.db (created on the fly)
-mix phx.server                 # back to the regular servant_dev.db
+DEV_DB=empty mix phx.server    # starts on servant_dev_empty.db (made at start)
+mix phx.server                 # uses the usual servant_dev.db
 ```
 
-`DEV_DB` composes with the seed task (`DEV_DB=demo mix servant.seed`) to maintain several
-populated databases side by side.
+You can use `DEV_DB` with the seed task (`DEV_DB=demo mix servant.seed`) to keep more than one
+populated database.
 
 ### README screenshots
 
-The README gallery (`docs/screenshots/*.webp`) is captured from a seeded throwaway
-database by `frontend/scripts/screenshots.mjs` (playwright-core driving the local
-Chrome; `CHROME_PATH` points it at another Chromium):
+`frontend/scripts/screenshots.mjs` makes the README gallery (`docs/screenshots/*.webp`) from a
+seeded temporary database. It uses playwright-core with the local Chrome. To use a different
+Chromium, set `CHROME_PATH`.
 
 ```bash
-DEV_DB=screenshots mix servant.seed          # fresh file only: the seed is not re-runnable
-DEV_DB=screenshots PORT=4011 mix phx.server  # serves the built SPA (cd frontend && npm run build first)
+DEV_DB=screenshots mix servant.seed          # new file only: you cannot run the seed again
+DEV_DB=screenshots PORT=4011 mix phx.server  # serves the built SPA (run cd frontend && npm run build first)
 cd frontend && npm run screenshots
 ```
 
-The script logs in as `demo`, turns every built-in app on and saves one 1440x900
-WebP per screen. To reseed, delete `servant_dev_screenshots.db` first. Look at
-the captures before committing them: the seed is random.
+The script logs in as `demo`, enables all the built-in apps and saves one 1440x900 WebP for
+each screen. To seed again, first delete `servant_dev_screenshots.db`. The seed is random, so
+look at the screenshots before you commit them.
 
 ## Project structure
 
-Not exhaustive: a map of the main subsystems, not every file.
+This map shows the main subsystems, not all the files.
 
 ```
 servant/
@@ -164,14 +168,39 @@ servant/
 
 ## Architecture notes
 
-- **Connectors** are GenServers that sync data from external services. Each user gets their own connector process. They implement the `Servant.Connectors.Connector` behaviour.
-- **Agents** share one per-user AI config (`users.ai_config`, encrypted) and one `agent_runs` history (model, tokens, duration per run). Two types ship today: the **builder** (`Servant.Apps.Generator`, turns a description into an installed custom app) and **recurring agents** (`agents` table + `Servant.Agents.Scheduler`) in two modes: a prompt run on a schedule over selected entries producing `ai_report` entries, or a deterministic **recipe** (`Servant.Agents.Recipe`, drafted once by the model, zero tokens at run time) producing `report` entries. Both call one OpenAI-compatible endpoint (`Servant.AI`). Disabled by default (Settings > Agents); the UI lives in the Agents section, itself an optional app toggled in Settings > Apps (off by default, like any non-default built-in).
-- **Entries** are the universal data container. Every piece of data (transaction, photo, note, etc.) is an entry with a `kind`, `source`, and JSON `data` payload.
-- **Notes** are entries with `kind: "note"`, managed by the `Servant.Notes` context: `[[wikilinks]]`, `@[[mentions]]` (contacts/events) and `#tags` are parsed on save into the `note_links` table (backlinks + graph), and renames propagate to referring notes. Notes are intentionally **not** mutable through the generic entries API; edit them via `/api/notes`.
-- **Connector secrets** are encrypted at rest (AES-256-GCM) via the `Servant.Encrypted.Map` Ecto type; the key derives from `CONNECTOR_ENCRYPTION_KEY` or `SECRET_KEY_BASE`.
-- **All data queries are scoped by `user_id`**; there is no way to access another user's data through the API.
-- **Phoenix.Token** is used for auth (bearer tokens or an HttpOnly cookie, 30-day max age).
-- **API tokens** (`srv_` prefixed) are scoped (`app:<domain>:<read|write>`, `data:<read|write>`, plus the explicit `data:read-binary` opt-in for raw `/files` downloads), stored hashed, and managed from Settings.
-- **OpenAPI docs** are served at `/api/openapi.json` (spec) and `/api/docs` (SwaggerUI).
-- **Timestamps are stored in UTC**; the frontend renders them in the user's `timezone` preference.
-- **PubSub** broadcasts entry changes on `"data:<user_id>"` topics (via `Servant.Events`), pushed to clients through Phoenix Channels.
+- **Connectors** are GenServers that sync data from external services. Each user has
+  connector processes of their own. They implement the `Servant.Connectors.Connector`
+  behaviour.
+- **Agents** use one AI config for each user (`users.ai_config`, encrypted) and one
+  `agent_runs` history (model, tokens, duration of each run). There are two types:
+  - the **builder** (`Servant.Apps.Generator`): makes an installed custom app from a
+    description;
+  - **recurring agents** (`agents` table + `Servant.Agents.Scheduler`), with two modes. In
+    prompt mode, the agent runs a prompt on a schedule over selected entries and makes
+    `ai_report` entries. In **recipe** mode (`Servant.Agents.Recipe`), the model writes a
+    deterministic recipe one time; each run uses zero tokens and makes `report` entries.
+
+  The two types call one OpenAI-compatible endpoint (`Servant.AI`). Agents are off by default
+  (Settings > Agents). Their UI is in the Agents section. This section is an optional app
+  (Settings > Apps), off by default as all the non-default built-in apps.
+- **Entries** contain all the data. Each item (transaction, photo, note, etc.) is an entry
+  with a `kind`, a `source` and a JSON `data` payload.
+- **Notes** are entries with `kind: "note"`. The `Servant.Notes` context manages them. When a
+  note is saved, Servant reads its `[[wikilinks]]`, `@[[mentions]]` (contacts, events) and
+  `#tags` into the `note_links` table (backlinks and graph). When a note gets a new name, the
+  notes that refer to it are updated. The generic entries API cannot change notes; use
+  `/api/notes`.
+- **Connector secrets** are encrypted at rest (AES-256-GCM) with the `Servant.Encrypted.Map`
+  Ecto type. The key comes from `CONNECTOR_ENCRYPTION_KEY` or `SECRET_KEY_BASE`.
+- **All data queries use a `user_id` scope.** The API cannot give access to the data of a
+  different user.
+- **Phoenix.Token** gives authentication (bearer tokens or an HttpOnly cookie, 30 days
+  maximum).
+- **API tokens** (prefix `srv_`) have scopes: `app:<domain>:<read|write>`,
+  `data:<read|write>`, and `data:read-binary` (explicit opt-in for raw `/files` downloads).
+  Servant stores them hashed. You manage them in Settings.
+- **OpenAPI docs**: the spec is at `/api/openapi.json`, SwaggerUI is at `/api/docs`.
+- **Timestamps are in UTC** in the database. The frontend shows them in the `timezone`
+  preference of the user.
+- **PubSub** sends entry changes on the `"data:<user_id>"` topics (with `Servant.Events`).
+  Phoenix Channels send them to the clients.

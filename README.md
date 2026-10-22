@@ -1,19 +1,19 @@
 # Servant, personal data hub you control
 
-A self-hosted personal data hub that aggregates data from external services (banking, photos, health,
-calendar, contacts, blockchain, etc.) via connectors and exposes it through a unified API and a web interface.
+Servant is a self-hosted personal data hub. Connectors get data from external services (banking,
+photos, health, calendar, contacts, blockchain, etc.). Servant shows this data in one API and one web interface.
 
 ## Features
 
 - **Basic personal apps**: contacts, calendars, files, photos, checklists and notes
 - **Custom apps**: add your own apps, installed from a git repository
 - **AI agents management**: scoped access tokens and a shared memory for your agents (Claude Code, Cursor)
-- **Universal data model**: all data stored as typed entries with JSON payloads
-- **Connector plugin system**: pull data from external services on a schedule
-- **Single-user**: all UIs are designed for personal use
+- **Universal data model**: all data is in typed entries with JSON payloads
+- **Connector plugin system**: connectors get data from external services on a schedule
+- **Single-user**: all UIs are for personal use
 - **API access**: scoped, revocable tokens for scripts and agents
-- **Real-time**: entry changes are pushed to connected clients over websockets
-- **Self-hosted**: ships as a single Elixir release (Docker image or [bare metal](docs/deploy.md#bare-metal-release)), SQLite database, runs on a Raspberry Pi
+- **Real-time**: Servant sends entry changes to connected clients over websockets
+- **Self-hosted**: one Elixir release (Docker image or [bare metal](docs/deploy.md#bare-metal-release)) and a SQLite database; runs on a Raspberry Pi
 
 ## Screenshots
 
@@ -45,12 +45,12 @@ calendar, contacts, blockchain, etc.) via connectors and exposes it through a un
   </tr>
 </table>
 
-Captured from seeded demo data (`npm run screenshots`, see
+The screenshots use seeded demo data (`npm run screenshots`, see
 [docs/development.md](docs/development.md#readme-screenshots)).
 
 ## Quick start
 
-Run it with Docker (the repo ships a `Dockerfile` and a `docker-compose.yml`):
+Run Servant with Docker (the repo contains a `Dockerfile` and a `docker-compose.yml`):
 
 ```bash
 echo "SECRET_KEY_BASE=$(openssl rand -base64 48)" >> .env
@@ -58,8 +58,8 @@ echo "PHX_HOST=localhost" >> .env
 docker compose up -d --build
 ```
 
-Open `http://localhost:4000` and register the first account. See
-[docs/deploy.md](docs/deploy.md) for bare-metal releases, environment variables, systemd, reverse proxies and backups.
+Open `http://localhost:4000` and register the first account. For bare-metal releases, environment
+variables, systemd, reverse proxies and backups, see [docs/deploy.md](docs/deploy.md).
 
 ## Development
 
@@ -73,8 +73,8 @@ mix phx.server              # API on port 4001
 cd frontend && npm run dev  # frontend on port 5001
 ```
 
-Open `http://localhost:5001`. See [docs/development.md](docs/development.md) for prerequisites,
-project structure and architecture notes.
+Open `http://localhost:5001`. For prerequisites, project structure and architecture notes, see
+[docs/development.md](docs/development.md).
 
 ## Documentation
 
@@ -82,11 +82,12 @@ project structure and architecture notes.
 - [docs/backup-strategy.md](docs/backup-strategy.md): what to back up, recipes, restore procedure
 - [docs/development.md](docs/development.md): dev setup, project structure, architecture
 - [docs/dav.md](docs/dav.md): CalDAV/CardDAV/WebDAV endpoint (phone calendar, contacts, files)
-- [docs/phone-backup.md](docs/phone-backup.md): auto-upload a phone's camera roll to the Files app
+- [docs/phone-backup.md](docs/phone-backup.md): auto-upload a phone's camera roll to the Photos app
 - [docs/photo-sharing.md](docs/photo-sharing.md): share a photo feed by public link from one or more tags
 - [docs/custom-apps.md](docs/custom-apps.md): apps installable from git
+- [docs/agent-memory.md](docs/agent-memory.md): shared memory and skills for Claude Code and Cursor
 - [AGENTS.md](AGENTS.md): coding rules and conventions
 
 ## License
 
-Servant is free software, released under the [GNU AGPL v3](LICENSE).
+Servant is free software under the [GNU AGPL v3](LICENSE).
