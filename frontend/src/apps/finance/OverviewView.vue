@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { ArrowRight } from 'lucide-vue-next'
 
 import BalanceChart from './BalanceChart.vue'
 
@@ -256,7 +257,7 @@ const alerts = computed<Alert[]>(() => {
           </p>
           <p v-else class="ov-quiet">No spending recorded this month.</p>
           <button class="ov-link" @click="emit('go', 'spending')">
-            All spending →
+            All spending<ArrowRight :size="14" />
           </button>
         </section>
 
@@ -387,6 +388,9 @@ const alerts = computed<Alert[]>(() => {
   margin: 0 0 0.5rem;
 }
 .ov-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   border: none;
   background: transparent;
   color: var(--primary);

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { Minus, Plus, Square, SquareCheck, X } from 'lucide-vue-next'
 
 import DateInput from '../../components/DateInput.vue'
 
@@ -153,7 +154,7 @@ function onDatePick(value: string) {
         aria-label="Delete tracker"
         @click="emit('remove')"
       >
-        ×
+        <X :size="18" />
       </button>
     </div>
 
@@ -181,16 +182,19 @@ function onDatePick(value: string) {
         :class="{ 'tk-toggle--on': editValue > 0 }"
         @click="toggleCheck"
       >
-        {{ editValue > 0 ? '☑ done' : '☐ not yet' }}
+        <template v-if="editValue > 0"><SquareCheck :size="16" />done</template>
+        <template v-else><Square :size="16" />not yet</template>
       </button>
 
       <template v-else-if="tracker.type === 'count'">
         <button
           class="tk-step"
           :disabled="editValue <= 0"
+          title="Decrease"
+          aria-label="Decrease"
           @click="increment(-1)"
         >
-          −
+          <Minus :size="16" />
         </button>
         <span class="tk-count"
           >{{ editValue
@@ -198,7 +202,14 @@ function onDatePick(value: string) {
             {{ tracker.unit }}</span
           ></span
         >
-        <button class="tk-step" @click="increment(1)">+</button>
+        <button
+          class="tk-step"
+          title="Increase"
+          aria-label="Increase"
+          @click="increment(1)"
+        >
+          <Plus :size="16" />
+        </button>
       </template>
 
       <form v-else class="tk-value-form" @submit.prevent="saveValue">
@@ -301,12 +312,14 @@ function onDatePick(value: string) {
   flex-shrink: 0;
 }
 .tk-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 0 0.25rem;
-  font-size: 1.15rem;
+  padding: 0.2rem;
   flex-shrink: 0;
 }
 .tk-del:hover {
@@ -354,6 +367,9 @@ function onDatePick(value: string) {
   color: var(--text);
 }
 .tk-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
@@ -373,6 +389,7 @@ function onDatePick(value: string) {
   color: var(--text);
   width: 34px;
   height: 34px;
+  padding: 0;
   border-radius: 8px;
   font-size: 1.05rem;
   cursor: pointer;

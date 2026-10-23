@@ -16,6 +16,7 @@ import {
   Puzzle,
   Settings,
   Target,
+  Upload,
   UserRound,
   Wallet,
   Wrench
@@ -105,7 +106,7 @@ function handleLogout() {
       class="sidebar-upload"
       title="Photo upload in progress"
     >
-      ⬆ photos
+      <Upload :size="14" />photos
       {{
         photosProgress ? `${photosProgress.index}/${photosProgress.total}` : ''
       }}
@@ -116,7 +117,7 @@ function handleLogout() {
       class="sidebar-upload"
       title="File upload in progress"
     >
-      ⬆ files
+      <Upload :size="14" />files
       {{ filesProgress ? `${filesProgress.index}/${filesProgress.total}` : '' }}
     </router-link>
     <router-link to="/data" class="sidebar-settings-link">
@@ -246,7 +247,9 @@ function handleLogout() {
 
 /* Global photo-upload pulse: the queue keeps running across app switches */
 .sidebar-upload {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   padding: 0.45rem 1.25rem;
   color: var(--primary);
   text-decoration: none;

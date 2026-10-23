@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { ChevronDown } from 'lucide-vue-next'
 
 // Styled replacement for native <select>: the OS dropdown can't be themed,
 // this one speaks the night-terminal language (violet rail on the active
@@ -249,7 +250,9 @@ function onFocusout(event: FocusEvent) {
       >
         {{ currentLabel || placeholder || '' }}
       </span>
-      <span class="cb-caret" aria-hidden="true">▾</span>
+      <span class="cb-caret" aria-hidden="true"
+        ><ChevronDown :size="16"
+      /></span>
     </button>
     <Teleport :to="panelHost">
       <div v-if="open" ref="panelEl" class="cb-panel" :style="panelStyle">
@@ -313,8 +316,8 @@ function onFocusout(event: FocusEvent) {
   color: var(--text-muted);
 }
 .cb-caret {
+  display: inline-flex;
   color: var(--text-muted);
-  font-size: 0.7rem;
   flex-shrink: 0;
 }
 .cb-filter {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { ChevronLeft } from 'lucide-vue-next'
 
 import {
   TRACKER_TYPES,
@@ -211,7 +212,7 @@ const hover = ref<Bar | null>(null)
         aria-label="Back to trackers"
         @click="emit('back')"
       >
-        ← Trackers
+        <ChevronLeft :size="16" />Trackers
       </button>
       <span class="tkd-swatch" :style="{ background: tracker.color }"></span>
       <h2 ref="headingEl" class="tkd-name" tabindex="-1">{{ tracker.name }}</h2>
@@ -354,6 +355,9 @@ const hover = ref<Bar | null>(null)
   flex-wrap: wrap;
 }
 .tkd-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text);

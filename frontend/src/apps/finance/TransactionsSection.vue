@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { Paperclip } from 'lucide-vue-next'
+import { Paperclip, X } from 'lucide-vue-next'
 
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
@@ -595,9 +595,10 @@ async function openLinked(tx: Entry) {
               <button
                 class="ftx-doc-clear"
                 title="Cancel"
+                aria-label="Cancel"
                 @click="linkingId = null"
               >
-                ×
+                <X :size="16" />
               </button>
             </template>
             <span
@@ -620,7 +621,7 @@ async function openLinked(tx: Entry) {
                 aria-label="Unlink document"
                 @click="saveLink(tx, '', null)"
               >
-                ×
+                <X :size="16" />
               </button>
             </span>
             <button
@@ -665,9 +666,10 @@ async function openLinked(tx: Entry) {
           <button
             class="ftx-del"
             title="Delete transaction"
+            aria-label="Delete transaction"
             @click="deleteTx(tx)"
           >
-            ×
+            <X :size="18" />
           </button>
         </span>
       </div>
@@ -803,12 +805,14 @@ async function openLinked(tx: Entry) {
   text-decoration: underline;
 }
 .ftx-doc-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 0 0.15rem;
-  font-size: 1.15rem;
+  padding: 0.15rem;
 }
 .ftx-doc-clear:hover {
   color: var(--danger);
@@ -1001,12 +1005,14 @@ async function openLinked(tx: Entry) {
   cursor: default;
 }
 .ftx-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 0 0.15rem;
-  font-size: 1.15rem;
+  padding: 0.15rem;
   opacity: 0;
 }
 .ftx-row:hover .ftx-del {

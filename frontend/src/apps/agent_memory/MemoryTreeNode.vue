@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ChevronDown, ChevronRight } from 'lucide-vue-next'
+
 import type { TreeNode } from './tree'
 
 // Harness roots (depth 0) and their sections (depth 1) stay open;
@@ -32,7 +34,11 @@ const emit = defineEmits<{ select: [node: TreeNode] }>()
   </button>
   <details v-else :open="depth < 2 || expanded">
     <summary class="folder">
-      <span class="folder-caret" aria-hidden="true"></span>
+      <!-- The native <details> owns the open state: CSS shows one caret. -->
+      <span class="folder-caret" aria-hidden="true">
+        <ChevronRight class="folder-caret-closed" :size="16" />
+        <ChevronDown class="folder-caret-open" :size="16" />
+      </span>
       <span class="folder-name">{{ node.name }}</span>
     </summary>
     <ul class="nodes">
@@ -83,16 +89,17 @@ const emit = defineEmits<{ select: [node: TreeNode] }>()
 }
 
 .folder-caret {
-  width: 0.9em;
+  display: inline-flex;
   flex-shrink: 0;
 }
 
-.folder-caret::before {
-  content: '\25B8';
+.folder-caret-open,
+details[open] > .folder .folder-caret-closed {
+  display: none;
 }
 
-details[open] > .folder .folder-caret::before {
-  content: '\25BE';
+details[open] > .folder .folder-caret-open {
+  display: block;
 }
 
 .folder-name {

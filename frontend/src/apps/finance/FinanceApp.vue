@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, watch } from 'vue'
+import { ChevronDown, ChevronRight, X } from 'lucide-vue-next'
 
 import ComboBox from '../../components/ComboBox.vue'
 import DateInput from '../../components/DateInput.vue'
@@ -842,7 +843,8 @@ function saveShared(account: Account, shared: boolean) {
             title="Snapshot history"
             @click="toggleExpanded(PORTFOLIO_KEY)"
           >
-            {{ expanded.has(PORTFOLIO_KEY) ? '▾' : '▸' }}
+            <ChevronDown v-if="expanded.has(PORTFOLIO_KEY)" :size="16" />
+            <ChevronRight v-else :size="16" />
           </span>
           <span class="fin-total-caption">total</span>
           <span class="fin-total">{{ cryptoTotalLabel }}</span>
@@ -884,9 +886,10 @@ function saveShared(account: Account, shared: boolean) {
             <button
               class="fin-mini-del"
               title="Delete snapshot"
+              aria-label="Delete snapshot"
               @click="deleteSnapshot(snapshot)"
             >
-              ×
+              <X :size="18" />
             </button>
           </div>
           <p v-if="!portfolioSnapshots.length" class="fin-history-note">
@@ -910,7 +913,8 @@ function saveShared(account: Account, shared: boolean) {
                 class="fin-account-caret"
                 @click="toggleExpanded(account.key)"
               >
-                {{ expanded.has(account.key) ? '▾' : '▸' }}
+                <ChevronDown v-if="expanded.has(account.key)" :size="16" />
+                <ChevronRight v-else :size="16" />
               </span>
               <span class="fin-crypto-name">{{ account.name }}</span>
               <span
@@ -950,9 +954,10 @@ function saveShared(account: Account, shared: boolean) {
                 v-if="account.entryId"
                 class="fin-mini-del"
                 title="Delete token"
+                aria-label="Delete token"
                 @click="deleteCrypto(account)"
               >
-                ×
+                <X :size="18" />
               </button>
             </div>
 
@@ -981,9 +986,10 @@ function saveShared(account: Account, shared: boolean) {
                 <button
                   class="fin-mini-del"
                   title="Delete record"
+                  aria-label="Delete record"
                   @click="deleteSnapshot(snapshot)"
                 >
-                  ×
+                  <X :size="18" />
                 </button>
               </div>
               <p
@@ -1091,7 +1097,8 @@ function saveShared(account: Account, shared: boolean) {
                   class="fin-account-caret"
                   @click="toggleExpanded(account.key)"
                 >
-                  {{ expanded.has(account.key) ? '▾' : '▸' }}
+                  <ChevronDown v-if="expanded.has(account.key)" :size="16" />
+                  <ChevronRight v-else :size="16" />
                 </span>
                 <span
                   class="fin-account-name"
@@ -1150,9 +1157,10 @@ function saveShared(account: Account, shared: boolean) {
                     v-if="account.entryId"
                     class="fin-mini-del"
                     title="Delete account"
+                    aria-label="Delete account"
                     @click="deleteAccount(account)"
                   >
-                    ×
+                    <X :size="18" />
                   </button>
                 </span>
               </div>
@@ -1236,9 +1244,10 @@ function saveShared(account: Account, shared: boolean) {
                   <button
                     class="fin-mini-del"
                     title="Delete snapshot"
+                    aria-label="Delete snapshot"
                     @click="deleteSnapshot(snapshot)"
                   >
-                    ×
+                    <X :size="18" />
                   </button>
                 </div>
                 <p v-if="txObservationCount(account)" class="fin-history-note">
@@ -1525,10 +1534,11 @@ function saveShared(account: Account, shared: boolean) {
   font-size: 0.92rem;
 }
 .fin-account-caret {
+  display: inline-flex;
+  align-self: center;
   color: var(--text-muted);
   cursor: pointer;
   flex-shrink: 0;
-  width: 0.9em;
 }
 .fin-account-name {
   flex: 1;
@@ -1659,12 +1669,15 @@ function saveShared(account: Account, shared: boolean) {
   color: var(--primary);
 }
 .fin-mini-del {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 0 0.25rem;
-  font-size: 1.15rem;
+  padding: 0.2rem;
   flex-shrink: 0;
 }
 .fin-mini-del:hover {

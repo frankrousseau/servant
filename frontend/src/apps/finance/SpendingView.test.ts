@@ -103,7 +103,10 @@ describe('SpendingView', () => {
 
     await range.vm.$emit('update:modelValue', 'All years')
     let headers = wrapper.findAll('thead th').map(h => h.text())
-    expect(headers).toEqual(['Category', '2025', '2026', 'Total ▼'])
+    expect(headers).toEqual(['Category', '2025', '2026', 'Total'])
+    expect(wrapper.find('thead th:last-child').attributes('aria-sort')).toBe(
+      'descending'
+    )
     const rentCells = wrapper
       .findAll('tbody tr')
       .find(r => r.text().includes('rent'))!
@@ -113,7 +116,7 @@ describe('SpendingView', () => {
 
     await range.vm.$emit('update:modelValue', '2025')
     headers = wrapper.findAll('thead th').map(h => h.text())
-    expect(headers).toEqual(['Category', '2025-03', 'Total ▼'])
+    expect(headers).toEqual(['Category', '2025-03', 'Total'])
   })
 
   it('scopes to the last three spending months', async () => {
@@ -131,7 +134,7 @@ describe('SpendingView', () => {
       '2026-04',
       '2026-06',
       '2026-07',
-      'Total ▼'
+      'Total'
     ])
   })
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Sigma } from 'lucide-vue-next'
+import { AlarmClock, Sigma, Square } from 'lucide-vue-next'
 
 import KindIcon from '../components/KindIcon.vue'
 
@@ -135,7 +135,7 @@ const upcomingDeadlines = computed<Entry[]>(() => {
         ...list,
         id: `deadline:${list.id}:${index}`,
         kind: 'event',
-        title: `⏰ ${item.text}`,
+        title: item.text,
         occurred_at: `${item.due}T12:00:00Z`,
         // Open until the end of its civil day, so it stays "next" all day.
         data: { all_day: true, end_at: `${item.due}T23:59:59Z` }
@@ -183,6 +183,12 @@ const nextEvent = computed(() => {
 
 // Time only if the next event is today, weekday + time otherwise; all-day
 // items (deadlines) carry no meaningful time.
+// A checklist deadline wins the slot as a virtual event: the template marks
+// it with an alarm clock in front of the item text.
+const nextIsDeadline = computed(
+  () => nextEvent.value?.id.startsWith('deadline:') ?? false
+)
+
 const nextEventStamp = computed(() => {
   const event = nextEvent.value
   if (!event?.occurred_at) return ''
@@ -383,6 +389,14 @@ onMounted(fetchData)
           next:
           <template v-if="nextEvent">
             <span class="motd-num">{{ nextEventStamp }}</span>
+            <span
+              v-if="nextIsDeadline"
+              class="motd-icon"
+              role="img"
+              aria-label="Deadline"
+            >
+              <AlarmClock :size="14" />
+            </span>
             {{ nextEvent.title || nextEvent.data.summary }}
           </template>
           <template v-else>nothing scheduled</template>
@@ -406,7 +420,7 @@ onMounted(fetchData)
               :title="`Open ${item.listTitle}`"
               @click="openChecklist(item)"
             >
-              <span class="today-box">☐</span>
+              <span class="today-box"><Square :size="16" /></span>
               <span class="today-item-text">{{ item.text }}</span>
               <span
                 v-if="item.due"
@@ -731,6 +745,11 @@ onMounted(fetchData)
   font-weight: 600;
 }
 
+.motd-icon {
+  display: inline-flex;
+  vertical-align: -2px;
+}
+
 /* ----- Checklists: pending items ----- */
 
 .today-item {
@@ -753,6 +772,8 @@ onMounted(fetchData)
 }
 
 .today-box {
+  display: inline-flex;
+  align-self: center;
   color: var(--text-muted);
   flex-shrink: 0;
 }

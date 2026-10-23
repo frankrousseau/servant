@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { ArrowDown, ArrowUp } from 'lucide-vue-next'
 
 import ComboBox from '../../components/ComboBox.vue'
 
@@ -674,25 +675,28 @@ const pieCenter = computed(() => {
         <table class="sp-table">
           <thead>
             <tr>
-              <th class="sp-cat-col">
+              <th
+                class="sp-cat-col"
+                :aria-sort="sortMode === 'alpha' ? 'ascending' : undefined"
+              >
                 <button
                   class="sp-sort"
                   :class="{ 'sp-sort--active': sortMode === 'alpha' }"
                   title="Sort categories alphabetically"
                   @click="sortMode = 'alpha'"
                 >
-                  Category{{ sortMode === 'alpha' ? ' ▲' : '' }}
+                  Category<ArrowUp v-if="sortMode === 'alpha'" :size="14" />
                 </button>
               </th>
               <th v-for="period in periods" :key="period">{{ period }}</th>
-              <th>
+              <th :aria-sort="sortMode === 'total' ? 'descending' : undefined">
                 <button
                   class="sp-sort"
                   :class="{ 'sp-sort--active': sortMode === 'total' }"
                   title="Sort categories by total cost"
                   @click="sortMode = 'total'"
                 >
-                  Total{{ sortMode === 'total' ? ' ▼' : '' }}
+                  Total<ArrowDown v-if="sortMode === 'total'" :size="14" />
                 </button>
               </th>
             </tr>
@@ -1076,6 +1080,9 @@ const pieCenter = computed(() => {
   border-bottom: 1px solid var(--border);
 }
 .sp-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   border: none;
   background: transparent;
   color: inherit;

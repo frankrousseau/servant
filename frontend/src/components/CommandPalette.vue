@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { ArrowRight } from 'lucide-vue-next'
 
+import KindIcon from './KindIcon.vue'
 import { listEntriesPage } from '../api/entries'
 import { agentsEnabled, hiddenEntryKinds } from '../apps/registry'
 import { useCommandPalette } from '../composables/useCommandPalette'
 import { entryRoute } from '../lib/entryRoute'
-import { kindColor, kindIcon } from '../lib/kind'
+import { kindColor } from '../lib/kind'
 import { useAppsStore } from '../stores/apps'
 import { useAuthStore } from '../stores/auth'
 import type { Entry } from '../types'
@@ -35,9 +37,10 @@ const pages = computed(() => [
   { label: 'Settings', path: '/settings' }
 ])
 
+// A page row has no kind and shows an arrow; an entry row shows its kind icon.
 interface Item {
   key: string
-  icon: string
+  kind?: string
   color?: string
   label: string
   hint: string
@@ -50,7 +53,6 @@ const pageItems = computed<Item[]>(() => {
     .filter(page => !needle || page.label.toLowerCase().includes(needle))
     .map(page => ({
       key: 'p:' + page.path,
-      icon: '→',
       label: page.label,
       hint: 'page',
       path: page.path
@@ -67,7 +69,7 @@ const visibleResults = computed(() => {
 const entryItems = computed<Item[]>(() =>
   visibleResults.value.map(entry => ({
     key: 'e:' + entry.id,
-    icon: kindIcon(entry.kind),
+    kind: entry.kind,
     color: kindColor(entry.kind),
     label: entry.title || entry.kind,
     hint: entry.kind,
@@ -200,8 +202,10 @@ onBeforeUnmount(() => {
             <span
               class="cp-icon"
               :style="item.color ? { color: item.color } : undefined"
-              >{{ item.icon }}</span
             >
+              <KindIcon v-if="item.kind" :kind="item.kind" :size="16" plain />
+              <ArrowRight v-else :size="16" />
+            </span>
             <span class="cp-label">{{ item.label }}</span>
             <span class="cp-hint">{{ item.hint }}</span>
           </div>
@@ -257,7 +261,7 @@ onBeforeUnmount(() => {
 }
 .cp-item {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.6rem;
   padding: 0.45rem 0.6rem;
   cursor: pointer;
@@ -270,10 +274,8 @@ onBeforeUnmount(() => {
   border-radius: 0 6px 6px 0;
 }
 .cp-icon {
-  width: 1.2em;
+  display: inline-flex;
   flex-shrink: 0;
-  text-align: center;
-  font-family: var(--font-mono);
 }
 .cp-label {
   min-width: 0;

@@ -9,7 +9,17 @@ import {
   watch
 } from 'vue'
 import { useVirtualList } from '@vueuse/core'
-import { Cake, ChevronLeft, User } from 'lucide-vue-next'
+import {
+  Cake,
+  Camera,
+  ChevronLeft,
+  Mail,
+  Phone,
+  Plus,
+  Repeat,
+  User,
+  X
+} from 'lucide-vue-next'
 
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
@@ -1020,19 +1030,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           Graph
         </button>
         <button class="ct-add-contact-btn" @click="openCreate">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
+          <Plus :size="16" />
           Add contact
         </button>
       </div>
@@ -1066,21 +1064,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                 class="ct-form-avatar-overlay"
                 :class="{ uploading: avatarUploading }"
               >
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path
-                    d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"
-                  />
-                  <circle cx="12" cy="13" r="3" />
-                </svg>
+                <Camera :size="20" />
               </span>
               <input
                 type="file"
@@ -1134,9 +1118,10 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                 type="button"
                 class="ct-row-remove"
                 title="Remove"
+                aria-label="Remove email"
                 @click="removeEmail(index)"
               >
-                &times;
+                <X :size="18" />
               </button>
             </div>
             <button type="button" class="ct-row-add" @click="addEmail">
@@ -1162,9 +1147,10 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                 type="button"
                 class="ct-row-remove"
                 title="Remove"
+                aria-label="Remove phone"
                 @click="removePhone(index)"
               >
-                &times;
+                <X :size="18" />
               </button>
             </div>
             <button type="button" class="ct-row-add" @click="addPhone">
@@ -1261,9 +1247,11 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
               <span
                 class="ct-tag-x"
                 title="Remove tag"
+                aria-label="Remove tag"
                 @click.stop="removeTag(tag)"
-                >&times;</span
               >
+                <X :size="14" />
+              </span>
             </button>
             <AutocompleteInput
               v-model="newTag"
@@ -1281,20 +1269,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
               :key="'email' + index"
               class="ct-info-row"
             >
-              <svg
-                class="ct-info-icon"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <rect width="20" height="16" x="2" y="4" rx="2" />
-                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-              </svg>
+              <Mail class="ct-info-icon" :size="18" />
               <div class="ct-info-body">
                 <a class="ct-link" :href="'mailto:' + email.value">{{
                   email.value
@@ -1309,21 +1284,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
               :key="'phone' + index"
               class="ct-info-row"
             >
-              <svg
-                class="ct-info-icon"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path
-                  d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"
-                />
-              </svg>
+              <Phone class="ct-info-icon" :size="18" />
               <div class="ct-info-body">
                 <a class="ct-link" :href="'tel:' + phone.value">{{
                   phone.value
@@ -1399,12 +1360,15 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
               <span class="ct-linked-title">{{
                 contactName(relation.contact)
               }}</span>
-              <span
+              <button
+                type="button"
                 class="ct-rel-x"
                 title="Remove relation"
+                aria-label="Remove relation"
                 @click.stop="removeRelation(relation.contact_id)"
-                >&times;</span
               >
+                <X :size="16" />
+              </button>
             </div>
             <form class="ct-rel-add" @submit.prevent="addRelation">
               <AutocompleteInput
@@ -1437,7 +1401,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                   :checked="meId === selected.id"
                   @change="toggleMe"
                 />
-                <User :size="14" /> This is me
+                <User :size="16" />This is me
               </label>
               <label v-if="fld(selected, 'birthday')" class="ct-dash-toggle">
                 <input
@@ -1445,8 +1409,10 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                   :checked="birthdayOnDashboard"
                   @change="toggleBirthdayOnDashboard"
                 />
-                <Cake :size="14" /> Show this birthday in the calendar and on
-                the dashboard
+                <Cake :size="16" />
+                <span
+                  >Show this birthday in the calendar and on the dashboard</span
+                >
               </label>
             </div>
           </div>
@@ -1466,7 +1432,15 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                 formatDate(event.occurred_at || event.inserted_at)
               }}</span>
               <span class="ct-linked-title">
-                <span v-if="event.data.recurrence" title="Recurring">↻</span>
+                <span
+                  v-if="event.data.recurrence"
+                  class="ct-linked-rec"
+                  role="img"
+                  title="Recurring"
+                  aria-label="Recurring"
+                >
+                  <Repeat :size="14" />
+                </span>
                 {{ event.title || 'Untitled' }}
               </span>
             </div>
@@ -1859,6 +1833,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   margin-bottom: 1.25rem;
 }
 .ct-tag-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem;
+  margin: -0.15rem -0.35rem -0.15rem 0;
+  border-radius: 999px;
   color: var(--text-muted);
   visibility: hidden;
 }
@@ -1934,7 +1914,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 .ct-info-icon {
   color: var(--text-muted);
-  margin-top: 0.15rem;
+  margin-top: 0.1rem;
   flex-shrink: 0;
 }
 .ct-info-body {
@@ -2041,6 +2021,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.ct-linked-rec {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-right: 0.15rem;
+  color: var(--text-muted);
+}
 .ct-linked-meta {
   color: var(--text-muted);
   font-size: 0.8rem;
@@ -2050,9 +2036,16 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   margin-left: auto;
 }
 .ct-rel-x {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
   margin-left: auto;
-  padding: 0 0.25rem;
+  padding: 0.25rem;
+  border: none;
+  background: transparent;
   color: var(--text-muted);
+  cursor: pointer;
   visibility: hidden;
 }
 .ct-linked-row:hover .ct-rel-x {
@@ -2111,9 +2104,13 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .ct-dash-toggle {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
   cursor: pointer;
   color: var(--text);
+}
+.ct-dash-toggle svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
 }
 .ct-dash-toggle input {
   width: 15px;
@@ -2528,15 +2525,13 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
     min-height: 56px;
   }
   .ct-rel-x {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     min-width: 40px;
     min-height: 40px;
     margin-block: -0.5rem;
   }
   .ct-tag-x {
-    padding: 0 0.35rem;
+    padding: 0.35rem;
+    margin-block: -0.35rem;
   }
   .ct-row-remove {
     width: 44px;

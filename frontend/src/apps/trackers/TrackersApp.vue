@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
 
 import ComboBox from '../../components/ComboBox.vue'
 import TrackerCard from './TrackerCard.vue'
@@ -449,7 +450,7 @@ watch([windowEnd, weeksVisible], () => {
           aria-label="Older"
           @click="shiftWindow(-1)"
         >
-          &#9664;
+          <ChevronLeft :size="16" />
         </button>
         <button
           class="tk-nav"
@@ -458,7 +459,7 @@ watch([windowEnd, weeksVisible], () => {
           :disabled="atToday"
           @click="shiftWindow(1)"
         >
-          &#9654;
+          <ChevronRight :size="16" />
         </button>
         <span class="tk-date"
           >{{ windowStart }} &rarr; {{ atToday ? today : windowEnd }}</span
@@ -610,8 +611,8 @@ watch([windowEnd, weeksVisible], () => {
   color: var(--text-muted);
   width: 28px;
   height: 28px;
+  padding: 0;
   border-radius: 8px;
-  font-size: 0.7rem;
   cursor: pointer;
   display: inline-flex;
   align-items: center;

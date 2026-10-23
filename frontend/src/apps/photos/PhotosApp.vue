@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { Ellipsis } from 'lucide-vue-next'
+import {
+  Ellipsis,
+  ImageOff,
+  Play,
+  RotateCcw,
+  RotateCw,
+  Trash2,
+  X
+} from 'lucide-vue-next'
 
 import ComboBox from '../../components/ComboBox.vue'
 import DateInput from '../../components/DateInput.vue'
@@ -1203,7 +1211,7 @@ onUnmounted(() => {
           aria-label="Rotate left"
           @click="rotateSelected(270)"
         >
-          &#10226;
+          <RotateCcw :size="16" />
         </button>
         <button
           class="ph-btn"
@@ -1212,7 +1220,7 @@ onUnmounted(() => {
           aria-label="Rotate right"
           @click="rotateSelected(90)"
         >
-          &#10227;
+          <RotateCw :size="16" />
         </button>
         <button
           class="ph-btn"
@@ -1461,21 +1469,7 @@ onUnmounted(() => {
               aria-label="Delete"
               @click.stop="deletePhotos([photo.id])"
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M3 6h18" />
-                <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                <path d="M10 11v6M14 11v6" />
-              </svg>
+              <Trash2 :size="16" />
             </button>
             <img
               v-if="!broken.has(photo.id) && hasGridImage(photo)"
@@ -1490,31 +1484,12 @@ onUnmounted(() => {
               class="ph-thumb-play"
               aria-hidden="true"
             >
-              <svg
-                width="34"
-                height="34"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
-                <circle cx="12" cy="12" r="11" fill="rgba(0, 0, 0, 0.5)" />
-                <path d="M10 8l6 4-6 4z" fill="#fff" />
-              </svg>
+              <span class="ph-thumb-play-badge">
+                <Play :size="16" fill="currentColor" />
+              </span>
             </span>
             <div v-if="broken.has(photo.id)" class="ph-broken">
-              <svg
-                width="28"
-                height="28"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <path d="m21 15-5-5L5 21" />
-              </svg>
+              <ImageOff :size="28" :stroke-width="1.5" />
             </div>
             <div
               v-if="getTags(photo).length || getPeople(photo).length"
@@ -1624,6 +1599,9 @@ onUnmounted(() => {
                 :src="chipSrc(item.face.photoId)"
                 :box="item.face.face.box"
               />
+              <span v-if="item.excluded" class="ph-face-out">
+                <X :size="28" />
+              </span>
             </button>
           </div>
         </div>
@@ -1758,11 +1736,15 @@ onUnmounted(() => {
               class="ph-modal-current-tag"
             >
               {{ tag }}
-              <span
+              <button
+                type="button"
                 class="ph-modal-tag-remove"
+                :title="`Remove ${tag}`"
+                :aria-label="`Remove ${tag}`"
                 @click.stop="removeTagFromSelected(tag)"
-                >×</span
               >
+                <X :size="16" />
+              </button>
             </span>
           </div>
         </template>
@@ -2304,6 +2286,15 @@ onUnmounted(() => {
   justify-content: center;
   pointer-events: none;
 }
+.ph-thumb-play-badge {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+}
 /* Photos are the light: on hover the image brightens inside a phosphor ring */
 .ph-thumb:hover {
   box-shadow:
@@ -2628,14 +2619,12 @@ onUnmounted(() => {
   opacity: 0.35;
   filter: grayscale(1);
 }
-.ph-face-toggle--out::after {
-  content: '×';
+.ph-face-out {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.8rem;
   color: var(--danger);
 }
 .ph-modal-suggestions {
@@ -2692,9 +2681,14 @@ button.ph-modal-suggestion {
   color: var(--primary-contrast);
 }
 .ph-modal-tag-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
   cursor: pointer;
-  font-size: 1rem;
-  line-height: 1;
   opacity: 0.7;
   transition: opacity 0.1s;
 }

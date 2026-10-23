@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { X } from 'lucide-vue-next'
 
 import ComboBox from '../components/ComboBox.vue'
 import DateInput from '../components/DateInput.vue'
@@ -313,7 +314,7 @@ onMounted(() => {
           @click="pageError = null"
           aria-label="Dismiss"
         >
-          ×
+          <X :size="18" />
         </button>
       </p>
 
@@ -576,11 +577,12 @@ onMounted(() => {
 }
 
 .error-banner-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   color: inherit;
-  font-size: 1.1rem;
-  line-height: 1;
   cursor: pointer;
   padding: 0;
 }

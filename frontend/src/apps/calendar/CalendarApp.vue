@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import flatpickr from 'flatpickr'
+import {
+  AlarmClock,
+  Cake,
+  ChevronLeft,
+  ChevronRight,
+  Repeat,
+  UserRound,
+  X
+} from 'lucide-vue-next'
 
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
@@ -116,7 +125,7 @@ const birthdayEvents = computed<Entry[]>(() => {
         ...contact,
         id: `birthday:${contact.id}`,
         kind: 'event',
-        title: `🎂 ${contactName(contact)}`,
+        title: contactName(contact),
         // Noon UTC keeps the civil date stable across user timezones.
         occurred_at: `${seed}T12:00:00Z`,
         data: {
@@ -145,7 +154,7 @@ const deadlineEvents = computed<Entry[]>(() =>
               ...list,
               id: `deadline:${list.id}:${i}`,
               kind: 'event',
-              title: `⏰ ${item.text}`,
+              title: item.text,
               occurred_at: `${item.due}T12:00:00Z`,
               data: {
                 all_day: true,
@@ -524,6 +533,14 @@ function draggable(entry: Entry): boolean {
   return !entry.id.startsWith('birthday:') && !entry.id.startsWith('deadline:')
 }
 
+// Which virtual event an entry is, so the template draws its icon (a cake or
+// an alarm clock) in front of the title; null for a stored event.
+function virtualKind(entry: Entry): 'birthday' | 'deadline' | null {
+  if (entry.id.startsWith('birthday:')) return 'birthday'
+  if (entry.id.startsWith('deadline:')) return 'deadline'
+  return null
+}
+
 function onEventDragStart(entry: Entry, event: DragEvent) {
   draggedId.value = entry.id
   event.dataTransfer?.setData('text/plain', entry.id)
@@ -768,11 +785,25 @@ onUnmounted(destroyPickers)
     <div class="cal-header">
       <template v-if="viewMode === 'calendar'">
         <div class="cal-nav">
-          <button class="cal-nav-btn" @click="prevMonth">‹</button>
+          <button
+            class="cal-nav-btn"
+            title="Previous month"
+            aria-label="Previous month"
+            @click="prevMonth"
+          >
+            <ChevronLeft :size="16" />
+          </button>
           <button class="cal-nav-btn cal-today-btn" @click="goToday">
             Today
           </button>
-          <button class="cal-nav-btn" @click="nextMonth">›</button>
+          <button
+            class="cal-nav-btn"
+            title="Next month"
+            aria-label="Next month"
+            @click="nextMonth"
+          >
+            <ChevronRight :size="16" />
+          </button>
         </div>
         <span class="cal-month-label">{{ monthLabel }}</span>
       </template>
@@ -876,9 +907,23 @@ onUnmounted(destroyPickers)
             <span
               v-if="ev.data?.recurrence"
               class="cal-chip-rec"
+              role="img"
               title="Recurring"
-              >↻</span
+              aria-label="Recurring"
             >
+              <Repeat :size="12" />
+            </span>
+            <span
+              v-if="virtualKind(ev)"
+              class="cal-chip-mark"
+              role="img"
+              :aria-label="
+                virtualKind(ev) === 'birthday' ? 'Birthday' : 'Deadline'
+              "
+            >
+              <Cake v-if="virtualKind(ev) === 'birthday'" :size="12" />
+              <AlarmClock v-else :size="12" />
+            </span>
             <span class="cal-chip-title">{{ ev.title || 'Untitled' }}</span>
           </div>
           <div v-if="(cell.events?.length ?? 0) > 3" class="cal-cell-more">
@@ -916,9 +961,23 @@ onUnmounted(destroyPickers)
               <span
                 v-if="event.data.recurrence"
                 class="cal-event-rec"
+                role="img"
                 title="Recurring"
-                >↻</span
+                aria-label="Recurring"
               >
+                <Repeat :size="14" />
+              </span>
+              <span
+                v-if="virtualKind(event)"
+                class="cal-event-rec"
+                role="img"
+                :aria-label="
+                  virtualKind(event) === 'birthday' ? 'Birthday' : 'Deadline'
+                "
+              >
+                <Cake v-if="virtualKind(event) === 'birthday'" :size="14" />
+                <AlarmClock v-else :size="14" />
+              </span>
               {{ event.title || 'Untitled' }}
             </span>
             <span v-if="event.data.location" class="cal-event-loc">{{
@@ -929,8 +988,9 @@ onUnmounted(destroyPickers)
               class="cal-event-contact"
               :title="event.data.contact_id ? 'Open contact' : undefined"
               @click.stop="openEventContact(event)"
-              >👤 {{ event.data.contact_name }}</span
             >
+              <UserRound :size="14" />{{ event.data.contact_name }}
+            </span>
             <span
               class="cal-event-cal"
               :style="{ color: calColor(calendarOf(event)) }"
@@ -977,9 +1037,10 @@ onUnmounted(destroyPickers)
               v-if="calendar.owned"
               class="cal-manage-delete"
               title="Delete this calendar"
+              aria-label="Delete this calendar"
               @click="deleteCalendar(calendar.name)"
             >
-              ✕
+              <X :size="18" />
             </button>
           </div>
         </div>
@@ -1127,6 +1188,9 @@ onUnmounted(destroyPickers)
   gap: 0.25rem;
 }
 .cal-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text-muted);
@@ -1268,7 +1332,7 @@ onUnmounted(destroyPickers)
    system */
 .cal-cell-event {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 4px;
   font-size: 0.72rem;
   color: var(--text);
@@ -1331,7 +1395,7 @@ onUnmounted(destroyPickers)
     font-size: 0.6rem;
     padding: 1px 2px 1px 3px;
   }
-  .cal-chip-rec,
+  .cal-cell-event .cal-chip-rec,
   .cal-cell-more-word {
     display: none;
   }
@@ -1445,12 +1509,14 @@ onUnmounted(destroyPickers)
   letter-spacing: 0.08em;
 }
 .cal-manage-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 0 0.25rem;
-  font-size: 1.15rem;
+  padding: 0.2rem;
   flex-shrink: 0;
 }
 .cal-manage-delete:hover {
@@ -1540,15 +1606,22 @@ onUnmounted(destroyPickers)
     white-space: nowrap;
   }
 }
-.cal-chip-rec {
+.cal-chip-rec,
+.cal-chip-mark {
+  display: inline-flex;
   flex-shrink: 0;
-  font-size: 0.68rem;
   color: var(--cal-color, var(--primary));
 }
 .cal-event-rec {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-right: 0.15rem;
   color: var(--text-muted);
 }
 .cal-event-contact {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   font-size: 0.85rem;
   color: var(--text-muted);
   cursor: pointer;

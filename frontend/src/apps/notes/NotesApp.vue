@@ -9,13 +9,20 @@ import {
   watch
 } from 'vue'
 import {
+  CalendarDays,
+  ChevronDown,
   ChevronLeft,
+  ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
+  Ellipsis,
   Paperclip,
   Pencil,
   Plus,
-  Star
+  Star,
+  Trash2,
+  UserRound,
+  X
 } from 'lucide-vue-next'
 
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
@@ -85,6 +92,12 @@ const lastOpen = preferenceRef<string | null>(ctx, 'notes.lastOpen', null)
 const notes = ref<Note[]>([])
 const mentionables = ref<Mentionable[]>([])
 const selectedId = ref<string | null>(null)
+// Phones fold the folder and attach controls behind a toggle next to the
+// title; each note opens folded.
+const optionsOpen = ref(false)
+watch(selectedId, () => {
+  optionsOpen.value = false
+})
 const backlinks = ref<Note[]>([])
 const searchQuery = ref('')
 const viewMode = ref<'split' | 'edit' | 'preview'>('split')
@@ -103,6 +116,12 @@ const bodyRef = ref<HTMLTextAreaElement | null>(null)
 
 const selected = computed(
   () => notes.value.find(note => note.id === selectedId.value) || null
+)
+
+const favoriteLabel = computed(() =>
+  selected.value && noteFavorite(selected.value)
+    ? 'Remove from favorites'
+    : 'Add to favorites'
 )
 
 const createdLabel = computed(() =>
@@ -798,9 +817,10 @@ function onPreviewClick(event: MouseEvent) {
 
 // ----- wikilink / mention autocomplete -----
 
+// `mention` picks the icon of an @[[mention]] row; wikilink rows have none.
 interface AcItem {
   label: string
-  icon: string
+  mention?: 'event' | 'contact'
   text: string // full replacement for the acReplaceLen chars before the caret
 }
 
@@ -822,7 +842,7 @@ function mentionItems(query: string, close: boolean): AcItem[] {
     .slice(0, 8)
     .map(mention => ({
       label: mention.name,
-      icon: mention.kind === 'event' ? '📅' : '👤',
+      mention: mention.kind === 'event' ? 'event' : 'contact',
       text: close ? `${mention.name}]]` : `@[[${mention.name}]]`
     }))
 }
@@ -899,7 +919,6 @@ async function updateAutocomplete() {
       .slice(0, 8)
       .map(note => ({
         label: note.title || '',
-        icon: '',
         text: `${note.title || ''}]]`
       }))
   } else if (openMention) {
@@ -1142,9 +1161,10 @@ onBeforeUnmount(() => {
               @dragleave="dragOverFolder = null"
               @drop.prevent.stop="onTreeDrop(row.path!)"
             >
-              <span class="nt-folder-caret">{{
-                row.collapsed ? '▸' : '▾'
-              }}</span>
+              <span class="nt-folder-caret">
+                <ChevronRight v-if="row.collapsed" :size="16" />
+                <ChevronDown v-else :size="16" />
+              </span>
               <input
                 v-if="renamingFolder === row.path"
                 class="nt-folder-rename"
@@ -1230,18 +1250,7 @@ onBeforeUnmount(() => {
             Today
           </button>
           <button class="nt-new-btn" @click="createNote()">
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M12 5v14M5 12h14" />
-            </svg>
+            <Plus :size="16" />
             New note
           </button>
         </div>
@@ -1270,11 +1279,8 @@ onBeforeUnmount(() => {
             <button
               class="nt-fav-btn"
               :class="{ 'nt-fav-btn--active': noteFavorite(selected) }"
-              :title="
-                noteFavorite(selected)
-                  ? 'Remove from favorites'
-                  : 'Add to favorites'
-              "
+              :title="favoriteLabel"
+              :aria-label="favoriteLabel"
               @click="toggleFavorite"
             >
               <Star
@@ -1285,12 +1291,26 @@ onBeforeUnmount(() => {
             <button
               class="nt-delete"
               title="Delete note"
+              aria-label="Delete note"
               @click="deleteSelected"
             >
-              🗑
+              <Trash2 :size="18" />
+            </button>
+            <button
+              class="nt-more-btn"
+              aria-label="Note options"
+              aria-controls="nt-options"
+              :aria-expanded="optionsOpen"
+              @click="optionsOpen = !optionsOpen"
+            >
+              <Ellipsis :size="18" />
             </button>
           </div>
-          <div class="nt-toolbar-row">
+          <div
+            id="nt-options"
+            class="nt-toolbar-row nt-options"
+            :class="{ 'nt-options--open': optionsOpen }"
+          >
             <AutocompleteInput
               class="nt-folder-input"
               :model-value="editFolder"
@@ -1347,7 +1367,7 @@ onBeforeUnmount(() => {
               :aria-label="`Detach ${file.name}`"
               @click="detachFile(file.id)"
             >
-              ×
+              <X :size="16" />
             </button>
           </span>
         </div>
@@ -1394,7 +1414,9 @@ onBeforeUnmount(() => {
           :class="{ 'nt-ac-item--active': index === acIndex }"
           @mousedown.prevent="applyCompletion(item)"
         >
-          <template v-if="item.icon">{{ item.icon }} </template>{{ item.label }}
+          <CalendarDays v-if="item.mention === 'event'" :size="14" />
+          <UserRound v-else-if="item.mention === 'contact'" :size="14" />
+          {{ item.label }}
         </div>
       </div>
     </Teleport>
@@ -1596,7 +1618,7 @@ onBeforeUnmount(() => {
   background: var(--bg-hover);
 }
 .nt-folder-caret {
-  width: 0.9em;
+  display: inline-flex;
   flex-shrink: 0;
 }
 .nt-folder--drop {
@@ -1773,7 +1795,8 @@ onBeforeUnmount(() => {
   color: var(--primary-contrast);
 }
 .nt-fav-btn,
-.nt-delete {
+.nt-delete,
+.nt-more-btn {
   width: 32px;
   height: 32px;
   padding: 0;
@@ -1794,6 +1817,15 @@ onBeforeUnmount(() => {
 .nt-delete:hover {
   border-color: var(--danger);
   color: var(--danger);
+}
+/* Options toggle, phone only */
+.nt-more-btn {
+  display: none;
+}
+.nt-more-btn:hover,
+.nt-more-btn[aria-expanded='true'] {
+  border-color: var(--primary);
+  color: var(--text);
 }
 /* ----- Attachments ----- */
 .nt-attachments {
@@ -1830,13 +1862,14 @@ a.nt-attachment-name:hover {
   color: var(--primary);
 }
 .nt-attachment-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 0 0.2rem;
-  font-size: 1.15rem;
-  line-height: 1;
+  padding: 0.1rem;
 }
 .nt-attachment-remove:hover {
   color: var(--danger);
@@ -1984,6 +2017,9 @@ a.nt-attachment-name:hover {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 .nt-ac-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   padding: 0.35rem 0.6rem;
   border-radius: 6px;
   cursor: pointer;
@@ -2087,13 +2123,15 @@ a.nt-attachment-name:hover {
   }
   .nt-fav-btn,
   .nt-delete,
+  .nt-more-btn,
   .nt-new-btn,
   .nt-today-btn,
   .nt-vb {
     min-height: 40px;
   }
   .nt-fav-btn,
-  .nt-delete {
+  .nt-delete,
+  .nt-more-btn {
     width: 40px;
   }
   .nt-attachment-remove {
@@ -2135,6 +2173,30 @@ a.nt-attachment-name:hover {
   }
   .nt-count {
     margin-right: auto;
+  }
+  /* With a note open the count says nothing about it: keep the slot so
+     the buttons stay on the right. */
+  .nt-layout--detail .nt-count {
+    visibility: hidden;
+  }
+  /* Title, favorite, delete and the toggle on one row; the view switch
+     always shows and fills the next one, the folder and attach button
+     unfold above it. */
+  .nt-toolbar-row:first-child {
+    flex-wrap: nowrap;
+  }
+  .nt-more-btn {
+    display: inline-flex;
+  }
+  .nt-options:not(.nt-options--open) .nt-folder-input,
+  .nt-options:not(.nt-options--open) .nt-attach-btn {
+    display: none;
+  }
+  .nt-view-toggle {
+    flex: 1 1 100%;
+  }
+  .nt-vb {
+    flex: 1;
   }
   .nt-save-status {
     max-width: 6rem;
