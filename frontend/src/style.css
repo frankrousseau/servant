@@ -49,6 +49,17 @@
   --radius: 6px;
   --control-radius: 8px;
   --sidebar-width: 220px;
+  /* Responsive shell. Two breakpoints, written as literals in the media
+     queries (custom properties cannot be used there):
+       max-width: 1024px  tablet: the sidebar becomes a drawer under a
+                          fixed top bar, list columns narrow down
+       max-width: 640px   phone: one pane at a time (list or detail),
+                          forms and grids stack to one column
+     --app-height is the height an app gets for its full-height chrome;
+     use it instead of 100vh, which ignores the top bar and the mobile
+     browser's toolbars. */
+  --topbar-height: 0px;
+  --app-height: 100dvh;
   --font-display: 'Maple Mono', 'Courier New', monospace;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color-scheme: dark;
@@ -242,6 +253,27 @@ a:hover {
   padding: 0;
 }
 
+/* Tablet and below: the sidebar is a drawer (AppSidebar), the fixed top bar
+   (AppTopbar) takes its place and pushes the content down. */
+@media (max-width: 1024px) {
+  :root {
+    --topbar-height: 52px;
+    --app-height: calc(100dvh - var(--topbar-height));
+  }
+
+  .app-layout.authenticated .content {
+    margin-left: 0;
+    margin-top: var(--topbar-height);
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-layout.authenticated .content {
+    padding: 1rem 1rem calc(1.5rem + env(safe-area-inset-bottom));
+  }
+}
+
 /* ----- 4. Views ----- */
 
 .view {
@@ -278,6 +310,19 @@ a:hover {
 .empty {
   color: var(--text-muted);
   font-style: italic;
+}
+
+@media (max-width: 640px) {
+  .view h1 {
+    font-size: 1.5rem;
+  }
+
+  /* The title and its actions share a row while they fit, then the
+     actions wrap under the title instead of squeezing it. */
+  .view-header {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
 }
 
 /* ----- 5. Forms and controls ----- */
@@ -388,6 +433,18 @@ select.small {
   padding-right: 2.5rem;
 }
 
+/* iOS zooms the page into any focused field whose text is under 16px and
+   never zooms back: keep every text control at 16px on touch screens. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select,
+  input.small,
+  select.small {
+    font-size: 16px;
+  }
+}
+
 button.ghost {
   background: transparent;
   border-color: var(--border);
@@ -447,6 +504,13 @@ th {
 .actions {
   display: flex;
   gap: 0.4rem;
+}
+
+/* Wrap a wide table in this so a narrow screen scrolls the table, not the
+   page. */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* ----- 7. Page pieces ----- */
@@ -585,7 +649,8 @@ dd {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 1rem;
 }
 
 .auth-card {
@@ -700,8 +765,23 @@ dialog {
   margin-top: 0;
 }
 
+/* Phones: the dialog keeps a gutter on both sides and a box taller than
+   the screen scrolls inside itself. */
+@media (max-width: 640px) {
+  .modal-dialog[open] {
+    padding: 0 0.75rem;
+  }
+
+  .modal {
+    padding: 1.1rem;
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+  }
+}
+
 .modal-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.5rem;
   margin-top: 1rem;

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 
 import { listEntriesPage } from '../api/entries'
 import { agentsEnabled, hiddenEntryKinds } from '../apps/registry'
+import { useCommandPalette } from '../composables/useCommandPalette'
 import { entryRoute } from '../lib/entryRoute'
 import { kindColor, kindIcon } from '../lib/kind'
 import { useAppsStore } from '../stores/apps'
@@ -12,7 +13,7 @@ import type { Entry } from '../types'
 
 const router = useRouter()
 
-const open = ref(false)
+const { open } = useCommandPalette()
 const query = ref('')
 const results = ref<Entry[]>([])
 const activeIndex = ref(0)
@@ -102,13 +103,6 @@ watch(query, text => {
   }, 200)
 })
 
-function openPalette() {
-  open.value = true
-  query.value = ''
-  results.value = []
-  activeIndex.value = 0
-}
-
 function close() {
   open.value = false
 }
@@ -118,8 +112,12 @@ function close() {
 watch(
   open,
   isOpen => {
-    if (isOpen) dialogRef.value?.showModal()
-    else dialogRef.value?.close()
+    if (isOpen) {
+      query.value = ''
+      results.value = []
+      activeIndex.value = 0
+      dialogRef.value?.showModal()
+    } else dialogRef.value?.close()
   },
   { flush: 'post' }
 )
@@ -143,8 +141,7 @@ function move(delta: number) {
 function onKeydown(event: KeyboardEvent) {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault()
-    if (open.value) close()
-    else openPalette()
+    open.value = !open.value
     return
   }
   if (!open.value) return

@@ -21,6 +21,8 @@ import {
   Wrench
 } from 'lucide-vue-next'
 
+import BrandMark from './BrandMark.vue'
+
 import {
   uploadProgress as filesProgress,
   uploading as filesUploading
@@ -47,6 +49,14 @@ const appIcons: Record<string, unknown> = {
   Target
 }
 
+// In drawer mode (below the tablet breakpoint) the nav slides in over the
+// page from the top bar's toggle; closed, it is inert so neither the tab
+// order nor assistive tech can reach links that are off screen.
+const props = defineProps<{ drawer: boolean; open: boolean }>()
+const emit = defineEmits<{ close: [] }>()
+
+const hidden = computed(() => props.drawer && !props.open)
+
 const auth = useAuthStore()
 const apps = useAppsStore()
 const router = useRouter()
@@ -60,27 +70,22 @@ function handleLogout() {
 </script>
 
 <template>
-  <nav class="sidebar">
+  <div
+    v-if="drawer && open"
+    class="sidebar-backdrop"
+    aria-hidden="true"
+    @click="emit('close')"
+  ></div>
+  <nav
+    id="app-sidebar"
+    class="sidebar"
+    :class="{ 'sidebar--drawer': drawer, 'sidebar--open': drawer && open }"
+    aria-label="Main"
+    :inert="hidden"
+    @keydown.escape="emit('close')"
+  >
     <router-link to="/" class="sidebar-brand">
-      <svg
-        viewBox="50 2 120 130"
-        width="26"
-        aria-hidden="true"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="4.5"
-        stroke-linejoin="miter"
-        stroke-linecap="square"
-      >
-        <path
-          d="M 58 76 L 60 10 L 92 26 L 128 26 L 160 10 L 162 76 L 130 98 L 90 98 Z"
-        />
-        <circle cx="88" cy="56" r="15" />
-        <circle cx="132" cy="56" r="15" />
-        <path d="M 104 74 L 116 74 L 110 87 Z" />
-        <path d="M 107 114 L 88 104 L 88 124 Z" />
-        <path d="M 113 114 L 132 104 L 132 124 Z" />
-      </svg>
+      <BrandMark :size="26" />
       Servant
     </router-link>
     <!-- The brand logo already lands on the dashboard; apps only here,
@@ -145,6 +150,8 @@ function handleLogout() {
 </template>
 
 <style scoped>
+/* ----- Layout ----- */
+
 /* Moved here with the markup. `:deep(svg)` below finally applies: the
    rule lived in the global sheet, where that Vue-only selector is
    invalid, so lucide icons could shrink under a long app name. */
@@ -159,6 +166,30 @@ function handleLogout() {
   display: flex;
   flex-direction: column;
   padding: 1rem 0;
+  overflow-y: auto;
+}
+
+/* Off-canvas below the tablet breakpoint: parked left of the viewport,
+   slid in over the content (and the top bar) when open. */
+.sidebar--drawer {
+  z-index: 40;
+  height: 100dvh;
+  width: min(280px, 85vw);
+  transform: translateX(-100%);
+  transition: transform 0.2s ease-out;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.sidebar--open {
+  transform: none;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+}
+
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  background: rgba(0, 0, 0, 0.55);
 }
 
 /* Owl-butler logo + wordmark, links back to the dashboard */
