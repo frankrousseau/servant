@@ -533,15 +533,33 @@ onMounted(() => {
 
 <style scoped>
 /* Sticky header: negative margin swallows the content's 2rem top padding so
-   the opaque background reaches the viewport edge when pinned. */
+   the opaque background reaches the viewport edge when pinned. It pins under
+   the top bar on tablets (--topbar-height is 0 on desktop). */
 .browser-head {
   position: sticky;
-  top: 0;
+  top: var(--topbar-height);
   z-index: 10;
   background: var(--bg);
   padding: 2rem 0 0.75rem;
   margin: -2rem 0 1rem;
   border-bottom: 1px solid var(--border);
+}
+
+/* The content padding drops to 1.5rem on tablets. On phones the filters
+   would pin half the screen: the header scrolls away with the list. */
+@media (max-width: 1024px) {
+  .browser-head {
+    padding-top: 1.5rem;
+    margin-top: -1.5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .browser-head {
+    position: static;
+    padding-top: 0;
+    margin-top: 0;
+  }
 }
 
 .error-banner {
@@ -591,6 +609,24 @@ onMounted(() => {
 
 .loading-text {
   color: var(--text-muted);
+}
+
+/* Phone: the filters pair up on a two-column grid. */
+@media (max-width: 640px) {
+  .filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+
+  .db-filter {
+    min-width: 0;
+  }
+
+  .filter-count {
+    margin-left: 0;
+    align-self: center;
+  }
 }
 
 /* Entry list */
@@ -671,6 +707,18 @@ onMounted(() => {
   border-color: var(--primary);
   color: var(--primary-contrast);
   font-weight: 600;
+}
+
+/* Touch: page buttons reach a comfortable target. */
+@media (max-width: 640px) {
+  .pagination {
+    flex-wrap: wrap;
+  }
+
+  .pagination button {
+    min-width: 40px;
+    min-height: 40px;
+  }
 }
 
 /* Detail panel */
@@ -762,6 +810,31 @@ onMounted(() => {
   gap: 0.5rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border);
+}
+
+/* Phone: tighter padding, the panel scrolls inside the screen, the
+   metadata stacks and a long title wraps instead of pushing Close out. */
+@media (max-width: 640px) {
+  .detail-panel {
+    padding: 1.1rem;
+    max-height: calc(100dvh - 2rem);
+  }
+
+  .detail-header {
+    gap: 0.75rem;
+  }
+
+  .detail-header > div {
+    min-width: 0;
+  }
+
+  .detail-header h2 {
+    overflow-wrap: anywhere;
+  }
+
+  .detail-meta {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* Create/Edit modal */

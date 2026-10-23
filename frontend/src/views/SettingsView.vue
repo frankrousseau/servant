@@ -590,51 +590,55 @@ onMounted(() => {
           </button>
         </div>
 
-        <table v-if="apiTokens.length" class="tk-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Scopes</th>
-              <th>Last used</th>
-              <th>Expires</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="token in apiTokens" :key="token.id">
-              <td>
-                {{ token.name }}
-                <span class="tk-prefix">{{ token.prefix }}…</span>
-              </td>
-              <td>
-                <span
-                  v-for="scope in token.scopes"
-                  :key="scope"
-                  class="tk-scope"
-                  >{{ scope }}</span
-                >
-              </td>
-              <td>
-                {{
-                  token.last_used_at ? formatDate(token.last_used_at) : 'never'
-                }}
-              </td>
-              <td>
-                {{ token.expires_at ? formatDate(token.expires_at) : '-' }}
-              </td>
-              <td>
-                <button
-                  type="button"
-                  class="tk-revoke"
-                  title="Revoke"
-                  @click="revokeToken(token)"
-                >
-                  <Trash2 :size="14" />
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div v-if="apiTokens.length" class="table-scroll">
+          <table class="tk-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Scopes</th>
+                <th>Last used</th>
+                <th>Expires</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="token in apiTokens" :key="token.id">
+                <td>
+                  {{ token.name }}
+                  <span class="tk-prefix">{{ token.prefix }}…</span>
+                </td>
+                <td>
+                  <span
+                    v-for="scope in token.scopes"
+                    :key="scope"
+                    class="tk-scope"
+                    >{{ scope }}</span
+                  >
+                </td>
+                <td>
+                  {{
+                    token.last_used_at
+                      ? formatDate(token.last_used_at)
+                      : 'never'
+                  }}
+                </td>
+                <td>
+                  {{ token.expires_at ? formatDate(token.expires_at) : '-' }}
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    class="tk-revoke"
+                    title="Revoke"
+                    @click="revokeToken(token)"
+                  >
+                    <Trash2 :size="14" />
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <p v-else class="tk-empty">No API tokens yet.</p>
 
         <form class="tk-form" @submit.prevent="createToken">
@@ -697,64 +701,66 @@ onMounted(() => {
         <p v-if="photoShareError" class="msg msg-error">
           {{ photoShareError }}
         </p>
-        <table v-if="photoShareRows.length" class="tk-table">
-          <thead>
-            <tr>
-              <th>Link</th>
-              <th>Tags</th>
-              <th>Created</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in photoShareRows" :key="row.share.id">
-              <td>
-                {{ row.label }}
-                <a
-                  class="ps-url"
-                  :href="row.share.path"
-                  target="_blank"
-                  rel="noopener"
-                  >{{ row.url }}</a
-                >
-              </td>
-              <td>
-                <span
-                  v-for="tag in row.share.tags"
-                  :key="tag"
-                  class="tk-scope"
-                  >{{ tag }}</span
-                >
-                <span v-if="row.rule" class="tk-prefix">{{ row.rule }}</span>
-              </td>
-              <td>{{ row.created }}</td>
-              <td class="ps-actions">
-                <button
-                  type="button"
-                  class="tk-revoke"
-                  :title="
-                    copiedShareId === row.share.id ? 'Copied' : 'Copy link'
-                  "
-                  :aria-label="
-                    copiedShareId === row.share.id ? 'Copied' : 'Copy link'
-                  "
-                  @click="copyPhotoShare(row.share)"
-                >
-                  <Copy :size="14" />
-                </button>
-                <button
-                  type="button"
-                  class="tk-revoke"
-                  title="Revoke"
-                  aria-label="Revoke"
-                  @click="revokePhotoShare(row.share)"
-                >
-                  <Trash2 :size="14" />
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div v-if="photoShareRows.length" class="table-scroll">
+          <table class="tk-table">
+            <thead>
+              <tr>
+                <th>Link</th>
+                <th>Tags</th>
+                <th>Created</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in photoShareRows" :key="row.share.id">
+                <td>
+                  {{ row.label }}
+                  <a
+                    class="ps-url"
+                    :href="row.share.path"
+                    target="_blank"
+                    rel="noopener"
+                    >{{ row.url }}</a
+                  >
+                </td>
+                <td>
+                  <span
+                    v-for="tag in row.share.tags"
+                    :key="tag"
+                    class="tk-scope"
+                    >{{ tag }}</span
+                  >
+                  <span v-if="row.rule" class="tk-prefix">{{ row.rule }}</span>
+                </td>
+                <td>{{ row.created }}</td>
+                <td class="ps-actions">
+                  <button
+                    type="button"
+                    class="tk-revoke"
+                    :title="
+                      copiedShareId === row.share.id ? 'Copied' : 'Copy link'
+                    "
+                    :aria-label="
+                      copiedShareId === row.share.id ? 'Copied' : 'Copy link'
+                    "
+                    @click="copyPhotoShare(row.share)"
+                  >
+                    <Copy :size="14" />
+                  </button>
+                  <button
+                    type="button"
+                    class="tk-revoke"
+                    title="Revoke"
+                    aria-label="Revoke"
+                    @click="revokePhotoShare(row.share)"
+                  >
+                    <Trash2 :size="14" />
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <p v-else class="tk-empty">No shared photo links.</p>
       </div>
     </section>
@@ -794,43 +800,45 @@ onMounted(() => {
           full session: only install repositories you trust.
         </p>
 
-        <table v-if="gitApps.length" class="tk-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Repository</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="app in gitApps" :key="app.id">
-              <td>{{ app.name }}</td>
-              <td class="app-repo">{{ app.repo_url }}</td>
-              <td class="app-actions">
-                <button
-                  type="button"
-                  class="tk-revoke"
-                  title="Update from the repository"
-                  :disabled="appUpdating === app.id"
-                  @click="updateApp(app.id)"
-                >
-                  <RefreshCw
-                    :size="14"
-                    :class="{ spin: appUpdating === app.id }"
-                  />
-                </button>
-                <button
-                  type="button"
-                  class="tk-revoke"
-                  title="Uninstall"
-                  @click="uninstallApp(app.id, app.name)"
-                >
-                  <Trash2 :size="14" />
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div v-if="gitApps.length" class="table-scroll">
+          <table class="tk-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Repository</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="app in gitApps" :key="app.id">
+                <td>{{ app.name }}</td>
+                <td class="app-repo">{{ app.repo_url }}</td>
+                <td class="app-actions">
+                  <button
+                    type="button"
+                    class="tk-revoke"
+                    title="Update from the repository"
+                    :disabled="appUpdating === app.id"
+                    @click="updateApp(app.id)"
+                  >
+                    <RefreshCw
+                      :size="14"
+                      :class="{ spin: appUpdating === app.id }"
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    class="tk-revoke"
+                    title="Uninstall"
+                    @click="uninstallApp(app.id, app.name)"
+                  >
+                    <Trash2 :size="14" />
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <p v-else class="tk-empty">No installed apps yet.</p>
 
         <form class="app-form" @submit.prevent="installApp">
@@ -1420,5 +1428,68 @@ onMounted(() => {
   background-position: center;
   background-repeat: no-repeat;
   box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.4);
+}
+
+/* ----- Responsive ----- */
+@media (pointer: coarse) {
+  .tk-revoke {
+    min-width: 40px;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
+  }
+}
+@media (max-width: 640px) {
+  /* The tab row scrolls inside itself instead of widening the page */
+  .tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+    /* Room for the active tab's focus outline */
+    padding: 3px;
+    margin: -3px -3px calc(1rem - 3px);
+  }
+  .tabs button {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 0.45rem 0.8rem;
+  }
+  .card-header {
+    padding: 0.85rem 1rem;
+  }
+  .card-body {
+    padding: 1rem;
+  }
+  .theme-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+  }
+  .theme-card {
+    width: auto;
+  }
+  .format-row .field {
+    max-width: none;
+  }
+  .tk-table {
+    min-width: 480px;
+  }
+  .tk-domains,
+  .tk-expiry,
+  .tk-binary {
+    max-width: none;
+  }
+  .tk-domain-select,
+  .tk-binary-box {
+    width: 140px;
+  }
+  /* Free-text fields take the full width under their label */
+  .tk-expiry {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.3rem;
+  }
+  .tk-expiry input {
+    width: 100%;
+  }
 }
 </style>

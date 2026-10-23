@@ -124,6 +124,13 @@ function onKeydown(event: KeyboardEvent) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Finger-sized rows on touch screens */
+@media (pointer: coarse) {
+  .ac-option {
+    padding: 0.7rem 0.75rem;
+    font-size: 0.95rem;
+  }
+}
 /* Cursor option: violet rail + tint, same language as list rows */
 .ac-option--active {
   background: rgba(var(--primary-rgb), 0.1);

@@ -293,24 +293,26 @@ const ms = (us: number) =>
           <p v-if="stats.workers.length === 0" class="au-empty">
             No connector workers running.
           </p>
-          <table v-else class="au-table">
-            <thead>
-              <tr>
-                <th>Connector</th>
-                <th>Type</th>
-                <th class="au-num">Memory</th>
-                <th class="au-num">Queue</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="worker in stats.workers" :key="worker.config_id">
-                <td>{{ worker.name || worker.config_id }}</td>
-                <td>{{ worker.connector_type || '-' }}</td>
-                <td class="au-num">{{ bytes(worker.memory_bytes) }}</td>
-                <td class="au-num">{{ worker.message_queue_len ?? '-' }}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div v-else class="table-scroll">
+            <table class="au-table">
+              <thead>
+                <tr>
+                  <th>Connector</th>
+                  <th>Type</th>
+                  <th class="au-num">Memory</th>
+                  <th class="au-num">Queue</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="worker in stats.workers" :key="worker.config_id">
+                  <td>{{ worker.name || worker.config_id }}</td>
+                  <td>{{ worker.connector_type || '-' }}</td>
+                  <td class="au-num">{{ bytes(worker.memory_bytes) }}</td>
+                  <td class="au-num">{{ worker.message_queue_len ?? '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </section>
       </template>
       <p v-else-if="!loadError" class="au-empty">Probing system…</p>
@@ -359,7 +361,8 @@ const ms = (us: number) =>
 .au-view {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 4rem);
+  /* Minus the .content padding, so the log feeds scroll inside */
+  height: calc(var(--app-height) - 4rem);
 }
 .au-tabs {
   display: flex;
@@ -393,7 +396,7 @@ const ms = (us: number) =>
 }
 .au-panels {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   gap: 1rem;
   align-content: start;
   overflow-y: auto;
@@ -538,5 +541,56 @@ const ms = (us: number) =>
 .au-msg {
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* ----- Responsive ----- */
+@media (max-width: 1024px) {
+  .au-view {
+    height: calc(var(--app-height) - 3rem);
+  }
+}
+@media (max-width: 640px) {
+  .au-view {
+    height: calc(var(--app-height) - 2.5rem - env(safe-area-inset-bottom));
+  }
+  /* The tab row scrolls inside itself, labels stay on one line */
+  .au-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+    flex-shrink: 0;
+  }
+  .au-tab {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 0.6rem 0.75rem;
+  }
+  /* Inside the scrolling row, an outer outline would be clipped */
+  .au-tab:focus-visible {
+    outline-offset: -2px;
+  }
+  .au-panels,
+  .au-logs {
+    padding-right: 0;
+  }
+  .au-panel {
+    padding: 0.85rem 1rem;
+  }
+  .au-value {
+    white-space: normal;
+    text-align: right;
+  }
+  /* Log lines wrap: the metadata on top, the path or message below */
+  .au-line {
+    flex-wrap: wrap;
+    gap: 0.15rem 0.6rem;
+  }
+  .au-method {
+    width: auto;
+  }
+  .au-path,
+  .au-msg {
+    order: 1;
+    flex: 1 1 100%;
+  }
 }
 </style>

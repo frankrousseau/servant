@@ -581,7 +581,7 @@ onMounted(fetchData)
 
 .view {
   max-width: none;
-  height: calc(100vh - 4rem);
+  height: calc(var(--app-height) - 4rem);
   display: flex;
   flex-direction: column;
 }
@@ -611,12 +611,20 @@ onMounted(fetchData)
   overflow: hidden;
 }
 
-/* Two columns: stats keep their place next to the checklists, the activity
-   feed takes the full width underneath (explicit placement, the DOM order
-   would otherwise leave a hole). */
-@media (max-width: 1100px) {
+/* Tablet: two columns, stats keep their place next to the checklists, the
+   activity feed takes the full width underneath (explicit placement, the DOM
+   order would otherwise leave a hole). The page scrolls as a whole. */
+@media (max-width: 1024px) {
+  .view {
+    height: auto;
+  }
   .dashboard-layout {
     grid-template-columns: minmax(0, 1fr) 280px;
+  }
+  .dashboard-main,
+  .dashboard-stats,
+  .dashboard-activity {
+    overflow-y: visible;
   }
   .dashboard-stats {
     grid-column: 2;
@@ -628,17 +636,15 @@ onMounted(fetchData)
   }
 }
 
-@media (max-width: 860px) {
-  .view {
-    height: auto;
-  }
+/* Phone: one column in DOM order. */
+@media (max-width: 640px) {
   .dashboard-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .dashboard-main,
   .dashboard-stats,
   .dashboard-activity {
-    overflow-y: visible;
+    padding-right: 0;
   }
   .dashboard-stats,
   .dashboard-activity {
@@ -850,13 +856,18 @@ onMounted(fetchData)
 
 .connector-status-name {
   font-weight: 500;
-  flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .connector-status-meta {
   color: var(--text-muted);
   margin-left: auto;
   font-size: 0.85rem;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 /* Errored connectors: red-tinted card, message shown in place of the

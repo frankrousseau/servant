@@ -350,7 +350,7 @@ onMounted(fetchConnectors)
 .sources-layout {
   display: flex;
   gap: 1.5rem;
-  height: calc(100vh - 4rem);
+  height: calc(var(--app-height) - 4rem);
 }
 
 .sources-col {
@@ -371,6 +371,31 @@ onMounted(fetchConnectors)
   background: var(--bg);
   padding: 0.5rem 0;
   z-index: 1;
+}
+
+/* Tablet: the page padding drops to 1.5rem. Phone: the two columns stack
+   and the page scrolls as a whole. */
+@media (max-width: 1024px) {
+  .sources-layout {
+    height: calc(var(--app-height) - 3rem);
+  }
+}
+
+@media (max-width: 640px) {
+  .sources-layout {
+    flex-direction: column;
+    gap: 1rem;
+    height: auto;
+  }
+
+  .sources-col {
+    overflow-y: visible;
+    padding-right: 0;
+  }
+
+  .section-title {
+    position: static;
+  }
 }
 
 /* Active connectors */
@@ -612,6 +637,14 @@ onMounted(fetchConnectors)
   justify-content: flex-end;
   gap: 0.5rem;
   margin-top: 1.25rem;
+}
+
+@media (max-width: 640px) {
+  .setup-modal {
+    padding: 1.1rem;
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+  }
 }
 
 .btn-secondary {

@@ -564,6 +564,7 @@ async function changePassword() {
 
 .totp-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
 }
@@ -575,6 +576,7 @@ async function changePassword() {
 .totp-qr {
   display: block;
   width: 220px;
+  max-width: 100%;
   border-radius: 8px;
   margin-bottom: 0.5rem;
   /* white quiet zone so scanners cope with the dark theme */
@@ -612,5 +614,27 @@ async function changePassword() {
 .info-value.mono {
   font-family: var(--font-mono);
   font-size: 0.9rem;
+}
+
+/* ----- Responsive ----- */
+@media (max-width: 640px) {
+  .card-header {
+    padding: 0.85rem 1rem;
+  }
+  .card-body {
+    padding: 1rem;
+  }
+  /* The code gets its own line, the buttons share the next one */
+  .totp-code {
+    flex: 1 1 100%;
+  }
+  .info-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+  }
+  .info-value {
+    word-break: break-all;
+  }
 }
 </style>

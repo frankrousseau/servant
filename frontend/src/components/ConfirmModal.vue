@@ -95,7 +95,8 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
   border: none;
   background: transparent;
   width: 100%;
-  max-width: 380px;
+  /* A 1rem gutter on each side of a phone screen */
+  max-width: min(380px, calc(100vw - 2rem));
 }
 
 .confirm-dialog::backdrop {
@@ -169,6 +170,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
   transition:
     background 0.15s,
     border-color 0.15s;
+}
+
+@media (pointer: coarse) {
+  .confirm-btn {
+    min-height: 44px;
+  }
 }
 
 .confirm-btn--cancel {

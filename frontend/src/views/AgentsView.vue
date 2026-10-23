@@ -468,74 +468,78 @@ onMounted(() => {
               lookback window and asks the model for a report.
             </p>
 
-            <table v-if="agents.length" class="tk-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Kinds</th>
-                  <th>Schedule</th>
-                  <th>Enabled</th>
-                  <th>Last run</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="agent in agents" :key="agent.id">
-                  <td>
-                    {{ agent.name }}
-                    <span class="mode-badge">{{ agent.mode }}</span>
-                  </td>
-                  <td>{{ agent.kinds.join(', ') }}</td>
-                  <td>{{ scheduleLabel(agent.schedule) }}</td>
-                  <td>
-                    <label class="toggle">
-                      <input
-                        type="checkbox"
-                        :checked="agent.enabled"
-                        @change="toggleAgent(agent)"
-                      />
-                    </label>
-                  </td>
-                  <td>
-                    <template v-if="lastRunOf(agent.id)">
-                      {{ formatDate(lastRunOf(agent.id)!.inserted_at) }} -
-                      {{ lastRunOf(agent.id)!.status }}
-                    </template>
-                    <template v-else-if="agent.last_run_at">
-                      {{ formatDate(agent.last_run_at) }}
-                    </template>
-                    <template v-else>never</template>
-                  </td>
-                  <td class="app-actions">
-                    <button
-                      type="button"
-                      class="tk-revoke"
-                      title="Run now"
-                      :disabled="runningId === agent.id"
-                      @click="runNow(agent)"
-                    >
-                      <Play :size="14" />
-                    </button>
-                    <button
-                      type="button"
-                      class="tk-revoke"
-                      title="Edit"
-                      @click="openEdit(agent)"
-                    >
-                      <Pencil :size="14" />
-                    </button>
-                    <button
-                      type="button"
-                      class="tk-revoke"
-                      title="Delete"
-                      @click="deleteAgent(agent)"
-                    >
-                      <Trash2 :size="14" />
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <div v-if="agents.length" class="table-scroll">
+              <table class="tk-table ag-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Kinds</th>
+                    <th>Schedule</th>
+                    <th>Enabled</th>
+                    <th>Last run</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="agent in agents" :key="agent.id">
+                    <td class="ag-name">
+                      {{ agent.name }}
+                      <span class="mode-badge">{{ agent.mode }}</span>
+                    </td>
+                    <td data-label="Kinds">{{ agent.kinds.join(', ') }}</td>
+                    <td data-label="Schedule">
+                      {{ scheduleLabel(agent.schedule) }}
+                    </td>
+                    <td data-label="Enabled">
+                      <label class="toggle">
+                        <input
+                          type="checkbox"
+                          :checked="agent.enabled"
+                          @change="toggleAgent(agent)"
+                        />
+                      </label>
+                    </td>
+                    <td data-label="Last run">
+                      <template v-if="lastRunOf(agent.id)">
+                        {{ formatDate(lastRunOf(agent.id)!.inserted_at) }} -
+                        {{ lastRunOf(agent.id)!.status }}
+                      </template>
+                      <template v-else-if="agent.last_run_at">
+                        {{ formatDate(agent.last_run_at) }}
+                      </template>
+                      <template v-else>never</template>
+                    </td>
+                    <td class="app-actions">
+                      <button
+                        type="button"
+                        class="tk-revoke"
+                        title="Run now"
+                        :disabled="runningId === agent.id"
+                        @click="runNow(agent)"
+                      >
+                        <Play :size="14" />
+                      </button>
+                      <button
+                        type="button"
+                        class="tk-revoke"
+                        title="Edit"
+                        @click="openEdit(agent)"
+                      >
+                        <Pencil :size="14" />
+                      </button>
+                      <button
+                        type="button"
+                        class="tk-revoke"
+                        title="Delete"
+                        @click="deleteAgent(agent)"
+                      >
+                        <Trash2 :size="14" />
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
             <p v-else class="tk-empty">No agents yet.</p>
 
             <form v-if="formOpen" class="app-form" @submit.prevent="saveAgent">
@@ -735,45 +739,51 @@ onMounted(() => {
         <section class="card">
           <div class="card-body">
             <h3 class="app-subhead">Recent runs</h3>
-            <table v-if="recurrentRuns.length" class="tk-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Agent</th>
-                  <th>Model</th>
-                  <th>Tokens</th>
-                  <th>Duration</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="run in recurrentRuns" :key="run.id">
-                  <td>{{ formatDate(run.inserted_at) }}</td>
-                  <td>{{ agentName(run.agent_id) }}</td>
-                  <td>{{ run.model || '-' }}</td>
-                  <td>
-                    {{
-                      run.input_tokens != null
-                        ? `${run.input_tokens} in / ${run.output_tokens} out`
-                        : '-'
-                    }}
-                  </td>
-                  <td>
-                    {{
-                      run.duration_ms != null
-                        ? `${Math.round(run.duration_ms / 1000)}s`
-                        : '-'
-                    }}
-                  </td>
-                  <td>
-                    {{ run.status }}
-                    <div v-if="run.error" class="run-error" :title="run.error">
-                      {{ run.error }}
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <div v-if="recurrentRuns.length" class="table-scroll">
+              <table class="tk-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Agent</th>
+                    <th>Model</th>
+                    <th>Tokens</th>
+                    <th>Duration</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="run in recurrentRuns" :key="run.id">
+                    <td>{{ formatDate(run.inserted_at) }}</td>
+                    <td>{{ agentName(run.agent_id) }}</td>
+                    <td>{{ run.model || '-' }}</td>
+                    <td>
+                      {{
+                        run.input_tokens != null
+                          ? `${run.input_tokens} in / ${run.output_tokens} out`
+                          : '-'
+                      }}
+                    </td>
+                    <td>
+                      {{
+                        run.duration_ms != null
+                          ? `${Math.round(run.duration_ms / 1000)}s`
+                          : '-'
+                      }}
+                    </td>
+                    <td>
+                      {{ run.status }}
+                      <div
+                        v-if="run.error"
+                        class="run-error"
+                        :title="run.error"
+                      >
+                        {{ run.error }}
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
             <p v-else class="tk-empty">No runs yet.</p>
           </div>
         </section>
@@ -897,47 +907,53 @@ onMounted(() => {
         <section class="card">
           <div class="card-body">
             <h3 class="app-subhead">Recent runs</h3>
-            <table v-if="builderRuns.length" class="tk-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Action</th>
-                  <th>App</th>
-                  <th>Model</th>
-                  <th>Tokens</th>
-                  <th>Duration</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="run in builderRuns" :key="run.id">
-                  <td>{{ formatDate(run.inserted_at) }}</td>
-                  <td>{{ run.action }}</td>
-                  <td>{{ run.app_id || '-' }}</td>
-                  <td>{{ run.model || '-' }}</td>
-                  <td>
-                    {{
-                      run.input_tokens != null
-                        ? `${run.input_tokens} in / ${run.output_tokens} out`
-                        : '-'
-                    }}
-                  </td>
-                  <td>
-                    {{
-                      run.duration_ms != null
-                        ? `${Math.round(run.duration_ms / 1000)}s`
-                        : '-'
-                    }}
-                  </td>
-                  <td>
-                    {{ run.status }}
-                    <div v-if="run.error" class="run-error" :title="run.error">
-                      {{ run.error }}
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <div v-if="builderRuns.length" class="table-scroll">
+              <table class="tk-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Action</th>
+                    <th>App</th>
+                    <th>Model</th>
+                    <th>Tokens</th>
+                    <th>Duration</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="run in builderRuns" :key="run.id">
+                    <td>{{ formatDate(run.inserted_at) }}</td>
+                    <td>{{ run.action }}</td>
+                    <td>{{ run.app_id || '-' }}</td>
+                    <td>{{ run.model || '-' }}</td>
+                    <td>
+                      {{
+                        run.input_tokens != null
+                          ? `${run.input_tokens} in / ${run.output_tokens} out`
+                          : '-'
+                      }}
+                    </td>
+                    <td>
+                      {{
+                        run.duration_ms != null
+                          ? `${Math.round(run.duration_ms / 1000)}s`
+                          : '-'
+                      }}
+                    </td>
+                    <td>
+                      {{ run.status }}
+                      <div
+                        v-if="run.error"
+                        class="run-error"
+                        :title="run.error"
+                      >
+                        {{ run.error }}
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
             <p v-else class="tk-empty">No runs yet.</p>
           </div>
         </section>
@@ -1009,9 +1025,11 @@ onMounted(() => {
   max-width: 420px;
   margin-bottom: 0.75rem;
 }
-.tk-expiry input {
+/* Beats the full-width .app-form inputs: the control keeps its column */
+.app-form .tk-expiry input {
   width: 150px;
   flex-shrink: 0;
+  margin-bottom: 0;
 }
 .tk-domain-label {
   font-size: 0.8rem;
@@ -1282,5 +1300,84 @@ onMounted(() => {
 .recipe-json {
   font-family: var(--font-mono);
   font-size: 0.85rem;
+}
+
+/* ----- Responsive ----- */
+@media (pointer: coarse) {
+  .tk-revoke {
+    min-width: 40px;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
+  }
+}
+@media (max-width: 640px) {
+  .card-body {
+    padding: 1rem;
+  }
+  /* Wide tables scroll inside their .table-scroll wrapper */
+  .table-scroll .tk-table {
+    min-width: 560px;
+  }
+  /* The agents table turns into one card per agent, actions on top right */
+  .table-scroll .ag-table {
+    min-width: 0;
+  }
+  .ag-table thead {
+    display: none;
+  }
+  .ag-table tbody {
+    display: block;
+  }
+  .ag-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .ag-table td {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.15rem 0;
+    border-bottom: none;
+  }
+  .ag-table td[data-label]::before {
+    content: attr(data-label);
+    flex: 0 0 5.5rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .ag-table .ag-name {
+    grid-column: 1;
+    display: block;
+    font-weight: 500;
+  }
+  .ag-table .app-actions {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .agents-head {
+    flex-wrap: wrap;
+  }
+  /* Form rows: label above a full-width control */
+  .tk-expiry {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.3rem;
+    max-width: none;
+  }
+  .tk-expiry .tk-domain-select,
+  .app-form .tk-expiry input {
+    width: 100%;
+  }
+  .card-actions {
+    flex-wrap: wrap;
+  }
 }
 </style>

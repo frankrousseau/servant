@@ -1160,4 +1160,64 @@ onMounted(async () => {
   border-radius: var(--radius);
   user-select: all;
 }
+
+/* ----- Responsive ----- */
+
+/* Touch: the small copy buttons reach a usable target. */
+@media (pointer: coarse) {
+  .copy-error-btn {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+@media (max-width: 640px) {
+  .back-title {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .back-link {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+
+  .editable-name {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .detail-card {
+    padding: 1rem;
+  }
+
+  .detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  .detail-val {
+    flex-wrap: wrap;
+  }
+
+  .action-bar,
+  .action-group {
+    flex-wrap: wrap;
+  }
+
+  .action-btn {
+    min-height: 40px;
+  }
+
+  .config-pre,
+  .eb-hint code {
+    overflow-wrap: anywhere;
+  }
+
+  .upload-area {
+    padding: 1.25rem;
+  }
+}
 </style>

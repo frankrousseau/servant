@@ -31,6 +31,7 @@ const query = ref('')
 const root = ref<HTMLElement | null>(null)
 const buttonEl = ref<HTMLButtonElement | null>(null)
 const listEl = ref<HTMLElement | null>(null)
+const panelEl = ref<HTMLElement | null>(null)
 const searchEl = ref<HTMLInputElement | null>(null)
 
 // Long lists (timezones, albums…) get a filter box inside the panel.
@@ -55,8 +56,11 @@ watch(query, () => {
 
 // The panel teleports to <body> (overflow ancestors would clip an inline
 // dropdown) and is fixed-positioned from the control's rect; scrolling any
-// ancestor repositions it. Flips above when the viewport bottom is close.
+// ancestor repositions it. Flips above when the viewport bottom is close,
+// and stays inside the viewport sideways (a combo near a phone's right edge).
 const panelStyle = ref<Record<string, string>>({})
+// Gap kept between the panel and the viewport edges
+const EDGE = 8
 // Inside a modal <dialog>, the panel must live in that dialog: an open modal
 // sits in the browser's top layer, above anything in <body> whatever its
 // z-index, so a panel teleported to <body> would open hidden behind it.
@@ -65,11 +69,23 @@ const panelHost = ref<HTMLElement | string>('body')
 function reposition() {
   const rect = root.value?.getBoundingClientRect()
   if (!rect) return
+  const viewportWidth = window.innerWidth
   const spaceBelow = window.innerHeight - rect.bottom
   const openUp = spaceBelow < 280 && rect.top > spaceBelow
+  const maxWidth = Math.min(320, viewportWidth - 2 * EDGE)
+  // Rendered width once open, else the widest it can get
+  const width = Math.max(panelEl.value?.offsetWidth ?? maxWidth, rect.width)
+  const left = Math.max(
+    EDGE,
+    Math.min(rect.left, viewportWidth - EDGE - Math.min(width, maxWidth))
+  )
+  // The list shrinks to the room left on the side it opens towards
+  const room = (openUp ? rect.top : spaceBelow) - 4 - EDGE
   panelStyle.value = {
-    left: `${rect.left}px`,
-    minWidth: `${rect.width}px`,
+    left: `${left}px`,
+    minWidth: `${Math.min(rect.width, maxWidth)}px`,
+    maxWidth: `${maxWidth}px`,
+    '--cb-list-max': `${Math.max(120, Math.min(240, room - 8))}px`,
     ...(openUp
       ? { bottom: `${window.innerHeight - rect.top + 4}px` }
       : { top: `${rect.bottom + 4}px` })
@@ -106,6 +122,8 @@ function openPanel() {
   void nextTick(() => {
     searchEl.value?.focus()
     swapping = false
+    // Second pass with the panel's real width, for the sideways clamp
+    reposition()
     scrollActiveIntoView()
   })
 }
@@ -234,7 +252,7 @@ function onFocusout(event: FocusEvent) {
       <span class="cb-caret" aria-hidden="true">▾</span>
     </button>
     <Teleport :to="panelHost">
-      <div v-if="open" class="cb-panel" :style="panelStyle">
+      <div v-if="open" ref="panelEl" class="cb-panel" :style="panelStyle">
         <div ref="listEl" class="cb-list" role="listbox">
           <div
             v-for="(option, index) in filtered"
@@ -323,7 +341,7 @@ function onFocusout(event: FocusEvent) {
   padding: 0.25rem;
 }
 .cb-list {
-  max-height: 240px;
+  max-height: var(--cb-list-max, 240px);
   overflow-y: auto;
 }
 .cb-option {
@@ -343,6 +361,15 @@ function onFocusout(event: FocusEvent) {
 }
 .cb-option--selected {
   color: var(--primary);
+}
+/* Finger-sized rows on touch screens */
+@media (pointer: coarse) {
+  .cb-option {
+    padding: 0.7rem 0.75rem;
+    font-size: 0.95rem;
+    /* A narrow screen wraps a long label instead of cutting it */
+    white-space: normal;
+  }
 }
 .cb-empty {
   color: var(--text-muted);
