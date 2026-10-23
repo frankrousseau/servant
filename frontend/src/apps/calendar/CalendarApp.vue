@@ -40,7 +40,14 @@ const DAY_HEADERS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 const events = ref<Entry[]>([])
 const checklists = ref<Entry[]>([])
-const viewMode = ref<'calendar' | 'list'>('calendar')
+// Phones open on the list: a 7-column month only fits truncated titles.
+const viewMode = ref<'calendar' | 'list'>(
+  typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(max-width: 640px)').matches
+    ? 'list'
+    : 'calendar'
+)
 const currentYear = ref(new Date().getFullYear())
 const currentMonth = ref(new Date().getMonth())
 const loading = ref(true)
@@ -875,7 +882,8 @@ onUnmounted(destroyPickers)
             <span class="cal-chip-title">{{ ev.title || 'Untitled' }}</span>
           </div>
           <div v-if="(cell.events?.length ?? 0) > 3" class="cal-cell-more">
-            +{{ cell.events!.length - 3 }} more
+            +{{ cell.events!.length - 3
+            }}<span class="cal-cell-more-word"> more</span>
           </div>
         </template>
       </div>
@@ -1104,7 +1112,7 @@ onUnmounted(destroyPickers)
      against the window, so the breathing room lives here (same as finance
      and trackers). */
   padding: 1rem 1.25rem;
-  height: 100vh;
+  height: var(--app-height);
   display: flex;
   flex-direction: column;
 }
@@ -1174,6 +1182,33 @@ onUnmounted(destroyPickers)
 /* :hover (0-2-1) outranks the modifier (0-2-0); keep the contrast text. */
 .cal-toggle-btn--active:hover {
   color: var(--primary-contrast);
+}
+@media (pointer: coarse) {
+  .cal-nav-btn,
+  .cal-toggle-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+/* Phone: nav and month on the first row, actions on the second. */
+@media (max-width: 640px) {
+  .cal-container {
+    padding: 0.75rem 1rem;
+  }
+  .cal-header {
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+  }
+  .cal-month-label {
+    font-size: 1.1rem;
+    white-space: nowrap;
+  }
+  .cal-header-actions {
+    flex-basis: 100%;
+  }
+  .cal-view-toggle {
+    margin-left: auto;
+  }
 }
 .cal-grid {
   display: grid;
@@ -1272,6 +1307,41 @@ onUnmounted(destroyPickers)
   color: var(--cal-color, var(--primary));
   flex-shrink: 0;
 }
+/* Tablet: the time would leave no room for the title (the list and the
+   event modal still show it). */
+@media (max-width: 1024px) {
+  .cal-chip-time {
+    display: none;
+  }
+}
+/* Phone: about 45px per column, so chips keep a clipped title only. */
+@media (max-width: 640px) {
+  .cal-grid-header {
+    padding: 0.4rem 0;
+    font-size: 0.6rem;
+    letter-spacing: 0.04em;
+  }
+  .cal-cell {
+    padding: 0.2rem 0.15rem;
+  }
+  .cal-day-num {
+    font-size: 0.72rem;
+  }
+  .cal-cell-event {
+    font-size: 0.6rem;
+    padding: 1px 2px 1px 3px;
+  }
+  .cal-chip-rec,
+  .cal-cell-more-word {
+    display: none;
+  }
+  .cal-cell-event .cal-chip-title {
+    text-overflow: clip;
+  }
+  .cal-cell-more {
+    padding-left: 3px;
+  }
+}
 /* Agenda legend: click to hide/show an agenda */
 .cal-legend {
   display: flex;
@@ -1309,6 +1379,17 @@ onUnmounted(destroyPickers)
 }
 .cal-legend-count {
   color: var(--text-muted);
+}
+/* Phone: one row of chips that scrolls sideways. */
+@media (max-width: 640px) {
+  .cal-legend {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    flex-shrink: 0;
+  }
+  .cal-legend-item {
+    flex-shrink: 0;
+  }
 }
 /* Manage-calendars dialog */
 .cal-color-input {
@@ -1374,6 +1455,12 @@ onUnmounted(destroyPickers)
 }
 .cal-manage-delete:hover {
   color: var(--danger);
+}
+@media (pointer: coarse) {
+  .cal-manage-delete {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 .cal-manage-error {
   color: var(--danger);
@@ -1442,6 +1529,16 @@ onUnmounted(destroyPickers)
 .cal-event-loc {
   font-size: 0.9rem;
   color: var(--text-muted);
+}
+@media (max-width: 640px) {
+  .cal-event {
+    gap: 0.75rem;
+  }
+  .cal-event-time {
+    width: auto;
+    min-width: 64px;
+    white-space: nowrap;
+  }
 }
 .cal-chip-rec {
   flex-shrink: 0;
@@ -1559,6 +1656,11 @@ onUnmounted(destroyPickers)
 .cal-modal-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+@media (pointer: coarse) {
+  .cal-modal-btn {
+    min-height: 44px;
+  }
 }
 </style>
 

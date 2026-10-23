@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 import {
   TRACKER_TYPES,
@@ -100,7 +100,20 @@ function tableLabel(bucket: string): string {
 
 // ----- chart geometry -----
 
-const W = 1000
+// A narrower viewBox on phones keeps the tick labels readable once the
+// chart is scaled down to the screen width.
+const phoneQuery =
+  typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia('(max-width: 640px)')
+    : null
+const narrow = ref(phoneQuery?.matches ?? false)
+function onPhoneChange(event: MediaQueryListEvent) {
+  narrow.value = event.matches
+}
+phoneQuery?.addEventListener('change', onPhoneChange)
+onUnmounted(() => phoneQuery?.removeEventListener('change', onPhoneChange))
+
+const W = computed(() => (narrow.value ? 420 : 1000))
 const H = 240
 const PAD_TOP = 26
 const PAD_BOTTOM = 26
@@ -139,14 +152,17 @@ const chart = computed(() => {
   const max = Math.max(...rows.map(row => row.value), 1)
   const step = tickStep(max)
   const top = Math.ceil(max / step) * step
-  const slot = (W - PAD_LEFT - PAD_RIGHT) / rows.length
+  const slot = (W.value - PAD_LEFT - PAD_RIGHT) / rows.length
   const barWidth = Math.min(slot * 0.7, 48)
   const scale = (H - PAD_TOP - PAD_BOTTOM) / top
   const baseline = H - PAD_BOTTOM
   const inlineValues = slot >= 38
   // Label every bar when there is room, every Nth (anchored on the most
   // recent one) otherwise.
-  const labelEvery = Math.max(1, Math.ceil(rows.length / 13))
+  const labelEvery = Math.max(
+    1,
+    Math.ceil(rows.length / Math.round(W.value / 77))
+  )
 
   const gridlines = []
   for (let tick = step; tick <= top; tick += step)
@@ -369,6 +385,11 @@ const hover = ref<Bar | null>(null)
   font-size: 0.75rem;
   color: var(--text-muted);
 }
+@media (pointer: coarse) {
+  .tkd-back {
+    min-height: 44px;
+  }
+}
 
 /* ----- Period selector ----- */
 .tkd-periods {
@@ -392,6 +413,11 @@ const hover = ref<Bar | null>(null)
 .tkd-period--active {
   color: var(--primary);
   background: rgba(var(--primary-rgb), 0.1);
+}
+@media (pointer: coarse) {
+  .tkd-period {
+    min-height: 44px;
+  }
 }
 
 /* ----- Chart ----- */

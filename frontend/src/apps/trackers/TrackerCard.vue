@@ -312,6 +312,12 @@ function onDatePick(value: string) {
 .tk-del:hover {
   color: var(--danger);
 }
+@media (pointer: coarse) {
+  .tk-del {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
 
 .tk-controls {
   display: flex;
@@ -414,6 +420,40 @@ function onDatePick(value: string) {
   width: 120px;
   padding: 0.35rem 0.6rem;
   font-size: 0.9rem;
+}
+@media (pointer: coarse) {
+  .tk-step,
+  .tk-toggle {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+/* Phone: the controls and the date picker share a row, the day readout
+   drops below them. */
+@media (max-width: 640px) {
+  .tk-controls {
+    flex-wrap: wrap;
+  }
+  .tk-toggle {
+    white-space: nowrap;
+  }
+  .tk-cell-info {
+    order: 1;
+    flex-basis: 100%;
+    margin-left: 0;
+    white-space: normal;
+    flex-wrap: wrap;
+  }
+  .tk-auto {
+    flex-basis: 100%;
+  }
+  .tk-date-pick {
+    width: 140px;
+    margin-left: auto;
+  }
+  .tk-value-input {
+    width: 90px;
+  }
 }
 
 .tk-heatmap {

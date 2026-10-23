@@ -574,7 +574,7 @@ watch([windowEnd, weeksVisible], () => {
 <style scoped>
 .tk-layout {
   padding: 1rem 1.25rem;
-  height: 100vh;
+  height: var(--app-height);
   overflow-y: auto;
 }
 .tk-placeholder {
@@ -670,6 +670,36 @@ watch([windowEnd, weeksVisible], () => {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
+}
+/* Phone: the search and the new button take their own row. */
+@media (max-width: 640px) {
+  .tk-layout {
+    padding: 0.75rem 1rem;
+  }
+  .tk-toolbar {
+    flex-wrap: wrap;
+  }
+  .tk-spacer {
+    display: none;
+  }
+  .tk-search {
+    flex: 1 1 160px;
+    width: auto;
+    min-width: 0;
+    order: 1;
+  }
+  .tk-new {
+    order: 2;
+  }
+}
+@media (pointer: coarse) {
+  .tk-nav {
+    width: 44px;
+    height: 44px;
+  }
+  .tk-new {
+    min-height: 44px;
+  }
 }
 
 .tk-modal {
