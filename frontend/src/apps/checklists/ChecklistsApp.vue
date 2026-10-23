@@ -5,7 +5,8 @@ import {
   onBeforeUnmount,
   onMounted,
   reactive,
-  ref
+  ref,
+  watch
 } from 'vue'
 import {
   CalendarPlus,
@@ -15,6 +16,7 @@ import {
   ChevronRight,
   Copy,
   Download,
+  Ellipsis,
   GripVertical,
   ListEnd,
   Pencil,
@@ -56,6 +58,12 @@ function ensureItems(list: Entry): Item[] {
 
 const lists = ref<Entry[]>([])
 const selectedId = ref<string | null>(null)
+// Phones fold the folder, the options and the list actions behind a toggle
+// next to the title; each list opens folded.
+const optionsOpen = ref(false)
+watch(selectedId, () => {
+  optionsOpen.value = false
+})
 const searchQuery = ref('')
 const collapsed = reactive(new Set<string>())
 const loadState = ref<'loading' | 'ready' | 'error'>('loading')
@@ -697,8 +705,21 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
             >
               <Trash2 :size="18" />
             </button>
+            <button
+              class="cl-more-btn"
+              aria-label="List options"
+              aria-controls="cl-options"
+              :aria-expanded="optionsOpen"
+              @click="optionsOpen = !optionsOpen"
+            >
+              <Ellipsis :size="18" />
+            </button>
           </div>
-          <div class="cl-toolbar-row">
+          <div
+            id="cl-options"
+            class="cl-toolbar-row cl-options"
+            :class="{ 'cl-options--open': optionsOpen }"
+          >
             <AutocompleteInput
               class="cl-folder-input"
               :model-value="editFolder"
@@ -730,37 +751,39 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
               Dashboard
             </label>
             <span class="cl-toolbar-spacer"></span>
-            <button
-              v-if="doneCount(selected) > 0"
-              class="cl-sort-btn"
-              title="Move completed items to the bottom"
-              @click="sortDoneLast"
-            >
-              <ListEnd :size="16" />Done last
-            </button>
-            <button
-              v-if="recurring"
-              class="cl-reset-btn"
-              title="Uncheck all items"
-              @click="resetList"
-            >
-              <RotateCcw :size="16" />Reset
-            </button>
-            <button
-              class="cl-copy-btn"
-              title="Copy as a markdown checkbox list"
-              @click="copyMarkdown"
-            >
-              <template v-if="copied"><Check :size="16" />Copied</template>
-              <template v-else><Copy :size="16" />Copy</template>
-            </button>
-            <button
-              class="cl-export-btn"
-              title="Download as JSON"
-              @click="exportJson"
-            >
-              <Download :size="16" />JSON
-            </button>
+            <div class="cl-toolbar-actions">
+              <button
+                v-if="doneCount(selected) > 0"
+                class="cl-sort-btn"
+                title="Move completed items to the bottom"
+                @click="sortDoneLast"
+              >
+                <ListEnd :size="16" />Done last
+              </button>
+              <button
+                v-if="recurring"
+                class="cl-reset-btn"
+                title="Uncheck all items"
+                @click="resetList"
+              >
+                <RotateCcw :size="16" />Reset
+              </button>
+              <button
+                class="cl-copy-btn"
+                title="Copy as a markdown checkbox list"
+                @click="copyMarkdown"
+              >
+                <template v-if="copied"><Check :size="16" />Copied</template>
+                <template v-else><Copy :size="16" />Copy</template>
+              </button>
+              <button
+                class="cl-export-btn"
+                title="Download as JSON"
+                @click="exportJson"
+              >
+                <Download :size="16" />JSON
+              </button>
+            </div>
           </div>
         </div>
 
@@ -943,6 +966,11 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   }
   .cl-count {
     margin-right: auto;
+  }
+  /* With a list open the count says nothing about it: keep the slot so
+     the new button stays on the right. */
+  .cl-layout--detail .cl-count {
+    visibility: hidden;
   }
 }
 .cl-count {
@@ -1194,18 +1222,63 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   border-color: var(--danger);
   color: var(--danger);
 }
+/* Options toggle, phone only; elsewhere the options row is always shown
+   and the actions wrapper leaves its buttons inline. */
+.cl-more-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 8px;
+  padding: 0.4rem;
+  cursor: pointer;
+}
+.cl-more-btn:hover,
+.cl-more-btn[aria-expanded='true'] {
+  border-color: var(--primary);
+  color: var(--text);
+}
+.cl-toolbar-actions {
+  display: contents;
+}
 @media (max-width: 1024px) {
   .cl-toolbar-row {
     flex-wrap: wrap;
   }
 }
+/* Phone: title, delete and the toggle on one row; unfolded, the folder
+   gets a row, the two options share one, the actions share the last. */
 @media (max-width: 640px) {
+  .cl-toolbar-row:first-child {
+    flex-wrap: nowrap;
+  }
+  .cl-more-btn {
+    display: inline-flex;
+  }
+  .cl-options {
+    display: none;
+  }
+  .cl-options--open {
+    display: flex;
+    gap: 0.5rem 1rem;
+  }
   .cl-folder-input {
     flex: 1 1 100%;
     width: auto;
   }
   .cl-toolbar-spacer {
     display: none;
+  }
+  .cl-toolbar-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex: 1 1 100%;
+    gap: 0.375rem;
+  }
+  .cl-toolbar-actions > button {
+    justify-content: center;
   }
 }
 @media (pointer: coarse) {
@@ -1214,10 +1287,12 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   .cl-sort-btn,
   .cl-copy-btn,
   .cl-export-btn,
-  .cl-delete {
+  .cl-delete,
+  .cl-more-btn {
     min-height: 40px;
   }
-  .cl-delete {
+  .cl-delete,
+  .cl-more-btn {
     min-width: 40px;
   }
 }
