@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { Ellipsis } from 'lucide-vue-next'
 
 import ComboBox from '../../components/ComboBox.vue'
 import DateInput from '../../components/DateInput.vue'
@@ -57,6 +58,9 @@ const loadError = ref('')
 // (navigating away) instead of running on in the background.
 let alive = true
 const selectionMode = ref(false)
+// Phones fold the secondary toolbar actions behind a "more" toggle; the
+// filters and the upload button keep the first row to themselves.
+const moreActionsOpen = ref(false)
 const peopleSearchActive = ref(false)
 const peopleSearchQuery = ref('')
 const tagModalActive = ref(false)
@@ -1288,58 +1292,67 @@ onUnmounted(() => {
         >
       </div>
       <div class="ph-actions">
-        <button
-          v-if="missingPreviews > 0"
-          class="ph-btn"
-          :disabled="rebuilding"
-          @click="rebuildPreviews"
+        <div
+          id="ph-more-actions"
+          class="ph-more-actions"
+          :class="{ 'ph-more-actions--open': moreActionsOpen }"
         >
-          {{ rebuilding ? 'Rebuilding…' : `Fix previews (${missingPreviews})` }}
-        </button>
-        <button
-          v-if="missingVideoThumbs > 0 || fixingVideos"
-          class="ph-btn"
-          :disabled="!!fixingVideos"
-          @click="rebuildVideoThumbs"
-        >
-          {{
-            fixingVideos
-              ? `Fixing videos ${fixingVideos.done}/${fixingVideos.total}…`
-              : `Fix video thumbs (${missingVideoThumbs})`
-          }}
-        </button>
-        <button
-          v-if="missingFaces > 0 || scanningFaces"
-          class="ph-btn"
-          :disabled="!!scanningFaces"
-          @click="scanFaces"
-        >
-          {{
-            scanningFaces
-              ? `Scanning faces ${scanningFaces.done}/${scanningFaces.total}…`
-              : `Scan faces (${missingFaces})`
-          }}
-        </button>
-        <button v-if="anyFaces" class="ph-btn" @click="openFaceModal">
-          Faces
-        </button>
-        <button
-          v-if="allPhotos.length"
-          class="ph-btn"
-          @click="openQualityModal"
-        >
-          Failed shots
-        </button>
-        <button
-          v-if="allTags.length || allPeople.length"
-          class="ph-btn"
-          @click="openShareModal"
-        >
-          Share
-        </button>
-        <button class="ph-btn" @click="enterSelect">Select</button>
-        <label class="ph-btn">
-          + Upload<input
+          <button
+            v-if="missingPreviews > 0"
+            class="ph-btn"
+            :disabled="rebuilding"
+            @click="rebuildPreviews"
+          >
+            {{
+              rebuilding ? 'Rebuilding…' : `Fix previews (${missingPreviews})`
+            }}
+          </button>
+          <button
+            v-if="missingVideoThumbs > 0 || fixingVideos"
+            class="ph-btn"
+            :disabled="!!fixingVideos"
+            @click="rebuildVideoThumbs"
+          >
+            {{
+              fixingVideos
+                ? `Fixing videos ${fixingVideos.done}/${fixingVideos.total}…`
+                : `Fix video thumbs (${missingVideoThumbs})`
+            }}
+          </button>
+          <button
+            v-if="missingFaces > 0 || scanningFaces"
+            class="ph-btn"
+            :disabled="!!scanningFaces"
+            @click="scanFaces"
+          >
+            {{
+              scanningFaces
+                ? `Scanning faces ${scanningFaces.done}/${scanningFaces.total}…`
+                : `Scan faces (${missingFaces})`
+            }}
+          </button>
+          <button v-if="anyFaces" class="ph-btn" @click="openFaceModal">
+            Faces
+          </button>
+          <button
+            v-if="allPhotos.length"
+            class="ph-btn"
+            @click="openQualityModal"
+          >
+            Failed shots
+          </button>
+          <button
+            v-if="allTags.length || allPeople.length"
+            class="ph-btn"
+            @click="openShareModal"
+          >
+            Share
+          </button>
+          <button class="ph-btn" @click="enterSelect">Select</button>
+        </div>
+        <label class="ph-btn ph-upload-btn">
+          +<span class="ph-upload-word">Upload</span
+          ><input
             type="file"
             accept="image/*,video/*,.heic,.heif"
             multiple
@@ -1347,6 +1360,16 @@ onUnmounted(() => {
             @change="onFileInput"
           />
         </label>
+        <button
+          type="button"
+          class="ph-btn ph-more-btn"
+          aria-label="More actions"
+          aria-controls="ph-more-actions"
+          :aria-expanded="moreActionsOpen"
+          @click="moreActionsOpen = !moreActionsOpen"
+        >
+          <Ellipsis :size="18" />
+        </button>
       </div>
     </div>
 
@@ -1989,17 +2012,70 @@ onUnmounted(() => {
     padding: 0.45rem 0.8rem;
   }
 }
+/* The toggle only exists on phones; on wider screens the secondary
+   actions sit inline with the others, as if the wrapper were not there. */
+.ph-more-btn {
+  display: none;
+}
+.ph-more-actions {
+  display: contents;
+}
+/* A flex button drops the space before the word: a margin stands in. */
+.ph-upload-word {
+  margin-left: 0.3em;
+}
 @media (max-width: 640px) {
   .ph-toolbar {
     padding: 0.6rem 0.75rem;
   }
+  /* First row: filters, the toggle, upload; the unfolded secondary
+     actions take a full row under them. */
   .ph-filters {
-    flex: 1 1 100%;
+    flex: 1 1 0;
     min-width: 0;
+  }
+  .ph-status {
+    display: none;
   }
   .ph-album-filter {
     flex: 1 1 0;
     min-width: 0;
+  }
+  .ph-actions {
+    display: contents;
+  }
+  .ph-more-btn {
+    display: inline-flex;
+    min-width: 40px;
+    padding: 0.4rem;
+  }
+  .ph-more-btn[aria-expanded='true'] {
+    border-color: var(--primary);
+    color: var(--text);
+  }
+  /* Just "+": the word stays for screen readers, the room goes to the
+     filters. */
+  .ph-upload-btn {
+    min-width: 40px;
+    font-size: 1.1rem;
+  }
+  .ph-upload-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .ph-more-actions {
+    display: none;
+  }
+  .ph-more-actions--open {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    flex: 1 1 100%;
+    order: 1;
   }
   .ph-tags-bar {
     padding: 0.5rem 0.75rem;
