@@ -7,7 +7,7 @@ import {
   reactive,
   ref
 } from 'vue'
-import { Pencil } from 'lucide-vue-next'
+import { ChevronLeft, Pencil } from 'lucide-vue-next'
 
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import DateInput from '../../components/DateInput.vue'
@@ -282,6 +282,13 @@ function selectList(id: string, opts: { push?: boolean } = {}) {
   }
 }
 
+// Phone back button: the list pane comes back, like a history pop.
+function backToList() {
+  flushPending()
+  selectedId.value = null
+  history.pushState(null, '', '/apps/checklists')
+}
+
 function onPopState() {
   flushPending()
   const id = new URLSearchParams(window.location.search).get('selected')
@@ -529,7 +536,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 </script>
 
 <template>
-  <div class="cl-layout">
+  <div class="cl-layout" :class="{ 'cl-layout--detail': selected }">
     <div class="cl-sidebar">
       <div class="cl-side-head">
         <input
@@ -623,6 +630,14 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 
     <div class="cl-main">
       <div class="cl-main-topbar">
+        <button
+          v-if="selected"
+          class="cl-back"
+          aria-label="Back to list"
+          @click="backToList"
+        >
+          <ChevronLeft :size="20" />
+        </button>
         <span class="cl-count"
           >{{ filtered.length }}
           <span class="cl-count-unit">{{
@@ -838,7 +853,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 <style scoped>
 .cl-layout {
   display: flex;
-  height: 100vh;
+  height: var(--app-height);
 }
 .cl-sidebar {
   width: 280px;
@@ -857,6 +872,27 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   flex: 1;
   min-width: 0;
 }
+@media (max-width: 1024px) {
+  .cl-sidebar {
+    width: 240px;
+  }
+}
+/* Phone: one pane at a time. The list view keeps the main topbar (count +
+   New checklist) above the tree; a selected checklist takes the screen. */
+@media (max-width: 640px) {
+  .cl-layout {
+    flex-direction: column;
+  }
+  .cl-sidebar {
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    border-right: none;
+  }
+  .cl-layout--detail .cl-sidebar {
+    display: none;
+  }
+}
 .cl-main-topbar {
   display: flex;
   align-items: center;
@@ -864,6 +900,36 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   padding: 0.75rem 1.25rem;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+}
+/* Back to the list, phone only */
+.cl-back {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: -0.5rem 0.25rem -0.5rem -0.75rem;
+  padding: 0;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.cl-back:hover {
+  color: var(--primary);
+}
+@media (max-width: 640px) {
+  .cl-main-topbar {
+    padding: 0.75rem 1rem;
+  }
+  .cl-back {
+    display: inline-flex;
+  }
+  .cl-count {
+    margin-right: auto;
+  }
 }
 .cl-count {
   font-family: var(--font-mono);
@@ -942,6 +1008,24 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 .cl-folder-edit:hover {
   color: var(--primary);
 }
+/* No hover on touch: the rename pencil stays visible */
+@media (hover: none) {
+  .cl-folder-edit {
+    visibility: visible;
+  }
+}
+@media (pointer: coarse) {
+  .cl-folder,
+  .cl-row {
+    min-height: 44px;
+  }
+  .cl-folder-edit {
+    min-width: 40px;
+    min-height: 40px;
+    justify-content: center;
+    align-items: center;
+  }
+}
 .cl-folder-rename {
   flex: 1;
   min-width: 0;
@@ -998,6 +1082,19 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   display: flex;
   flex-direction: column;
   min-width: 0;
+}
+@media (max-width: 640px) {
+  .cl-main {
+    order: -1;
+    flex: none;
+  }
+  .cl-main .cl-placeholder {
+    display: none;
+  }
+  .cl-layout--detail .cl-main {
+    flex: 1;
+    min-height: 0;
+  }
 }
 .cl-toolbar {
   display: flex;
@@ -1073,6 +1170,33 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 .cl-delete:hover {
   border-color: var(--danger);
   color: var(--danger);
+}
+@media (max-width: 1024px) {
+  .cl-toolbar-row {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 640px) {
+  .cl-folder-input {
+    flex: 1 1 100%;
+    width: auto;
+  }
+  .cl-toolbar-spacer {
+    display: none;
+  }
+}
+@media (pointer: coarse) {
+  .cl-new-btn,
+  .cl-reset-btn,
+  .cl-sort-btn,
+  .cl-copy-btn,
+  .cl-export-btn,
+  .cl-delete {
+    min-height: 40px;
+  }
+  .cl-delete {
+    min-width: 40px;
+  }
 }
 .cl-items {
   flex: 1;
@@ -1242,6 +1366,53 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 .cl-due-clear:hover {
   color: var(--danger);
 }
+/* No hover on touch: grip, deadline and remove controls stay visible */
+@media (hover: none) {
+  .cl-item-grip {
+    opacity: 1;
+  }
+  .cl-item-del,
+  .cl-item-due-btn {
+    visibility: visible;
+  }
+}
+@media (pointer: coarse) {
+  .cl-item input[type='checkbox'],
+  .cl-recurring-toggle input {
+    width: 24px;
+    height: 24px;
+  }
+  .cl-item-del,
+  .cl-item-due-btn,
+  .cl-due-clear {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .cl-due-chip {
+    min-height: 32px;
+  }
+}
+@media (max-width: 640px) {
+  .cl-items {
+    padding: 0.75rem 1rem;
+  }
+  /* The deadline editor wraps under the text instead of crushing it */
+  .cl-item {
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .cl-item-text {
+    min-width: 8rem;
+  }
+  .cl-due-input {
+    flex: 1 1 auto;
+    min-width: 10rem;
+    margin-left: 3.4rem;
+  }
+  .cl-item--sub {
+    margin-left: 1.25rem;
+  }
+}
 .cl-add {
   display: flex;
   gap: 0.5rem;
@@ -1263,6 +1434,11 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 .cl-add-btn:hover:not(:disabled) {
   border-color: var(--primary);
   color: var(--primary);
+}
+@media (pointer: coarse) {
+  .cl-add-btn {
+    min-height: 40px;
+  }
 }
 .cl-add-btn:disabled {
   opacity: 0.5;

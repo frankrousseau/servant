@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
+  ChevronLeft,
   Eye,
   EyeOff,
   File,
@@ -471,6 +472,22 @@ function goToFolderOf(e: Entry) {
   selectedId.value = e.id
 }
 
+// Touch screens have no double-click: a tap on a row without a detail view
+// (virtual mounts, the ".." row) opens it right away.
+const touchQuery =
+  typeof window.matchMedia === 'function'
+    ? window.matchMedia('(hover: none)')
+    : null
+
+function onRowClick(file: Entry) {
+  if (isVirtual(file) && touchQuery?.matches) openFolder(file)
+  else selectedId.value = file.id
+}
+
+function onUpClick() {
+  if (touchQuery?.matches) goUp()
+}
+
 function onPopState() {
   setFolder(new URLSearchParams(window.location.search).get('folder'))
 }
@@ -686,7 +703,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 <template>
   <p v-if="loading" class="fs-loading">Reading directory&hellip;</p>
   <p v-else-if="loadError" class="fs-loading">{{ loadError }}</p>
-  <div v-else class="fs-layout">
+  <div v-else class="fs-layout" :class="{ 'fs-layout--detail': selected }">
     <div class="fs-main">
       <div class="fs-toolbar">
         <div class="fs-breadcrumbs">
@@ -761,13 +778,14 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
           <span></span>
           <span>Name</span>
           <span class="fs-col-size">Size</span>
-          <span>Added</span>
+          <span class="fs-col-date">Added</span>
         </div>
         <div
           v-if="currentFolder && !searchQuery.trim()"
           class="fs-row fs-row--up"
           :class="{ 'fs-row--droptarget': dropTargetId === 'up' }"
           title="Parent directory"
+          @click="onUpClick"
           @dblclick="goUp"
           @dragover="onUpDragOver"
           @dragleave="dropTargetId === 'up' && (dropTargetId = null)"
@@ -778,7 +796,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
           /></span>
           <span class="fs-name-cell"><span class="fs-name">..</span></span>
           <span class="fs-size fs-col-size">-</span>
-          <span></span>
+          <span class="fs-col-date"></span>
         </div>
         <div
           v-for="file in displayed"
@@ -790,7 +808,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
             'fs-row--dragging': draggingId === file.id
           }"
           :draggable="renamingId !== file.id && !isVirtual(file)"
-          @click="selectedId = file.id"
+          @click="onRowClick(file)"
           @dblclick="openFolder(file)"
           @dragstart="onRowDragStart(file, $event)"
           @dragend="onRowDragEnd"
@@ -838,7 +856,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
           <span class="fs-size fs-col-size">{{
             isFolder(file) ? '-' : formatFileSize(fileSize(file))
           }}</span>
-          <span class="fs-date">{{
+          <span class="fs-date fs-col-date">{{
             file.inserted_at ? formatDate(file.inserted_at) : '-'
           }}</span>
         </div>
@@ -854,6 +872,14 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
       </div>
     </div>
     <div class="fs-detail-col">
+      <button
+        v-if="selected"
+        class="fs-back"
+        aria-label="Back to list"
+        @click="selectedId = null"
+      >
+        <ChevronLeft :size="20" />
+      </button>
       <div v-if="selected" class="fs-detail">
         <img
           v-if="filePath(selected) && isImage(selected)"
@@ -930,6 +956,13 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
             }}</span>
           </div>
         </div>
+        <button
+          v-if="isFolder(selected)"
+          class="fs-open-btn"
+          @click="openFolder(selected)"
+        >
+          Open folder
+        </button>
         <template v-if="!isVirtual(selected)">
           <button class="fs-rename-btn" @click="startRename(selected)">
             Rename
@@ -952,7 +985,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 }
 .fs-layout {
   display: flex;
-  height: 100vh;
+  height: var(--app-height);
 }
 .fs-main {
   flex: 1;
@@ -966,6 +999,26 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   border-left: 1px solid var(--border);
   overflow-y: auto;
   padding: 1.5rem;
+}
+@media (max-width: 1024px) {
+  .fs-detail-col {
+    width: 260px;
+    padding: 1.25rem 1rem;
+  }
+}
+/* Phone: one pane at a time, the listing until a file is selected */
+@media (max-width: 640px) {
+  .fs-detail-col {
+    display: none;
+    width: 100%;
+    border-left: none;
+  }
+  .fs-layout--detail .fs-main {
+    display: none;
+  }
+  .fs-layout--detail .fs-detail-col {
+    display: block;
+  }
 }
 .fs-toolbar {
   display: flex;
@@ -1052,6 +1105,40 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 }
 .fs-btn-icon {
   padding: 0 0.5rem;
+}
+@media (max-width: 1024px) {
+  .fs-toolbar {
+    flex-wrap: wrap;
+  }
+  .fs-breadcrumbs {
+    flex-basis: 100%;
+  }
+  .fs-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}
+@media (max-width: 640px) {
+  .fs-search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .fs-type-filter {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+}
+@media (pointer: coarse) {
+  .fs-search,
+  .fs-btn,
+  .fs-type-filter :deep(.cb-control) {
+    height: 40px;
+  }
+  .fs-btn-icon {
+    min-width: 40px;
+    justify-content: center;
+  }
 }
 /* Upload progress + errors, same language as Photos */
 .fs-uploading {
@@ -1224,6 +1311,26 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 .fs-col-size {
   text-align: right;
 }
+@media (pointer: coarse) {
+  .fs-row {
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+  }
+}
+/* Phone: the Added column goes, the name keeps the room */
+@media (max-width: 640px) {
+  .fs-list {
+    padding: 0.5rem 0.5rem 0.75rem;
+  }
+  .fs-list-head,
+  .fs-row {
+    grid-template-columns: 24px minmax(0, 1fr) 72px;
+    gap: 0.6rem;
+  }
+  .fs-col-date {
+    display: none;
+  }
+}
 .fs-list.fs-dragover {
   outline: 2px dashed var(--primary);
   outline-offset: -4px;
@@ -1242,6 +1349,29 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   padding: 3rem 1rem;
   font-family: var(--font-mono);
   font-size: 0.88rem;
+}
+/* Back to the listing, phone only */
+.fs-back {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: -0.5rem 0 0.5rem -0.5rem;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.fs-back:hover {
+  color: var(--primary);
+}
+@media (max-width: 640px) {
+  .fs-back {
+    display: inline-flex;
+  }
 }
 .fs-detail {
   display: flex;
@@ -1296,6 +1426,24 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   padding: 0.3rem 0.5rem;
   border-radius: 4px;
 }
+/* Folders open by double-click; touch screens get a button instead */
+.fs-open-btn {
+  display: none;
+  margin-top: 1rem;
+  background: transparent;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  padding: 0.4rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  width: 100%;
+}
+@media (hover: none) {
+  .fs-open-btn {
+    display: block;
+  }
+}
 .fs-rename-btn {
   margin-top: 1rem;
   background: transparent;
@@ -1325,5 +1473,12 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 .fs-delete:hover {
   border-color: var(--danger);
   color: var(--danger);
+}
+@media (pointer: coarse) {
+  .fs-open-btn,
+  .fs-rename-btn,
+  .fs-delete {
+    min-height: 44px;
+  }
 }
 </style>
