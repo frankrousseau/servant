@@ -7,7 +7,23 @@ import {
   reactive,
   ref
 } from 'vue'
-import { ChevronLeft, Pencil } from 'lucide-vue-next'
+import {
+  CalendarPlus,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Download,
+  GripVertical,
+  ListEnd,
+  Pencil,
+  Plus,
+  Repeat,
+  RotateCcw,
+  Trash2,
+  X
+} from 'lucide-vue-next'
 
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import DateInput from '../../components/DateInput.vue'
@@ -566,9 +582,10 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
               @dragleave="dragOverFolder = null"
               @drop.prevent.stop="onDrop(row.name)"
             >
-              <span class="cl-folder-caret">{{
-                row.collapsed ? '▸' : '▾'
-              }}</span>
+              <span class="cl-folder-caret">
+                <ChevronRight v-if="row.collapsed" :size="16" />
+                <ChevronDown v-else :size="16" />
+              </span>
               <input
                 v-if="renamingFolder === row.name"
                 class="cl-folder-rename"
@@ -608,8 +625,10 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
                   v-if="isRecurring(row.list!)"
                   class="cl-row-recurring"
                   title="Recurring"
-                  >↻</span
+                  aria-label="Recurring"
                 >
+                  <Repeat :size="14" />
+                </span>
                 {{ row.name }}
               </span>
               <span v-if="itemsOf(row.list!).length" class="cl-row-count">
@@ -645,18 +664,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
           }}</span></span
         >
         <button class="cl-new-btn" @click="createList()">
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M12 5v14M5 12h14" />
-          </svg>
+          <Plus :size="16" />
           New checklist
         </button>
       </div>
@@ -684,9 +692,10 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
             <button
               class="cl-delete"
               title="Delete checklist"
+              aria-label="Delete checklist"
               @click="deleteSelected"
             >
-              🗑
+              <Trash2 :size="18" />
             </button>
           </div>
           <div class="cl-toolbar-row">
@@ -727,7 +736,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
               title="Move completed items to the bottom"
               @click="sortDoneLast"
             >
-              ⇩ Done last
+              <ListEnd :size="16" />Done last
             </button>
             <button
               v-if="recurring"
@@ -735,21 +744,22 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
               title="Uncheck all items"
               @click="resetList"
             >
-              ↻ Reset
+              <RotateCcw :size="16" />Reset
             </button>
             <button
               class="cl-copy-btn"
               title="Copy as a markdown checkbox list"
               @click="copyMarkdown"
             >
-              {{ copied ? '✓ Copied' : '⧉ Copy' }}
+              <template v-if="copied"><Check :size="16" />Copied</template>
+              <template v-else><Copy :size="16" />Copy</template>
             </button>
             <button
               class="cl-export-btn"
               title="Download as JSON"
               @click="exportJson"
             >
-              ⤓ JSON
+              <Download :size="16" />JSON
             </button>
           </div>
         </div>
@@ -779,8 +789,9 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
               aria-label="Drag to reorder"
               @dragstart="onItemDragStart(index, $event)"
               @dragend="onItemDragEnd"
-              >⋮⋮</span
             >
+              <GripVertical :size="18" />
+            </span>
             <input type="checkbox" v-model="item.done" @change="saveNow()" />
             <input
               class="cl-item-text"
@@ -798,9 +809,10 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
               <button
                 class="cl-due-clear"
                 title="Remove deadline"
+                aria-label="Remove deadline"
                 @click="clearDue(item)"
               >
-                ×
+                <X :size="18" />
               </button>
             </template>
             <button
@@ -816,16 +828,18 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
               v-else
               class="cl-item-due-btn"
               title="Set a deadline"
+              aria-label="Set a deadline"
               @click="dueEditIndex = index"
             >
-              🗓
+              <CalendarPlus :size="18" />
             </button>
             <button
               class="cl-item-del"
               title="Remove item"
+              aria-label="Remove item"
               @click="removeItem(index)"
             >
-              ×
+              <X :size="18" />
             </button>
           </div>
           <form class="cl-add" @submit.prevent="addItem">
@@ -979,7 +993,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   background: var(--bg-hover);
 }
 .cl-folder-caret {
-  width: 0.9em;
+  display: inline-flex;
   flex-shrink: 0;
 }
 .cl-folder--drop {
@@ -1062,6 +1076,9 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   text-overflow: ellipsis;
 }
 .cl-row-recurring {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-right: 0.15rem;
   color: var(--text-muted);
 }
 .cl-row-count {
@@ -1143,6 +1160,9 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 .cl-sort-btn,
 .cl-copy-btn,
 .cl-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text);
@@ -1160,11 +1180,14 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   color: var(--primary);
 }
 .cl-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text-muted);
   border-radius: 8px;
-  padding: 0.35rem 0.5rem;
+  padding: 0.4rem;
   cursor: pointer;
 }
 .cl-delete:hover {
@@ -1221,10 +1244,9 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 }
 /* Reorder grip: invisible until the row is hovered */
 .cl-item-grip {
+  display: inline-flex;
   cursor: grab;
   color: var(--text-muted);
-  font-size: 0.95rem;
-  letter-spacing: -2px;
   user-select: none;
   flex-shrink: 0;
   opacity: 0;
@@ -1296,12 +1318,14 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   color: var(--text-muted);
 }
 .cl-item-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: transparent;
   color: var(--text-muted);
-  font-size: 1rem;
   cursor: pointer;
-  padding: 0 0.25rem;
+  padding: 0.2rem;
   visibility: hidden;
 }
 .cl-item:hover .cl-item-del {
@@ -1332,12 +1356,14 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   border-color: var(--danger);
 }
 .cl-item-due-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: transparent;
   color: var(--text-muted);
-  font-size: 0.8rem;
   cursor: pointer;
-  padding: 0 0.25rem;
+  padding: 0.2rem;
   visibility: hidden;
   flex-shrink: 0;
 }
@@ -1355,12 +1381,14 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   border-radius: 6px;
 }
 .cl-due-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: transparent;
   color: var(--text-muted);
-  font-size: 1rem;
   cursor: pointer;
-  padding: 0 0.25rem;
+  padding: 0.2rem;
   flex-shrink: 0;
 }
 .cl-due-clear:hover {
