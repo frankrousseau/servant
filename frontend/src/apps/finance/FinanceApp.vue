@@ -1332,7 +1332,7 @@ function saveShared(account: Account, shared: boolean) {
 .fin-layout {
   padding: 1rem 1.25rem;
   max-width: 860px;
-  height: 100vh;
+  height: var(--app-height);
   overflow-y: auto;
 }
 /* Spending wants the full width for its chart and table. */
@@ -1341,6 +1341,7 @@ function saveShared(account: Account, shared: boolean) {
 }
 .fin-crypto-add {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1.25rem;
 }
@@ -1368,6 +1369,7 @@ function saveShared(account: Account, shared: boolean) {
 }
 .fin-crypto-summary {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
   margin: 0.75rem 0 0.25rem;
@@ -1385,6 +1387,7 @@ function saveShared(account: Account, shared: boolean) {
 .fin-tabs {
   display: flex;
   gap: 0.25rem;
+  overflow-x: auto;
   border-bottom: 1px solid var(--border);
   margin-bottom: 1rem;
 }
@@ -1399,6 +1402,8 @@ function saveShared(account: Account, shared: boolean) {
   padding: 0.5rem 0.9rem;
   cursor: pointer;
   border-radius: 0;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .fin-tab:hover {
   color: var(--text);
@@ -1409,6 +1414,7 @@ function saveShared(account: Account, shared: boolean) {
 }
 .fin-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 1.25rem;
@@ -1469,6 +1475,7 @@ function saveShared(account: Account, shared: boolean) {
 }
 .fin-universe-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 0.75rem;
   margin-bottom: 0.5rem;
@@ -1667,6 +1674,7 @@ function saveShared(account: Account, shared: boolean) {
 /* Snapshot form + history */
 .fin-snapshot-form {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   padding: 0.25rem 0.25rem 0.6rem 1.5rem;
 }
@@ -1681,6 +1689,7 @@ function saveShared(account: Account, shared: boolean) {
 }
 .fin-ident-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
   padding: 0.25rem 0 0.4rem;
@@ -1800,5 +1809,130 @@ function saveShared(account: Account, shared: boolean) {
 .fin-tax-input {
   width: 160px;
   font-family: var(--font-mono);
+}
+
+/* ----- Responsive ----- */
+
+@media (max-width: 1024px) {
+  /* A narrower balance column leaves the account name some room. */
+  .fin-universe .fin-account-amount {
+    width: 130px;
+  }
+}
+
+@media (max-width: 640px) {
+  /* The content area already provides the phone gutter. */
+  .fin-layout {
+    padding: 0.25rem 0 1rem;
+  }
+  .fin-tab {
+    padding: 0.5rem 0.7rem;
+  }
+  .fin-universe {
+    padding: 0.85rem 0.75rem;
+  }
+  /* Accounts: each row becomes a two-line card, name and balance first,
+     type, tx count, freshness and actions below; the header row goes. */
+  .fin-universe .fin-account-row {
+    display: grid;
+    grid-template-columns: 0.9em auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'caret name name name amount'
+      '. type tx fresh actions';
+    align-items: center;
+    column-gap: 0.6rem;
+    row-gap: 0.2rem;
+  }
+  .fin-universe .fin-account-row--head {
+    display: none;
+  }
+  .fin-universe .fin-account-caret {
+    grid-area: caret;
+  }
+  .fin-universe .fin-account-name {
+    grid-area: name;
+  }
+  .fin-universe .fin-account-type {
+    grid-area: type;
+    width: auto;
+  }
+  .fin-universe .fin-tx-col {
+    grid-area: tx;
+    width: auto;
+  }
+  .fin-universe .fin-fresh {
+    grid-area: fresh;
+    width: auto;
+  }
+  .fin-universe .fin-account-amount {
+    grid-area: amount;
+    width: auto;
+    margin-left: 0;
+  }
+  .fin-universe .fin-account-actions {
+    grid-area: actions;
+    width: auto;
+  }
+  /* The converted amount goes under the native one. */
+  .fin-universe .fin-account-converted {
+    display: block;
+    margin-left: 0;
+  }
+  /* Crypto rows: name, price and delete, the quantity below. */
+  .fin-account-row {
+    flex-wrap: wrap;
+  }
+  .fin-crypto-name {
+    flex: 1 1 auto;
+  }
+  .fin-crypto-token,
+  .fin-crypto-qty {
+    flex: 1 1 8rem;
+    width: auto;
+    min-width: 0;
+  }
+  .fin-snapshot-form,
+  .fin-history {
+    padding-left: 0.25rem;
+  }
+  .fin-snap-amount,
+  .fin-snap-date {
+    flex: 1 1 8rem;
+    width: auto;
+    min-width: 0;
+  }
+  .fin-ident-input {
+    flex: 1 1 100%;
+    width: auto;
+    min-width: 0;
+  }
+  .fin-shared-toggle {
+    white-space: normal;
+  }
+  .fin-modal-row {
+    flex-direction: column;
+    gap: 0;
+  }
+  .fin-taxes {
+    max-width: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .fin-tab {
+    min-height: 44px;
+  }
+  .fin-account-caret {
+    min-width: 1.5em;
+  }
+  .fin-mini-btn {
+    min-height: 36px;
+    padding: 0.2rem 0.65rem;
+  }
+  .fin-mini-del,
+  .fin-tx-btn {
+    min-width: 36px;
+    min-height: 40px;
+  }
 }
 </style>

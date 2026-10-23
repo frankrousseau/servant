@@ -303,6 +303,7 @@ const alerts = computed<Alert[]>(() => {
 }
 .ov-hero-line {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 0.75rem;
   margin: 0.15rem 0 0.6rem;
@@ -311,6 +312,7 @@ const alerts = computed<Alert[]>(() => {
   font-family: var(--font-display);
   font-size: 1.9rem;
   font-weight: 500;
+  white-space: nowrap;
 }
 .ov-delta {
   font-family: var(--font-mono);
@@ -322,6 +324,7 @@ const alerts = computed<Alert[]>(() => {
 }
 .ov-splits {
   display: flex;
+  flex-wrap: wrap;
   gap: 1.25rem;
   margin: 0.6rem 0 0;
 }
@@ -334,11 +337,6 @@ const alerts = computed<Alert[]>(() => {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1.25rem;
-}
-@media (max-width: 720px) {
-  .ov-cards {
-    grid-template-columns: 1fr;
-  }
 }
 .ov-card {
   border: 1px solid var(--border);
@@ -427,5 +425,26 @@ const alerts = computed<Alert[]>(() => {
 .ov-alert-detail {
   color: var(--text-muted);
   font-size: 0.78rem;
+}
+
+/* ----- Responsive ----- */
+
+@media (max-width: 640px) {
+  .ov-hero,
+  .ov-card {
+    padding: 0.85rem 0.75rem;
+  }
+  .ov-total {
+    font-size: 1.6rem;
+  }
+  .ov-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (pointer: coarse) {
+  .ov-alert {
+    min-height: 44px;
+  }
 }
 </style>

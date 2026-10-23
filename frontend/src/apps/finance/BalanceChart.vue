@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+
+import { useElementWidth } from './useElementWidth'
 import type { SnapshotPoint } from './finance'
 
 // Step chart for balance history: balances are observations, so the value
@@ -11,8 +13,11 @@ const props = defineProps<{
   color?: string
 }>()
 
-const W = 600
-const H = 150
+// Drawn in real pixels at the container's width, so the labels keep their
+// size on a phone; the height follows the width within bounds.
+const root = ref<HTMLElement | null>(null)
+const W = useElementWidth(root, 600)
+const H = computed(() => Math.round(Math.min(200, Math.max(130, W.value / 4))))
 const PAD_X = 4
 const PAD_TOP = 14
 // Room under the plot for two stacked rows: the low value, then the dates.
@@ -25,6 +30,8 @@ const dayMs = (date: string) => {
 
 const geometry = computed(() => {
   if (!props.points.length) return null
+  const width = W.value
+  const height = H.value
   const xs = props.points.map(point => dayMs(point.date))
   const x0 = xs[0]
   const x1 = Math.max(dayMs(props.endDate), xs[xs.length - 1])
@@ -45,9 +52,10 @@ const geometry = computed(() => {
   min -= yPad
   max += yPad
 
-  const toX = (ms: number) => PAD_X + ((ms - x0) / span) * (W - 2 * PAD_X)
+  const toX = (ms: number) => PAD_X + ((ms - x0) / span) * (width - 2 * PAD_X)
   const toY = (value: number) =>
-    PAD_TOP + (1 - (value - min) / (max - min)) * (H - PAD_TOP - PAD_BOTTOM)
+    PAD_TOP +
+    (1 - (value - min) / (max - min)) * (height - PAD_TOP - PAD_BOTTOM)
 
   let path = `M ${toX(xs[0]).toFixed(1)} ${toY(values[0]).toFixed(1)}`
   for (let i = 1; i < props.points.length; i++) {
@@ -75,7 +83,7 @@ const stroke = computed(() => props.color || 'var(--primary)')
 </script>
 
 <template>
-  <div class="bc">
+  <div ref="root" class="bc">
     <svg
       v-if="geometry"
       class="bc-svg"
@@ -130,7 +138,7 @@ const stroke = computed(() => props.color || 'var(--primary)')
 }
 .bc-label {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   fill: var(--text-muted);
 }
 .bc-label--end {

@@ -583,73 +583,75 @@ async function openLinked(tx: Entry) {
         <span class="ftx-date">{{ dateOf(tx).slice(8) }}</span>
         <span class="ftx-label" :title="labelOf(tx)">{{ labelOf(tx) }}</span>
         <span class="ftx-right">
-          <template v-if="linkingId === tx.id">
-            <ComboBox
-              class="ftx-doc-pick"
-              model-value=""
-              :options="docOptions || []"
-              placeholder="Invoice or file..."
-              @update:model-value="value => pickDoc(tx, value)"
-            />
-            <button
-              class="ftx-doc-clear"
-              title="Cancel"
-              @click="linkingId = null"
-            >
-              ×
-            </button>
-          </template>
-          <span
-            v-else-if="linkedTitle(tx)"
-            class="ftx-doc"
-            :title="linkedTitle(tx)"
-          >
-            <Paperclip :size="14" />
+          <span class="ftx-meta">
+            <template v-if="linkingId === tx.id">
+              <ComboBox
+                class="ftx-doc-pick"
+                model-value=""
+                :options="docOptions || []"
+                placeholder="Invoice or file..."
+                @update:model-value="value => pickDoc(tx, value)"
+              />
+              <button
+                class="ftx-doc-clear"
+                title="Cancel"
+                @click="linkingId = null"
+              >
+                ×
+              </button>
+            </template>
             <span
-              class="ftx-doc-name"
+              v-else-if="linkedTitle(tx)"
+              class="ftx-doc"
+              :title="linkedTitle(tx)"
+            >
+              <Paperclip :size="14" />
+              <span
+                class="ftx-doc-name"
+                role="button"
+                tabindex="0"
+                v-click-key
+                @click="openLinked(tx)"
+                >{{ linkedTitle(tx) }}</span
+              >
+              <button
+                class="ftx-doc-clear"
+                title="Unlink"
+                aria-label="Unlink document"
+                @click="saveLink(tx, '', null)"
+              >
+                ×
+              </button>
+            </span>
+            <button
+              v-else
+              class="ftx-linkbtn"
+              title="Link an invoice or file"
+              aria-label="Link an invoice or file"
+              @click="startLink(tx)"
+            >
+              <Paperclip :size="14" />
+            </button>
+            <span
+              v-if="editingId !== tx.id"
+              class="ftx-cat"
+              :class="{ 'ftx-cat--empty': !categoryOf(tx) }"
               role="button"
               tabindex="0"
               v-click-key
-              @click="openLinked(tx)"
-              >{{ linkedTitle(tx) }}</span
+              @click="startEdit(tx)"
+              >{{ categoryOf(tx) || '+ category' }}</span
             >
-            <button
-              class="ftx-doc-clear"
-              title="Unlink"
-              aria-label="Unlink document"
-              @click="saveLink(tx, '', null)"
-            >
-              ×
-            </button>
+            <AutocompleteInput
+              v-else
+              v-model="draft"
+              class="ftx-cat-edit"
+              :options="categories"
+              placeholder="category"
+              @select="value => saveCategory(tx, value)"
+              @keydown.escape="editingId = null"
+            />
           </span>
-          <button
-            v-else
-            class="ftx-linkbtn"
-            title="Link an invoice or file"
-            aria-label="Link an invoice or file"
-            @click="startLink(tx)"
-          >
-            <Paperclip :size="14" />
-          </button>
-          <span
-            v-if="editingId !== tx.id"
-            class="ftx-cat"
-            :class="{ 'ftx-cat--empty': !categoryOf(tx) }"
-            role="button"
-            tabindex="0"
-            v-click-key
-            @click="startEdit(tx)"
-            >{{ categoryOf(tx) || '+ category' }}</span
-          >
-          <AutocompleteInput
-            v-else
-            v-model="draft"
-            class="ftx-cat-edit"
-            :options="categories"
-            placeholder="category"
-            @select="value => saveCategory(tx, value)"
-            @keydown.escape="editingId = null"
-          />
           <span
             class="ftx-amount"
             :class="{ 'ftx-amount--in': ((tx.data.amount as number) || 0) > 0 }"
@@ -693,6 +695,7 @@ async function openLinked(tx: Entry) {
 }
 .ftx-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
 }
@@ -758,6 +761,12 @@ async function openLinked(tx: Entry) {
   align-items: center;
   gap: 0.5rem;
   flex-shrink: 0;
+}
+/* Document link and category: the row's second line on a phone. */
+.ftx-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 .ftx-linkbtn {
   border: none;
@@ -858,6 +867,7 @@ async function openLinked(tx: Entry) {
 }
 .ftx-bulk {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.6rem;
   border: 1px dashed var(--border);
@@ -1018,5 +1028,124 @@ async function openLinked(tx: Entry) {
 .ftx-more:hover {
   border-color: var(--primary);
   color: var(--primary);
+}
+
+/* ----- Responsive ----- */
+
+@media (max-width: 640px) {
+  .ftx {
+    padding: 0.85rem 0.75rem;
+  }
+  .ftx-head {
+    gap: 0.5rem;
+  }
+  /* Title and count on their own line, the filters wrap below. */
+  .ftx-spacer {
+    flex-basis: 100%;
+  }
+  .ftx-filter,
+  .ftx-filter--flow {
+    flex: 1 1 8rem;
+    width: auto;
+    min-width: 0;
+  }
+  .ftx-dedup-btn {
+    flex: 1 1 auto;
+  }
+  .ftx-bulk-cat {
+    flex: 1 1 100%;
+    width: auto;
+  }
+  /* Stacked row: date, label and amount first; document, category and
+     delete on a second line under the label. */
+  .ftx-row {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'check date label amount'
+      'check date meta del';
+    column-gap: 0.6rem;
+    row-gap: 0.15rem;
+    padding: 0.45rem 0.25rem;
+  }
+  .ftx-right {
+    display: contents;
+  }
+  .ftx-check {
+    grid-area: check;
+    align-self: start;
+    margin-top: 0.1rem;
+  }
+  .ftx-row .ftx-date {
+    grid-area: date;
+    align-self: start;
+  }
+  .ftx-label {
+    grid-area: label;
+  }
+  .ftx-meta {
+    grid-area: meta;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .ftx-row .ftx-amount {
+    grid-area: amount;
+    min-width: 0;
+  }
+  .ftx-del {
+    grid-area: del;
+    justify-self: end;
+  }
+  .ftx-doc {
+    min-width: 0;
+    max-width: none;
+  }
+  .ftx-doc-pick {
+    flex: 1 1 7rem;
+    width: auto;
+    min-width: 0;
+  }
+  .ftx-dedup-row,
+  .ftx-auto-row {
+    flex-wrap: wrap;
+  }
+  .ftx-dedup-row .ftx-label {
+    flex: 1 1 0;
+  }
+  .ftx-dedup-meta {
+    order: 1;
+    flex-basis: 100%;
+    padding-left: calc(14px + 0.6rem);
+  }
+  .ftx-auto-examples {
+    flex-basis: 100%;
+    padding-left: calc(14px + 0.5rem);
+  }
+}
+
+/* No hover on touch: the row actions stay visible. */
+@media (hover: none) {
+  .ftx-linkbtn,
+  .ftx-del,
+  .ftx-check {
+    opacity: 1;
+  }
+}
+
+@media (pointer: coarse) {
+  .ftx-check {
+    width: 18px;
+    height: 18px;
+  }
+  .ftx-linkbtn,
+  .ftx-del,
+  .ftx-doc-clear {
+    min-width: 40px;
+    min-height: 40px;
+    justify-content: center;
+  }
+  .ftx-cat {
+    padding: 0.3rem 0.7rem;
+  }
 }
 </style>

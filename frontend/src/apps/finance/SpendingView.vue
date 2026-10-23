@@ -12,6 +12,7 @@ import {
   type Rates
 } from './finance'
 import { preferenceRef } from '../preference'
+import { useElementWidth } from './useElementWidth'
 import type { AppContext, Entry } from '../types'
 
 const props = defineProps<{
@@ -178,12 +179,18 @@ const periodTotal = (period: string) =>
 // and noise without ever changing a reading, so everything here is rounded.
 const fmt = (value: number) =>
   formatAmount(value, props.refCurrency, { maxDigits: 0 })
+// Axis-sized amount: 1.6k rather than 1,594 EUR.
+const compact = (value: number) =>
+  value >= 1000 ? `${(value / 1000).toFixed(1)}k` : String(Math.round(value))
 const cell = (row: { byPeriod: Record<string, number> }, period: string) =>
   row.byPeriod[period] ? fmt(row.byPeriod[period]) : '-'
 
 // ----- stacked bar chart -----
 
-const W = 1000
+// Drawn in real pixels at the panel's width, so labels keep their size on a
+// phone instead of shrinking with a fixed viewBox.
+const panel = ref<HTMLElement | null>(null)
+const W = useElementWidth(panel, 1000)
 const H = 260
 const PAD_TOP = 22
 const PAD_BOTTOM = 26
@@ -208,6 +215,7 @@ interface Column {
   label: string
   total: number
   totalText: string
+  axisText: string
   totalY: number
   centerX: number
   hitX: number
@@ -244,8 +252,12 @@ const chart = computed(() => {
   const maxTotal = Math.max(...periodList.map(periodTotal), 1)
   const step = tickStep(maxTotal)
   const top = Math.ceil(maxTotal / step) * step
-  const innerW = W - PAD_LEFT - PAD_RIGHT
+  const innerW = W.value - PAD_LEFT - PAD_RIGHT
   const slot = innerW / periodList.length
+  // Narrow slots (a year of months on a phone) get a compact total, or none
+  // at all: the readout still reads it on tap.
+  const totalLabel = (total: number) =>
+    slot >= 72 ? fmt(total) : slot >= 34 ? compact(total) : ''
   const barWidth = Math.min(slot * 0.6, 64)
   const scale = (H - PAD_TOP - PAD_BOTTOM) / top
   const baseline = H - PAD_BOTTOM
@@ -282,6 +294,7 @@ const chart = computed(() => {
       label: periodLabel(period),
       total,
       totalText: fmt(total),
+      axisText: totalLabel(total),
       totalY: baseline - total * scale - 6,
       centerX: PAD_LEFT + index * slot + slot / 2,
       hitX: PAD_LEFT + index * slot,
@@ -319,7 +332,7 @@ const readout = computed(() => {
     restAmount: fmt(rest.reduce((sum, slice) => sum + slice.value, 0)),
     category: target.category,
     // Sit opposite the column being read, so the bar stays visible.
-    side: column.centerX > W / 2 ? 'left' : 'right'
+    side: column.centerX > W.value / 2 ? 'left' : 'right'
   }
 })
 
@@ -395,7 +408,7 @@ const pieCenter = computed(() => {
 </script>
 
 <template>
-  <section class="sp">
+  <section ref="panel" class="sp">
     <div class="sp-head">
       <button
         v-if="spending.excluded.length"
@@ -613,7 +626,7 @@ const pieCenter = computed(() => {
               :y="column.totalY"
               text-anchor="middle"
             >
-              {{ column.totalText }}
+              {{ column.axisText }}
             </text>
             <text
               class="sp-chart-label"
@@ -733,6 +746,7 @@ const pieCenter = computed(() => {
 }
 .sp-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
   margin-bottom: 0.5rem;
@@ -1095,5 +1109,58 @@ const pieCenter = computed(() => {
 .sp-table tfoot td {
   border-top: 1px solid var(--border);
   color: var(--text-muted);
+}
+
+/* ----- Responsive ----- */
+
+@media (max-width: 640px) {
+  .sp {
+    padding: 0.85rem 0.75rem;
+  }
+  .sp-head {
+    gap: 0.5rem;
+  }
+  .sp-head-spacer {
+    display: none;
+  }
+  .sp-range,
+  .sp-chart-type {
+    flex: 1 1 7rem;
+    width: auto;
+    min-width: 0;
+  }
+  .sp-pie-wrap {
+    justify-content: center;
+    gap: 1rem;
+  }
+  .sp-pie {
+    width: 220px;
+  }
+  .sp-breakdown {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .sp-excluded-row {
+    flex-wrap: wrap;
+  }
+  .sp-excluded-label {
+    flex: 1 1 0;
+  }
+  .sp-readout {
+    max-width: 65%;
+  }
+  /* The category stays in view while the months scroll sideways. */
+  .sp-table .sp-cat-col {
+    position: sticky;
+    left: 0;
+    background: var(--bg-surface);
+  }
+}
+
+@media (pointer: coarse) {
+  .sp-chip {
+    min-height: 32px;
+    padding: 0.2rem 0.75rem;
+  }
 }
 </style>
