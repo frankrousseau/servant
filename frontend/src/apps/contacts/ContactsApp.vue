@@ -9,7 +9,7 @@ import {
   watch
 } from 'vue'
 import { useVirtualList } from '@vueuse/core'
-import { Cake, User } from 'lucide-vue-next'
+import { Cake, ChevronLeft, User } from 'lucide-vue-next'
 
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
@@ -202,6 +202,21 @@ function selectContact(id: string) {
   newRelId.value = ''
   syncUrl()
   void loadLinked()
+}
+
+// Phones show one pane at a time: the detail column takes the screen
+// whenever it has something to show.
+const detailShown = computed(
+  () => !!selected.value || graphOpen.value || mode.value !== 'view'
+)
+
+// Phone back button: drop whatever the detail column shows.
+function backToList() {
+  selectedId.value = null
+  graphOpen.value = false
+  mode.value = 'view'
+  formError.value = ''
+  syncUrl()
 }
 
 function onSearch() {
@@ -882,7 +897,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 <template>
   <p v-if="loading" class="ct-loading">Scanning address book&hellip;</p>
   <p v-else-if="loadError" class="ct-loading">{{ loadError }}</p>
-  <div v-else class="ct-layout">
+  <div v-else class="ct-layout" :class="{ 'ct-layout--detail': detailShown }">
     <div class="ct-list-col">
       <div class="ct-search-wrap">
         <input
@@ -970,6 +985,15 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 
     <div class="ct-detail-col">
       <div class="ct-detail-topbar">
+        <button
+          v-if="detailShown"
+          type="button"
+          class="ct-back-btn"
+          aria-label="Back to list"
+          @click="backToList"
+        >
+          <ChevronLeft :size="20" />
+        </button>
         <span class="ct-count"
           >{{ filtered.length }}
           <span class="ct-count-unit">{{
@@ -1649,7 +1673,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 .ct-layout {
   display: flex;
-  height: 100vh;
+  height: var(--app-height);
 }
 .ct-list-col {
   width: 360px;
@@ -1666,8 +1690,10 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 .ct-detail-topbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  row-gap: 0.5rem;
   padding: 0.75rem 1.5rem;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -2159,6 +2185,25 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   border-color: var(--primary);
   color: var(--primary);
 }
+/* Phone only: returns from the detail pane to the list. */
+.ct-back-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-left: -0.5rem;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.ct-back-btn:hover {
+  background: var(--bg-hover);
+}
 
 /* Create / edit form */
 .ct-form {
@@ -2468,5 +2513,129 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+/* ----- Responsive ----- */
+/* Without hover, the remove crosses stay on screen. */
+@media (hover: none) {
+  .ct-tag-x,
+  .ct-rel-x {
+    visibility: visible;
+  }
+}
+@media (pointer: coarse) {
+  .ct-card {
+    min-height: 56px;
+  }
+  .ct-rel-x {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    min-height: 40px;
+    margin-block: -0.5rem;
+  }
+  .ct-tag-x {
+    padding: 0 0.35rem;
+  }
+  .ct-row-remove {
+    width: 44px;
+  }
+  .ct-graph-btn,
+  .ct-add-contact-btn {
+    height: 40px;
+  }
+}
+@media (max-width: 1024px) {
+  .ct-list-col {
+    width: 280px;
+  }
+}
+/* Phones: one pane at a time. The list keeps the detail top bar above it
+   (count, Graph, Add contact); a shown detail hides the list. */
+@media (max-width: 640px) {
+  .ct-layout {
+    flex-direction: column;
+  }
+  .ct-list-col {
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    border-right: none;
+  }
+  .ct-layout:not(.ct-layout--detail) .ct-detail-col {
+    order: -1;
+    flex: none;
+  }
+  .ct-layout:not(.ct-layout--detail) .ct-detail-body {
+    display: none;
+  }
+  .ct-layout--detail .ct-list-col {
+    display: none;
+  }
+  .ct-layout--detail .ct-detail-col {
+    flex: 1;
+    min-height: 0;
+  }
+  .ct-detail-topbar {
+    padding: 0.5rem 1rem;
+    gap: 0.5rem;
+  }
+  .ct-back-btn {
+    display: inline-flex;
+  }
+  /* The back button takes the count's place: the count is for the list. */
+  .ct-layout--detail .ct-count {
+    display: none;
+  }
+  .ct-graph-btn {
+    margin-right: 0;
+  }
+  .ct-detail-body {
+    padding: 1rem;
+  }
+  .ct-detail-header {
+    flex-wrap: wrap;
+  }
+  .ct-detail-header > div {
+    flex: 1;
+    min-width: 0;
+  }
+  .ct-detail-name {
+    font-size: 1.35rem;
+    overflow-wrap: anywhere;
+  }
+  .ct-meta-row {
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+  }
+  .ct-meta-row > span:last-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .ct-rel-add {
+    flex-wrap: wrap;
+  }
+  .ct-rel-type {
+    flex: 1 1 100%;
+    width: auto;
+  }
+  .ct-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .ct-form-type {
+    width: 80px;
+    min-width: 0;
+  }
+  .ct-form-flex {
+    min-width: 0;
+  }
+  .ct-modal {
+    padding: 1.1rem;
+    max-height: calc(100dvh - 2rem);
+  }
+  .ct-dup-cards {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
