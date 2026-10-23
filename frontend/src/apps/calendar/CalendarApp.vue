@@ -12,7 +12,7 @@ import {
   utcToZonedParts,
   zonedToUtcISO
 } from '../../lib/datetime'
-import { openDialog } from '../../lib/dialog'
+import { openDialog, pickerPlacement } from '../../lib/dialog'
 import { preferenceRef } from '../preference'
 import { addDays, nextOccurrence, occursOn, recurrenceOf } from './recurrence'
 import type { Item as ChecklistItem } from '../checklists/markdown'
@@ -543,9 +543,7 @@ async function moveEventTo(dateStr: string) {
     endStr && !isNaN(new Date(endStr).getTime())
       ? utcToZonedParts(endStr)
       : null
-  const delta = Math.round(
-    (Date.parse(dateStr) - Date.parse(start.date)) / 86_400_000
-  )
+  const delta = daysBetween(start.date, dateStr)
   const endDateStr = end ? addDays(end.date, delta) : null
 
   try {
@@ -641,6 +639,49 @@ async function exportIcs() {
   URL.revokeObjectURL(url)
 }
 
+// The end follows the start and keeps the event's duration, as in the
+// usual calendar apps: moving a 3-day event moves its end too.
+function moveStartDate(dateStr: string) {
+  const previous = modalDate.value
+  modalDate.value = dateStr
+  const end = modalEndDate.value
+  const shifted =
+    previous && end && end >= previous
+      ? addDays(end, daysBetween(previous, dateStr))
+      : dateStr
+  modalEndDate.value = shifted
+  fpEnd?.set('minDate', dateStr)
+  fpEnd?.setDate(shifted, false)
+}
+
+function daysBetween(fromDate: string, toDate: string): number {
+  return Math.round((Date.parse(toDate) - Date.parse(fromDate)) / 86_400_000)
+}
+
+// Same rule for the times of a one-day event: the end keeps its distance.
+// A handler on the field, not a watch: opening the modal sets the times too.
+function moveStartTime(event: Event) {
+  const time = (event.target as HTMLInputElement).value
+  const previous = modalTime.value
+  modalTime.value = time
+  if (!previous || !time || !modalEndTime.value) return
+  if (modalEndDate.value && modalEndDate.value !== modalDate.value) return
+  const shifted =
+    minutesOf(modalEndTime.value) + minutesOf(time) - minutesOf(previous)
+  if (shifted < minutesOf(time) || shifted >= 24 * 60) return
+  modalEndTime.value = clockOf(shifted)
+}
+
+function minutesOf(time: string): number {
+  const [hours, minutes] = time.split(':').map(Number)
+  return hours * 60 + minutes
+}
+
+function clockOf(minutes: number): string {
+  const hours = String(Math.floor(minutes / 60)).padStart(2, '0')
+  return `${hours}:${String(minutes % 60).padStart(2, '0')}`
+}
+
 function destroyPickers() {
   fpStart?.destroy()
   fpEnd?.destroy()
@@ -654,20 +695,20 @@ watch(modalOpen, async open => {
     titleInput.value?.focus()
     if (startInput.value) {
       fpStart = flatpickr(startInput.value, {
+        ...pickerPlacement(startInput.value),
         dateFormat: 'Y-m-d',
         defaultDate: modalDate.value || undefined,
         onChange: ([date]) => {
-          modalDate.value = formatISODate(date)
-          if (modalEndDate.value < modalDate.value) {
-            modalEndDate.value = modalDate.value
-            fpEnd?.setDate(modalDate.value)
-          }
+          if (!date) return
+          moveStartDate(formatISODate(date))
         }
       }) as flatpickr.Instance
     }
     if (endInput.value) {
       fpEnd = flatpickr(endInput.value, {
+        ...pickerPlacement(endInput.value),
         dateFormat: 'Y-m-d',
+        minDate: modalDate.value || undefined,
         defaultDate: modalEndDate.value || undefined,
         onChange: ([date]) => {
           modalEndDate.value = formatISODate(date)
@@ -997,7 +1038,8 @@ onUnmounted(destroyPickers)
         </label>
         <div v-if="!modalAllDay" class="cal-modal-row">
           <div class="cal-modal-field">
-            <label>Start time</label><input v-model="modalTime" type="time" />
+            <label>Start time</label
+            ><input :value="modalTime" type="time" @input="moveStartTime" />
           </div>
           <div class="cal-modal-field">
             <label>End time</label><input v-model="modalEndTime" type="time" />

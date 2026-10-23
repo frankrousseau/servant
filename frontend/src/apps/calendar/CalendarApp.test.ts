@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import type flatpickr from 'flatpickr'
 
 import CalendarApp from './CalendarApp.vue'
 
@@ -77,6 +78,56 @@ describe('CalendarApp drag and drop', () => {
     // day moved, the instants above already pin the time.
     expect(attrs.data.dtstart).toMatch(/^20260820T/)
     expect(attrs.data.dtend).toMatch(/^20260820T/)
+    vi.useRealTimers()
+  })
+})
+
+describe('CalendarApp event modal', () => {
+  it('moves the end date with the start date, duration kept', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-05T09:00:00Z'))
+    HTMLDialogElement.prototype.showModal ??= function (
+      this: HTMLDialogElement
+    ) {
+      this.open = true
+    }
+    const ctx = makeCtx()
+    ctx.api.entries.list = vi.fn(async (filters?: Record<string, string>) =>
+      filters?.kind === 'event'
+        ? [
+            {
+              ...MEETING,
+              data: {
+                ...MEETING.data,
+                dtend: '20260814T140000',
+                end_at: '2026-08-14T14:00:00Z'
+              }
+            }
+          ]
+        : []
+    )
+    const wrapper = mount(CalendarApp, {
+      props: { ctx: ctx as never },
+      attachTo: document.body
+    })
+    await flushPromises()
+
+    await wrapper.find('.cal-cell-event').trigger('click')
+    await flushPromises()
+    const [start, end] = wrapper
+      .findAll('.cal-modal-row input[readonly]')
+      .map(
+        field =>
+          field.element as HTMLInputElement & { _flatpickr: flatpickr.Instance }
+      )
+    expect(end.value).toBe('2026-08-14')
+    // Inside a modal dialog the picker mounts in the dialog (top layer).
+    expect(end._flatpickr.calendarContainer.closest('dialog')).not.toBeNull()
+
+    start._flatpickr.setDate('2026-08-20', true)
+    await flushPromises()
+    expect(end.value).toBe('2026-08-22')
+    wrapper.unmount()
     vi.useRealTimers()
   })
 })

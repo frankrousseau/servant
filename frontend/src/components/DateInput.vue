@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import flatpickr from 'flatpickr'
+import { pickerPlacement } from '../lib/dialog'
 import 'flatpickr/dist/flatpickr.min.css'
 
 // Themed replacement for <input type="date">: same "YYYY-MM-DD" string
@@ -20,6 +21,7 @@ let fp: flatpickr.Instance | null = null
 
 onMounted(() => {
   fp = flatpickr(input.value!, {
+    ...pickerPlacement(input.value!),
     dateFormat: 'Y-m-d',
     maxDate: props.max,
     defaultDate: props.modelValue || undefined,
