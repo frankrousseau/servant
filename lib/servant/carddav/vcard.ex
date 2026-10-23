@@ -98,7 +98,11 @@ defmodule Servant.CardDAV.VCard do
     fresh_raw(entry) || synthesize(entry, Keyword.get(opts, :names, %{}))
   end
 
-  defp fresh_raw(entry) do
+  @doc """
+  The raw vCard a client stored, or nil once the entry was changed in Servant
+  after that PUT (the entry fields are then the newer version).
+  """
+  def fresh_raw(entry) do
     with raw when is_binary(raw) <- entry.data["carddav_vcf"],
          {:ok, vcf_at, _} <- DateTime.from_iso8601(entry.data["carddav_vcf_at"] || "") do
       # 2s slack: the PUT stamps vcf_at and updated_at in the same write.

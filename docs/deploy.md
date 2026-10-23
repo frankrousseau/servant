@@ -172,6 +172,14 @@ have no date and no location. This command reads them again. It does not change 
 docker compose exec servant bin/servant eval "Servant.Release.backfill_photo_exif"
 ```
 
+**CardDAV contact backfill** (one time). Before October 2026, Servant did not read some
+iPhone phone numbers (`item1.TEL`) and types (`type=cell`). This command reads the stored
+cards again. It does not change a contact that you edited in Servant after the phone sync:
+
+```bash
+docker compose exec servant bin/servant eval "Servant.Release.backfill_carddav_contacts"
+```
+
 **Remote IEx console** on the running release:
 
 ```bash

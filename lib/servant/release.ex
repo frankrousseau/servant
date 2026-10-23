@@ -50,6 +50,19 @@ defmodule Servant.Release do
     {updated, scanned}
   end
 
+  @doc "Fills the contact fields that the CardDAV parser dropped (iPhone phones)."
+  def backfill_carddav_contacts do
+    load_app()
+
+    {:ok, {updated, scanned}, _} =
+      Ecto.Migrator.with_repo(List.first(repos()), fn _ ->
+        Servant.CardDAV.backfill_parsed_fields()
+      end)
+
+    IO.puts("carddav backfill: #{updated} of #{scanned} contacts updated")
+    {updated, scanned}
+  end
+
   defp repos do
     Application.fetch_env!(@app, :ecto_repos)
   end
