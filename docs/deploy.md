@@ -180,6 +180,15 @@ cards again. It does not change a contact that you edited in Servant after the p
 docker compose exec servant bin/servant eval "Servant.Release.backfill_carddav_contacts"
 ```
 
+**N26 currency backfill** (one time). Before October 2026, the N26 CSV import stored a
+payment abroad with the foreign currency, but with the EUR amount. The Finance app then
+excluded it from the totals. This command sets these transactions to EUR and keeps the
+foreign currency as `original_currency`:
+
+```bash
+docker compose exec servant bin/servant eval "Servant.Release.backfill_n26_currency"
+```
+
 **Remote IEx console** on the running release:
 
 ```bash
