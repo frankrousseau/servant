@@ -9,6 +9,7 @@ import {
   watch
 } from 'vue'
 import {
+  ChevronLeft,
   ChevronsDownUp,
   ChevronsUpDown,
   Paperclip,
@@ -560,6 +561,16 @@ async function selectNote(id: string, opts: { push?: boolean } = {}) {
   }
 }
 
+// Phone layout: back from the editor to the tree, like a browser back.
+async function backToList() {
+  await flushSave()
+  selectedId.value = null
+  backlinks.value = []
+  hideAutocomplete()
+  syncEditorFrom(null)
+  history.pushState(null, '', '/apps/notes')
+}
+
 function onPopState() {
   const id = new URLSearchParams(window.location.search).get('selected')
   if (id) void selectNote(id, { push: false })
@@ -1021,9 +1032,11 @@ onMounted(async () => {
     loadState.value = 'error'
   }
 
-  // URL selection wins; otherwise reopen the last note used.
+  // URL selection wins; otherwise reopen the last note used, except on a
+  // phone where the list shows first (one pane at a time).
   const initial = new URLSearchParams(window.location.search).get('selected')
-  const target = [initial, lastOpen.value].find(
+  const phone = window.matchMedia?.('(max-width: 640px)').matches ?? false
+  const target = [initial, phone ? null : lastOpen.value].find(
     id => id && notes.value.some(note => note.id === id)
   )
   if (target) void selectNote(target, { push: false })
@@ -1072,7 +1085,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="nt-layout">
+  <div class="nt-layout" :class="{ 'nt-layout--detail': selected }">
     <div class="nt-sidebar">
       <div class="nt-side-head">
         <input
@@ -1194,6 +1207,14 @@ onBeforeUnmount(() => {
 
     <div class="nt-main">
       <div class="nt-main-topbar">
+        <button
+          v-if="selected"
+          class="nt-back"
+          aria-label="Back to list"
+          @click="backToList"
+        >
+          <ChevronLeft :size="20" />
+        </button>
         <span class="nt-count"
           >{{ filteredNotes.length }}
           <span class="nt-count-unit">{{
@@ -1427,7 +1448,7 @@ onBeforeUnmount(() => {
 <style>
 .nt-layout {
   display: flex;
-  height: 100vh;
+  height: var(--app-height);
 }
 .nt-sidebar {
   width: 280px;
@@ -1465,9 +1486,29 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
   padding: 0.75rem 1.25rem;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+}
+.nt-back {
+  display: none;
+  width: 44px;
+  height: 44px;
+  margin: -0.5rem 0 -0.5rem -0.75rem;
+  padding: 0;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.nt-back:hover,
+.nt-back:focus-visible {
+  color: var(--primary);
 }
 .nt-count {
   font-family: var(--font-mono);
@@ -2016,5 +2057,114 @@ a.nt-attachment-name:hover {
 .nt-attach-cancel:hover {
   border-color: var(--primary);
   color: var(--primary);
+}
+
+/* ----- Responsive ----- */
+@media (max-width: 1024px) {
+  .nt-sidebar {
+    width: 240px;
+  }
+  .nt-toolbar-row {
+    flex-wrap: wrap;
+  }
+}
+/* Hover-only folder actions stay reachable on touch screens. */
+@media (hover: none) {
+  .nt-folder-edit {
+    visibility: visible;
+  }
+}
+@media (pointer: coarse) {
+  .nt-note,
+  .nt-folder {
+    min-height: 40px;
+  }
+  .nt-folder-edit,
+  .nt-tree-toggle,
+  .nt-attach-btn {
+    min-width: 40px;
+    justify-content: center;
+  }
+  .nt-fav-btn,
+  .nt-delete,
+  .nt-new-btn,
+  .nt-today-btn,
+  .nt-vb {
+    min-height: 40px;
+  }
+  .nt-fav-btn,
+  .nt-delete {
+    width: 40px;
+  }
+  .nt-attachment-remove {
+    min-width: 32px;
+    min-height: 32px;
+  }
+}
+/* Phone: one pane at a time. The list (under the count and New note bar)
+   until a note is open, then the editor full width. */
+@media (max-width: 640px) {
+  .nt-layout {
+    flex-direction: column;
+  }
+  .nt-sidebar {
+    width: auto;
+    flex: 1;
+    min-height: 0;
+    border-right: none;
+  }
+  .nt-main {
+    order: -1;
+    flex: none;
+  }
+  .nt-layout:not(.nt-layout--detail) .nt-main > .nt-placeholder {
+    display: none;
+  }
+  .nt-layout--detail .nt-sidebar {
+    display: none;
+  }
+  .nt-layout--detail .nt-main {
+    flex: 1;
+    min-height: 0;
+  }
+  .nt-back {
+    display: inline-flex;
+  }
+  .nt-main-topbar {
+    padding: 0.5rem 1rem;
+  }
+  .nt-count {
+    margin-right: auto;
+  }
+  .nt-save-status {
+    max-width: 6rem;
+  }
+  .nt-folder-input {
+    width: auto;
+    flex: 1 1 10rem;
+    min-width: 0;
+  }
+  .nt-toolbar-spacer,
+  .nt-created {
+    display: none;
+  }
+  .nt-attachments {
+    padding: 0.5rem 1rem;
+  }
+  /* Split mode stacks the editor above the preview. */
+  .nt-panes {
+    flex-direction: column;
+  }
+  .nt-panes:has(.nt-body):has(.nt-preview) .nt-body {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .nt-body,
+  .nt-preview {
+    padding: 0.75rem 1rem;
+  }
+  .nt-backlinks {
+    padding: 0.5rem 1rem;
+  }
 }
 </style>

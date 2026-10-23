@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { ChevronsDownUp, ChevronsUpDown } from 'lucide-vue-next'
+import { ChevronLeft, ChevronsDownUp, ChevronsUpDown } from 'lucide-vue-next'
 
 import MemoryTreeNode from './MemoryTreeNode.vue'
 
@@ -99,6 +99,12 @@ function select(node: TreeNode) {
   if (!node.file) return
   selectedPath.value = node.file.path
   editing.value = false
+  actionError.value = ''
+}
+
+// Phone layout: back from the file view to the tree.
+function backToList() {
+  selectedPath.value = null
   actionError.value = ''
 }
 
@@ -224,7 +230,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="am-layout">
+  <div class="am-layout" :class="{ 'am-layout--detail': selected }">
     <div class="tree">
       <div class="am-side-head">
         <input
@@ -270,6 +276,15 @@ onUnmounted(() => {
 
     <div class="viewer">
       <div class="am-topbar">
+        <button
+          v-if="selected && !editing"
+          type="button"
+          class="am-back"
+          aria-label="Back to list"
+          @click="backToList"
+        >
+          <ChevronLeft :size="20" />
+        </button>
         <span class="am-count"
           >{{ filteredFiles.length }}
           <span class="am-count-unit">{{
@@ -368,7 +383,7 @@ onUnmounted(() => {
 <style scoped>
 .am-layout {
   display: flex;
-  height: 100vh;
+  height: var(--app-height);
 }
 
 .error {
@@ -446,9 +461,31 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
   padding: 0.75rem 1.25rem;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+.am-back {
+  display: none;
+  width: 44px;
+  height: 44px;
+  margin: -0.5rem 0 -0.5rem -0.75rem;
+  padding: 0;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.am-back:hover,
+.am-back:focus-visible {
+  color: var(--primary);
 }
 
 .am-count {
@@ -720,17 +757,86 @@ onUnmounted(() => {
   font-size: 0.85em;
 }
 
-@media (max-width: 800px) {
-  .am-layout {
-    flex-direction: column;
-    height: auto;
+/* ----- Responsive ----- */
+@media (max-width: 1024px) {
+  .tree {
+    width: 240px;
   }
 
+  /* Path and meta stack instead of truncating the path. */
+  .viewer-head {
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+  }
+
+  .am-path {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .am-meta {
+    flex-shrink: 1;
+  }
+}
+
+@media (pointer: coarse) {
+  .am-tree-toggle {
+    min-width: 40px;
+  }
+
+  .am-btn {
+    height: 40px;
+  }
+}
+
+/* Phone: one pane at a time, the tree until a file is open. */
+@media (max-width: 640px) {
   .tree {
     width: auto;
-    max-height: 40vh;
+    flex: 1;
     border-right: none;
-    border-bottom: 1px solid var(--border);
+  }
+
+  .viewer {
+    display: none;
+  }
+
+  .am-layout--detail .tree {
+    display: none;
+  }
+
+  .am-layout--detail .viewer {
+    display: flex;
+  }
+
+  .am-back {
+    display: inline-flex;
+  }
+
+  .am-topbar {
+    flex-wrap: wrap;
+    padding: 0.5rem 1rem;
+  }
+
+  .am-count {
+    margin-right: auto;
+  }
+
+  .viewer-head {
+    padding: 0.6rem 1rem;
+  }
+
+  .am-reading {
+    padding: 1rem 1rem 3rem;
+  }
+
+  .am-frontmatter-row {
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+
+  .am-frontmatter-key {
+    flex: none;
   }
 }
 </style>

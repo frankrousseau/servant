@@ -142,4 +142,12 @@ details[open] > .folder .folder-caret::before {
   color: var(--text-muted);
   text-decoration: line-through;
 }
+
+/* Touch: taller rows, easier to hit. */
+@media (pointer: coarse) {
+  .folder,
+  .file {
+    min-height: 40px;
+  }
+}
 </style>
