@@ -112,6 +112,21 @@ function wake() {
     if (playing.value && !scrubbing.value) controlsVisible.value = false
   }, 2500)
 }
+// Touch has no hover: a tap on a playing video with hidden controls only
+// brings them back, the next tap toggles playback.
+let tapRevealed = false
+function onPointerDown(event: PointerEvent) {
+  if (event.pointerType === 'mouse') return
+  tapRevealed = idle.value
+  wake()
+}
+function onVideoClick() {
+  if (tapRevealed) {
+    tapRevealed = false
+    return
+  }
+  togglePlay()
+}
 function onMouseLeave() {
   if (hideTimer) clearTimeout(hideTimer)
   if (playing.value && !scrubbing.value) controlsVisible.value = false
@@ -214,6 +229,7 @@ onUnmounted(() => {
     :class="{ 'vp--idle': idle }"
     @mousemove="wake"
     @mouseleave="onMouseLeave"
+    @pointerdown="onPointerDown"
   >
     <video
       ref="video"
@@ -221,7 +237,7 @@ onUnmounted(() => {
       :src="src"
       :autoplay="autoplay"
       playsinline
-      @click="togglePlay"
+      @click="onVideoClick"
       @dblclick="toggleFullscreen"
       @play="onPlay"
       @pause="onPause"
@@ -463,5 +479,35 @@ onUnmounted(() => {
 }
 .vp-spacer {
   flex: 1;
+}
+
+/* ----- Touch ----- */
+/* Bigger targets, a thicker seekbar with its knob always shown, and no
+   volume slider: phones have hardware volume keys, mute stays. */
+@media (pointer: coarse) {
+  .vp-controls {
+    padding: 1rem 0.5rem calc(0.35rem + env(safe-area-inset-bottom));
+  }
+  .vp-seek {
+    height: 28px;
+  }
+  .vp-seek-bg,
+  .vp-seek-buffered,
+  .vp-seek-played {
+    height: 5px;
+  }
+  .vp-knob {
+    width: 16px;
+    height: 16px;
+    margin-right: -8px;
+    transform: scale(1);
+  }
+  .vp-btn {
+    width: 44px;
+    height: 44px;
+  }
+  .vp-volume {
+    display: none;
+  }
 }
 </style>

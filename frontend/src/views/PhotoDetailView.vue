@@ -204,7 +204,9 @@ async function deletePhoto() {
 
 .photo-topbar h1 {
   margin: 0;
+  min-width: 0;
   font-size: 1.25rem;
+  overflow-wrap: anywhere;
 }
 
 .back-link {
@@ -240,14 +242,14 @@ async function deletePhoto() {
 
 .photo-preview img {
   max-width: 100%;
-  max-height: calc(100vh - 12rem);
+  max-height: calc(var(--app-height) - 12rem);
   object-fit: contain;
   display: block;
 }
 .photo-player {
   width: 100%;
   aspect-ratio: 16 / 9;
-  max-height: calc(100vh - 12rem);
+  max-height: calc(var(--app-height) - 12rem);
   border-radius: 8px;
 }
 
@@ -380,5 +382,48 @@ async function deletePhoto() {
   font-size: 0.85rem;
   color: var(--primary);
   word-break: break-all;
+}
+
+/* ----- Responsive ----- */
+@media (pointer: coarse) {
+  .back-link {
+    min-width: 44px;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .action-btn {
+    min-height: 40px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .photo-info {
+    width: 260px;
+  }
+}
+
+/* Phones: the details panel goes under the media, full width */
+@media (max-width: 640px) {
+  .photo-layout {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1.25rem;
+  }
+
+  .photo-preview img {
+    max-height: calc(var(--app-height) - 8rem);
+  }
+
+  .photo-info {
+    width: auto;
+  }
+
+  .photo-actions .action-btn {
+    flex: 1;
+    justify-content: center;
+  }
 }
 </style>

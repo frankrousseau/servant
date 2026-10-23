@@ -136,6 +136,27 @@ function onKeydown(event: KeyboardEvent) {
   else if (event.key === '-') zoomOut()
 }
 
+// Swipe left/right on the stage switches media (unzoomed, mostly
+// horizontal moves only, so a vertical scroll or a pinch does nothing).
+let touchStart: { x: number; y: number } | null = null
+function onTouchStart(event: TouchEvent) {
+  const touch = event.touches[0]
+  touchStart =
+    event.touches.length === 1 && touch
+      ? { x: touch.clientX, y: touch.clientY }
+      : null
+}
+function onTouchEnd(event: TouchEvent) {
+  const touch = event.changedTouches[0]
+  if (!touchStart || !touch || zoom.value !== 1) return
+  const dx = touch.clientX - touchStart.x
+  const dy = touch.clientY - touchStart.y
+  touchStart = null
+  if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return
+  if (dx < 0) next()
+  else prev()
+}
+
 // OpenStreetMap permalink for a "lat, lon" meta value.
 function osmLink(location: string): string {
   const [lat, lon] = location.split(', ')
@@ -162,7 +183,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
     >
       <!-- Main image / video. The stage fills the overlay, so a click beside
            the media must close too, not only one on the overlay itself. -->
-      <div class="mv-stage" @click.self="emit('close')">
+      <div
+        class="mv-stage"
+        @click.self="emit('close')"
+        @touchstart.passive="onTouchStart"
+        @touchend="onTouchEnd"
+      >
         <VideoPlayer
           v-if="current && current.video && !imgError"
           :key="current.id"
@@ -408,7 +434,8 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   gap: 1rem;
   padding: 0.75rem 1rem;
   background: rgba(0, 0, 0, 0.4);
-  z-index: 2;
+  /* Above the info panel, so Info and Close stay clickable while it is open */
+  z-index: 5;
 }
 
 .mv-info {
@@ -516,7 +543,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   backdrop-filter: blur(10px);
   border-left: 1px solid rgba(255, 255, 255, 0.1);
   z-index: 4;
-  padding: 4rem 1.25rem 1.25rem;
+  padding: 4rem 1.25rem 5rem;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -592,5 +619,88 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .mv-slide-enter-from,
 .mv-slide-leave-to {
   transform: translateX(100%);
+}
+
+/* ----- Responsive ----- */
+@media (pointer: coarse) {
+  .mv-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .mv-arrow {
+    padding: 0.75rem 0.4rem;
+  }
+}
+
+/* Phones: title and counter on one row, the actions spread on the next;
+   the media takes the full width and the info panel sits in the column
+   between the media and the bar, so both stay visible. */
+@media (max-width: 640px) {
+  .mv-topbar {
+    order: 2;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.75rem;
+    padding: 0.5rem 0.5rem calc(0.25rem + env(safe-area-inset-bottom));
+  }
+
+  .mv-info {
+    padding: 0 0.25rem;
+  }
+
+  .mv-top-actions {
+    order: 1;
+    flex: 1 1 100%;
+    justify-content: space-between;
+    gap: 0;
+  }
+
+  .mv-btn {
+    flex: 0 1 44px;
+    min-width: 0;
+  }
+
+  .mv-image {
+    max-width: 100%;
+  }
+
+  .mv-player {
+    width: 100%;
+    height: 100%;
+  }
+
+  .mv-arrow {
+    background: rgba(0, 0, 0, 0.45);
+  }
+
+  .mv-arrow--left {
+    left: 0.25rem;
+  }
+
+  .mv-arrow--right {
+    right: 0.25rem;
+  }
+
+  .mv-caption {
+    bottom: calc(7rem + env(safe-area-inset-bottom));
+    max-width: calc(100% - 7rem);
+    font-size: 0.88rem;
+  }
+
+  .mv-info-panel {
+    position: static;
+    order: 1;
+    width: auto;
+    max-height: 45dvh;
+    flex-shrink: 0;
+    padding: 0.75rem 1rem;
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .mv-slide-enter-from,
+  .mv-slide-leave-to {
+    transform: translateY(100%);
+  }
 }
 </style>

@@ -182,7 +182,8 @@ function markBroken(photo: SharedPhoto) {
 }
 .shared-meta {
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
   margin: 0;
   font-family: var(--font-mono);
   font-size: 0.85rem;
@@ -190,6 +191,15 @@ function markBroken(photo: SharedPhoto) {
 }
 .shared-tags {
   color: var(--primary);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .shared {
+    padding: 1rem 0.75rem calc(2rem + env(safe-area-inset-bottom));
+  }
+  .shared-title {
+    font-size: 1.3rem;
+  }
 }
 
 /* ----- States ----- */
@@ -206,6 +216,12 @@ function markBroken(photo: SharedPhoto) {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 0.5rem;
+}
+@media (max-width: 640px) {
+  .shared-grid {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 0.25rem;
+  }
 }
 .shared-thumb {
   position: relative;
