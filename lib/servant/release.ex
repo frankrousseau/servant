@@ -63,6 +63,19 @@ defmodule Servant.Release do
     {updated, scanned}
   end
 
+  @doc "Relabels the N26 payments abroad imported under their original currency."
+  def backfill_n26_currency do
+    load_app()
+
+    {:ok, {updated, scanned}, _} =
+      Ecto.Migrator.with_repo(List.first(repos()), fn _ ->
+        Servant.Connectors.BankCSVConnector.backfill_n26_currency()
+      end)
+
+    IO.puts("n26 currency backfill: #{updated} of #{scanned} transactions updated")
+    {updated, scanned}
+  end
+
   defp repos do
     Application.fetch_env!(@app, :ecto_repos)
   end

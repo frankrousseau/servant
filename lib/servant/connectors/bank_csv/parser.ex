@@ -15,12 +15,18 @@ defmodule Servant.Connectors.BankCSV.Parser do
     decimal_separator: ","
   }
 
+  # The amount is what the bank debited, already in EUR at the rate of the
+  # day; "Original Currency" is the currency of a card payment abroad.
   @n26_modern %{
     delimiter: ",",
     date_column: "Booking Date",
     description_columns: ["Partner Name", "Payment Reference", "Type"],
     amount_column: "Amount (EUR)",
-    currency_column: "Original Currency",
+    amount_currency: "EUR",
+    currency_column: nil,
+    original_amount_column: "Original Amount",
+    original_currency_column: "Original Currency",
+    exchange_rate_column: "Exchange Rate",
     balance_column: nil,
     date_format: :iso,
     decimal_separator: "."
@@ -217,15 +223,18 @@ defmodule Servant.Connectors.BankCSV.Parser do
       direction = if amount < 0, do: "sent", else: "received"
 
       {:ok,
-       %{
-         date: date,
-         description: description,
-         amount: amount,
-         abs_amount: abs(amount),
-         currency: if(currency != "", do: currency, else: "EUR"),
-         balance: balance,
-         direction: direction
-       }}
+       Map.merge(
+         %{
+           date: date,
+           description: description,
+           amount: amount,
+           abs_amount: abs(amount),
+           currency: preset[:amount_currency] || if(currency != "", do: currency, else: "EUR"),
+           balance: balance,
+           direction: direction
+         },
+         original_fields(row, preset, amount)
+       )}
     end
   end
 
@@ -235,6 +244,33 @@ defmodule Servant.Connectors.BankCSV.Parser do
     |> Enum.zip(values)
     |> Map.new()
   end
+
+  # A payment in a foreign currency: what was paid there and the rate the bank
+  # applied, signed like the amount (N26 exports it unsigned). Only kept when
+  # the original currency differs from the amount's.
+  defp original_fields(row, preset, amount) do
+    original_currency =
+      row |> row_get(preset[:original_currency_column]) |> String.trim() |> String.upcase()
+
+    if original_currency in ["", preset[:amount_currency]] do
+      %{}
+    else
+      %{
+        original_currency: original_currency,
+        original_amount:
+          row
+          |> row_get(preset[:original_amount_column])
+          |> parse_amount(preset.decimal_separator)
+          |> signed_like(amount),
+        exchange_rate:
+          parse_amount(row_get(row, preset[:exchange_rate_column]), preset.decimal_separator)
+      }
+    end
+  end
+
+  defp signed_like(nil, _amount), do: nil
+  defp signed_like(value, amount) when amount < 0, do: -abs(value)
+  defp signed_like(value, _amount), do: abs(value)
 
   defp row_get(_row, nil), do: ""
   defp row_get(row, column), do: Map.get(row, normalize_header(column), "")

@@ -115,6 +115,32 @@ defmodule Servant.Connectors.BankCSVConnectorTest do
       assert message =~ "header"
     end
 
+    test "stores an N26 payment abroad in EUR, with its original amount and rate" do
+      {:ok, state} = BankCSVConnector.init(%{}, %{"preset" => "n26", "account_name" => "N26"})
+
+      csv = """
+      "Booking Date","Value Date","Partner Name","Partner Iban",Type,"Payment Reference","Account Name","Amount (EUR)","Original Amount","Original Currency","Exchange Rate"
+      2025-03-10,,"BLUE BOTTLE",,Presentment,,"Main Account",-46.20,50.00,USD,0.924000
+      """
+
+      assert {:ok, [entry]} = BankCSVConnector.import_csv(csv, state)
+      assert entry["title"] == "Paid 46.20 EUR - BLUE BOTTLE - Presentment"
+      assert entry["data"]["amount"] == -46.2
+      assert entry["data"]["currency"] == "EUR"
+      assert entry["data"]["original_currency"] == "USD"
+      assert entry["data"]["original_amount"] == -50.0
+      assert entry["data"]["exchange_rate"] == 0.924
+
+      # Same id as when the payment was stored under USD: a re-import of an
+      # older file does not duplicate it.
+      expected_id =
+        :crypto.hash(:sha256, "2025-03-10|BLUE BOTTLE - Presentment|-46.2|USD")
+        |> Base.encode16(case: :lower)
+        |> String.slice(0, 16)
+
+      assert entry["external_id"] == expected_id
+    end
+
     test "generates deterministic external_ids for dedup" do
       {:ok, state} = BankCSVConnector.init(%{}, %{"preset" => "n26"})
 

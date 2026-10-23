@@ -179,8 +179,7 @@ const alerts = computed<Alert[]>(() => {
     out.push({
       key: 'rates',
       label: `No ${props.refCurrency} rate for: ${combined.value.excluded.join(', ')}`,
-      detail:
-        'Set it via Accounts, Rates; these accounts are missing from the total.',
+      detail: 'These accounts are missing from the total.',
       tab: 'accounts'
     })
   }

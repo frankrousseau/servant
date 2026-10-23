@@ -431,7 +431,7 @@ const pieCenter = computed(() => {
     <div v-if="excludedOpen && spending.excluded.length" class="sp-excluded">
       <p class="sp-excluded-hint">
         These outgoing transactions are not consolidated: their currency has no
-        {{ refCurrency }} rate. Set one via Accounts, Rates.
+        {{ refCurrency }} rate.
       </p>
       <div v-for="tx in spending.excluded" :key="tx.id" class="sp-excluded-row">
         <span class="sp-excluded-date">{{
