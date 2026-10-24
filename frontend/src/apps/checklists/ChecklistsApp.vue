@@ -29,10 +29,13 @@ import {
 
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import DateInput from '../../components/DateInput.vue'
+import LoadState from '../../components/LoadState.vue'
+import SearchField from '../../components/SearchField.vue'
 
 import { formatDue, todayLocalStr } from '../../lib/datetime'
 import { createFolderOrder } from '../folderOrder'
 import { itemsToMarkdown, parseListText, type Item } from './markdown'
+import type { LoadStatus } from '../../components/LoadState.vue'
 import type { AppContext, Entry } from '../types'
 
 const props = defineProps<{ ctx: AppContext }>()
@@ -66,7 +69,7 @@ watch(selectedId, () => {
 })
 const searchQuery = ref('')
 const collapsed = reactive(new Set<string>())
-const loadState = ref<'loading' | 'ready' | 'error'>('loading')
+const loadState = ref<LoadStatus>('loading')
 const newItemText = ref('')
 const saveState = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
 const saveError = ref('')
@@ -563,17 +566,15 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   <div class="cl-layout" :class="{ 'cl-layout--detail': selected }">
     <div class="cl-sidebar">
       <div class="cl-side-head">
-        <input
+        <SearchField
           v-model="searchQuery"
-          v-autofocus
           class="cl-search"
-          type="text"
-          placeholder="Search checklists..."
-          aria-label="Search checklists"
+          label="Search checklists"
+          autofocus
         />
       </div>
       <div class="cl-tree" @dragover.prevent @drop.prevent="onDrop('')">
-        <template v-if="rows.length">
+        <LoadState :state="loadState" :empty="!rows.length" what="checklists">
           <div
             v-for="row in rows"
             :key="row.kind === 'folder' ? 'f:' + row.name : 'l:' + row.list!.id"
@@ -644,14 +645,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
               </span>
             </a>
           </div>
-        </template>
-        <p v-else class="cl-empty">
-          {{
-            loadState === 'error'
-              ? 'Failed to load checklists.'
-              : 'No checklists yet.'
-          }}
-        </p>
+        </LoadState>
       </div>
     </div>
 
@@ -1114,7 +1108,6 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   color: var(--text-muted);
   flex-shrink: 0;
 }
-.cl-empty,
 .cl-placeholder {
   color: var(--text-muted);
   text-align: center;
