@@ -1279,19 +1279,22 @@ onUnmounted(destroyPickers)
 }
 /* Event chips: colored rail + tint per agenda (--cal-color/--cal-rgb are set
    inline per chip), mono time; same selection language as the rest of the
-   system */
+   system. The time (mono) and the title (sans) share a baseline: centered
+   boxes would set them at different heights, the two faces do not have the
+   same metrics. */
 .cal-cell-event {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  align-items: baseline;
+  gap: 0.4rem;
   font-size: var(--text-sm);
+  line-height: 1.4;
   color: var(--text);
-  margin-top: 2px;
+  margin-top: 3px;
   white-space: nowrap;
   overflow: hidden;
   background: rgba(var(--cal-rgb, var(--primary-rgb)), 0.1);
   border-left: 2px solid var(--cal-color, var(--primary));
-  padding: 1px 4px 1px 5px;
+  padding: 0.15rem 0.4rem 0.15rem 0.5rem;
   border-radius: 0 3px 3px 0;
   cursor: pointer;
   transition: background 0.1s;
@@ -1312,12 +1315,15 @@ onUnmounted(destroyPickers)
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   color: var(--text-muted);
-  margin-top: 2px;
-  padding-left: 5px;
+  margin-top: 3px;
+  padding-left: calc(0.5rem + 2px);
 }
+/* line-height 1: aligned on the title's baseline, the mono box would
+   otherwise reach 1px lower and make timed chips taller than all-day ones */
 .cal-chip-time {
   font-family: var(--font-mono);
   font-size: var(--text-sm);
+  line-height: 1;
   color: var(--cal-color, var(--primary));
   flex-shrink: 0;
 }
@@ -1343,7 +1349,7 @@ onUnmounted(destroyPickers)
   }
   .cal-cell-event {
     font-size: var(--text-sm);
-    padding: 1px 2px 1px 3px;
+    padding: 0.1rem 0.15rem 0.1rem 0.3rem;
   }
   .cal-cell-event .cal-chip-rec,
   .cal-cell-more-word {
@@ -1353,7 +1359,7 @@ onUnmounted(destroyPickers)
     text-overflow: clip;
   }
   .cal-cell-more {
-    padding-left: 3px;
+    padding-left: calc(0.3rem + 2px);
   }
 }
 /* Agenda legend: click to hide/show an agenda */
@@ -1517,19 +1523,27 @@ onUnmounted(destroyPickers)
   border-bottom: 1px solid var(--border);
   margin-bottom: 0.5rem;
 }
+/* The time and the title share a baseline. The row bleeds into the
+   gutter so the hover tint frames the text instead of touching it, while
+   the text stays aligned with the day header. */
 .cal-event {
   display: flex;
+  align-items: baseline;
   gap: 1rem;
-  padding: 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  margin-inline: -0.75rem;
   cursor: pointer;
   border-radius: 6px;
 }
 .cal-event:hover {
   background: var(--bg-hover);
 }
+/* Wide enough for "09:30 AM" on one line, so every title starts in the
+   same column */
 .cal-event-time {
-  width: 64px;
+  width: 5.5rem;
   flex-shrink: 0;
+  white-space: nowrap;
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   color: var(--primary);
@@ -1552,14 +1566,14 @@ onUnmounted(destroyPickers)
   }
   .cal-event-time {
     width: auto;
-    min-width: 64px;
-    white-space: nowrap;
+    min-width: 5.5rem;
   }
 }
 .cal-chip-rec,
 .cal-chip-mark {
   display: inline-flex;
   flex-shrink: 0;
+  align-self: center;
   color: var(--cal-color, var(--primary));
 }
 .cal-event-rec {
