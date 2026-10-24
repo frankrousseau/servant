@@ -490,6 +490,7 @@ function startDrag(id: string, event: DragEvent) {
 .sidebar-nav li a[aria-current='page'] :deep(svg),
 .sidebar-nav li a.sidebar-all--current :deep(svg) {
   color: var(--primary);
+  filter: drop-shadow(0 0 5px var(--glow));
 }
 
 /* Drag to reorder: the dragged row fades, a primary line marks the gap
@@ -564,6 +565,7 @@ function startDrag(id: string, event: DragEvent) {
 .sidebar-row[aria-current='page'] :deep(svg),
 .sidebar-row.router-link-active :deep(svg) {
   color: var(--primary);
+  filter: drop-shadow(0 0 5px var(--glow));
 }
 
 /* A row like Sources, without the global button paint */

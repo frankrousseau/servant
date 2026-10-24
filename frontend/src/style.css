@@ -56,6 +56,14 @@
   --warning: #ffb454;
   --shadow-raised:
     0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3);
+  /* CRT phosphor: the glow under focus rings and the lit sidebar icon,
+     faint scanlines on the page glass. Paper themes have neither. */
+  --glow: rgba(var(--primary-rgb), 0.45);
+  --scanlines: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.012) 0 1px,
+    transparent 1px 3px
+  );
   --radius: 8px;
   --control-radius: 8px;
   --sidebar-width: 220px;
@@ -107,6 +115,12 @@
   --warning: #ffb454;
   --shadow-raised:
     0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --glow: rgba(var(--primary-rgb), 0.45);
+  --scanlines: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.012) 0 1px,
+    transparent 1px 3px
+  );
   color-scheme: dark;
 }
 
@@ -129,6 +143,8 @@
   --warning: #d8a35c;
   --shadow-raised:
     0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --glow: rgba(var(--primary-rgb), 0.3);
+  --scanlines: none;
   color-scheme: dark;
 }
 
@@ -151,6 +167,8 @@
   --warning: #a86a12;
   --shadow-raised:
     0 12px 32px rgba(34, 29, 56, 0.16), 0 2px 6px rgba(34, 29, 56, 0.08);
+  --glow: transparent;
+  --scanlines: none;
   color-scheme: light;
 }
 
@@ -175,6 +193,8 @@
   --warning: #8f6a12;
   --shadow-raised:
     0 12px 32px rgba(22, 40, 62, 0.16), 0 2px 6px rgba(22, 40, 62, 0.08);
+  --glow: transparent;
+  --scanlines: none;
   color-scheme: light;
 }
 
@@ -199,6 +219,8 @@
   --warning: #96702e;
   --shadow-raised:
     0 12px 32px rgba(42, 45, 67, 0.16), 0 2px 6px rgba(42, 45, 67, 0.08);
+  --glow: transparent;
+  --scanlines: none;
   color-scheme: light;
 }
 
@@ -221,6 +243,8 @@
   --warning: #8a6a10;
   --shadow-raised:
     0 12px 32px rgba(63, 50, 39, 0.16), 0 2px 6px rgba(63, 50, 39, 0.08);
+  --glow: transparent;
+  --scanlines: none;
   color-scheme: light;
 }
 
@@ -237,7 +261,7 @@
 body {
   font-family: var(--font-body);
   font-size: 16px;
-  background: var(--bg);
+  background: var(--scanlines), var(--bg);
   color: var(--text);
   line-height: 1.6;
 }
@@ -258,6 +282,7 @@ a:hover {
 :focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+  box-shadow: 0 0 12px var(--glow);
 }
 
 /* All animation in the app is decorative (fades, hover transitions, the
