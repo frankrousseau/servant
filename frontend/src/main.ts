@@ -10,6 +10,7 @@ import { vAutofocus } from './lib/autofocus'
 import { reportClientError, messageOf } from './lib/reportError'
 import { vClickKey } from './lib/clickKey'
 
+import '@fontsource-variable/ibm-plex-sans/index.css'
 import '@fontsource/maple-mono/index.css'
 import './style.css'
 

@@ -15,6 +15,7 @@
     "screenshots": "node scripts/screenshots.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/ibm-plex-sans": "^5.3.0",
     "@fontsource/maple-mono": "^5.3.0",
     "@types/markdown-it": "^14.1.2",
     "@vladmandic/face-api": "^1.7.15",

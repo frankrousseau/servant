@@ -72,8 +72,19 @@
      browser's toolbars. */
   --topbar-height: 0px;
   --app-height: 100dvh;
+  /* Plex Sans for the text (self-hosted, the same on every machine),
+     Maple Mono for the display: brand, titles, counters */
+  --font-body: 'IBM Plex Sans Variable', system-ui, sans-serif;
   --font-display: 'Maple Mono', 'Courier New', monospace;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* Type scale. --text-sm is the floor: nothing is set smaller, badges,
+     table headers and metadata included. */
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-md: 1.125rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 1.9rem;
   color-scheme: dark;
 }
 
@@ -224,9 +235,7 @@
 /* ----- 2. Base elements ----- */
 
 body {
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
-    Arial, sans-serif;
+  font-family: var(--font-body);
   font-size: 16px;
   background: var(--bg);
   color: var(--text);
@@ -325,16 +334,21 @@ a:hover {
 .view h1 {
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: 1.9rem;
+  font-size: var(--text-2xl);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin-bottom: 1rem;
 }
 
+/* Section titles: the display face, like the page title but in its own
+   case, and in the text color (muted would rank them under the body). */
 .view h2 {
-  font-size: 1.15rem;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-md);
+  letter-spacing: 0.02em;
   margin: 1.5rem 0 0.75rem;
-  color: var(--text-muted);
+  color: var(--text);
 }
 
 .view-header {
@@ -356,7 +370,7 @@ a:hover {
 
 @media (max-width: 640px) {
   .view h1 {
-    font-size: 1.5rem;
+    font-size: var(--text-xl);
   }
 
   /* The title and its actions share a row while they fit, then the
@@ -376,14 +390,14 @@ a:hover {
 .field label {
   display: block;
   margin-bottom: 0.3rem;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
 /* Two control sizes, shared by inputs, selects, buttons and the Servant
    widgets (ComboBox, DateInput): the default form control computes to
    ~40px (1rem text, 1.4 line-height, 0.5rem vertical padding, 1px
-   border), the compact `.small` tier to ~32px (0.85rem, 0.35rem), which
+   border), the compact `.small` tier to ~32px (0.875rem, 0.35rem), which
    is also the toolbar standard the apps use. Buttons carry a transparent
    border so both box heights match exactly. */
 input,
@@ -395,7 +409,7 @@ select {
   border: 1px solid var(--border-strong);
   border-radius: var(--control-radius);
   color: var(--text);
-  font-size: 1rem;
+  font-size: var(--text-base);
   line-height: 1.4;
   font-family: inherit;
 }
@@ -444,7 +458,7 @@ button {
   padding: 0.5rem 1.2rem;
   border-radius: var(--control-radius);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: var(--text-base);
   line-height: 1.4;
   font-family: inherit;
   transition: background 0.15s;
@@ -468,7 +482,7 @@ button.small,
 input.small,
 select.small {
   padding: 0.35rem 0.8rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 
 select.small {
@@ -508,7 +522,7 @@ button.danger:hover {
 
 .error {
   color: var(--danger);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   margin-bottom: 0.75rem;
 }
 
@@ -528,14 +542,14 @@ td {
 
 th {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .data-cell {
   font-family: var(--font-mono);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   max-width: 250px;
   overflow: hidden;
@@ -587,13 +601,13 @@ th {
 
 .stat-count {
   font-family: var(--font-display);
-  font-size: 2.1rem;
+  font-size: var(--text-2xl);
   font-weight: 400;
   color: var(--primary);
 }
 
 .stat-label {
-  font-size: 1rem;
+  font-size: var(--text-base);
   color: var(--text-muted);
   text-transform: capitalize;
 }
@@ -626,7 +640,7 @@ th {
 
 .connector-type {
   margin-left: 0.5rem;
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   background: var(--bg-hover);
   padding: 0.15rem 0.5rem;
@@ -634,7 +648,7 @@ th {
 }
 
 .connector-meta {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   margin-bottom: 0.5rem;
 }
@@ -657,7 +671,7 @@ th {
   align-items: center;
   gap: 0.4rem;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
@@ -680,11 +694,11 @@ dl {
 
 dt {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 
 dd {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 
 .auth-page {
@@ -709,7 +723,7 @@ dd {
 
 .auth-card .field label {
   font-family: var(--font-display);
-  font-size: 1.1rem;
+  font-size: var(--text-md);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -722,7 +736,7 @@ dd {
   width: 100%;
   margin-top: 0.5rem;
   font-family: var(--font-display);
-  font-size: 1.25rem;
+  font-size: var(--text-lg);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -739,7 +753,7 @@ dd {
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  font-size: 1.75rem;
+  font-size: var(--text-2xl);
   color: var(--primary);
   text-shadow: 0 0 8px rgba(var(--primary-rgb), 0.55);
   margin-bottom: 1.5rem;
@@ -749,7 +763,7 @@ dd {
 .alt-link {
   margin-top: 1rem;
   text-align: center;
-  font-size: 1rem;
+  font-size: var(--text-base);
   color: var(--text-muted);
 }
 
@@ -783,16 +797,16 @@ dialog {
 .flatpickr-calendar input,
 .flatpickr-calendar select {
   font-family: inherit !important;
-  font-size: 0.85rem !important;
+  font-size: var(--text-sm) !important;
 }
 .flatpickr-current-month,
 .flatpickr-current-month .flatpickr-monthDropdown-months,
 .flatpickr-current-month input.cur-year {
-  font-size: 0.95rem !important;
+  font-size: var(--text-base) !important;
   font-weight: 500 !important;
 }
 span.flatpickr-weekday {
-  font-size: 0.72rem !important;
+  font-size: var(--text-sm) !important;
   font-weight: 600 !important;
   letter-spacing: 0.06em;
 }
