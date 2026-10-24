@@ -13,6 +13,9 @@ import {
 
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
+import LoadState from '../../components/LoadState.vue'
+import ServantDialog from '../../components/ServantDialog.vue'
+import TabBar from '../../components/TabBar.vue'
 
 import { birthdaySeed, contactField, contactName } from '../../lib/contact'
 import {
@@ -21,9 +24,11 @@ import {
   utcToZonedParts,
   zonedToUtcISO
 } from '../../lib/datetime'
-import { openDialog, pickerPlacement } from '../../lib/dialog'
+import { pickerPlacement } from '../../lib/dialog'
 import { preferenceRef } from '../preference'
 import { addDays, nextOccurrence, occursOn, recurrenceOf } from './recurrence'
+import type { LoadStatus } from '../../components/LoadState.vue'
+import type { TabOption } from '../../components/TabBar.vue'
 import type { Item as ChecklistItem } from '../checklists/markdown'
 import type { AppContext, Entry } from '../types'
 
@@ -46,6 +51,10 @@ const MONTH_NAMES = [
   'December'
 ]
 const DAY_HEADERS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const VIEW_OPTIONS: TabOption<'calendar' | 'list'>[] = [
+  { value: 'calendar', label: 'Grid' },
+  { value: 'list', label: 'List' }
+]
 
 const events = ref<Entry[]>([])
 const checklists = ref<Entry[]>([])
@@ -61,6 +70,10 @@ const currentYear = ref(new Date().getFullYear())
 const currentMonth = ref(new Date().getMonth())
 const loading = ref(true)
 const loadError = ref('')
+const loadState = computed<LoadStatus>(() => {
+  if (loading.value) return 'loading'
+  return loadError.value ? 'error' : 'ready'
+})
 
 const modalOpen = ref(false)
 const modalEditId = ref<string | null>(null)
@@ -779,395 +792,361 @@ onUnmounted(destroyPickers)
 </script>
 
 <template>
-  <p v-if="loading" class="cal-loading">Loading events...</p>
-  <p v-else-if="loadError" class="cal-loading">{{ loadError }}</p>
-  <div v-else class="cal-container">
-    <div class="cal-header">
-      <template v-if="viewMode === 'calendar'">
-        <div class="cal-nav">
-          <button
-            class="cal-nav-btn"
-            title="Previous month"
-            aria-label="Previous month"
-            @click="prevMonth"
-          >
-            <ChevronLeft :size="16" />
-          </button>
-          <button class="cal-nav-btn cal-today-btn" @click="goToday">
-            Today
-          </button>
-          <button
-            class="cal-nav-btn"
-            title="Next month"
-            aria-label="Next month"
-            @click="nextMonth"
-          >
-            <ChevronRight :size="16" />
-          </button>
-        </div>
-        <span class="cal-month-label">{{ monthLabel }}</span>
-      </template>
-      <span v-else class="cal-month-label">Upcoming</span>
-      <div class="cal-header-actions">
-        <button
-          class="cal-nav-btn"
-          title="Manage calendars"
-          @click="manageOpen = true"
-        >
-          Calendars
-        </button>
-        <button class="cal-nav-btn" title="Export as .ics" @click="exportIcs">
-          Export
-        </button>
-        <div class="cal-view-toggle">
-          <button
-            class="cal-toggle-btn"
-            :class="{ 'cal-toggle-btn--active': viewMode === 'calendar' }"
-            @click="viewMode = 'calendar'"
-          >
-            Grid
-          </button>
-          <button
-            class="cal-toggle-btn"
-            :class="{ 'cal-toggle-btn--active': viewMode === 'list' }"
-            @click="viewMode = 'list'"
-          >
-            List
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <div v-if="calendars.length > 1" class="cal-legend">
-      <button
-        v-for="calendar in calendars"
-        :key="calendar.name"
-        class="cal-legend-item"
-        :class="{ 'cal-legend-item--off': hiddenCals.has(calendar.name) }"
-        :title="
-          hiddenCals.has(calendar.name)
-            ? 'Show this agenda'
-            : 'Hide this agenda'
-        "
-        @click="toggleCalendar(calendar.name)"
-      >
-        <span
-          class="cal-legend-swatch"
-          :style="{ background: calendar.color }"
-        ></span>
-        {{ calendar.name }}
-        <span class="cal-legend-count">{{ calendar.count }}</span>
-      </button>
-    </div>
-
-    <div v-if="viewMode === 'calendar'" class="cal-grid">
-      <div v-for="dh in DAY_HEADERS" :key="dh" class="cal-grid-header">
-        {{ dh }}
-      </div>
-      <div
-        v-for="(cell, index) in calendarCells"
-        :key="index"
-        class="cal-cell"
-        :class="{
-          'cal-cell--empty': cell.empty,
-          'cal-cell--today': cell.isToday,
-          'cal-cell--drop': !cell.empty && dragOverDate === cell.dateStr
-        }"
-        :data-date="cell.empty ? undefined : cell.dateStr"
-        @click="!cell.empty && cell.dateStr && openModal(cell.dateStr)"
-        @dragover.prevent="
-          dragOverDate = cell.empty ? null : (cell.dateStr ?? null)
-        "
-        @drop.prevent="!cell.empty && cell.dateStr && moveEventTo(cell.dateStr)"
-      >
-        <template v-if="!cell.empty">
-          <span class="cal-day-num">{{ cell.day }}</span>
-          <div
-            v-for="ev in (cell.events || []).slice(0, 3)"
-            :key="ev.id"
-            class="cal-cell-event"
-            :class="{
-              'cal-cell-event--allday': ev.data?.all_day,
-              'cal-cell-event--dragging': draggedId === ev.id
-            }"
-            :style="calVars(ev)"
-            :draggable="draggable(ev)"
-            :title="
-              draggable(ev) ? 'Drag to another day to move it' : undefined
-            "
-            @click.stop="onEventClick(ev.id)"
-            @dragstart.stop="onEventDragStart(ev, $event)"
-            @dragend="onEventDragEnd"
-          >
-            <span
-              v-if="!ev.data?.all_day && ev.occurred_at"
-              class="cal-chip-time"
-              >{{ formatTime(ev.occurred_at) }}</span
+  <LoadState :state="loadState" what="events" :error-text="loadError">
+    <div class="cal-container">
+      <div class="cal-header">
+        <template v-if="viewMode === 'calendar'">
+          <div class="cal-nav">
+            <button
+              class="cal-nav-btn"
+              title="Previous month"
+              aria-label="Previous month"
+              @click="prevMonth"
             >
-            <span
-              v-if="ev.data?.recurrence"
-              class="cal-chip-rec"
-              role="img"
-              title="Recurring"
-              aria-label="Recurring"
+              <ChevronLeft :size="16" />
+            </button>
+            <button class="cal-nav-btn cal-today-btn" @click="goToday">
+              Today
+            </button>
+            <button
+              class="cal-nav-btn"
+              title="Next month"
+              aria-label="Next month"
+              @click="nextMonth"
             >
-              <Repeat :size="12" />
-            </span>
-            <span
-              v-if="virtualKind(ev)"
-              class="cal-chip-mark"
-              role="img"
-              :aria-label="
-                virtualKind(ev) === 'birthday' ? 'Birthday' : 'Deadline'
-              "
-            >
-              <Cake v-if="virtualKind(ev) === 'birthday'" :size="12" />
-              <AlarmClock v-else :size="12" />
-            </span>
-            <span class="cal-chip-title">{{ ev.title || 'Untitled' }}</span>
+              <ChevronRight :size="16" />
+            </button>
           </div>
-          <div v-if="(cell.events?.length ?? 0) > 3" class="cal-cell-more">
-            +{{ cell.events!.length - 3
-            }}<span class="cal-cell-more-word"> more</span>
-          </div>
+          <span class="cal-month-label">{{ monthLabel }}</span>
         </template>
-      </div>
-    </div>
-
-    <template v-else>
-      <p v-if="upcomingDays.length === 0" class="cal-empty">
-        No upcoming events.
-      </p>
-      <div v-for="group in upcomingDays" :key="group.date" class="cal-day">
-        <div class="cal-day-header">{{ formatDateHeader(group.date) }}</div>
-        <div
-          v-for="event in group.events"
-          :key="event.id"
-          class="cal-event"
-          @click.stop="onEventClick(event.id)"
-        >
-          <div
-            class="cal-event-time"
-            :style="{ color: calColor(calendarOf(event)) }"
+        <span v-else class="cal-month-label">Upcoming</span>
+        <div class="cal-header-actions">
+          <button
+            class="cal-nav-btn"
+            title="Manage calendars"
+            @click="manageOpen = true"
           >
-            {{
-              event.data.all_day || !event.data.dtstart
-                ? 'All day'
-                : formatTime(event.occurred_at || '')
-            }}
+            Calendars
+          </button>
+          <button class="cal-nav-btn" title="Export as .ics" @click="exportIcs">
+            Export
+          </button>
+          <!-- TabBar has two roots (strip + panel): the wrapper takes the class. -->
+          <div class="cal-view-toggle">
+            <TabBar
+              v-model="viewMode"
+              :options="VIEW_OPTIONS"
+              label="Calendar view"
+              variant="pill"
+            />
           </div>
-          <div class="cal-event-body">
-            <span class="cal-event-title">
+        </div>
+      </div>
+
+      <div v-if="calendars.length > 1" class="cal-legend">
+        <button
+          v-for="calendar in calendars"
+          :key="calendar.name"
+          class="cal-legend-item"
+          :class="{ 'cal-legend-item--off': hiddenCals.has(calendar.name) }"
+          :title="
+            hiddenCals.has(calendar.name)
+              ? 'Show this agenda'
+              : 'Hide this agenda'
+          "
+          @click="toggleCalendar(calendar.name)"
+        >
+          <span
+            class="cal-legend-swatch"
+            :style="{ background: calendar.color }"
+          ></span>
+          {{ calendar.name }}
+          <span class="cal-legend-count">{{ calendar.count }}</span>
+        </button>
+      </div>
+
+      <div v-if="viewMode === 'calendar'" class="cal-grid">
+        <div v-for="dh in DAY_HEADERS" :key="dh" class="cal-grid-header">
+          {{ dh }}
+        </div>
+        <div
+          v-for="(cell, index) in calendarCells"
+          :key="index"
+          class="cal-cell"
+          :class="{
+            'cal-cell--empty': cell.empty,
+            'cal-cell--today': cell.isToday,
+            'cal-cell--drop': !cell.empty && dragOverDate === cell.dateStr
+          }"
+          :data-date="cell.empty ? undefined : cell.dateStr"
+          @click="!cell.empty && cell.dateStr && openModal(cell.dateStr)"
+          @dragover.prevent="
+            dragOverDate = cell.empty ? null : (cell.dateStr ?? null)
+          "
+          @drop.prevent="
+            !cell.empty && cell.dateStr && moveEventTo(cell.dateStr)
+          "
+        >
+          <template v-if="!cell.empty">
+            <span class="cal-day-num">{{ cell.day }}</span>
+            <div
+              v-for="ev in (cell.events || []).slice(0, 3)"
+              :key="ev.id"
+              class="cal-cell-event"
+              :class="{
+                'cal-cell-event--allday': ev.data?.all_day,
+                'cal-cell-event--dragging': draggedId === ev.id
+              }"
+              :style="calVars(ev)"
+              :draggable="draggable(ev)"
+              :title="
+                draggable(ev) ? 'Drag to another day to move it' : undefined
+              "
+              @click.stop="onEventClick(ev.id)"
+              @dragstart.stop="onEventDragStart(ev, $event)"
+              @dragend="onEventDragEnd"
+            >
               <span
-                v-if="event.data.recurrence"
-                class="cal-event-rec"
+                v-if="!ev.data?.all_day && ev.occurred_at"
+                class="cal-chip-time"
+                >{{ formatTime(ev.occurred_at) }}</span
+              >
+              <span
+                v-if="ev.data?.recurrence"
+                class="cal-chip-rec"
                 role="img"
                 title="Recurring"
                 aria-label="Recurring"
               >
-                <Repeat :size="14" />
+                <Repeat :size="12" />
               </span>
               <span
-                v-if="virtualKind(event)"
-                class="cal-event-rec"
+                v-if="virtualKind(ev)"
+                class="cal-chip-mark"
                 role="img"
                 :aria-label="
-                  virtualKind(event) === 'birthday' ? 'Birthday' : 'Deadline'
+                  virtualKind(ev) === 'birthday' ? 'Birthday' : 'Deadline'
                 "
               >
-                <Cake v-if="virtualKind(event) === 'birthday'" :size="14" />
-                <AlarmClock v-else :size="14" />
+                <Cake v-if="virtualKind(ev) === 'birthday'" :size="12" />
+                <AlarmClock v-else :size="12" />
               </span>
-              {{ event.title || 'Untitled' }}
-            </span>
-            <span v-if="event.data.location" class="cal-event-loc">{{
-              event.data.location
-            }}</span>
-            <span
-              v-if="event.data.contact_name"
-              class="cal-event-contact"
-              :title="event.data.contact_id ? 'Open contact' : undefined"
-              @click.stop="openEventContact(event)"
-            >
-              <UserRound :size="14" />{{ event.data.contact_name }}
-            </span>
-            <span
-              class="cal-event-cal"
-              :style="{ color: calColor(calendarOf(event)) }"
-              >{{ calendarOf(event) }}</span
-            >
-          </div>
+              <span class="cal-chip-title">{{ ev.title || 'Untitled' }}</span>
+            </div>
+            <div v-if="(cell.events?.length ?? 0) > 3" class="cal-cell-more">
+              +{{ cell.events!.length - 3
+              }}<span class="cal-cell-more-word"> more</span>
+            </div>
+          </template>
         </div>
       </div>
-    </template>
-  </div>
+
+      <template v-else>
+        <p v-if="upcomingDays.length === 0" class="cal-empty">
+          No upcoming events.
+        </p>
+        <div v-for="group in upcomingDays" :key="group.date" class="cal-day">
+          <div class="cal-day-header">{{ formatDateHeader(group.date) }}</div>
+          <div
+            v-for="event in group.events"
+            :key="event.id"
+            class="cal-event"
+            @click.stop="onEventClick(event.id)"
+          >
+            <div
+              class="cal-event-time"
+              :style="{ color: calColor(calendarOf(event)) }"
+            >
+              {{
+                event.data.all_day || !event.data.dtstart
+                  ? 'All day'
+                  : formatTime(event.occurred_at || '')
+              }}
+            </div>
+            <div class="cal-event-body">
+              <span class="cal-event-title">
+                <span
+                  v-if="event.data.recurrence"
+                  class="cal-event-rec"
+                  role="img"
+                  title="Recurring"
+                  aria-label="Recurring"
+                >
+                  <Repeat :size="14" />
+                </span>
+                <span
+                  v-if="virtualKind(event)"
+                  class="cal-event-rec"
+                  role="img"
+                  :aria-label="
+                    virtualKind(event) === 'birthday' ? 'Birthday' : 'Deadline'
+                  "
+                >
+                  <Cake v-if="virtualKind(event) === 'birthday'" :size="14" />
+                  <AlarmClock v-else :size="14" />
+                </span>
+                {{ event.title || 'Untitled' }}
+              </span>
+              <span v-if="event.data.location" class="cal-event-loc">{{
+                event.data.location
+              }}</span>
+              <span
+                v-if="event.data.contact_name"
+                class="cal-event-contact"
+                :title="event.data.contact_id ? 'Open contact' : undefined"
+                @click.stop="openEventContact(event)"
+              >
+                <UserRound :size="14" />{{ event.data.contact_name }}
+              </span>
+              <span
+                class="cal-event-cal"
+                :style="{ color: calColor(calendarOf(event)) }"
+                >{{ calendarOf(event) }}</span
+              >
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </LoadState>
 
   <Teleport to="body">
-    <dialog
-      v-if="manageOpen"
-      :ref="openDialog"
-      class="modal-dialog"
-      aria-labelledby="cal-manage-title"
-      @click.self="manageOpen = false"
-      @cancel="manageOpen = false"
-    >
-      <div class="cal-modal">
-        <div id="cal-manage-title" class="cal-modal-header">Calendars</div>
-        <div class="cal-manage-list">
-          <div
-            v-for="calendar in calendars"
-            :key="calendar.name"
-            class="cal-manage-row"
-          >
-            <input
-              type="color"
-              class="cal-color-input"
-              :value="calendar.color"
-              title="Pick a color for this calendar"
-              @change="setCalendarColor(calendar.name, $event)"
-            />
-            <span class="cal-manage-name">{{ calendar.name }}</span>
-            <span class="cal-manage-count">{{ calendar.count }} evt</span>
-            <span
-              v-if="!calendar.owned && calendar.name !== 'Manual'"
-              class="cal-manage-synced"
-              >synced</span
-            >
-            <button
-              v-if="calendar.owned"
-              class="cal-manage-delete"
-              title="Delete this calendar"
-              aria-label="Delete this calendar"
-              @click="deleteCalendar(calendar.name)"
-            >
-              <X :size="18" />
-            </button>
-          </div>
-        </div>
-        <p v-if="manageError" class="cal-manage-error">{{ manageError }}</p>
-        <div class="cal-manage-add">
+    <ServantDialog v-model:open="manageOpen" title="Calendars" size="sm">
+      <div class="cal-manage-list">
+        <div
+          v-for="calendar in calendars"
+          :key="calendar.name"
+          class="cal-manage-row"
+        >
           <input
-            v-model="newCalName"
-            type="text"
-            placeholder="New calendar name"
-            @keydown.enter="createCalendar"
+            type="color"
+            class="cal-color-input"
+            :value="calendar.color"
+            title="Pick a color for this calendar"
+            @change="setCalendarColor(calendar.name, $event)"
           />
-          <button
-            class="cal-modal-btn cal-modal-btn--primary"
-            @click="createCalendar"
+          <span class="cal-manage-name">{{ calendar.name }}</span>
+          <span class="cal-manage-count">{{ calendar.count }} evt</span>
+          <span
+            v-if="!calendar.owned && calendar.name !== 'Manual'"
+            class="cal-manage-synced"
+            >synced</span
           >
-            Add
-          </button>
-        </div>
-        <div class="cal-modal-actions">
-          <span class="cal-modal-spacer"></span>
-          <button class="cal-modal-btn" @click="manageOpen = false">
-            Close
+          <button
+            v-if="calendar.owned"
+            class="cal-manage-delete"
+            title="Delete this calendar"
+            aria-label="Delete this calendar"
+            @click="deleteCalendar(calendar.name)"
+          >
+            <X :size="18" />
           </button>
         </div>
       </div>
-    </dialog>
+      <p v-if="manageError" class="cal-manage-error">{{ manageError }}</p>
+      <div class="cal-manage-add">
+        <input
+          v-model="newCalName"
+          type="text"
+          placeholder="New calendar name"
+          @keydown.enter="createCalendar"
+        />
+        <button
+          class="cal-modal-btn cal-modal-btn--primary"
+          @click="createCalendar"
+        >
+          Add
+        </button>
+      </div>
+    </ServantDialog>
 
-    <dialog
-      v-if="modalOpen"
-      :ref="openDialog"
-      class="modal-dialog"
-      aria-labelledby="cal-event-title"
-      @click.self="closeModal"
-      @cancel="closeModal"
+    <ServantDialog
+      :open="modalOpen"
+      :title="modalEditId ? 'Edit event' : 'New event'"
+      size="sm"
+      @close="closeModal"
     >
-      <div class="cal-modal">
-        <div id="cal-event-title" class="cal-modal-header">
-          {{ modalEditId ? 'Edit event' : 'New event' }}
-        </div>
+      <div class="cal-modal-field">
+        <label>Title</label>
+        <input
+          ref="titleInput"
+          v-model="modalTitle"
+          type="text"
+          placeholder="Event title"
+          @keydown.enter="saveEvent"
+        />
+      </div>
+      <div class="cal-modal-row">
         <div class="cal-modal-field">
-          <label>Title</label>
-          <input
-            ref="titleInput"
-            v-model="modalTitle"
-            type="text"
-            placeholder="Event title"
-            @keydown.enter="saveEvent"
-          />
-        </div>
-        <div class="cal-modal-row">
-          <div class="cal-modal-field">
-            <!-- type=text (not date): flatpickr provides the themed calendar; a
+          <!-- type=text (not date): flatpickr provides the themed calendar; a
                  native date picker would open a second calendar on top of it. -->
-            <label>Start date</label
-            ><input ref="startInput" type="text" readonly />
-          </div>
-          <div class="cal-modal-field">
-            <label>End date</label><input ref="endInput" type="text" readonly />
-          </div>
-        </div>
-        <label class="cal-allday-toggle">
-          <input type="checkbox" v-model="modalAllDay" />
-          All day
-        </label>
-        <div v-if="!modalAllDay" class="cal-modal-row">
-          <div class="cal-modal-field">
-            <label>Start time</label
-            ><input :value="modalTime" type="time" @input="moveStartTime" />
-          </div>
-          <div class="cal-modal-field">
-            <label>End time</label><input v-model="modalEndTime" type="time" />
-          </div>
+          <label>Start date</label
+          ><input ref="startInput" type="text" readonly />
         </div>
         <div class="cal-modal-field">
-          <label>Location</label
-          ><input v-model="modalLocation" type="text" placeholder="Optional" />
-        </div>
-        <div class="cal-modal-row">
-          <div class="cal-modal-field">
-            <label>Calendar</label>
-            <ComboBox
-              v-model="modalCalendar"
-              :options="calendars.map(calendar => calendar.name)"
-            />
-          </div>
-          <div class="cal-modal-field">
-            <label>Repeats</label>
-            <ComboBox v-model="modalRecurrence" :options="RECURRENCE_OPTIONS" />
-          </div>
-        </div>
-        <div class="cal-modal-field">
-          <label>Contact</label>
-          <AutocompleteInput
-            v-model="modalContact"
-            :options="contactOptions"
-            placeholder="Optional: link a contact"
-          />
-        </div>
-        <div class="cal-modal-actions">
-          <button
-            v-if="modalEditId"
-            class="cal-modal-btn cal-modal-btn--danger"
-            @click="deleteEvent"
-          >
-            Delete
-          </button>
-          <span class="cal-modal-spacer"></span>
-          <button class="cal-modal-btn" @click="closeModal">Cancel</button>
-          <button
-            class="cal-modal-btn cal-modal-btn--primary"
-            :disabled="modalSaving"
-            @click="saveEvent"
-          >
-            {{ modalSaving ? 'Saving...' : 'Save' }}
-          </button>
+          <label>End date</label><input ref="endInput" type="text" readonly />
         </div>
       </div>
-    </dialog>
+      <label class="cal-allday-toggle">
+        <input type="checkbox" v-model="modalAllDay" />
+        All day
+      </label>
+      <div v-if="!modalAllDay" class="cal-modal-row">
+        <div class="cal-modal-field">
+          <label>Start time</label
+          ><input :value="modalTime" type="time" @input="moveStartTime" />
+        </div>
+        <div class="cal-modal-field">
+          <label>End time</label><input v-model="modalEndTime" type="time" />
+        </div>
+      </div>
+      <div class="cal-modal-field">
+        <label>Location</label
+        ><input v-model="modalLocation" type="text" placeholder="Optional" />
+      </div>
+      <div class="cal-modal-row">
+        <div class="cal-modal-field">
+          <label>Calendar</label>
+          <ComboBox
+            v-model="modalCalendar"
+            :options="calendars.map(calendar => calendar.name)"
+          />
+        </div>
+        <div class="cal-modal-field">
+          <label>Repeats</label>
+          <ComboBox v-model="modalRecurrence" :options="RECURRENCE_OPTIONS" />
+        </div>
+      </div>
+      <div class="cal-modal-field">
+        <label>Contact</label>
+        <AutocompleteInput
+          v-model="modalContact"
+          :options="contactOptions"
+          placeholder="Optional: link a contact"
+        />
+      </div>
+      <template v-if="modalEditId" #start-actions>
+        <button
+          class="cal-modal-btn cal-modal-btn--danger"
+          @click="deleteEvent"
+        >
+          Delete
+        </button>
+      </template>
+      <template #actions>
+        <button
+          class="cal-modal-btn cal-modal-btn--primary"
+          :disabled="modalSaving"
+          @click="saveEvent"
+        >
+          {{ modalSaving ? 'Saving...' : 'Save' }}
+        </button>
+      </template>
+    </ServantDialog>
   </Teleport>
 </template>
 
 <style scoped>
-.cal-loading {
-  color: var(--text-muted);
-  padding: 2rem;
-  font-family: var(--font-mono);
-}
 .cal-container {
   /* The header and grid pad nothing themselves, and the app is now flush
      against the window, so the breathing room lives here (same as finance
@@ -1219,37 +1198,8 @@ onUnmounted(destroyPickers)
   align-items: center;
   gap: 0.5rem;
 }
-.cal-view-toggle {
-  display: flex;
-  gap: 0.2rem;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 2px;
-}
-.cal-toggle-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  padding: 0.3rem 0.7rem;
-  border-radius: calc(var(--control-radius) - 2px);
-  cursor: pointer;
-  font-size: 0.85rem;
-}
-.cal-toggle-btn:hover {
-  color: var(--text);
-}
-.cal-toggle-btn--active {
-  background: var(--primary);
-  color: var(--primary-contrast);
-}
-/* :hover (0-2-1) outranks the modifier (0-2-0); keep the contrast text. */
-.cal-toggle-btn--active:hover {
-  color: var(--primary-contrast);
-}
 @media (pointer: coarse) {
-  .cal-nav-btn,
-  .cal-toggle-btn {
+  .cal-nav-btn {
     min-width: 44px;
     min-height: 44px;
   }
@@ -1660,19 +1610,6 @@ onUnmounted(destroyPickers)
   flex-shrink: 0;
   accent-color: var(--primary);
 }
-.cal-modal {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 1.25rem;
-  width: 100%;
-  max-width: 400px;
-}
-.cal-modal-header {
-  font-weight: 600;
-  font-size: 1.05rem;
-  margin-bottom: 1rem;
-}
 .cal-modal-field {
   display: flex;
   flex-direction: column;
@@ -1689,12 +1626,6 @@ onUnmounted(destroyPickers)
 }
 .cal-modal-row .cal-modal-field {
   flex: 1;
-}
-.cal-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
 }
 .cal-modal-btn {
   background: transparent;
@@ -1722,9 +1653,6 @@ onUnmounted(destroyPickers)
 }
 .cal-modal-btn--danger:hover {
   background: rgba(240, 108, 108, 0.1);
-}
-.cal-modal-spacer {
-  flex: 1;
 }
 .cal-modal-btn:disabled {
   opacity: 0.6;
