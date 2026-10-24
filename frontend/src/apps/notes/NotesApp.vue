@@ -26,12 +26,17 @@ import {
 } from 'lucide-vue-next'
 
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
+import LoadState from '../../components/LoadState.vue'
+import SearchField from '../../components/SearchField.vue'
+import ServantDialog from '../../components/ServantDialog.vue'
+import TabBar from '../../components/TabBar.vue'
 
 import { formatDate, todayInUserTz } from '../../lib/datetime'
-import { openDialog } from '../../lib/dialog'
 import { createFolderOrder } from '../folderOrder'
 import { preferenceRef } from '../preference'
 import { canon, continueListEdit, renderMarkdown } from './render'
+import type { LoadStatus } from '../../components/LoadState.vue'
+import type { TabOption } from '../../components/TabBar.vue'
 import type { AppContext, Entry } from '../types'
 
 const props = defineProps<{ ctx: AppContext }>()
@@ -100,9 +105,10 @@ watch(selectedId, () => {
 })
 const backlinks = ref<Note[]>([])
 const searchQuery = ref('')
-const viewMode = ref<'split' | 'edit' | 'preview'>('split')
+type ViewMode = 'split' | 'edit' | 'preview'
+const viewMode = ref<ViewMode>('split')
 const collapsed = reactive(new Set<string>())
-const loadState = ref<'loading' | 'ready' | 'error'>('loading')
+const loadState = ref<LoadStatus>('loading')
 
 // Editor fields (synced from the selected note on selection change).
 const editTitle = ref('')
@@ -1024,7 +1030,11 @@ function onBodyBlur() {
   setTimeout(hideAutocomplete, 150)
 }
 
-const viewModes = ['edit', 'split', 'preview'] as const
+const viewModes: TabOption<ViewMode>[] = [
+  { value: 'edit', label: 'Edit' },
+  { value: 'split', label: 'Split' },
+  { value: 'preview', label: 'Preview' }
+]
 
 // Re-fill the editor when the selection moves to another note. Deliberately
 // not on every object identity change: a save replaces the note object with
@@ -1107,13 +1117,11 @@ onBeforeUnmount(() => {
   <div class="nt-layout" :class="{ 'nt-layout--detail': selected }">
     <div class="nt-sidebar">
       <div class="nt-side-head">
-        <input
+        <SearchField
           v-model="searchQuery"
-          v-autofocus
           class="nt-search"
-          type="text"
-          placeholder="Search notes..."
-          aria-label="Search notes"
+          label="Search notes"
+          autofocus
         />
         <button
           v-if="allFolderPaths.length"
@@ -1129,21 +1137,21 @@ onBeforeUnmount(() => {
         </button>
       </div>
       <div class="nt-tree" @dragover.prevent @drop.prevent="onTreeDrop('')">
-        <template v-if="favoriteNotes.length">
-          <div class="nt-fav-head">Favorites</div>
-          <a
-            v-for="note in favoriteNotes"
-            :key="'fav:' + note.id"
-            class="nt-note nt-note--fav"
-            :class="{ 'nt-note--active': note.id === selectedId }"
-            :href="noteHref(note.id)"
-            @click="onNoteLinkClick(note.id, $event)"
-          >
-            <Star :size="11" class="nt-star" fill="currentColor" />
-            <span class="nt-note-title">{{ note.title || 'Untitled' }}</span>
-          </a>
-        </template>
-        <template v-if="treeRows.length">
+        <LoadState :state="loadState" :empty="!treeRows.length" what="notes">
+          <template v-if="favoriteNotes.length">
+            <div class="nt-fav-head">Favorites</div>
+            <a
+              v-for="note in favoriteNotes"
+              :key="'fav:' + note.id"
+              class="nt-note nt-note--fav"
+              :class="{ 'nt-note--active': note.id === selectedId }"
+              :href="noteHref(note.id)"
+              @click="onNoteLinkClick(note.id, $event)"
+            >
+              <Star :size="11" class="nt-star" fill="currentColor" />
+              <span class="nt-note-title">{{ note.title || 'Untitled' }}</span>
+            </a>
+          </template>
           <div
             v-for="row in treeRows"
             :key="row.kind === 'folder' ? 'f:' + row.path : 'n:' + row.id"
@@ -1216,12 +1224,7 @@ onBeforeUnmount(() => {
               <span class="nt-note-title">{{ row.name }}</span>
             </a>
           </div>
-        </template>
-        <p v-else class="nt-empty">
-          {{
-            loadState === 'error' ? 'Failed to load notes.' : 'No notes yet.'
-          }}
-        </p>
+        </LoadState>
       </div>
     </div>
 
@@ -1332,15 +1335,12 @@ onBeforeUnmount(() => {
               >Created {{ createdLabel }}</span
             >
             <div class="nt-view-toggle">
-              <button
-                v-for="mode in viewModes"
-                :key="mode"
-                class="nt-vb"
-                :class="{ 'nt-vb--active': viewMode === mode }"
-                @click="viewMode = mode"
-              >
-                {{ mode }}
-              </button>
+              <TabBar
+                v-model="viewMode"
+                :options="viewModes"
+                label="Note view"
+                variant="pill"
+              />
             </div>
           </div>
         </div>
@@ -1421,47 +1421,30 @@ onBeforeUnmount(() => {
       </div>
     </Teleport>
 
-    <Teleport to="body">
-      <dialog
-        v-if="attachOpen"
-        :ref="openDialog"
-        class="modal-dialog"
-        aria-labelledby="nt-attach-title"
-        @click.self="attachOpen = false"
-        @cancel="attachOpen = false"
-      >
-        <div class="nt-attach-modal">
-          <div id="nt-attach-title" class="nt-attach-header">Attach a file</div>
-          <input
-            v-model="attachQuery"
-            class="nt-attach-search"
-            type="text"
-            placeholder="Search files..."
-            aria-label="Search files"
-            autofocus
-          />
-          <p v-if="!attachOptions.length" class="nt-attach-empty">
-            {{
-              filesLoaded
-                ? 'No matching file. Files come from the Files app.'
-                : 'Loading files…'
-            }}
-          </p>
-          <ul v-else class="nt-attach-list">
-            <li v-for="file in attachOptions" :key="file.id">
-              <button class="nt-attach-option" @click="attachFile(file)">
-                {{ fileName(file) }}
-              </button>
-            </li>
-          </ul>
-          <div class="nt-attach-actions">
-            <button class="nt-attach-cancel" @click="attachOpen = false">
-              Cancel
+    <ServantDialog
+      v-model:open="attachOpen"
+      title="Attach a file"
+      size="sm"
+      close-label="Cancel"
+    >
+      <div class="nt-attach-body">
+        <SearchField v-model="attachQuery" label="Search files" autofocus />
+        <p v-if="!attachOptions.length" class="nt-attach-empty">
+          {{
+            filesLoaded
+              ? 'No matching file. Files come from the Files app.'
+              : 'Loading files…'
+          }}
+        </p>
+        <ul v-else class="nt-attach-list">
+          <li v-for="file in attachOptions" :key="file.id">
+            <button class="nt-attach-option" @click="attachFile(file)">
+              {{ fileName(file) }}
             </button>
-          </div>
-        </div>
-      </dialog>
-    </Teleport>
+          </li>
+        </ul>
+      </div>
+    </ServantDialog>
   </div>
 </template>
 
@@ -1692,7 +1675,6 @@ onBeforeUnmount(() => {
   box-shadow: inset 2px 0 0 var(--primary);
   border-radius: 0 6px 6px 0;
 }
-.nt-empty,
 .nt-placeholder {
   color: var(--text-muted);
   text-align: center;
@@ -1772,27 +1754,6 @@ onBeforeUnmount(() => {
 }
 .nt-view-toggle {
   display: flex;
-  gap: 0.35rem;
-}
-.nt-vb {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text-muted);
-  padding: 0.35rem 0.6rem;
-  font-size: 0.8rem;
-  cursor: pointer;
-  text-transform: capitalize;
-}
-.nt-vb:hover {
-  background: var(--bg-hover);
-  border-color: var(--primary);
-  color: var(--text);
-}
-.nt-vb--active {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: var(--primary-contrast);
 }
 .nt-fav-btn,
 .nt-delete,
@@ -2031,20 +1992,10 @@ a.nt-attachment-name:hover {
 }
 
 /* ----- Attach-file modal ----- */
-.nt-attach-modal {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 1.25rem;
-  width: 100%;
-  max-width: 420px;
+.nt-attach-body {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-}
-.nt-attach-header {
-  font-weight: 600;
-  font-size: 1.05rem;
 }
 .nt-attach-empty {
   margin: 0;
@@ -2077,23 +2028,6 @@ a.nt-attachment-name:hover {
 .nt-attach-option:hover {
   background: var(--bg-hover);
 }
-.nt-attach-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-.nt-attach-cancel {
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text);
-  padding: 0.35rem 0.8rem;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-.nt-attach-cancel:hover {
-  border-color: var(--primary);
-  color: var(--primary);
-}
 
 /* ----- Responsive ----- */
 @media (max-width: 1024px) {
@@ -2125,8 +2059,7 @@ a.nt-attachment-name:hover {
   .nt-delete,
   .nt-more-btn,
   .nt-new-btn,
-  .nt-today-btn,
-  .nt-vb {
+  .nt-today-btn {
     min-height: 40px;
   }
   .nt-fav-btn,
@@ -2195,8 +2128,12 @@ a.nt-attachment-name:hover {
   .nt-view-toggle {
     flex: 1 1 100%;
   }
-  .nt-vb {
+  .nt-view-toggle .tab-bar {
     flex: 1;
+  }
+  .nt-view-toggle .tab-bar-tab {
+    flex: 1;
+    justify-content: center;
   }
   .nt-save-status {
     max-width: 6rem;
