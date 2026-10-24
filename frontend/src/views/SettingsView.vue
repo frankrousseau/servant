@@ -780,6 +780,11 @@ onMounted(() => {
           </label>
         </div>
         <p class="tk-hint">
+          Agents only shows the section; agents run once a model server is set
+          up and turned on in the
+          <router-link to="/settings?tab=agents">Agents tab</router-link>.
+        </p>
+        <p class="tk-hint">
           Crypto covers the blockchain connectors and the crypto side of
           Finance. Turning it off hides them; a wallet connector already set up
           keeps syncing in the background until you disable it in Connectors.

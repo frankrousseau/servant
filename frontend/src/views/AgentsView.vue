@@ -431,10 +431,12 @@ onMounted(() => {
   <div class="view">
     <h1><Wrench :size="22" />Agents</h1>
 
+    <!-- Two switches: Settings > Apps shows this section, Settings > Agents
+         lets agents run (consent plus a model server). Showing the section
+         is not enough, so send the user to the second one, not the first. -->
     <p v-if="aiConfig && !aiConfig.enabled" class="agents-disabled">
-      Agents are disabled.
-      <router-link to="/settings?tab=apps">Enable them in Settings</router-link>
-      and configure a model server first.
+      Agents cannot run yet: choose a model server and turn on "Enable agents"
+      in <router-link to="/settings?tab=agents">Settings > Agents</router-link>.
     </p>
 
     <template v-else-if="aiConfig">
