@@ -1,27 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
-import {
-  Activity,
-  Brain,
-  Cable,
-  CalendarDays,
-  CircleUserRound,
-  Database,
-  FolderOpen,
-  Image,
-  ListChecks,
-  LogOut,
-  NotebookPen,
-  Puzzle,
-  Settings,
-  Target,
-  Upload,
-  UserRound,
-  Wallet,
-  Wrench
-} from 'lucide-vue-next'
+import { useRoute } from 'vue-router'
+import { Cable, LayoutGrid, Search, Upload } from 'lucide-vue-next'
 
+import AccountMenu from './AccountMenu.vue'
 import BrandMark from './BrandMark.vue'
 
 import {
@@ -32,23 +14,10 @@ import {
   uploadProgress as photosProgress,
   uploading as photosUploading
 } from '../apps/photos/uploadQueue'
-import { agentsEnabled } from '../apps/registry'
+import { useCommandPalette } from '../composables/useCommandPalette'
+import { useDragReorder } from '../composables/useDragReorder'
+import { appIcon } from '../lib/appIcons'
 import { useAppsStore } from '../stores/apps'
-import { useAuthStore } from '../stores/auth'
-
-// An app declares its icon by name in the registry, which stays free of Vue
-// imports; the mapping to a component lives here, where they are rendered.
-const appIcons: Record<string, unknown> = {
-  Brain,
-  UserRound,
-  CalendarDays,
-  FolderOpen,
-  Image,
-  NotebookPen,
-  ListChecks,
-  Wallet,
-  Target
-}
 
 // In drawer mode (below the tablet breakpoint) the nav slides in over the
 // page from the top bar's toggle; closed, it is inert so neither the tab
@@ -58,16 +27,48 @@ const emit = defineEmits<{ close: [] }>()
 
 const hidden = computed(() => props.drawer && !props.open)
 
-const auth = useAuthStore()
 const apps = useAppsStore()
-const router = useRouter()
+const palette = useCommandPalette()
+const route = useRoute()
 
-const showAgents = computed(() => agentsEnabled(auth.user?.enabled_apps))
+const pinnedLinks = computed(() =>
+  apps.pinned.map(app => ({
+    id: app.id,
+    name: app.name,
+    icon: appIcon(app.icon)
+  }))
+)
 
-function handleLogout() {
-  auth.logout()
-  router.push('/login')
-}
+// Drag a pinned app to reorder the sidebar in place (mouse only; the Apps
+// page has arrow buttons for the keyboard and touch screens)
+const {
+  draggingId,
+  marks,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd
+} = useDragReorder(
+  () => apps.pinned.map(app => app.id),
+  (id, toIndex) => apps.placePinned(id, toIndex)
+)
+
+const shortcut = /Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘ K' : 'Ctrl K'
+
+// An app opened from the launcher has no row of its own here: light
+// "All apps" instead, so the sidebar still shows where the user is.
+const inUnpinnedApp = computed(
+  () =>
+    route.name === 'app' &&
+    apps.unpinned.some(app => app.id === route.params.appId)
+)
+
+const allAppsLabel = computed(() =>
+  apps.unpinned.length
+    ? `All apps, ${apps.unpinned.length} not in the sidebar`
+    : 'All apps'
+)
 </script>
 
 <template>
@@ -85,18 +86,61 @@ function handleLogout() {
     :inert="hidden"
     @keydown.escape="emit('close')"
   >
-    <router-link to="/" class="sidebar-brand">
-      <BrandMark :size="26" />
-      Servant
-    </router-link>
-    <!-- The brand logo already lands on the dashboard; apps only here,
-         the config-flavored surfaces (Data, Sources, Agents) live below. -->
-    <ul class="sidebar-nav">
-      <li v-for="app in apps.defs" :key="app.id">
-        <router-link :to="`/apps/${app.id}`">
-          <component :is="appIcons[app.icon] ?? Puzzle" :size="18" />{{
-            app.name
-          }}
+    <div class="sidebar-head">
+      <router-link to="/" class="sidebar-brand">
+        <BrandMark :size="26" />
+        Servant
+      </router-link>
+      <!-- The phone top bar has its own search button -->
+      <button
+        v-if="!drawer"
+        type="button"
+        class="sidebar-search"
+        aria-label="Search"
+        aria-keyshortcuts="Control+K Meta+K"
+        @click="palette.toggle()"
+      >
+        <Search :size="18" />
+        <span class="sidebar-search-tip" aria-hidden="true"
+          >Search <kbd>{{ shortcut }}</kbd></span
+        >
+      </button>
+    </div>
+    <!-- The pinned apps (Apps page), then the way to all of them. The
+         brand logo already lands on the dashboard; the rarely visited
+         pages wait behind the account menu. -->
+    <ul class="sidebar-nav" @dragleave="onDragLeave">
+      <li
+        v-for="(app, i) in pinnedLinks"
+        :key="app.id"
+        :class="{
+          'sidebar-app--dragging': draggingId === app.id,
+          'sidebar-app--before': marks[app.id] === 'before',
+          'sidebar-app--after': marks[app.id] === 'after'
+        }"
+        @dragover="onDragOver(i, $event)"
+        @drop="onDrop"
+      >
+        <router-link
+          :to="`/apps/${app.id}`"
+          draggable="true"
+          @dragstart="onDragStart(app.id, $event)"
+          @dragend="onDragEnd"
+        >
+          <component :is="app.icon" :size="18" />{{ app.name }}
+        </router-link>
+      </li>
+      <li>
+        <router-link
+          to="/apps"
+          class="sidebar-all"
+          :class="{ 'sidebar-all--current': inUnpinnedApp }"
+          :aria-label="allAppsLabel"
+        >
+          <LayoutGrid :size="18" />All apps
+          <span v-if="apps.unpinned.length" class="sidebar-count"
+            >+{{ apps.unpinned.length }}</span
+          >
         </router-link>
       </li>
     </ul>
@@ -120,33 +164,10 @@ function handleLogout() {
       <Upload :size="14" />files
       {{ filesProgress ? `${filesProgress.index}/${filesProgress.total}` : '' }}
     </router-link>
-    <router-link to="/data" class="sidebar-settings-link">
-      <Database :size="18" />Data
-    </router-link>
     <router-link to="/connectors" class="sidebar-settings-link">
       <Cable :size="18" />Sources
     </router-link>
-    <router-link v-if="showAgents" to="/agents" class="sidebar-settings-link">
-      <Wrench :size="18" />Agents
-    </router-link>
-    <router-link
-      v-if="auth.user?.admin"
-      to="/audit"
-      class="sidebar-settings-link"
-    >
-      <Activity :size="18" />Audit
-    </router-link>
-    <router-link to="/profile" class="sidebar-settings-link">
-      <CircleUserRound :size="18" />Profile
-    </router-link>
-    <router-link to="/settings" class="sidebar-settings-link">
-      <Settings :size="18" />Settings
-    </router-link>
-    <div class="sidebar-footer">
-      <button class="logout-btn" @click="handleLogout">
-        <LogOut :size="14" />Sign Out
-      </button>
-    </div>
+    <AccountMenu />
   </nav>
 </template>
 
@@ -166,7 +187,7 @@ function handleLogout() {
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  padding: 1rem 0;
+  padding-top: 1rem;
   overflow-y: auto;
 }
 
@@ -193,6 +214,15 @@ function handleLogout() {
   background: rgba(0, 0, 0, 0.55);
 }
 
+/* ----- Brand and search ----- */
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.25rem 1.25rem;
+}
+
 /* Owl-butler logo + wordmark, links back to the dashboard */
 .sidebar-brand {
   display: flex;
@@ -203,7 +233,6 @@ function handleLogout() {
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  padding: 0.5rem 1.25rem 1.25rem;
   color: var(--primary);
   text-shadow: 0 0 8px rgba(var(--primary-rgb), 0.55);
 }
@@ -212,6 +241,66 @@ function handleLogout() {
   flex-shrink: 0;
   filter: drop-shadow(0 0 6px rgba(var(--primary-rgb), 0.45));
 }
+
+/* Opens the command palette (a modal): an icon by the brand, its label in
+   a tip on hover and on keyboard focus, which also teaches Ctrl+K. */
+.sidebar-search {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  /* Pushed to the right, the icon itself (not its 36px hit area) on the
+     same 1.25rem padding as the rows below: (36 - 18) / 2 = 9px */
+  margin-left: auto;
+  margin-right: -9px;
+  padding: 0;
+  background: transparent;
+  color: var(--text-muted);
+  transition: color 0.15s;
+}
+
+.sidebar-search:hover {
+  background: transparent;
+  color: var(--text);
+}
+
+/* Below the icon, right-aligned: the sidebar scrolls, so a tip poking
+   past its right edge would be clipped. */
+.sidebar-search-tip {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.6rem;
+  white-space: nowrap;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 0.875rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+
+.sidebar-search:hover .sidebar-search-tip,
+.sidebar-search:focus-visible .sidebar-search-tip {
+  opacity: 1;
+}
+
+.sidebar-search-tip kbd {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+}
+
+/* ----- Apps ----- */
 
 .sidebar-nav {
   list-style: none;
@@ -244,6 +333,32 @@ function handleLogout() {
 .sidebar-nav li a[aria-current='page'] {
   color: var(--text);
 }
+
+/* Drag to reorder: the dragged row fades, a primary line marks the gap
+   it would drop into */
+.sidebar-app--dragging {
+  opacity: 0.4;
+}
+
+.sidebar-app--before {
+  box-shadow: inset 0 2px 0 var(--primary);
+}
+
+.sidebar-app--after {
+  box-shadow: inset 0 -2px 0 var(--primary);
+}
+
+.sidebar-nav li a.sidebar-all--current {
+  color: var(--text);
+}
+
+.sidebar-count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+}
+
+/* ----- Uploads and Sources ----- */
 
 /* Global photo-upload pulse: the queue keeps running across app switches */
 .sidebar-upload {
@@ -289,30 +404,5 @@ function handleLogout() {
 .sidebar-settings-link.router-link-active {
   color: var(--text);
   text-decoration: none;
-}
-
-.sidebar-footer {
-  padding: 1rem 1.25rem;
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.logout-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  padding: 0.35rem 0;
-  cursor: pointer;
-  font-size: 0.9rem;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.logout-btn:hover {
-  color: var(--text);
-  background: none;
 }
 </style>

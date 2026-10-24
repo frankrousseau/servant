@@ -29,7 +29,9 @@ into an element. Built-in apps happen to be Vue, apps installed from git (see
 
 3. Register it in [`registry.ts`](./registry.ts) with an `AppDef` (`id`, `name`,
    `icon`, `builtin`, and a lazy `load: () => import('./<id>')`). The array is
-   alphabetical by name and doubles as the sidebar order. New apps stay out of
+   alphabetical by name and doubles as the default sidebar order (users pin,
+   unpin and reorder apps on the Apps page, `/apps`). Map a new icon name to its
+   Lucide component in `lib/appIcons.ts`. New apps stay out of
    `DEFAULT_ENABLED_APPS` unless they should be on for every account; users turn
    them on in Settings > Apps.
 

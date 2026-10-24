@@ -5,6 +5,16 @@ import type { AppDef } from '../apps/types'
 import type { InstalledApp } from '../types'
 import { apiJson } from '../composables/apiClient'
 import { enabledBuiltins } from '../apps/registry'
+import {
+  movePinnedApp,
+  pinApp,
+  pinnedApps,
+  placePinnedApp,
+  readSidebarPreference,
+  SIDEBAR_PREFERENCE,
+  unpinApp,
+  unpinnedApps
+} from '../lib/sidebarApps'
 import { useAuthStore } from './auth'
 
 // Builtin apps merged with the user's git-installed apps. Installed apps are
@@ -42,6 +52,38 @@ export const useAppsStore = defineStore('apps', () => {
 
   function getDef(id: string): AppDef | undefined {
     return defs.value.find(a => a.id === id)
+  }
+
+  // ----- the sidebar's pinned apps (lib/sidebarApps.ts) -----
+
+  const sidebarPreference = computed(() =>
+    readSidebarPreference(auth.user?.preferences?.[SIDEBAR_PREFERENCE])
+  )
+  const pinned = computed(() => pinnedApps(defs.value, sidebarPreference.value))
+  const unpinned = computed(() =>
+    unpinnedApps(defs.value, sidebarPreference.value)
+  )
+
+  function setPinned(id: string, pin: boolean) {
+    const change = pin ? pinApp : unpinApp
+    auth.setPreference(
+      SIDEBAR_PREFERENCE,
+      change(defs.value, sidebarPreference.value, id)
+    )
+  }
+
+  function movePinned(id: string, delta: number) {
+    auth.setPreference(
+      SIDEBAR_PREFERENCE,
+      movePinnedApp(defs.value, sidebarPreference.value, id, delta)
+    )
+  }
+
+  function placePinned(id: string, toIndex: number) {
+    auth.setPreference(
+      SIDEBAR_PREFERENCE,
+      placePinnedApp(defs.value, sidebarPreference.value, id, toIndex)
+    )
   }
 
   async function load(force = false) {
@@ -98,6 +140,11 @@ export const useAppsStore = defineStore('apps', () => {
     loaded,
     defs,
     getDef,
+    pinned,
+    unpinned,
+    setPinned,
+    movePinned,
+    placePinned,
     load,
     install,
     update,

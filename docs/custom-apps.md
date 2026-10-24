@@ -1,7 +1,8 @@
 # Custom apps (installed from git)
 
 Each user can install more apps from a git repository, in Settings > Apps. An installed app
-shows in the sidebar and loads like a built-in app.
+shows in the sidebar (each user can unpin it from there on the Apps page, `/apps`) and loads
+like a built-in app.
 
 ## Repository convention
 

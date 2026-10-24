@@ -80,6 +80,12 @@ const router = createRouter({
       meta: { auth: true, title: 'Profile' }
     },
     {
+      path: '/apps',
+      name: 'apps',
+      component: () => import('../views/AppsView.vue'),
+      meta: { auth: true, title: 'Apps' }
+    },
+    {
       path: '/apps/:appId',
       name: 'app',
       component: () => import('../views/AppView.vue'),

@@ -27,13 +27,15 @@ const auth = useAuthStore()
 // Apps come from the store, so disabled built-ins stay out of the palette.
 const pages = computed(() => [
   { label: 'Dashboard', path: '/' },
+  { label: 'All apps', path: '/apps' },
   ...appsStore.defs.map(app => ({ label: app.name, path: `/apps/${app.id}` })),
   { label: 'Data browser', path: '/data' },
-  { label: 'Connectors', path: '/connectors' },
+  { label: 'Sources', path: '/connectors' },
   ...(agentsEnabled(auth.user?.enabled_apps)
     ? [{ label: 'Agents', path: '/agents' }]
     : []),
-  { label: 'Audit', path: '/audit' },
+  ...(auth.user?.admin ? [{ label: 'Audit', path: '/audit' }] : []),
+  { label: 'Profile', path: '/profile' },
   { label: 'Settings', path: '/settings' }
 ])
 
