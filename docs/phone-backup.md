@@ -1,78 +1,67 @@
-# Backing up your phone to Servant
+# Phone backup
 
-A WebDAV auto-upload app can send your camera roll to the **Photos** app at `/dav/photos`.
-For documents, use `/dav/files` with the same procedures and the `app:files:*` scopes. For the
-server behavior (albums, dates, HEIC, re-uploads), see [dav.md](dav.md#photos-over-webdav-davphotos).
+**Every photo you take lands in Servant by itself: dated, in its album, ready to tag.**
 
-## What you need
+Any WebDAV auto-upload app works: PhotoSync (iOS, Android), FolderSync (Android), or rclone on
+a computer. A photo sent twice is updated, never duplicated.
 
-- A Servant that the phone can reach over HTTPS (for example `https://servant.example.com`).
-- An API token with write access to Photos.
+**You need** a Servant that your phone reaches over HTTPS.
 
-## 1. Make the token
+## 1. Create a token
 
-1. In Servant, open **Settings** and make an API token.
-2. Give it the `app:photos:write` scope. If the upload app shows remote folders (most apps do),
-   also give it `app:photos:read`.
-3. Copy the `srv_...` value. Servant shows it only one time.
+In **Settings > API Tokens**, create a token with **Photos** set to **Read + write**, and copy
+the `srv_...` value: it shows only once.
 
-## 2. Configure the phone
+## 2. Connect the app
 
-Use this WebDAV target:
+| Field | Value |
+|-------|-------|
+| URL | `https://<your-host>/dav/photos` |
+| User | anything (ignored) |
+| Password | your `srv_...` token |
 
-```
-URL       https://<your-host>/dav/photos
-User      any value (Servant ignores it)
-Password  the srv_ token
-```
-
-To set the album, add a folder to the URL, for example `https://<your-host>/dav/photos/Camera`.
-The album shows in the Photos app after the first upload. Use one folder for each device: if
-two phones upload the same generic file name into the same album, one file replaces the other.
+Each folder under that URL is an album (`Camera`, `Camera/2026-08`). Give each phone its own
+folder: two phones sending `IMG_0001.jpg` to the same album overwrite each other.
 
 ### PhotoSync (iOS and Android)
 
-1. Install PhotoSync.
-2. Open **Configure > Autotransfer target > WebDAV**.
-3. Type the URL, a user name and the token as the password.
-4. Select the directory (for example `Camera`).
-5. Enable autotransfer. You can select new photos only, background transfer and Wi-Fi only.
-6. On iOS, you can keep HEIC if the server libvips has libheif (see deploy.md). If HEIC photos
-   show without a preview, the server does not have libheif. Then set the transfer format to
-   JPEG ("most compatible").
+1. In **Configure > Autotransfer target > WebDAV**, enter the URL, any user name, and the token
+   as password.
+2. Pick a directory, for example `Camera`. The "create subdirectories" options work too.
+3. Turn on autotransfer (new photos, background, Wi-Fi only: your call).
 
-The "create subdirectories" options of PhotoSync work. They give albums such as
-`Camera/2026-08`.
+HEIC photos without a preview? Your server cannot decode HEIC (see
+[Deployment](deploy.md#bare-metal-release)): set the transfer format to JPEG ("most
+compatible").
 
 ### FolderSync (Android)
 
-1. Add a **WebDAV** account with the URL and credentials above.
-2. Make a folder pair:
-   - local folder: `DCIM/Camera`;
-   - remote folder: the folder that you select;
-   - sync type: **To remote folder**.
-3. Set a schedule (for example daily, during charge, Wi-Fi only).
+1. Add a **WebDAV** account with the values above.
+2. Create a folder pair: local `DCIM/Camera`, any remote folder, sync type **To remote folder**.
+3. Schedule it, for example daily, while charging, on Wi-Fi.
 
-### rclone (desktop, optional)
+### rclone (computer)
 
-```
-rclone config          # new remote, type webdav, url https://<host>/dav/photos
+```bash
+rclone config                             # remote "servant", type webdav, url .../dav/photos
 rclone copy ~/Pictures servant:Pictures
 ```
 
-## Limits
+## Good to know
 
-- Maximum file size: 1 GB (same as the web upload).
-- You cannot use `/dav/photos` as a Windows Explorer network drive (no locks).
+- Files up to 1 GB.
+- For documents, use `/dav/files` with **Files** access: same steps.
+- Windows Explorer cannot mount `/dav/photos` as a drive (no WebDAV locks).
+- Dates, HEIC, videos and re-uploads in detail: [Phone sync](dav.md#files-and-photos-over-webdav).
 
-> **CAUTION:** If you delete an album folder over WebDAV, Servant deletes all the photos in it,
-> also in its sub-albums.
+> [!CAUTION]
+> Deleting an album folder over WebDAV deletes all its photos, sub-albums included.
 
 ## Troubleshooting
 
-| Symptom | Cause and remedy |
-|---------|------------------|
-| **401** | The token is incorrect or revoked. The password must be the full `srv_...` value, not your Servant account password. |
-| **403** | The token does not have the `app:photos:write` scope. |
-| **404 on all requests** | The URL does not contain `/dav/photos`. Examine the server field and the directory field of the app. |
-| **The photos have the date of today** | The original files have no EXIF date (screenshots, images from messaging apps), and the app did not send `X-OC-MTime`. Servant uses the upload time. |
+| Symptom | Fix |
+|---------|-----|
+| **401** | Wrong or revoked token. The password is the full `srv_...` token, not your account password. |
+| **403** | The token cannot write: set **Photos** to **Read + write**. |
+| **404 on every request** | The URL lacks `/dav/photos`. |
+| **Photos dated today** | No EXIF date in the files (screenshots, messaging apps) and no `X-OC-MTime` from the app: Servant uses the upload time. |

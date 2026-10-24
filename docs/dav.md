@@ -1,105 +1,79 @@
-# CalDAV / CardDAV / WebDAV endpoint
+# Phone sync
 
-Servant has a minimal DAV server at `/dav`, tested with iOS and DAVx5 (Android):
+**Your calendars and contacts on your phone, both ways. Your files and photos too.**
 
-- `/dav`: two-way sync of the Calendar app (CalDAV, subset of RFC 4791) and the Contacts app
-  (CardDAV, subset of RFC 6352);
-- `/dav/files`: the Files app over plain WebDAV;
-- `/dav/photos`: the Photos app over plain WebDAV, for camera-roll upload.
+Add an event on your phone and it shows in Servant; fix a number in Servant and your phone gets
+it. No Google or iCloud in between: standard CalDAV, CardDAV and WebDAV, tested with iOS and
+DAVx5 (Android).
 
-## Client setup
+| Address | Syncs | Token access |
+|---------|-------|--------------|
+| `/dav` | Calendar and Contacts, both ways | **Calendar**, **Contacts** |
+| `/dav/files` | Files | **Files** |
+| `/dav/photos` | Photos, for camera uploads ([guide](phone-backup.md)) | **Photos** |
 
-1. In Servant, open Settings and make an API token with the `app:calendar:write` scope, the
-   `app:contacts:write` scope, or both. For a read-only sync, use the `:read` scopes.
-2. On the phone:
-   - **Android (DAVx5)**: add an account with "Login with URL and user name". Base URL:
-     `https://<your-host>/dav`. User name: any value. Password: the `srv_` token. One
-     account syncs the calendars and the contacts.
-   - **iOS**: Settings > Calendar (or Contacts) > Accounts > Add CalDAV (or CardDAV) account.
-     Server: `<your-host>`. User name: any value. Password: the `srv_` token. Discovery uses
-     `/.well-known/caldav` and `/.well-known/carddav`.
+## Connect your phone
 
-A session token also works as the Basic password, but it expires after 30 days. Use an API
-token: it does not expire, and you can revoke it in Settings.
+1. In **Settings > API Tokens**, create a token with **Calendar** and **Contacts** set to
+   **Read + write** (**Read** for a one-way sync). Copy the `srv_...` value.
+2. Add an account on the phone:
+
+| | Android (DAVx5) | iOS |
+|---|---|---|
+| **Add** | **Login with URL and user name** | Settings > Calendar (or Contacts) > Accounts > Add CalDAV (or CardDAV) account |
+| **Server** | `https://<your-host>/dav` | `<your-host>` |
+| **User name** | anything | anything |
+| **Password** | the `srv_...` token | the `srv_...` token |
+
+One DAVx5 account syncs calendars and contacts; iOS finds the addresses by itself
+(`/.well-known/caldav`, `/.well-known/carddav`).
+
+> [!TIP]
+> Use an API token rather than your login session: it lasts until you revoke it (or until its
+> expiry date), while a session token dies after 30 days.
 
 ## What syncs
 
-- **Calendars**: one CalDAV collection for each calendar ("agenda"). This includes the
-  `Manual` calendar, each calendar made in the app, and each agenda name that your events use.
-- **Contacts**: one `contacts` address book.
-- Servant shows only the entries that a user writes (source `manual`, `caldav` or `carddav`).
-  It does not show feeds that a connector polls (iCal URLs, vCard URLs): the next poll would
-  delete the phone edits. Subscribe to these feeds directly on the phone.
-- **Address book import**: a `.vcf` file that you drop on the vCard connector (Sources >
-  Contacts (vCard) > Import) is a one-time import, not a feed. Its contacts become `manual`
-  contacts, and the phone gets them at the next sync.
-  - Servant keeps each card as it is, so photos and structured names stay.
-  - Servant also decodes an inline (base64) photo into a file, and the app uses it as the
-    contact avatar.
-  - If you edit the contact in Servant, Servant makes the card again from the app fields. The
-    data that the app does not know is lost, as for a contact made on the phone.
+- **Calendars:** one per agenda (`Manual`, the calendars you created, the agendas your events
+  use). **Contacts:** one `contacts` address book.
+- **Only what you write.** Feeds polled by a source (iCal or vCard URLs) stay off the phone,
+  or the next poll would erase your phone edits. Subscribe to them on the phone.
+- **Phone extras survive:** alarms, attendees, complex repeats, photos and structured names
+  stay intact, until you edit the item in Servant, which rebuilds it from the fields it knows.
+- **Import an address book:** phones cannot move contacts between accounts, so drop a `.vcf`
+  export on **Sources > Contacts (vCard) > Import**. The cards become your own contacts, kept
+  as is (inline photos become avatars), and reach the phone at the next sync. They keep their
+  UID: when the phone sends one back, Servant updates the contact instead of duplicating it.
+- **Merging duplicates** (**Contacts > Duplicates**) gives the kept contact the phone identity
+  (resource name, UID) of the merged one when it has none, so the phone sees an update, not a
+  deletion.
 
-  Use this import to move an existing address book into Servant: iOS and Android cannot move
-  a contact from one account to a different account.
-- Items made on the phone keep their raw ICS or vCard data. Thus alarms, attendees, complex
-  RRULEs, photos and structured names stay after a sync, also if the apps show only the
-  simple fields. If you edit the item in Servant, Servant makes the data again from these
-  fields, and the extra data is lost.
-- **Duplicate merge** (Contacts > Duplicates): if the kept contact has no phone resource name
-  and UID, it gets them from the merged contact. Thus the phone sees an updated contact, not a
-  deleted one. If the phone sends a card with the UID of an existing contact (an imported card
-  keeps its UID), Servant updates that contact and does not make a second one.
+## Files and photos over WebDAV
 
-## Files over WebDAV (`/dav/files`)
+`/dav/files` and `/dav/photos` serve the same folders as the apps, both ways. Uploading an
+existing name replaces the file. There are no locks and no `MOVE` or `COPY`: sync apps do not
+need them, but Windows Explorer cannot mount these folders.
 
-Servant serves the Files app tree as a subset of WebDAV class 1: `PROPFIND` (depth 0 and 1),
-`GET`, `PUT`, `MKCOL` and `DELETE` (recursive on folders). The folders are Files app folders,
-and the names are the file names. A file uploaded here shows in the Files app (source
-`webdav`), and the opposite is also true.
+Each photo is stored, its EXIF read and its thumbnails made, then it shows in the Photos app
+like any other (timeline, albums, face tagging):
 
-- Token scope: `app:files:read` or `app:files:write` (or `data:*`).
-- If you upload a file with an existing name, Servant replaces the file. It does not make a
-  duplicate.
-- There are no locks (class 2) and no `MOVE` or `COPY`. Sync apps do not need them. Windows
-  Explorer needs `LOCK`, so you cannot use `/dav/files` as a Windows network drive.
+- **Folders are albums:** `/dav/photos/Camera/IMG.jpg` lands in *Camera*, subfolders give
+  `Camera/2026-08`. An empty album does not persist (`MKCOL` returns 201 anyway).
+- **Re-uploads update** the photo and keep its tags and faces. One folder per device avoids
+  name collisions.
+- **Dates:** EXIF (or the MP4/MOV container), then the `X-OC-MTime` header (PhotoSync,
+  rclone), then the upload time.
+- **HEIC** needs libvips with libheif on the server ([Deployment](deploy.md#bare-metal-release)).
+  Without it: no preview, and the date comes from `X-OC-MTime`. Set PhotoSync to JPEG.
+- **Videos** play, without a preview image.
 
-## Photos over WebDAV (`/dav/photos`)
+## Protocol notes
 
-Servant serves the Photos app with the same class 1 subset. The folders are albums. For each
-`PUT`, the server:
+For client developers: subsets of CalDAV (RFC 4791) and CardDAV (RFC 6352), and WebDAV class 1
+(`PROPFIND` depth 0 and 1, `GET`, `PUT`, `MKCOL`, recursive `DELETE`).
 
-1. stores the image,
-2. reads the EXIF data (date taken, GPS, camera),
-3. makes the thumbnails,
-4. makes a usual `photo` entry (source `webdav`).
-
-The photo then shows in the Photos app, with the timeline, albums and face tagging. For the setup of
-auto-upload apps (PhotoSync, FolderSync, rclone…), see [phone-backup.md](phone-backup.md).
-
-- Token scope: `app:photos:read` or `app:photos:write` (or `data:*`).
-- The first folder level is the album: `/dav/photos/Camera/IMG.jpg` goes into the album
-  `Camera`. Deeper folders give album names with slashes (`Camera/2026-08`), so date
-  subfolders work. An album exists only when it contains a photo: `MKCOL` returns 201, but
-  the album stays only after the first photo.
-- If you upload the same name into the same album again, Servant updates the existing photo.
-  The tags and face annotations stay. Use one folder for each device: if two devices upload
-  the same generic name into the same album, one file replaces the other.
-- The capture date comes from the EXIF data (or the MP4/MOV container for videos). If there
-  is no date, Servant uses the `X-OC-MTime` header (sent by PhotoSync and rclone), then the
-  upload time.
-- HEIC support needs a server libvips with libheif (usual for a system libvips, see
-  deploy.md). With libheif, thumbnails, viewing and EXIF (date, GPS, camera) work. Without
-  libheif, Servant keeps the file without a preview, and the date comes from `X-OC-MTime`. In
-  this case, set PhotoSync to JPEG.
-- Servant stores videos and you can play them, but the server makes no preview image for
-  them.
-
-## Protocol notes (implementation)
-
-- `PROPFIND` does not read the requested property list. It always returns all the supported
-  properties for the resource type. Clients ignore the extra properties.
-- The `calendar-query` and `addressbook-query` REPORTs return all the collection. The server
-  does not filter; the clients filter.
-- There is no `sync-token` (RFC 6578). Clients compare the ctag and the etags. This is
-  sufficient for personal use.
-- The ETags come from the entry content. The ctags come from the etags of the collection.
+- `PROPFIND` returns every supported property, whatever the request asks for.
+- The `calendar-query` and `addressbook-query` REPORTs return the whole collection; clients
+  filter.
+- No `sync-token` (RFC 6578): clients compare the ctag and the ETags. ETags derive from the
+  entry content, the ctag from the ETags of the collection.

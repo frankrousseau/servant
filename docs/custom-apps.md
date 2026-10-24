@@ -1,12 +1,40 @@
-# Custom apps (installed from git)
+# Custom apps
 
-Each user can install more apps from a git repository, in Settings > Apps. An installed app
-shows in the sidebar (each user can unpin it from there on the Apps page, `/apps`) and loads
-like a built-in app.
+**Missing an app? Install one from git, or describe it and let Servant write it.**
 
-## Repository convention
+A custom app sits in the sidebar like a built-in one, with the same data and the same look. Pin
+it, unpin it or move it on the **Apps** page (`/apps`).
 
-The root of the repository must contain a `servant-app.json` manifest:
+> [!WARNING]
+> **An app has the full rights of your session:** it can read and change all your data.
+> Install only repositories that you trust, and read generated code before you rely on it.
+
+## Install, update, uninstall
+
+In **Settings > Apps**:
+
+- **Install:** paste an `https://` git URL. Servant clones it, checks the manifest and copies
+  the files (the server needs `git`).
+- **Update:** the refresh button clones again and replaces the files. The `id` must not change.
+- **Uninstall:** removes the files and the sidebar entry.
+
+## Let Servant write it
+
+Turn agents on (**Settings > Agents**), then click **Generate an app** in **Agents > Builder**
+and describe what you want. Your model server (OpenAI-compatible, a local Ollama by default)
+writes the module, and Servant installs it like a git app.
+
+- **Modify** it with a new instruction; **Restore** brings the previous version back
+  (`index.prev.js`).
+- The model sees the app name, your description and, to modify, the current source. **Never
+  your data.**
+- The Agents section logs each run with its model, tokens and duration.
+
+## Build your own
+
+### The manifest
+
+`servant-app.json`, at the root of the repository:
 
 ```json
 {
@@ -18,19 +46,17 @@ The root of the repository must contain a `servant-app.json` manifest:
 }
 ```
 
-- `id` (required): lowercase letters, digits, dashes and underscores, 40 characters maximum.
-  It must be different from the built-in app ids and the SPA routes.
-- `name` (required): display name, 60 characters maximum.
-- `entry` (required): path, from the repo root, to a **pre-built, self-contained ES module**
-  (`.js` or `.mjs`). The server does not build the app (production has no Node.js), so commit
-  the built file.
-- `icon` (optional): the name of a Lucide icon in the SPA bundle. If the icon is unknown or
-  missing, the app uses Puzzle.
-- `description` (optional).
+| Field | Required | Rule |
+|-------|:--------:|------|
+| `id` | ✅ | Lowercase letters, digits, `-` and `_`, 40 characters max, unlike any built-in app id or SPA route. |
+| `name` | ✅ | Display name, 60 characters max. |
+| `entry` | ✅ | A **pre-built, self-contained ES module** (`.js` or `.mjs`), relative to the repo root. Production has no Node.js: commit the built file. |
+| `icon` | | Name of a Lucide icon in the SPA bundle (default: Puzzle). |
+| `description` | | Free text. |
 
-## Entry module contract
+### The entry module
 
-The entry module exports an `AppModule` as default (see `frontend/src/apps/types.ts`):
+Export an `AppModule` as default (types in `frontend/src/apps/types.ts`):
 
 ```js
 export default {
@@ -43,38 +69,10 @@ export default {
 }
 ```
 
-The module must be self-contained. Bare imports (`import ... from 'vue'`) do not resolve.
-Bundle your framework, or use plain DOM.
+Bare imports (`import ... from 'vue'`) do not resolve: bundle your framework, or use plain DOM.
 
-## How it works
+### Under the hood
 
-- **Install**: Servant clones the https repo (shallow) and validates the manifest. Then it
-  copies the files, without `.git`, to `FILES_DIR/{user_id}/installed_apps/{app_id}/`. The
-  server must have `git`.
-- **Load**: the SPA imports the entry module from
-  `/files/{user_id}/installed_apps/{app_id}/{entry}`. The session cookie gives access, as for
-  all files.
-- **Uninstall** (Settings > Apps): Servant removes the files and the sidebar item.
-- **Update** (Settings > Apps, refresh button): Servant clones the stored repo URL again,
-  validates the manifest and replaces the files. The id must not change.
-
-> **WARNING:** An installed app runs in the SPA with all the privileges of the user session.
-> Install only repositories that you trust.
-
-## Generated apps (builder agent)
-
-When agents are on (Settings > Agents, off by default), Servant can write an app for you. In
-the Agents section, open the Builder tab and click "Generate an app". Servant sends your
-description to your model server (an OpenAI-compatible endpoint, a local Ollama by default).
-Then it installs the module as it installs a git app: same manifest validation, same /files
-serving, same session privileges.
-
-- A generated app has no repository. In the Builder tab, you can:
-  - **modify** it: a new instruction writes the module again, and Servant keeps the previous
-    version as `index.prev.js`;
-  - **restore** it: Servant puts the previous version back.
-- The model gets only the app name, your description and, for a modification, the current
-  source of the app. It does not get your personal data.
-- The Agents section shows each run with its model, token usage and duration.
-
-> **CAUTION:** Generated code can be incorrect. Examine an app before you give it your data.
+Servant copies the files (without `.git`) to `FILES_DIR/{user_id}/installed_apps/{app_id}/`,
+generated apps included. The SPA imports the entry from
+`/files/{user_id}/installed_apps/{app_id}/{entry}`, with your session cookie as for any file.

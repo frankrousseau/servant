@@ -1,70 +1,54 @@
-# Backup Strategy
+# Backups
 
-This page tells you how to back up and restore a Servant instance. If you lose the machine,
-these backups let you get all the data back. For deployment, see [deploy.md](deploy.md).
+**Save three things every night, keep a copy offsite, test a restore once a year.**
 
-## What to back up
+## What to save
 
-Back up these three items. If one is missing, the restore is not complete.
+| | Where | Why |
+|---|---|---|
+| **Database** | `DATABASE_PATH` (`/data/servant.db` in Docker) | Entries, notes, accounts, sources, agents, API tokens. |
+| **Files** | `FILES_DIR` (`/data/files` in Docker) | Uploads, photos, avatars, imports. The database only holds their paths. |
+| **Secrets** | `SECRET_KEY_BASE`, and `CONNECTOR_ENCRYPTION_KEY` if set (`.env` or systemd unit) | They decrypt your source credentials. Without them, you enter every credential again. |
 
-| What | Where | Why |
-|------|-------|-----|
-| The SQLite database | `DATABASE_PATH` (`/data/servant.db` in Docker) | Entries, notes, accounts, connector configs, agents, API tokens. |
-| The files directory | `FILES_DIR` (`/data/files` in Docker) | Uploaded files, photos, avatars, connector import archives. The database keeps only the paths. |
-| The secrets | `.env` or systemd unit: `SECRET_KEY_BASE`, `CONNECTOR_ENCRYPTION_KEY` (if set) | The connector secrets are encrypted with a key from these values. With a different key, Servant cannot decrypt the connector credentials, and you must enter them all again. |
+Skip `TMP_DIR` (temporary files) and what the repo rebuilds: the Docker image, the release,
+`priv/static`.
 
-You do not need to back up `TMP_DIR` (temporary files), the Docker image, the release build or
-`priv/static`. You can build them again from the repo.
+> [!WARNING]
+> **Store the secrets apart from the backups**, in a password manager for example: the
+> database plus `SECRET_KEY_BASE` lets anyone decrypt your credentials and forge sessions.
 
-> **WARNING:** Keep the secrets **separately from the backups** (for example, in a password
-> manager). A person with the database and `SECRET_KEY_BASE` can decrypt your connector
-> credentials and make session tokens.
+## Database
 
-## Back up the database
+> [!CAUTION]
+> Never copy `servant.db` alone while Servant runs: the recent writes sit in `servant.db-wal`
+> (SQLite WAL mode), so the copy can be stale or corrupt.
 
-SQLite uses WAL mode. While Servant runs, some recent writes are in `servant.db-wal`, next to
-the main file.
-
-> **CAUTION:** Do not copy `servant.db` alone while Servant runs. The copy can be old or
-> corrupt.
-
-Use one of these two procedures.
-
-**Option A (recommended): SQLite online backup.** Servant can continue to run. The result is
-one consistent file:
+**Online backup** (recommended): Servant keeps running, and you get one consistent file.
 
 ```bash
 sqlite3 /data/servant.db ".backup /backups/servant-$(date +%F).db"
+sqlite3 /data/servant.db "VACUUM INTO '/backups/servant-$(date +%F).db'"   # same, smaller
 ```
 
-`VACUUM INTO` gives the same result and also makes the copy smaller:
+**Cold copy:** stop Servant, copy the file with its `-wal` and `-shm` files if any, start
+Servant.
 
-```bash
-sqlite3 /data/servant.db "VACUUM INTO '/backups/servant-$(date +%F).db'"
-```
+## Files
 
-**Option B: cold copy.** Stop Servant. Copy the file, and the `-wal` and `-shm` files if they
-exist. Start Servant. This is always correct, but Servant is unavailable for a short time.
-
-## Back up the files
-
-`FILES_DIR` contains plain files. Servant writes uploads and photos one time and almost never
-changes them. You can use any file tool while Servant runs:
+Plain files, written once and almost never changed: copy them any time.
 
 ```bash
 rsync -a /data/files/ /backups/files/
 ```
 
-For offsite copies, use an incremental, encrypted tool, for example
-[restic](https://restic.net/) or [borg](https://www.borgbackup.org/). Photos make this
-directory the largest part of the backup, and these tools deduplicate it well.
+Photos make this the heaviest part. Offsite, [restic](https://restic.net/) or
+[borg](https://www.borgbackup.org/) deduplicate and encrypt it.
 
-## Recipes
+## Nightly scripts
 
 ### Docker
 
-The compose setup keeps all the data in one volume (`/data`). Run this script on the host each
-night:
+Run this on the host every night:
 
 ```bash
 #!/bin/sh
@@ -72,7 +56,7 @@ set -eu
 BACKUP_DIR=/backups/servant
 mkdir -p "$BACKUP_DIR"
 
-# 1. Consistent database snapshot (the image must contain sqlite3)
+# 1. Consistent database snapshot (needs sqlite3 in the image, see below)
 docker compose exec -T servant sh -c \
   "sqlite3 /data/servant.db \".backup /data/servant-snapshot.db\""
 docker cp "$(docker compose ps -q servant)":/data/servant-snapshot.db \
@@ -86,14 +70,16 @@ docker cp "$(docker compose ps -q servant)":/data/files "$BACKUP_DIR/files"
 ls -1t "$BACKUP_DIR"/servant-*.db | tail -n +15 | xargs -r rm
 ```
 
-If the image does not contain `sqlite3`, make a cold copy: `docker compose stop servant`,
-copy the volume, `docker compose start servant`.
+> [!NOTE]
+> The stock image has no `sqlite3`. Add it to the `apt-get install` line of the runtime stage
+> in the `Dockerfile`, or make a cold copy instead (`docker compose stop servant`, copy the
+> volume, `docker compose start servant`).
 
-Then copy `$BACKUP_DIR` to a different machine with restic, borg or `rsync`.
+Then ship `$BACKUP_DIR` to another machine with restic, borg or `rsync`.
 
 ### Bare metal
 
-This script uses the `/var/lib/servant/` layout of the deploy guide:
+With the `/var/lib/servant/` layout of the [deployment guide](deploy.md#bare-metal-release):
 
 ```bash
 #!/bin/sh
@@ -107,7 +93,7 @@ rsync -a /var/lib/servant/files/ "$BACKUP_DIR/files/"
 ls -1t "$BACKUP_DIR"/servant-*.db | tail -n +15 | xargs -r rm
 ```
 
-Run it with cron or a systemd timer:
+Schedule it with cron (or a systemd timer):
 
 ```
 0 3 * * * /usr/local/bin/servant-backup.sh
@@ -115,49 +101,31 @@ Run it with cron or a systemd timer:
 
 ## The 3-2-1 rule
 
-One copy on the same disk is not sufficient. Keep:
-
-- **3** copies of the data (the live data is one copy),
-- on **2** different media or machines,
-- with **1** copy offsite (a different site, a NAS at a friend's home, encrypted cloud storage).
-
-restic or borg with a remote repository gives the last two items, with end-to-end encryption.
+**3** copies (the live data counts) on **2** different machines or media, **1** of them
+offsite: a friend's NAS, encrypted cloud storage. restic or borg with a remote repository
+covers the last two.
 
 ## Restore
 
-1. Install Servant ([deploy.md](deploy.md)). Do not register an account.
-2. Set `SECRET_KEY_BASE` (and `CONNECTOR_ENCRYPTION_KEY` if you used it) to the **original**
+1. Install Servant ([Deployment](deploy.md)), without registering an account.
+2. Set `SECRET_KEY_BASE` (and `CONNECTOR_ENCRYPTION_KEY` if you set one) to the **original**
    values.
 3. Stop Servant.
-4. Copy the database snapshot to `DATABASE_PATH`.
-5. Copy the files backup to `FILES_DIR`.
-6. Remove the `-wal` and `-shm` files next to the restored database, if they exist.
-7. Start Servant. With Docker, the migrations run at start. On bare metal, run
-   `bin/servant eval "Servant.Release.migrate"`. The migrations also upgrade a snapshot from an
-   older version.
-8. Log in and do these checks:
-   - The recent entries are there.
-   - A photo opens (the files are restored).
-   - A connector syncs (the encryption key is correct).
+4. Copy the snapshot to `DATABASE_PATH` and the files to `FILES_DIR`. Delete any `-wal` and
+   `-shm` file next to the database.
+5. Start Servant. Docker migrates at start; on bare metal, run
+   `bin/servant eval "Servant.Release.migrate"` (older snapshots upgrade too).
+6. Log in and check:
+   - [ ] the recent entries are there;
+   - [ ] a photo opens (the files are back);
+   - [ ] a source syncs (the key is right).
 
-**Test the restore before you need it.** One or two times each year, restore into a temporary
-container and do the checks of step 8.
+> [!TIP]
+> **Test the restore before you need it:** once or twice a year, into a throwaway container.
 
-## Other copies (not a backup)
+## Extra copies, not backups
 
-These copies help, but they do not replace the instance backup:
-
-- **JSON export**: `GET /api/export/entries` (or Settings) downloads all your entries as one
-  JSON file. It is per user and has no files or photos. There is no import function.
-- **iCal export**: `GET /api/export/ical` for the calendar entries.
-- **CalDAV / CardDAV sync** ([dav.md](dav.md)): a phone that syncs contacts and calendars keeps
-  one more copy of these two data sets.
-
-## Summary
-
-| | |
-|---|---|
-| Back up | `DATABASE_PATH` (with `sqlite3 .backup`) + `FILES_DIR` + secrets |
-| Frequency | Each night, automatic (cron or systemd timer) |
-| Offsite | restic or borg to a remote repository |
-| Restore test | One or two times each year, into a temporary instance |
+- **JSON export** (**Settings > Export**, or `GET /api/export/entries`): your entries, without
+  the files, and there is no import.
+- **iCal export** (`GET /api/export/ical`): your calendar entries.
+- **Phone sync** ([dav.md](dav.md)): your phone holds a copy of your contacts and calendars.

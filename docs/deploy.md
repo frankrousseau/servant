@@ -1,58 +1,48 @@
 # Deployment
 
-Servant is one Elixir release. It serves the JSON API and the pre-built SPA on one port. It
-keeps its data in one SQLite file. You can run it in two ways:
+**One release, one SQLite file, one port. Servant runs happily on a Raspberry Pi.**
 
-- **[Docker](#docker-recommended)** (recommended). The repo contains the `Dockerfile`,
-  `docker-compose.yml` and `docker-entrypoint.sh`. Migrations run when the container starts.
-- **[Bare metal](#bare-metal-release)**. You build a `mix release` and run it with systemd.
+| | [Docker](#docker-recommended) (recommended) | [Bare metal](#bare-metal-release) |
+|---|---|---|
+| **You run** | `docker compose up` | a `mix release`, under systemd |
+| **Migrations** | at each start | by hand, after each upgrade |
 
-Read [Environment variables](#environment-variables) first. If `DATABASE_PATH` or `FILES_DIR`
-is incorrect, a redeploy deletes your data.
+> [!WARNING]
+> **Protect your data first.** `DATABASE_PATH` and `FILES_DIR` must point outside the release
+> directory (a Docker volume, `/var/lib/servant/`), or each redeploy wipes your database and
+> files. The Docker image takes care of it.
 
 ## Docker (recommended)
 
-The image has three build stages:
-
-1. **`frontend`** (`node:22`): builds the SPA into `priv/static/`.
-2. **`build`** (`hexpm/elixir`): compiles the deps, digests the assets and builds a `mix release`.
-3. **runtime** (`debian:bookworm-slim`): runs the release.
-
-When the container starts, `docker-entrypoint.sh` runs the pending Ecto migrations
-(`Servant.Release.migrate/0`). Then it starts the Phoenix server. The image sets
-`DATABASE_PATH=/data/servant.db`, `FILES_DIR=/data/files` and `TMP_DIR=/data/tmp` on the
-mounted volume. You must set only `SECRET_KEY_BASE` and `PHX_HOST`.
-
-> The release does not need Node.js at runtime. The image contains Node and Chromium only for
-> the optional Invoice Collector connector. To remove them, see
-> [Invoice Collector](#invoice-collector-optional).
-
-### With docker-compose
-
 ```bash
-# 1. Make a secret and keep it in .env (compose reads .env)
-echo "SECRET_KEY_BASE=$(mix phx.gen.secret)" >> .env
+# 1. A secret and the public hostname, in .env (compose reads it)
+echo "SECRET_KEY_BASE=$(openssl rand -base64 48)" >> .env
 echo "PHX_HOST=servant.local" >> .env
 
 # 2. Build and start
 docker compose up -d --build
 
-# 3. Show the logs
+# 3. Follow the logs
 docker compose logs -f servant
 ```
 
-Open `http://localhost:4000`, register the first account, then add connectors.
+Open `http://localhost:4000`, register the first account, add your sources. The image keeps
+everything on the `/data` volume and migrates at each start: you only set `SECRET_KEY_BASE`
+and `PHX_HOST`.
 
-### With plain Docker
+### Without compose
+
+Keep the settings in a file, so that the secret survives a new container:
 
 ```bash
+echo "SECRET_KEY_BASE=$(openssl rand -base64 48)" >> servant.env
+echo "PHX_HOST=servant.local" >> servant.env
+
 docker build -t servant:latest .
 docker volume create servant_data
-
 docker run -d --name servant \
   -p 4000:4000 \
-  -e SECRET_KEY_BASE="$(mix phx.gen.secret)" \
-  -e PHX_HOST="servant.local" \
+  --env-file servant.env \
   -v servant_data:/data \
   --restart unless-stopped \
   servant:latest
@@ -62,31 +52,29 @@ docker run -d --name servant \
 
 ### Prerequisites
 
-- Erlang 29+ and Elixir 1.20+ (the pinned versions are in `.tool-versions`).
-- Node.js 22+ to build the frontend. The **Invoice Collector** connector also needs Node.js
-  at runtime: it runs Playwright scripts with `node` (run `npm install` in `priv/scrapers/`).
-- `libvips` at runtime, for photo thumbnails (`vix`). Use a `libvips` with `libheif` to get
-  previews of HEIC photos. Most distribution packages have it.
+- Erlang 29+ and Elixir 1.20+ (pinned in `.tool-versions`).
+- Node.js 22+ to build the frontend, and at runtime for the **Invoice Collector** source
+  (run `npm install` in `priv/scrapers/`).
+- `libvips` at runtime, for the photo thumbnails (`vix`). With `libheif`, it also previews
+  HEIC photos; most distribution packages have it.
 
 ### Build
 
 ```bash
 mix deps.get --only prod
-
-# Build the frontend (vite writes into priv/static/)
-cd frontend && npm ci && npm run build && cd ..
-
+cd frontend && npm ci && npm run build && cd ..   # vite writes into priv/static/
 MIX_ENV=prod mix compile
 MIX_ENV=prod mix phx.digest
-MIX_ENV=prod mix release
+MIX_ENV=prod mix release                          # into _build/prod/rel/servant/
 ```
-
-The release is in `_build/prod/rel/servant/`.
 
 ### Run
 
+Generate the secret once (`mix phx.gen.secret`) and keep it: a new secret logs everyone out and
+makes the stored source credentials unreadable.
+
 ```bash
-SECRET_KEY_BASE=$(mix phx.gen.secret) \
+SECRET_KEY_BASE=<your-secret> \
 DATABASE_PATH=/var/lib/servant/servant.db \
 FILES_DIR=/var/lib/servant/files \
 PHX_HOST=servant.local \
@@ -94,16 +82,15 @@ PHX_SERVER=true \
 _build/prod/rel/servant/bin/servant start
 ```
 
-The application is at `http://<PHX_HOST>:<PORT>`. Migrations do not run automatically. After
-each upgrade, run them:
+Migrations do not run by themselves. After each upgrade:
 
 ```bash
 _build/prod/rel/servant/bin/servant eval "Servant.Release.migrate"
 ```
 
-### Systemd service
+### systemd
 
-Make `/etc/systemd/system/servant.service`:
+Create `/etc/systemd/system/servant.service`:
 
 ```ini
 [Unit]
@@ -126,7 +113,7 @@ Environment=PHX_HOST=servant.local
 Environment=DATABASE_PATH=/var/lib/servant/servant.db
 Environment=FILES_DIR=/var/lib/servant/files
 Environment=TMP_DIR=/var/lib/servant/tmp
-Environment=SECRET_KEY_BASE=<your-secret-key>
+Environment=SECRET_KEY_BASE=<your-secret>
 
 [Install]
 WantedBy=multi-user.target
@@ -138,86 +125,55 @@ sudo systemctl enable --now servant
 
 ## Environment variables
 
-> ⚠️ **Keep your data.** Set `DATABASE_PATH` **and** `FILES_DIR` to a location outside the
-> release directory (a Docker volume or `/var/lib/servant/`). If you do not, each redeploy
-> deletes the database and the user files.
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `SECRET_KEY_BASE` | ✅ | _(none)_ | Signs tokens and cookies. Make it with `mix phx.gen.secret`. |
-| `PHX_HOST` | ✅ | `example.com` | Public hostname. Used in URLs and in the socket origin check. |
-| `PHX_SERVER` | ✅ | `true` in the Docker image | Set to true, or the HTTP server does not start. |
-| `DATABASE_PATH` | ✅ | `/data/servant.db` in the Docker image | Absolute path to the SQLite file. Use persistent storage. |
-| `FILES_DIR` | ✅ in practice | `/data/files` in the Docker image, else `priv/files` | Uploaded files, photos and connector archives. **Set it outside the release.** The default is in the release directory, and **each redeploy deletes it**. |
-| `TMP_DIR` | | `/data/tmp` in the Docker image, else `priv/tmp` | Temporary space for connector file imports. You can delete its contents. |
+| Variable | Required | Default | What it does |
+|----------|:--------:|---------|--------------|
+| `SECRET_KEY_BASE` | ✅ | | Signs tokens and cookies (`mix phx.gen.secret` or `openssl rand -base64 48`). |
+| `PHX_HOST` | ✅ | `example.com` | Public hostname, for URLs and the socket origin check. |
+| `PHX_SERVER` | ✅ | `true` in the Docker image | Starts the HTTP server. |
+| `DATABASE_PATH` | ✅ | `/data/servant.db` in the Docker image | Absolute path to the SQLite file, on persistent storage. |
+| `FILES_DIR` | ✅ in practice | `/data/files` in the Docker image, else `priv/files` | Uploads, photos and source archives. **The default lives in the release directory, and each redeploy deletes it.** |
+| `TMP_DIR` | | `/data/tmp` in the Docker image, else `priv/tmp` | Scratch space for source imports. You can empty it. |
 | `PORT` | | `4000` | HTTP port. |
-| `POOL_SIZE` | | `5` | Number of SQLite connections. |
-| `REGISTRATION_ENABLED` | | `true` | Set to `false` to stop new registrations. Existing users can log in. |
-| `AGENT_CONCURRENCY` | | `1` | Maximum number of agents that run at the same time. Use `1` for a self-hosted model server. Use a larger value for a hosted API. |
-| `CONNECTOR_ENCRYPTION_KEY` | | _(derived from `SECRET_KEY_BASE`)_ | Encrypts connector secrets at rest (AES-256-GCM). Set it to change this key independently of `SECRET_KEY_BASE`. **If this key changes (or `SECRET_KEY_BASE` when this key is not set), Servant cannot decrypt the stored connector secrets. You must enter them again.** |
-| `UPLOADS_DIR` | | `priv/uploads` | Legacy uploads directory. Servant only reads it, for files older than `FILES_DIR`. |
+| `POOL_SIZE` | | `5` | SQLite connections. |
+| `REGISTRATION_ENABLED` | | `true` | `false` closes registration; existing users still log in. |
+| `AGENT_CONCURRENCY` | | `1` | Agents that can run at once. `1` for a self-hosted model server, more for a hosted API. |
+| `CONNECTOR_ENCRYPTION_KEY` | | derived from `SECRET_KEY_BASE` | Encrypts the source secrets at rest (AES-256-GCM). Set it to manage this key separately from `SECRET_KEY_BASE`. **When this key changes (or `SECRET_KEY_BASE`, if this key is not set), you enter the secrets again.** |
+| `UPLOADS_DIR` | | `priv/uploads` | Legacy uploads, read only, for files older than `FILES_DIR`. |
 
-## Operations
-
-**Migrations** run each time the container starts. To run them manually:
+## Day to day
 
 ```bash
+# Update: rebuild, restart, run the new migrations
+git pull && docker compose up -d --build
+
+# Run the migrations by hand (each start already does)
 docker compose exec servant bin/servant eval "Servant.Release.migrate"
-```
 
-**Photo EXIF backfill** (one time). HEIC photos (iPhone) imported before HEIC EXIF support
-have no date and no location. This command reads them again. It does not change stored values:
-
-```bash
-docker compose exec servant bin/servant eval "Servant.Release.backfill_photo_exif"
-```
-
-**CardDAV contact backfill** (one time). Before October 2026, Servant did not read some
-iPhone phone numbers (`item1.TEL`) and types (`type=cell`). This command reads the stored
-cards again. It does not change a contact that you edited in Servant after the phone sync:
-
-```bash
-docker compose exec servant bin/servant eval "Servant.Release.backfill_carddav_contacts"
-```
-
-**N26 currency backfill** (one time). Before October 2026, the N26 CSV import stored a
-payment abroad with the foreign currency, but with the EUR amount. The Finance app then
-excluded it from the totals. This command sets these transactions to EUR and keeps the
-foreign currency as `original_currency`:
-
-```bash
-docker compose exec servant bin/servant eval "Servant.Release.backfill_n26_currency"
-```
-
-**Remote IEx console** on the running release:
-
-```bash
+# Remote IEx console on the running release
 docker compose exec servant bin/servant remote
 ```
 
-**Database backup.** Use the SQLite backup command. It makes a consistent copy while Servant
-runs:
+**Back up** the database with `sqlite3 .backup`, never a plain copy, and `FILES_DIR` with it:
+see [Backups](backup-strategy.md).
+
+### One-time backfills
+
+Older versions missed some data. Each backfill repairs it once; run the ones that match your
+history:
 
 ```bash
-docker compose exec servant sh -c \
-  'sqlite3 /data/servant.db ".backup /data/servant-backup.db"'
-docker cp servant:/data/servant-backup.db ./servant-backup.db
+docker compose exec servant bin/servant eval "Servant.Release.<backfill>"
 ```
 
-If the image does not contain `sqlite3`, stop Servant before you copy `servant.db`. Also back
-up `FILES_DIR` (`/data/files`): the database does not contain the uploaded files. For the full
-procedure, see [backup-strategy.md](backup-strategy.md).
+| `<backfill>` | Run it if |
+|--------------|-----------|
+| `backfill_photo_exif` | You imported iPhone HEIC photos before HEIC EXIF support: they lack date and location. Stored values stay as they are. |
+| `backfill_carddav_contacts` | Your iPhone contacts synced before October 2026: some numbers (`item1.TEL`) and types (`type=cell`) were not read. Contacts edited in Servant since stay as they are. |
+| `backfill_n26_currency` | You imported N26 CSV files before October 2026: payments abroad held the foreign currency with the EUR amount, so Finance left them out of the totals. They become EUR, with the foreign currency kept as `original_currency`. |
 
-**Update to a new version:**
+## HTTPS and reverse proxy
 
-```bash
-git pull
-docker compose up -d --build   # rebuilds, restarts, runs the new migrations
-```
-
-## HTTPS / reverse proxy
-
-Servant uses plain HTTP on `PORT`. For TLS, put a reverse proxy in front of it. Caddy example
+Servant speaks plain HTTP on `PORT`; put a reverse proxy in front for TLS. With Caddy
 (`Caddyfile`):
 
 ```
@@ -226,38 +182,34 @@ servant.local {
 }
 ```
 
-Add Caddy as a second compose service, or use your existing nginx or Traefik.
+Or use your nginx or Traefik. Either way:
+
+- **WebSockets:** Phoenix Channels use `/socket`, so the proxy must pass the `Upgrade` and
+  `Connection` headers (Caddy does).
+- **`check_origin`:** if browsers cannot open the socket, set `PHX_HOST` to the exact public
+  hostname.
 
 ## Invoice Collector (optional)
 
-The Invoice Collector connector runs Playwright scripts with `node` during each sync. For this
-connector, stage 3 of the Dockerfile:
+The Invoice Collector source runs Playwright scripts with `node` at each sync. For it, the
+runtime stage of the `Dockerfile` copies Node.js 22 into `/opt/node`, installs the scraper
+dependencies (`npm ci` in `priv/scrapers/`), and installs Chromium in `/opt/playwright` for the
+unprivileged `nobody` user (Playwright starts it without its sandbox).
 
-- copies Node.js 22 from the frontend stage into `/opt/node`,
-- installs the scraper dependencies (`npm ci` in `priv/scrapers/` of the release),
-- installs the Playwright Chromium in `/opt/playwright`, readable by the `nobody` user.
+That block adds about 1 GB. Not using the source? Remove it with the `PLAYWRIGHT_BROWSERS_PATH`
+and `PATH=/opt/node/bin` lines; its syncs then fail with "Node.js is not installed on the
+server".
 
-Playwright starts Chromium without its sandbox, so it runs as an unprivileged user.
+## Good to know
 
-This block adds approximately 1 GB to the image. If you do not use the connector, remove it and
-the `PLAYWRIGHT_BROWSERS_PATH` and `PATH=/opt/node/bin` lines. Invoice Collector syncs then stop
-with the error "Node.js is not installed on the server".
-
-## Notes
-
-- **File access.** Servant serves uploaded files under `/files/…` (and legacy `/uploads/…`)
-  **only to their owner**. An HttpOnly `_servant_auth` cookie, set at login, gives access to
-  `FILES_DIR/<user_id>/`. Thus `<img src="/files/…">` works, and JavaScript does not see a
-  token.
-- **The first account is the operator.** Only this account can open the Audit page (system
-  health, access and error logs of all users). The data stays per user, also for the operator:
-  the API cannot read the entries of a different account.
-- **ARM / Raspberry Pi.** The base images (`node`, `hexpm/elixir`, `debian`) are multi-arch and
-  build on `arm64`. To build on x86 for a Pi, use
-  `docker buildx build --platform linux/arm64 -t servant:latest .`.
-- **WebSockets.** Phoenix Channels use `/socket`. Make sure that your proxy sends the `Upgrade`
-  and `Connection` headers. Caddy does this automatically.
-- **`check_origin`.** If browsers cannot connect to the socket behind a proxy, set `PHX_HOST`
-  to the exact public hostname.
-- **The SPA is in the image.** After a frontend change, build the image again. Production has
-  no Vite server.
+- **The first account is the operator:** it alone opens the Audit page (system health, access
+  and error logs of all users). The data stays per user, for the operator too.
+- **Files stay private:** `/files/…` (and the legacy `/uploads/…`) only serve their owner,
+  through an HttpOnly `_servant_auth` cookie. `<img src="/files/…">` works, and JavaScript
+  never sees a token.
+- **Raspberry Pi:** the base images are multi-arch. To build on x86 for a Pi:
+  `docker buildx build --platform linux/arm64 -t servant:latest .`
+- **The web app is in the image:** after a frontend change, rebuild it. Production runs no
+  Vite server.
+- **The image** builds in three stages: `frontend` (`node:22`) builds the SPA, `build`
+  (`hexpm/elixir`) makes the release, and `debian:bookworm-slim` runs it.

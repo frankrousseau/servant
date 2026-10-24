@@ -1,54 +1,46 @@
-# Sharing a photo feed by link
+# Photo sharing
 
-The Photos app can make a **public link for one or more tags or people** (people are the
-contacts named on a photo). A person with the link sees the photos with these tags or people in
-a read-only gallery. This person does not need an account.
+**Share a live photo feed with one link. Your guests need no account.**
 
-Servant calculates the feed each time a person opens the link. Thus a photo that you tag later
-shows in the feed, and a photo that you untag goes out of it.
+Pick tags, people or both: anyone with the link sees the matching photos in a read-only
+gallery. The feed stays live: tag a photo and it appears, untag it and it disappears.
 
-## Make a link
+## Create a link
 
-1. In **Photos**, click **Share** in the toolbar. The button shows when one or more photos have
-   a tag or a person.
-2. Select tags, people, or both. With more than one, select how the feed keeps the photos:
-   - **any**: photos with one or more of them (union);
-   - **all**: photos with all of them (intersection). For example, "Alice + beach" gives the
-     beach photos with Alice.
-3. Optional: type a name for the link. The name is the title of the public page. Without a
-   name, the tags are the title. A link with only people has the title "Shared photos",
-   because the page never shows names of people.
-4. Click **Create link**. Servant copies the URL to the clipboard.
+1. In **Photos**, click **Share** (it shows once a photo has a tag or a person).
+2. Pick tags, people, or both. With several, choose **any** or **all**: *Alice* + *beach* with
+   **all** gives the beach photos with Alice.
+3. Optionally, name the link: the name becomes the page title.
+4. Click **Create link**. The URL is in your clipboard.
 
-The same dialog shows the existing links, each with **Copy**, **Open** and **Revoke**.
-**Settings > API Tokens > Shared photo links** also shows them, with Copy and Revoke. When you
-revoke a link, access stops immediately: the page and its files do not resolve.
+> [!TIP]
+> Caption a photo: open it, click **Info** and type in **Note**. Your guests see the caption
+> under the photo.
 
-## Add a caption to a photo
+## Manage your links
 
-Open a photo, click **Info** and type text in the **Note** field. Servant saves the note when
-the field loses focus. The note shows as a caption under the photo, in the app and on each
-share link that contains the photo.
+The **Share** dialog and **Settings > API Tokens > Shared photo links** list your links, with
+**Copy**, **Open** and **Revoke**. Revoking cuts access at once.
 
-## What a visitor sees
+## What your guests see
 
-- The page `/share/<token>`: a grid of thumbnails (newest first) and a viewer with zoom,
-  full resolution and download. There is no delete, no in-app permalink and no sidebar. The
-  owner sees the same page as a visitor.
-- For each photo, only: the title, the date, the media type, the files (original, thumbnail,
-  display copy) and the note. The viewer shows the note as a caption, so write it for the
-  persons with the link. The EXIF location, camera, album, people and other tags stay private.
-- Servant serves the files under `/share/<token>/files/…`. Only the files of a photo that is
-  in the feed now resolve there. The link gives no access to the other files.
+**They see** the photos, newest first, in a viewer with zoom, full resolution and download,
+with the title, date, media type and note of each photo.
 
-## Security notes
+**They never see** the location, camera, album, people or other tags, nor any file outside the
+feed. A link with only people is titled "Shared photos": the page never shows names.
 
-- The token is the only credential: 192 random bits in the URL, no session. Keep the link
-  safe, as a password for these photos. A person with the link can send it to other persons.
-  When the sharing is complete, revoke the link.
-- Servant stores the tokens as they are (not hashed), so the owner can copy a link again. Thus
-  a database backup contains links that work.
-- Only a browser session can manage links (`/api/photo_shares`). API tokens cannot make or
-  list links, with all scopes.
-- The page uses the public JSON route `GET /api/shares/<token>` (documented at `/api/docs`).
-  A script or a different site can also use it.
+The page lives at `/share/<token>`. Open it yourself: you see exactly what your guests see.
+
+## Security
+
+> [!WARNING]
+> **The link is the password.** Anyone who has it can open the gallery and forward it. Revoke
+> it when the sharing is over.
+
+- The token is 192 random bits. No session, no account.
+- Tokens are stored in clear so that you can copy a link again: a database backup contains
+  working links.
+- Only a browser session can create or list links (`/api/photo_shares`), never an API token.
+- The page reads the public route `GET /api/shares/<token>` (see `/api/docs`), which scripts
+  can use too.

@@ -1,23 +1,49 @@
-# Servant, personal data hub you control
+<p align="center">
+  <img src="docs/logo.svg" width="96" height="104" alt="">
+</p>
 
-Servant is a self-hosted personal data hub. Connectors get data from external services (banking,
-photos, health, calendar, contacts, blockchain, etc.). Servant shows this data in one API and one web interface.
+<h1 align="center">Servant</h1>
 
-## Features
+<p align="center">
+  <b>Your personal data hub, on your own server.</b><br>
+  Contacts, calendar, photos, notes, money and habits in one place,
+  synced with your phone and open to your scripts and AI agents.
+</p>
 
-- **Basic personal apps**: contacts, calendars, files, photos, checklists and notes
-- **Custom apps**: add your own apps, installed from a git repository
-- **AI agents management**: scoped access tokens and a shared memory for your agents (Claude Code, Cursor)
-- **Universal data model**: all data is in typed entries with JSON payloads
-- **Connector plugin system**: connectors get data from external services on a schedule
-- **Single-user**: all UIs are for personal use
-- **API access**: scoped, revocable tokens for scripts and agents
-- **Real-time**: Servant sends entry changes to connected clients over websockets
-- **Self-hosted**: one Elixir release (Docker image or [bare metal](docs/deploy.md#bare-metal-release)) and a SQLite database; runs on a Raspberry Pi
-
-## Screenshots
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#screenshots">Screenshots</a> ·
+  <a href="#documentation">Documentation</a>
+</p>
 
 <a href="docs/screenshots/dashboard.webp"><img src="docs/screenshots/dashboard.webp" alt="Servant dashboard with the next events, recent activity and entry statistics"></a>
+
+## Why Servant
+
+- **All your data in one place:** contacts, calendar, notes, photos, files, checklists,
+  trackers and finance.
+- **Fed by your services:** bank, Apple Health, Strava, GitHub, RSS and iCal feeds, crypto
+  wallets and more, synced on a schedule.
+- **On your phone, without Google or iCloud:** two-way calendar and contact sync, camera roll
+  backup.
+- **Open to your tools:** a REST API with scoped tokens, live updates over websockets, one
+  shared memory for Claude Code and Cursor.
+- **Extensible:** install apps from git, or describe one and let an agent write it.
+- **Light and private:** one Elixir release, one SQLite file, Docker or bare metal. It runs on
+  a Raspberry Pi.
+
+## Quick start
+
+```bash
+echo "SECRET_KEY_BASE=$(openssl rand -base64 48)" >> .env
+echo "PHX_HOST=localhost" >> .env
+docker compose up -d --build
+```
+
+Open `http://localhost:4000` and register the first account. More in the
+[deployment guide](docs/deploy.md).
+
+## Screenshots
 
 <table>
   <tr>
@@ -45,21 +71,20 @@ photos, health, calendar, contacts, blockchain, etc.). Servant shows this data i
   </tr>
 </table>
 
-The screenshots use seeded demo data (`npm run screenshots`, see
-[docs/development.md](docs/development.md#readme-screenshots)).
+<sub>Seeded demo data, captured with `npm run screenshots` (see [development.md](docs/development.md#readme-screenshots)).</sub>
 
-## Quick start
+## Documentation
 
-Run Servant with Docker (the repo contains a `Dockerfile` and a `docker-compose.yml`):
-
-```bash
-echo "SECRET_KEY_BASE=$(openssl rand -base64 48)" >> .env
-echo "PHX_HOST=localhost" >> .env
-docker compose up -d --build
-```
-
-Open `http://localhost:4000` and register the first account. For bare-metal releases, environment
-variables, systemd, reverse proxies and backups, see [docs/deploy.md](docs/deploy.md).
+| I want to... | Read |
+|--------------|------|
+| Install Servant on a server or a Raspberry Pi | [Deployment](docs/deploy.md) |
+| Never lose my data | [Backups](docs/backup-strategy.md) |
+| See my calendars and contacts on my phone | [Phone sync](docs/dav.md) |
+| Back up my phone's photos automatically | [Phone backup](docs/phone-backup.md) |
+| Share photos with a link | [Photo sharing](docs/photo-sharing.md) |
+| Add an app that Servant does not have | [Custom apps](docs/custom-apps.md) |
+| Give Claude Code and Cursor one shared memory | [Agent memory](docs/agent-memory.md) |
+| Hack on Servant | [Development](docs/development.md) and the [coding rules](AGENTS.md) |
 
 ## Development
 
@@ -73,20 +98,8 @@ mix phx.server              # API on port 4001
 cd frontend && npm run dev  # frontend on port 5001
 ```
 
-Open `http://localhost:5001`. For prerequisites, project structure and architecture notes, see
+Open `http://localhost:5001`. Prerequisites, project structure and architecture:
 [docs/development.md](docs/development.md).
-
-## Documentation
-
-- [docs/deploy.md](docs/deploy.md): deployment (Docker, release, env vars, ops)
-- [docs/backup-strategy.md](docs/backup-strategy.md): what to back up, recipes, restore procedure
-- [docs/development.md](docs/development.md): dev setup, project structure, architecture
-- [docs/dav.md](docs/dav.md): CalDAV/CardDAV/WebDAV endpoint (phone calendar, contacts, files)
-- [docs/phone-backup.md](docs/phone-backup.md): auto-upload a phone's camera roll to the Photos app
-- [docs/photo-sharing.md](docs/photo-sharing.md): share a photo feed by public link from one or more tags
-- [docs/custom-apps.md](docs/custom-apps.md): apps installable from git
-- [docs/agent-memory.md](docs/agent-memory.md): shared memory and skills for Claude Code and Cursor
-- [AGENTS.md](AGENTS.md): coding rules and conventions
 
 ## License
 
