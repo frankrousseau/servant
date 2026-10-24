@@ -12,6 +12,8 @@ import {
 
 import ComboBox from '../../components/ComboBox.vue'
 import DateInput from '../../components/DateInput.vue'
+import LoadState from '../../components/LoadState.vue'
+import ServantDialog from '../../components/ServantDialog.vue'
 import FaceChip from './FaceChip.vue'
 
 import { contactInitials, contactName } from '../../lib/contact'
@@ -21,7 +23,6 @@ import {
   utcToZonedParts,
   zonedToUtcISO
 } from '../../lib/datetime'
-import { openDialog } from '../../lib/dialog'
 import { formatFileSize } from '../../lib/filesize'
 import {
   clusterFaces,
@@ -46,6 +47,7 @@ import {
 } from './uploadQueue'
 import { preferenceRef } from '../preference'
 import type { AppContext, Entry } from '../types'
+import type { LoadStatus } from '../../components/LoadState.vue'
 import type { PhotoShare } from '../../types'
 
 const props = defineProps<{ ctx: AppContext }>()
@@ -62,6 +64,10 @@ const tagFilter = ref('')
 const peopleFilter = ref('')
 const loading = ref(true)
 const loadError = ref('')
+// The whole app swaps for one line while loading, or when an action fails.
+const loadState = computed<LoadStatus>(() =>
+  loading.value ? 'loading' : loadError.value ? 'error' : 'ready'
+)
 // Long backfill/scan loops check this so they stop when the app is unmounted
 // (navigating away) instead of running on in the background.
 let alive = true
@@ -1174,732 +1180,668 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <p v-if="loading" class="ph-loading">Scanning archive&hellip;</p>
-  <p v-else-if="loadError" class="ph-loading">{{ loadError }}</p>
-  <div
-    v-else
-    class="ph-layout"
-    :class="{ 'ph-dragover': dragover }"
-    @dragover.prevent="dragover = true"
-    @dragleave="dragover = false"
-    @drop.prevent="onDrop"
+  <LoadState
+    :state="loadState"
+    what="photos"
+    loading-text="Scanning archive…"
+    :error-text="loadError"
   >
-    <!-- Selection toolbar -->
-    <div v-if="selectionMode" class="ph-toolbar">
-      <span class="ph-sel-count">{{ selCount }} SELECTED</span>
-      <div class="ph-actions">
-        <button class="ph-btn" @click="selectAll">Select all</button>
-        <button class="ph-btn" @click="deselect">Deselect</button>
-        <button
-          class="ph-btn ph-btn--primary"
-          :disabled="selCount === 0"
-          @click="openTagModal"
-        >
-          Tag
-        </button>
-        <button
-          class="ph-btn"
-          :disabled="selCount === 0"
-          @click="openTagPeople"
-        >
-          Tag people
-        </button>
-        <button
-          class="ph-btn"
-          :disabled="selCount === 0 || rotating"
-          title="Rotate left"
-          aria-label="Rotate left"
-          @click="rotateSelected(270)"
-        >
-          <RotateCcw :size="16" />
-        </button>
-        <button
-          class="ph-btn"
-          :disabled="selCount === 0 || rotating"
-          title="Rotate right"
-          aria-label="Rotate right"
-          @click="rotateSelected(90)"
-        >
-          <RotateCw :size="16" />
-        </button>
-        <button
-          class="ph-btn"
-          :disabled="selCount === 0"
-          @click="openDateModal"
-        >
-          Set date
-        </button>
-        <button
-          class="ph-btn ph-btn--danger"
-          :disabled="selCount === 0"
-          @click="deletePhotos([...selectedIds])"
-        >
-          Delete
-        </button>
-        <button
-          v-if="tagFilter"
-          class="ph-btn ph-btn--danger"
-          :disabled="selCount === 0"
-          @click="removeTagAction"
-        >
-          Remove "{{ tagFilter }}"
-        </button>
-        <button class="ph-btn" @click="cancelSelect">Cancel</button>
-      </div>
-    </div>
-    <div v-if="selectionMode && peopleSearchActive" class="ph-people-search">
-      <input
-        ref="peopleInput"
-        class="ph-people-input"
-        type="text"
-        placeholder="Search contacts..."
-        v-model="peopleSearchQuery"
-        @keydown="onPeopleKeydown"
-      />
-      <div v-if="matchingContacts.length" class="ph-people-results">
-        <div
-          v-for="contact in matchingContacts"
-          :key="contact.id"
-          class="ph-people-result"
-          @click="tagWithContact(contact)"
-        >
-          <img
-            v-if="contact.data.photo"
-            class="ph-people-avatar"
-            :src="contact.data.photo as string"
-            alt=""
-          />
-          <span v-else class="ph-people-avatar ph-people-avatar--init">{{
-            contactInitials(contactName(contact))
-          }}</span>
-          <span>{{ contactName(contact) }}</span>
+    <div
+      class="ph-layout"
+      :class="{ 'ph-dragover': dragover }"
+      @dragover.prevent="dragover = true"
+      @dragleave="dragover = false"
+      @drop.prevent="onDrop"
+    >
+      <!-- Selection toolbar -->
+      <div v-if="selectionMode" class="ph-toolbar">
+        <span class="ph-sel-count">{{ selCount }} SELECTED</span>
+        <div class="ph-actions">
+          <button class="ph-btn" @click="selectAll">Select all</button>
+          <button class="ph-btn" @click="deselect">Deselect</button>
+          <button
+            class="ph-btn ph-btn--primary"
+            :disabled="selCount === 0"
+            @click="openTagModal"
+          >
+            Tag
+          </button>
+          <button
+            class="ph-btn"
+            :disabled="selCount === 0"
+            @click="openTagPeople"
+          >
+            Tag people
+          </button>
+          <button
+            class="ph-btn"
+            :disabled="selCount === 0 || rotating"
+            title="Rotate left"
+            aria-label="Rotate left"
+            @click="rotateSelected(270)"
+          >
+            <RotateCcw :size="16" />
+          </button>
+          <button
+            class="ph-btn"
+            :disabled="selCount === 0 || rotating"
+            title="Rotate right"
+            aria-label="Rotate right"
+            @click="rotateSelected(90)"
+          >
+            <RotateCw :size="16" />
+          </button>
+          <button
+            class="ph-btn"
+            :disabled="selCount === 0"
+            @click="openDateModal"
+          >
+            Set date
+          </button>
+          <button
+            class="ph-btn ph-btn--danger"
+            :disabled="selCount === 0"
+            @click="deletePhotos([...selectedIds])"
+          >
+            Delete
+          </button>
+          <button
+            v-if="tagFilter"
+            class="ph-btn ph-btn--danger"
+            :disabled="selCount === 0"
+            @click="removeTagAction"
+          >
+            Remove "{{ tagFilter }}"
+          </button>
+          <button class="ph-btn" @click="cancelSelect">Cancel</button>
         </div>
       </div>
-      <div v-else-if="peopleSearchQuery" class="ph-people-no-results">
-        No contacts found
-      </div>
-    </div>
-
-    <!-- Normal toolbar -->
-    <div v-if="!selectionMode" class="ph-toolbar">
-      <div class="ph-filters">
-        <ComboBox
-          v-if="albumOptions.length > 1"
-          class="ph-album-filter"
-          v-model="albumFilter"
-          :options="albumOptions"
+      <div v-if="selectionMode && peopleSearchActive" class="ph-people-search">
+        <input
+          ref="peopleInput"
+          class="ph-people-input"
+          type="text"
+          placeholder="Search contacts..."
+          v-model="peopleSearchQuery"
+          @keydown="onPeopleKeydown"
         />
-        <ComboBox
-          class="ph-album-filter ph-group-select"
-          :model-value="groupBy"
-          :options="GROUP_OPTIONS"
-          @update:model-value="onGroupByChange"
-        />
-        <span class="ph-status"
-          >{{ filtered.length }} <span class="ph-status-unit">IMG</span></span
-        >
-      </div>
-      <div class="ph-actions">
-        <div
-          id="ph-more-actions"
-          class="ph-more-actions"
-          :class="{ 'ph-more-actions--open': moreActionsOpen }"
-        >
-          <button
-            v-if="missingPreviews > 0"
-            class="ph-btn"
-            :disabled="rebuilding"
-            @click="rebuildPreviews"
-          >
-            {{
-              rebuilding ? 'Rebuilding…' : `Fix previews (${missingPreviews})`
-            }}
-          </button>
-          <button
-            v-if="missingVideoThumbs > 0 || fixingVideos"
-            class="ph-btn"
-            :disabled="!!fixingVideos"
-            @click="rebuildVideoThumbs"
-          >
-            {{
-              fixingVideos
-                ? `Fixing videos ${fixingVideos.done}/${fixingVideos.total}…`
-                : `Fix video thumbs (${missingVideoThumbs})`
-            }}
-          </button>
-          <button
-            v-if="missingFaces > 0 || scanningFaces"
-            class="ph-btn"
-            :disabled="!!scanningFaces"
-            @click="scanFaces"
-          >
-            {{
-              scanningFaces
-                ? `Scanning faces ${scanningFaces.done}/${scanningFaces.total}…`
-                : `Scan faces (${missingFaces})`
-            }}
-          </button>
-          <button v-if="anyFaces" class="ph-btn" @click="openFaceModal">
-            Faces
-          </button>
-          <button
-            v-if="allPhotos.length"
-            class="ph-btn"
-            @click="openQualityModal"
-          >
-            Failed shots
-          </button>
-          <button
-            v-if="allTags.length || allPeople.length"
-            class="ph-btn"
-            @click="openShareModal"
-          >
-            Share
-          </button>
-          <button class="ph-btn" @click="enterSelect">Select</button>
-        </div>
-        <label class="ph-btn ph-upload-btn">
-          +<span class="ph-upload-word">Upload</span
-          ><input
-            type="file"
-            accept="image/*,video/*,.heic,.heif"
-            multiple
-            hidden
-            @change="onFileInput"
-          />
-        </label>
-        <button
-          type="button"
-          class="ph-btn ph-more-btn"
-          aria-label="More actions"
-          aria-controls="ph-more-actions"
-          :aria-expanded="moreActionsOpen"
-          @click="moreActionsOpen = !moreActionsOpen"
-        >
-          <Ellipsis :size="18" />
-        </button>
-      </div>
-    </div>
-
-    <!-- Tag / people filter bar -->
-    <div v-if="hasFilters" class="ph-tags-bar">
-      <span
-        class="ph-tag-pill"
-        :class="{ 'ph-tag-pill--active': !tagFilter && !peopleFilter }"
-        @click="setFilter({ tag: '', person: '' })"
-        >All</span
-      >
-      <span
-        v-for="tag in allTags"
-        :key="'tag' + tag"
-        class="ph-tag-pill"
-        :class="{ 'ph-tag-pill--active': tag === tagFilter }"
-        @click="setFilter({ tag: tag })"
-        >{{ tag }}</span
-      >
-      <span v-if="allPeople.length" class="ph-tag-sep"></span>
-      <span
-        v-for="person in allPeople"
-        :key="'person' + person.id"
-        class="ph-tag-pill ph-tag-pill--person"
-        :class="{ 'ph-tag-pill--active': person.id === peopleFilter }"
-        :title="person.name"
-        @click="setFilter({ person: person.id })"
-        >{{ firstName(person.name) }}</span
-      >
-    </div>
-
-    <div v-if="uploading && uploadProgress" class="ph-uploading">
-      <span class="ph-upload-count"
-        >UPLOADING {{ uploadProgress.index }}/{{ uploadProgress.total }}</span
-      >
-      <span class="ph-upload-name">{{ uploadProgress.name }}</span>
-      <span class="ph-upload-pct">{{
-        uploadProgress.converting
-          ? 'converting…'
-          : uploadProgress.processing
-            ? 'processing…'
-            : uploadProgress.pct + '%'
-      }}</span>
-      <div class="ph-upload-bar">
-        <div
-          class="ph-upload-bar-fill"
-          :style="{ width: uploadProgress.pct + '%' }"
-        ></div>
-      </div>
-    </div>
-    <div v-if="uploadErrors.length" class="ph-upload-errors" role="alert">
-      <div
-        v-for="(err, index) in uploadErrors"
-        :key="index"
-        class="ph-upload-error"
-      >
-        {{ err }}
-      </div>
-      <button class="ph-upload-dismiss" @click="uploadErrors = []">
-        Dismiss
-      </button>
-    </div>
-
-    <div class="ph-scroll">
-      <template v-for="group in groups" :key="group.key">
-        <div v-if="group.label" class="ph-group-header">
-          <span class="ph-group-label">{{ group.label }}</span>
-          <span class="ph-group-count">{{ group.photos.length }}</span>
-        </div>
-        <div class="ph-grid">
+        <div v-if="matchingContacts.length" class="ph-people-results">
           <div
-            v-for="photo in group.photos"
-            :key="photo.id"
-            class="ph-thumb"
-            :class="{
-              'ph-thumb--selected': selectionMode && selectedIds.has(photo.id)
-            }"
-            @click="onThumbClick(photo, $event)"
+            v-for="contact in matchingContacts"
+            :key="contact.id"
+            class="ph-people-result"
+            @click="tagWithContact(contact)"
           >
-            <span
-              v-if="selectionMode"
-              class="ph-check"
-              :class="{ 'ph-check--on': selectedIds.has(photo.id) }"
-            ></span>
-            <button
-              v-else
-              class="ph-thumb-delete"
-              title="Delete"
-              aria-label="Delete"
-              @click.stop="deletePhotos([photo.id])"
-            >
-              <Trash2 :size="16" />
-            </button>
             <img
-              v-if="!broken.has(photo.id) && hasGridImage(photo)"
-              class="ph-thumb-img"
-              :src="getThumbPath(photo)"
-              :alt="photo.title || ''"
-              loading="lazy"
-              @error="broken.add(photo.id)"
+              v-if="contact.data.photo"
+              class="ph-people-avatar"
+              :src="contact.data.photo as string"
+              alt=""
             />
-            <span
-              v-if="isVideo(photo) && !broken.has(photo.id)"
-              class="ph-thumb-play"
-              aria-hidden="true"
-            >
-              <span class="ph-thumb-play-badge">
-                <Play :size="16" fill="currentColor" />
-              </span>
-            </span>
-            <div v-if="broken.has(photo.id)" class="ph-broken">
-              <ImageOff :size="28" :stroke-width="1.5" />
-            </div>
-            <div
-              v-if="getTags(photo).length || getPeople(photo).length"
-              class="ph-thumb-tags"
-            >
-              <span
-                v-for="tag in getTags(photo)"
-                :key="'tag' + tag"
-                class="ph-thumb-tag"
-                >{{ tag }}</span
-              >
-              <span
-                v-for="tagged in getPeople(photo)"
-                :key="'person' + tagged.id"
-                class="ph-thumb-tag ph-thumb-tag--person"
-                :title="tagged.name"
-                >{{ firstName(tagged.name) }}</span
-              >
-            </div>
+            <span v-else class="ph-people-avatar ph-people-avatar--init">{{
+              contactInitials(contactName(contact))
+            }}</span>
+            <span>{{ contactName(contact) }}</span>
           </div>
         </div>
-      </template>
-      <div v-if="filtered.length === 0" class="ph-empty">
-        <template v-if="allPhotos.length === 0">
-          <div class="ph-nosignal" aria-hidden="true">NO SIGNAL</div>
-          <p class="ph-empty-hint">
-            Drop images or videos anywhere, or use Upload.
-          </p>
+        <div v-else-if="peopleSearchQuery" class="ph-people-no-results">
+          No contacts found
+        </div>
+      </div>
+
+      <!-- Normal toolbar -->
+      <div v-if="!selectionMode" class="ph-toolbar">
+        <div class="ph-filters">
+          <ComboBox
+            v-if="albumOptions.length > 1"
+            class="ph-album-filter"
+            v-model="albumFilter"
+            :options="albumOptions"
+          />
+          <ComboBox
+            class="ph-album-filter ph-group-select"
+            :model-value="groupBy"
+            :options="GROUP_OPTIONS"
+            @update:model-value="onGroupByChange"
+          />
+          <span class="ph-status"
+            >{{ filtered.length }} <span class="ph-status-unit">IMG</span></span
+          >
+        </div>
+        <div class="ph-actions">
+          <div
+            id="ph-more-actions"
+            class="ph-more-actions"
+            :class="{ 'ph-more-actions--open': moreActionsOpen }"
+          >
+            <button
+              v-if="missingPreviews > 0"
+              class="ph-btn"
+              :disabled="rebuilding"
+              @click="rebuildPreviews"
+            >
+              {{
+                rebuilding ? 'Rebuilding…' : `Fix previews (${missingPreviews})`
+              }}
+            </button>
+            <button
+              v-if="missingVideoThumbs > 0 || fixingVideos"
+              class="ph-btn"
+              :disabled="!!fixingVideos"
+              @click="rebuildVideoThumbs"
+            >
+              {{
+                fixingVideos
+                  ? `Fixing videos ${fixingVideos.done}/${fixingVideos.total}…`
+                  : `Fix video thumbs (${missingVideoThumbs})`
+              }}
+            </button>
+            <button
+              v-if="missingFaces > 0 || scanningFaces"
+              class="ph-btn"
+              :disabled="!!scanningFaces"
+              @click="scanFaces"
+            >
+              {{
+                scanningFaces
+                  ? `Scanning faces ${scanningFaces.done}/${scanningFaces.total}…`
+                  : `Scan faces (${missingFaces})`
+              }}
+            </button>
+            <button v-if="anyFaces" class="ph-btn" @click="openFaceModal">
+              Faces
+            </button>
+            <button
+              v-if="allPhotos.length"
+              class="ph-btn"
+              @click="openQualityModal"
+            >
+              Failed shots
+            </button>
+            <button
+              v-if="allTags.length || allPeople.length"
+              class="ph-btn"
+              @click="openShareModal"
+            >
+              Share
+            </button>
+            <button class="ph-btn" @click="enterSelect">Select</button>
+          </div>
+          <label class="ph-btn ph-upload-btn">
+            +<span class="ph-upload-word">Upload</span
+            ><input
+              type="file"
+              accept="image/*,video/*,.heic,.heif"
+              multiple
+              hidden
+              @change="onFileInput"
+            />
+          </label>
+          <button
+            type="button"
+            class="ph-btn ph-more-btn"
+            aria-label="More actions"
+            aria-controls="ph-more-actions"
+            :aria-expanded="moreActionsOpen"
+            @click="moreActionsOpen = !moreActionsOpen"
+          >
+            <Ellipsis :size="18" />
+          </button>
+        </div>
+      </div>
+
+      <!-- Tag / people filter bar -->
+      <div v-if="hasFilters" class="ph-tags-bar">
+        <span
+          class="ph-tag-pill"
+          :class="{ 'ph-tag-pill--active': !tagFilter && !peopleFilter }"
+          @click="setFilter({ tag: '', person: '' })"
+          >All</span
+        >
+        <span
+          v-for="tag in allTags"
+          :key="'tag' + tag"
+          class="ph-tag-pill"
+          :class="{ 'ph-tag-pill--active': tag === tagFilter }"
+          @click="setFilter({ tag: tag })"
+          >{{ tag }}</span
+        >
+        <span v-if="allPeople.length" class="ph-tag-sep"></span>
+        <span
+          v-for="person in allPeople"
+          :key="'person' + person.id"
+          class="ph-tag-pill ph-tag-pill--person"
+          :class="{ 'ph-tag-pill--active': person.id === peopleFilter }"
+          :title="person.name"
+          @click="setFilter({ person: person.id })"
+          >{{ firstName(person.name) }}</span
+        >
+      </div>
+
+      <div v-if="uploading && uploadProgress" class="ph-uploading">
+        <span class="ph-upload-count"
+          >UPLOADING {{ uploadProgress.index }}/{{ uploadProgress.total }}</span
+        >
+        <span class="ph-upload-name">{{ uploadProgress.name }}</span>
+        <span class="ph-upload-pct">{{
+          uploadProgress.converting
+            ? 'converting…'
+            : uploadProgress.processing
+              ? 'processing…'
+              : uploadProgress.pct + '%'
+        }}</span>
+        <div class="ph-upload-bar">
+          <div
+            class="ph-upload-bar-fill"
+            :style="{ width: uploadProgress.pct + '%' }"
+          ></div>
+        </div>
+      </div>
+      <div v-if="uploadErrors.length" class="ph-upload-errors" role="alert">
+        <div
+          v-for="(err, index) in uploadErrors"
+          :key="index"
+          class="ph-upload-error"
+        >
+          {{ err }}
+        </div>
+        <button class="ph-upload-dismiss" @click="uploadErrors = []">
+          Dismiss
+        </button>
+      </div>
+
+      <div class="ph-scroll">
+        <template v-for="group in groups" :key="group.key">
+          <div v-if="group.label" class="ph-group-header">
+            <span class="ph-group-label">{{ group.label }}</span>
+            <span class="ph-group-count">{{ group.photos.length }}</span>
+          </div>
+          <div class="ph-grid">
+            <div
+              v-for="photo in group.photos"
+              :key="photo.id"
+              class="ph-thumb"
+              :class="{
+                'ph-thumb--selected': selectionMode && selectedIds.has(photo.id)
+              }"
+              @click="onThumbClick(photo, $event)"
+            >
+              <span
+                v-if="selectionMode"
+                class="ph-check"
+                :class="{ 'ph-check--on': selectedIds.has(photo.id) }"
+              ></span>
+              <button
+                v-else
+                class="ph-thumb-delete"
+                title="Delete"
+                aria-label="Delete"
+                @click.stop="deletePhotos([photo.id])"
+              >
+                <Trash2 :size="16" />
+              </button>
+              <img
+                v-if="!broken.has(photo.id) && hasGridImage(photo)"
+                class="ph-thumb-img"
+                :src="getThumbPath(photo)"
+                :alt="photo.title || ''"
+                loading="lazy"
+                @error="broken.add(photo.id)"
+              />
+              <span
+                v-if="isVideo(photo) && !broken.has(photo.id)"
+                class="ph-thumb-play"
+                aria-hidden="true"
+              >
+                <span class="ph-thumb-play-badge">
+                  <Play :size="16" fill="currentColor" />
+                </span>
+              </span>
+              <div v-if="broken.has(photo.id)" class="ph-broken">
+                <ImageOff :size="28" :stroke-width="1.5" />
+              </div>
+              <div
+                v-if="getTags(photo).length || getPeople(photo).length"
+                class="ph-thumb-tags"
+              >
+                <span
+                  v-for="tag in getTags(photo)"
+                  :key="'tag' + tag"
+                  class="ph-thumb-tag"
+                  >{{ tag }}</span
+                >
+                <span
+                  v-for="tagged in getPeople(photo)"
+                  :key="'person' + tagged.id"
+                  class="ph-thumb-tag ph-thumb-tag--person"
+                  :title="tagged.name"
+                  >{{ firstName(tagged.name) }}</span
+                >
+              </div>
+            </div>
+          </div>
         </template>
-        <p v-else class="ph-empty-hint">No photos match this filter.</p>
+        <div v-if="filtered.length === 0" class="ph-empty">
+          <template v-if="allPhotos.length === 0">
+            <div class="ph-nosignal" aria-hidden="true">NO SIGNAL</div>
+            <p class="ph-empty-hint">
+              Drop images or videos anywhere, or use Upload.
+            </p>
+          </template>
+          <p v-else class="ph-empty-hint">No photos match this filter.</p>
+        </div>
       </div>
     </div>
-  </div>
+  </LoadState>
 
   <Teleport to="body">
-    <dialog
-      v-if="faceModalActive"
-      :ref="openDialog"
-      class="modal-dialog"
-      aria-labelledby="ph-faces-title"
-      @click.self="faceModalActive = false"
-      @cancel="faceModalActive = false"
-    >
-      <div class="ph-modal ph-modal--faces">
-        <h3 id="ph-faces-title" class="ph-modal-title">Faces</h3>
-        <p v-if="!faceRows.length" class="ph-faces-empty">
-          No unnamed faces.
-          {{
-            missingFaces > 0
-              ? 'Run "Scan faces" to detect them first.'
-              : 'Everyone is tagged.'
-          }}
-        </p>
-        <p v-if="faceRows.length" class="ph-faces-help">
-          Click a face that does not belong to the group to leave it out; it
-          stays unnamed.
-        </p>
-        <div
-          v-for="(view, rowIndex) in faceRowViews"
-          :key="rowIndex"
-          class="ph-face-row"
-          :class="{ 'ph-face-row--done': view.row.done }"
-        >
-          <div class="ph-face-head">
-            <span class="ph-face-count"
-              >{{ view.kept }} {{ view.kept === 1 ? 'face' : 'faces'
-              }}<template v-if="view.excludedCount">
-                ({{ view.excludedCount }} left out)</template
-              ></span
-            >
-            <span v-if="view.row.done" class="ph-face-done">{{
-              view.row.done
-            }}</span>
-            <template v-else>
-              <ComboBox
-                class="ph-face-pick"
-                v-model="view.row.assign"
-                :options="contactOptions"
-              />
-              <button
-                class="ph-btn ph-btn--primary"
-                :disabled="!view.row.assign || !view.kept || namingCluster"
-                @click="nameCluster(view.row)"
-              >
-                Tag
-              </button>
-            </template>
-          </div>
-          <div class="ph-face-chips">
+    <ServantDialog v-model:open="faceModalActive" title="Faces" size="xl">
+      <p v-if="!faceRows.length" class="ph-faces-empty">
+        No unnamed faces.
+        {{
+          missingFaces > 0
+            ? 'Run "Scan faces" to detect them first.'
+            : 'Everyone is tagged.'
+        }}
+      </p>
+      <p v-if="faceRows.length" class="ph-faces-help">
+        Click a face that does not belong to the group to leave it out; it stays
+        unnamed.
+      </p>
+      <div
+        v-for="(view, rowIndex) in faceRowViews"
+        :key="rowIndex"
+        class="ph-face-row"
+        :class="{ 'ph-face-row--done': view.row.done }"
+      >
+        <div class="ph-face-head">
+          <span class="ph-face-count"
+            >{{ view.kept }} {{ view.kept === 1 ? 'face' : 'faces'
+            }}<template v-if="view.excludedCount">
+              ({{ view.excludedCount }} left out)</template
+            ></span
+          >
+          <span v-if="view.row.done" class="ph-face-done">{{
+            view.row.done
+          }}</span>
+          <template v-else>
+            <ComboBox
+              class="ph-face-pick"
+              v-model="view.row.assign"
+              :options="contactOptions"
+            />
             <button
-              v-for="item in view.faces"
-              :key="item.key"
-              type="button"
-              class="ph-face-toggle"
-              :class="{ 'ph-face-toggle--out': item.excluded }"
-              :aria-pressed="!item.excluded"
-              :aria-label="`Face in ${item.title}`"
-              :title="
-                item.excluded
-                  ? `${item.title}: left out, click to include`
-                  : `${item.title}: click to leave out`
-              "
-              :disabled="!!view.row.done"
-              @click="toggleFaceExcluded(view.row, item.key)"
+              class="ph-btn ph-btn--primary"
+              :disabled="!view.row.assign || !view.kept || namingCluster"
+              @click="nameCluster(view.row)"
             >
-              <FaceChip
-                :src="chipSrc(item.face.photoId)"
-                :box="item.face.face.box"
-              />
-              <span v-if="item.excluded" class="ph-face-out">
-                <X :size="28" />
-              </span>
+              Tag
             </button>
-          </div>
+          </template>
         </div>
-        <div class="ph-modal-actions">
-          <button class="ph-btn" @click="faceModalActive = false">Close</button>
+        <div class="ph-face-chips">
+          <button
+            v-for="item in view.faces"
+            :key="item.key"
+            type="button"
+            class="ph-face-toggle"
+            :class="{ 'ph-face-toggle--out': item.excluded }"
+            :aria-pressed="!item.excluded"
+            :aria-label="`Face in ${item.title}`"
+            :title="
+              item.excluded
+                ? `${item.title}: left out, click to include`
+                : `${item.title}: click to leave out`
+            "
+            :disabled="!!view.row.done"
+            @click="toggleFaceExcluded(view.row, item.key)"
+          >
+            <FaceChip
+              :src="chipSrc(item.face.photoId)"
+              :box="item.face.face.box"
+            />
+            <span v-if="item.excluded" class="ph-face-out">
+              <X :size="28" />
+            </span>
+          </button>
         </div>
       </div>
-    </dialog>
-    <dialog
-      v-if="qualityModalActive"
-      :ref="openDialog"
-      class="modal-dialog"
-      aria-labelledby="ph-quality-title"
-      @click.self="qualityModalActive = false"
-      @cancel="qualityModalActive = false"
+    </ServantDialog>
+    <ServantDialog
+      v-model:open="qualityModalActive"
+      title="Failed shots"
+      size="xl"
+      initial-focus="close"
     >
-      <div class="ph-modal ph-modal--wide">
-        <h3 id="ph-quality-title" class="ph-modal-title">Failed shots</h3>
-        <p class="ph-faces-help">
-          Blurry, too dark or overexposed photos, spotted from their thumbnail.
-          Delete them, or keep one to take it off this list for good.
-        </p>
-        <p v-if="checkingQuality" class="ph-shots-status" role="status">
-          Checking photos {{ checkingQuality.done }}/{{
-            checkingQuality.total
-          }}…
-        </p>
-        <p v-if="qualityUnreadable" class="ph-shots-status">
-          {{ qualityUnreadable }}
-          {{ qualityUnreadable === 1 ? 'photo' : 'photos' }} could not be read.
-        </p>
-        <p
-          v-if="!checkingQuality && !failedShots.length"
-          class="ph-faces-empty"
-        >
-          No failed shots.
-        </p>
-        <ul v-if="failedShots.length" class="ph-shots">
-          <li v-for="shot in failedShots" :key="shot.photo.id" class="ph-shot">
-            <img
-              class="ph-shot-img"
-              :src="shot.thumb"
-              :alt="shot.title"
-              loading="lazy"
-            />
-            <div class="ph-shot-flaws">
-              <span
-                v-for="flaw in shot.flaws"
-                :key="flaw"
-                class="ph-shot-flaw"
-                >{{ flaw }}</span
-              >
-            </div>
-            <span class="ph-shot-title" :title="shot.title">{{
-              shot.title
+      <p class="ph-faces-help">
+        Blurry, too dark or overexposed photos, spotted from their thumbnail.
+        Delete them, or keep one to take it off this list for good.
+      </p>
+      <p v-if="checkingQuality" class="ph-shots-status" role="status">
+        Checking photos {{ checkingQuality.done }}/{{ checkingQuality.total }}…
+      </p>
+      <p v-if="qualityUnreadable" class="ph-shots-status">
+        {{ qualityUnreadable }}
+        {{ qualityUnreadable === 1 ? 'photo' : 'photos' }} could not be read.
+      </p>
+      <p v-if="!checkingQuality && !failedShots.length" class="ph-faces-empty">
+        No failed shots.
+      </p>
+      <ul v-if="failedShots.length" class="ph-shots">
+        <li v-for="shot in failedShots" :key="shot.photo.id" class="ph-shot">
+          <img
+            class="ph-shot-img"
+            :src="shot.thumb"
+            :alt="shot.title"
+            loading="lazy"
+          />
+          <div class="ph-shot-flaws">
+            <span v-for="flaw in shot.flaws" :key="flaw" class="ph-shot-flaw">{{
+              flaw
             }}</span>
-            <div class="ph-shot-actions">
-              <button class="ph-btn" @click="keepShot(shot.photo)">Keep</button>
+          </div>
+          <span class="ph-shot-title" :title="shot.title">{{
+            shot.title
+          }}</span>
+          <div class="ph-shot-actions">
+            <button class="ph-btn" @click="keepShot(shot.photo)">Keep</button>
+            <button
+              class="ph-btn ph-btn--danger"
+              @click="deletePhotos([shot.photo.id])"
+            >
+              Delete
+            </button>
+          </div>
+        </li>
+      </ul>
+    </ServantDialog>
+    <ServantDialog v-model:open="dateModalActive" title="Date taken" size="sm">
+      <div class="ph-modal-section-label">
+        Applies to {{ selCount }} selected
+        {{ selCount === 1 ? 'photo' : 'photos' }}
+      </div>
+      <div class="ph-date-row">
+        <DateInput
+          class="ph-modal-input"
+          v-model="dateModalDate"
+          autofocus
+          @keydown.enter="applyDate"
+          @keydown.esc="closeDateModal"
+        />
+        <input
+          class="ph-modal-input"
+          type="time"
+          v-model="dateModalTime"
+          @keydown.enter="applyDate"
+          @keydown.esc="closeDateModal"
+        />
+      </div>
+      <template #actions>
+        <button
+          class="ph-btn ph-btn--primary"
+          :disabled="!dateModalDate"
+          @click="applyDate"
+        >
+          Apply
+        </button>
+      </template>
+    </ServantDialog>
+    <ServantDialog v-model:open="tagModalActive" title="Tags" size="sm">
+      <template v-if="currentTags.length">
+        <div class="ph-modal-section-label">Current tags</div>
+        <div class="ph-modal-current-tags">
+          <span
+            v-for="tag in currentTags"
+            :key="tag"
+            class="ph-modal-current-tag"
+          >
+            {{ tag }}
+            <button
+              type="button"
+              class="ph-modal-tag-remove"
+              :title="`Remove ${tag}`"
+              :aria-label="`Remove ${tag}`"
+              @click.stop="removeTagFromSelected(tag)"
+            >
+              <X :size="16" />
+            </button>
+          </span>
+        </div>
+      </template>
+      <div class="ph-modal-section-label">Add a tag</div>
+      <input
+        ref="tagInput"
+        class="ph-modal-input"
+        type="text"
+        placeholder="Tag name..."
+        v-model="tagModalQuery"
+        @keydown.enter="applyTag(tagModalQuery)"
+        @keydown.esc="closeTagModal"
+      />
+      <div v-if="tagSuggestions.length" class="ph-modal-suggestions">
+        <span
+          v-for="tag in tagSuggestions"
+          :key="tag"
+          class="ph-modal-suggestion"
+          @click="applyTag(tag)"
+          >{{ tag }}</span
+        >
+      </div>
+      <template #actions>
+        <button
+          class="ph-btn ph-btn--primary"
+          :disabled="!tagModalQuery.trim()"
+          @click="applyTag(tagModalQuery)"
+        >
+          Add
+        </button>
+      </template>
+    </ServantDialog>
+    <ServantDialog
+      v-model:open="shareModalActive"
+      title="Share a photo feed"
+      close-label="Close"
+    >
+      <p class="ph-share-help">
+        Anyone with the link sees the photos carrying the tags and people you
+        pick, including the ones you tag later. Nothing else is exposed, not
+        even the names of the people.
+      </p>
+      <div v-if="allTags.length" class="ph-modal-section-label">Tags</div>
+      <div v-if="allTags.length" class="ph-modal-suggestions">
+        <button
+          v-for="tag in allTags"
+          :key="tag"
+          type="button"
+          class="ph-modal-suggestion"
+          :class="{
+            'ph-modal-suggestion--active': shareTags.includes(tag)
+          }"
+          :aria-pressed="shareTags.includes(tag)"
+          @click="toggleShareTag(tag)"
+        >
+          {{ tag }}
+        </button>
+      </div>
+      <div v-if="allPeople.length" class="ph-modal-section-label">People</div>
+      <div v-if="allPeople.length" class="ph-modal-suggestions">
+        <button
+          v-for="person in allPeople"
+          :key="person.id"
+          type="button"
+          class="ph-modal-suggestion"
+          :class="{
+            'ph-modal-suggestion--active': sharePeopleIds.has(person.id)
+          }"
+          :aria-pressed="sharePeopleIds.has(person.id)"
+          @click="toggleSharePerson(person)"
+        >
+          {{ person.name }}
+        </button>
+      </div>
+      <ComboBox
+        v-if="shareCriteriaCount > 1"
+        class="ph-modal-input"
+        :model-value="shareMatch"
+        :options="SHARE_MATCH_OPTIONS"
+        @update:model-value="onShareMatchChange"
+      />
+      <input
+        class="ph-modal-input"
+        type="text"
+        placeholder="Link name (optional)"
+        aria-label="Link name"
+        v-model="shareName"
+        @keydown.enter="createShare"
+        @keydown.esc="closeShareModal"
+      />
+      <p v-if="shareError" class="ph-share-error">{{ shareError }}</p>
+      <template v-if="shareRows.length">
+        <div class="ph-modal-section-label ph-share-list-label">
+          Existing links
+        </div>
+        <ul class="ph-share-list">
+          <li v-for="row in shareRows" :key="row.share.id" class="ph-share-row">
+            <div class="ph-share-info">
+              <span class="ph-share-label">{{ row.label }}</span>
+              <code class="ph-share-url">{{ row.url }}</code>
+            </div>
+            <div class="ph-share-row-actions">
+              <button class="ph-btn" @click="copyShare(row.share)">
+                {{ copiedShareId === row.share.id ? 'Copied' : 'Copy' }}
+              </button>
+              <a
+                class="ph-btn"
+                :href="row.share.path"
+                target="_blank"
+                rel="noopener"
+                >Open</a
+              >
               <button
                 class="ph-btn ph-btn--danger"
-                @click="deletePhotos([shot.photo.id])"
+                @click="revokeShare(row.share)"
               >
-                Delete
+                Revoke
               </button>
             </div>
           </li>
         </ul>
-        <div class="ph-modal-actions">
-          <button class="ph-btn" autofocus @click="qualityModalActive = false">
-            Close
-          </button>
-        </div>
-      </div>
-    </dialog>
-    <dialog
-      v-if="dateModalActive"
-      :ref="openDialog"
-      class="modal-dialog"
-      aria-labelledby="ph-date-title"
-      @click.self="closeDateModal"
-      @cancel="closeDateModal"
-    >
-      <div class="ph-modal">
-        <h3 id="ph-date-title" class="ph-modal-title">Date taken</h3>
-        <div class="ph-modal-section-label">
-          Applies to {{ selCount }} selected
-          {{ selCount === 1 ? 'photo' : 'photos' }}
-        </div>
-        <div class="ph-date-row">
-          <DateInput
-            class="ph-modal-input"
-            v-model="dateModalDate"
-            @keydown.enter="applyDate"
-            @keydown.esc="closeDateModal"
-          />
-          <input
-            class="ph-modal-input"
-            type="time"
-            v-model="dateModalTime"
-            @keydown.enter="applyDate"
-            @keydown.esc="closeDateModal"
-          />
-        </div>
-        <div class="ph-modal-actions">
-          <button class="ph-btn" @click="closeDateModal">Cancel</button>
-          <button
-            class="ph-btn ph-btn--primary"
-            :disabled="!dateModalDate"
-            @click="applyDate"
-          >
-            Apply
-          </button>
-        </div>
-      </div>
-    </dialog>
-    <dialog
-      v-if="tagModalActive"
-      :ref="openDialog"
-      class="modal-dialog"
-      aria-labelledby="ph-tags-title"
-      @click.self="closeTagModal"
-      @cancel="closeTagModal"
-    >
-      <div class="ph-modal">
-        <h3 id="ph-tags-title" class="ph-modal-title">Tags</h3>
-        <template v-if="currentTags.length">
-          <div class="ph-modal-section-label">Current tags</div>
-          <div class="ph-modal-current-tags">
-            <span
-              v-for="tag in currentTags"
-              :key="tag"
-              class="ph-modal-current-tag"
-            >
-              {{ tag }}
-              <button
-                type="button"
-                class="ph-modal-tag-remove"
-                :title="`Remove ${tag}`"
-                :aria-label="`Remove ${tag}`"
-                @click.stop="removeTagFromSelected(tag)"
-              >
-                <X :size="16" />
-              </button>
-            </span>
-          </div>
-        </template>
-        <div class="ph-modal-section-label">Add a tag</div>
-        <input
-          ref="tagInput"
-          class="ph-modal-input"
-          type="text"
-          placeholder="Tag name..."
-          v-model="tagModalQuery"
-          @keydown.enter="applyTag(tagModalQuery)"
-          @keydown.esc="closeTagModal"
-        />
-        <div v-if="tagSuggestions.length" class="ph-modal-suggestions">
-          <span
-            v-for="tag in tagSuggestions"
-            :key="tag"
-            class="ph-modal-suggestion"
-            @click="applyTag(tag)"
-            >{{ tag }}</span
-          >
-        </div>
-        <div class="ph-modal-actions">
-          <button class="ph-btn" @click="closeTagModal">Cancel</button>
-          <button
-            class="ph-btn ph-btn--primary"
-            :disabled="!tagModalQuery.trim()"
-            @click="applyTag(tagModalQuery)"
-          >
-            Add
-          </button>
-        </div>
-      </div>
-    </dialog>
-    <dialog
-      v-if="shareModalActive"
-      :ref="openDialog"
-      class="modal-dialog"
-      aria-labelledby="ph-share-title"
-      @click.self="closeShareModal"
-      @cancel="closeShareModal"
-    >
-      <div class="ph-modal ph-modal--share">
-        <h3 id="ph-share-title" class="ph-modal-title">Share a photo feed</h3>
-        <p class="ph-share-help">
-          Anyone with the link sees the photos carrying the tags and people you
-          pick, including the ones you tag later. Nothing else is exposed, not
-          even the names of the people.
-        </p>
-        <div v-if="allTags.length" class="ph-modal-section-label">Tags</div>
-        <div v-if="allTags.length" class="ph-modal-suggestions">
-          <button
-            v-for="tag in allTags"
-            :key="tag"
-            type="button"
-            class="ph-modal-suggestion"
-            :class="{
-              'ph-modal-suggestion--active': shareTags.includes(tag)
-            }"
-            :aria-pressed="shareTags.includes(tag)"
-            @click="toggleShareTag(tag)"
-          >
-            {{ tag }}
-          </button>
-        </div>
-        <div v-if="allPeople.length" class="ph-modal-section-label">People</div>
-        <div v-if="allPeople.length" class="ph-modal-suggestions">
-          <button
-            v-for="person in allPeople"
-            :key="person.id"
-            type="button"
-            class="ph-modal-suggestion"
-            :class="{
-              'ph-modal-suggestion--active': sharePeopleIds.has(person.id)
-            }"
-            :aria-pressed="sharePeopleIds.has(person.id)"
-            @click="toggleSharePerson(person)"
-          >
-            {{ person.name }}
-          </button>
-        </div>
-        <ComboBox
-          v-if="shareCriteriaCount > 1"
-          class="ph-modal-input"
-          :model-value="shareMatch"
-          :options="SHARE_MATCH_OPTIONS"
-          @update:model-value="onShareMatchChange"
-        />
-        <input
-          class="ph-modal-input"
-          type="text"
-          placeholder="Link name (optional)"
-          aria-label="Link name"
-          v-model="shareName"
-          @keydown.enter="createShare"
-          @keydown.esc="closeShareModal"
-        />
-        <p v-if="shareError" class="ph-share-error">{{ shareError }}</p>
-        <div class="ph-modal-actions">
-          <button class="ph-btn" @click="closeShareModal">Close</button>
-          <button
-            class="ph-btn ph-btn--primary"
-            :disabled="!shareCriteriaCount || shareBusy"
-            autofocus
-            @click="createShare"
-          >
-            {{ shareBusy ? 'Creating…' : 'Create link' }}
-          </button>
-        </div>
-        <template v-if="shareRows.length">
-          <div class="ph-modal-section-label ph-share-list-label">
-            Existing links
-          </div>
-          <ul class="ph-share-list">
-            <li
-              v-for="row in shareRows"
-              :key="row.share.id"
-              class="ph-share-row"
-            >
-              <div class="ph-share-info">
-                <span class="ph-share-label">{{ row.label }}</span>
-                <code class="ph-share-url">{{ row.url }}</code>
-              </div>
-              <div class="ph-share-row-actions">
-                <button class="ph-btn" @click="copyShare(row.share)">
-                  {{ copiedShareId === row.share.id ? 'Copied' : 'Copy' }}
-                </button>
-                <a
-                  class="ph-btn"
-                  :href="row.share.path"
-                  target="_blank"
-                  rel="noopener"
-                  >Open</a
-                >
-                <button
-                  class="ph-btn ph-btn--danger"
-                  @click="revokeShare(row.share)"
-                >
-                  Revoke
-                </button>
-              </div>
-            </li>
-          </ul>
-        </template>
-      </div>
-    </dialog>
+      </template>
+      <template #actions>
+        <button
+          class="ph-btn ph-btn--primary"
+          :disabled="!shareCriteriaCount || shareBusy"
+          autofocus
+          @click="createShare"
+        >
+          {{ shareBusy ? 'Creating…' : 'Create link' }}
+        </button>
+      </template>
+    </ServantDialog>
   </Teleport>
 </template>
 
 <style scoped>
-.ph-loading {
-  color: var(--text-muted);
-  padding: 2rem;
-  font-family: var(--font-mono);
-}
 .ph-layout {
   display: flex;
   flex-direction: column;
@@ -2459,18 +2401,6 @@ onUnmounted(() => {
   font-family: var(--font-mono);
   font-size: 0.88rem;
 }
-.ph-modal {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1.5rem;
-  width: 100%;
-  max-width: 360px;
-}
-.ph-modal-title {
-  margin: 0 0 1rem;
-  font-size: 1.1rem;
-}
 .ph-modal-input {
   width: 100%;
   margin-bottom: 0.75rem;
@@ -2478,16 +2408,6 @@ onUnmounted(() => {
 .ph-date-row {
   display: flex;
   gap: 0.5rem;
-}
-.ph-modal--faces {
-  max-width: 1100px;
-  max-height: 80vh;
-  overflow-y: auto;
-}
-.ph-modal--wide {
-  max-width: 1100px;
-  max-height: 85vh;
-  overflow-y: auto;
 }
 .ph-shots-status {
   margin: 0 0 0.75rem;
@@ -2544,11 +2464,6 @@ onUnmounted(() => {
 }
 .ph-shot-actions .ph-btn {
   flex: 1;
-}
-.ph-modal--share {
-  max-width: 560px;
-  max-height: 85vh;
-  overflow-y: auto;
 }
 .ph-faces-empty {
   color: var(--text-muted);
@@ -2695,11 +2610,6 @@ button.ph-modal-suggestion {
 .ph-modal-tag-remove:hover {
   opacity: 1;
 }
-.ph-modal-actions {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
-}
 
 /* ----- Share modal ----- */
 .ph-share-help {
@@ -2762,11 +2672,6 @@ button.ph-modal-suggestion {
 
 /* ----- Responsive (modals) ----- */
 @media (max-width: 640px) {
-  .ph-modal {
-    padding: 1.1rem;
-    max-height: calc(100dvh - 2rem);
-    overflow-y: auto;
-  }
   .ph-date-row {
     flex-wrap: wrap;
   }
@@ -2786,9 +2691,6 @@ button.ph-modal-suggestion {
   }
   .ph-share-info {
     flex: 1 1 100%;
-  }
-  .ph-modal-actions {
-    flex-wrap: wrap;
   }
 }
 @media (pointer: coarse) {
