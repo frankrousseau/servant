@@ -66,4 +66,34 @@ describe('AutocompleteInput', () => {
     await input.trigger('keydown', { key: 'Escape' })
     expect(wrapper.find('.ac-list').exists()).toBe(false)
   })
+
+  it('places the list from the input rect, out of any clipping ancestor', async () => {
+    const wrapper = make()
+    await wrapper.find('input').trigger('focus')
+    const style = (wrapper.find('.ac-list').element as HTMLElement).style
+    expect(style.left).toBeTruthy()
+    expect(style.top || style.bottom).toBeTruthy()
+  })
+
+  it('closes only the list on Escape, so a surrounding dialog stays open', async () => {
+    const wrapper = make()
+    await wrapper.find('input').trigger('focus')
+    const open = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true
+    })
+    wrapper.find('input').element.dispatchEvent(open)
+    await wrapper.vm.$nextTick()
+    expect(open.defaultPrevented).toBe(true)
+    expect(wrapper.find('.ac-list').exists()).toBe(false)
+
+    const closed = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true
+    })
+    wrapper.find('input').element.dispatchEvent(closed)
+    expect(closed.defaultPrevented).toBe(false)
+  })
 })

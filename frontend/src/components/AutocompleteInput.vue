@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 const props = defineProps<{
   modelValue: string
@@ -13,6 +13,45 @@ const emit = defineEmits<{
 
 const open = ref(false)
 const activeIndex = ref(-1)
+const input = ref<HTMLInputElement | null>(null)
+
+// The list is fixed-positioned from the input's rect rather than absolute:
+// an ancestor that scrolls (a dialog body, a phone modal) would clip an
+// absolute list. It flips above the input when the room below runs out, and
+// follows the input while any ancestor scrolls.
+const listStyle = ref<Record<string, string>>({})
+const LIST_MAX = 220
+const GAP = 4
+
+function reposition() {
+  const rect = input.value?.getBoundingClientRect()
+  if (!rect) return
+  const below = window.innerHeight - rect.bottom
+  const openUp = below < LIST_MAX + GAP && rect.top > below
+  listStyle.value = {
+    left: `${rect.left}px`,
+    width: `${rect.width}px`,
+    ...(openUp
+      ? { bottom: `${window.innerHeight - rect.top + GAP}px` }
+      : { top: `${rect.bottom + GAP}px` })
+  }
+}
+
+watch(open, isOpen => {
+  if (isOpen) {
+    reposition()
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+  } else {
+    window.removeEventListener('scroll', reposition, true)
+    window.removeEventListener('resize', reposition)
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', reposition, true)
+  window.removeEventListener('resize', reposition)
+})
 
 const filtered = computed(() => {
   const query = props.modelValue.trim().toLowerCase()
@@ -59,7 +98,10 @@ function onKeydown(event: KeyboardEvent) {
       emit('select', props.modelValue)
       close()
     }
-  } else if (event.key === 'Escape') {
+  } else if (event.key === 'Escape' && open.value && filtered.value.length) {
+    // Only the list closes: a surrounding dialog stays open.
+    event.preventDefault()
+    event.stopPropagation()
     close()
   }
 }
@@ -68,6 +110,7 @@ function onKeydown(event: KeyboardEvent) {
 <template>
   <div class="ac">
     <input
+      ref="input"
       class="ac-input"
       type="text"
       :value="modelValue"
@@ -77,7 +120,12 @@ function onKeydown(event: KeyboardEvent) {
       @blur="close"
       @keydown="onKeydown"
     />
-    <div v-if="open && filtered.length" class="ac-list" role="listbox">
+    <div
+      v-if="open && filtered.length"
+      class="ac-list"
+      role="listbox"
+      :style="listStyle"
+    >
       <!-- mousedown.prevent keeps the input focused so blur doesn't
            close the list before the option registers -->
       <div
@@ -104,10 +152,8 @@ function onKeydown(event: KeyboardEvent) {
   width: 100%;
 }
 .ac-list {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
+  /* Coordinates come from reposition() */
+  position: fixed;
   z-index: 30;
   max-height: 220px;
   overflow-y: auto;
