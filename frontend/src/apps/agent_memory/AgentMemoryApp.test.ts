@@ -167,7 +167,7 @@ describe('AgentMemoryApp', () => {
     const wrapper = mount(AgentMemoryApp, { props: { ctx: ctx as never } })
     await flushPromises()
 
-    expect(wrapper.find('.tree .error').text()).toContain('HTTP 500')
+    expect(wrapper.find('.tree [role="alert"]').text()).toContain('HTTP 500')
   })
 
   it('shows actionError in the viewer when save fails, tree stays visible', async () => {

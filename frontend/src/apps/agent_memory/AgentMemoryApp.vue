@@ -2,12 +2,15 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ChevronLeft, ChevronsDownUp, ChevronsUpDown } from 'lucide-vue-next'
 
+import LoadState from '../../components/LoadState.vue'
+import SearchField from '../../components/SearchField.vue'
 import MemoryTreeNode from './MemoryTreeNode.vue'
 
 import { formatDateTime } from '../../lib/datetime'
 import { renderMarkdown } from '../notes/render'
 import { splitFrontmatter } from './frontmatter'
 import { buildTree } from './tree'
+import type { LoadStatus } from '../../components/LoadState.vue'
 import type { AppContext } from '../types'
 import type { MemoryFile, TreeNode } from './tree'
 
@@ -18,7 +21,6 @@ const loading = ref(true)
 const loadError = ref('')
 const actionError = ref('')
 const search = ref('')
-const searchInput = ref<HTMLInputElement | null>(null)
 const selectedPath = ref<string | null>(null)
 const editing = ref(false)
 const draft = ref('')
@@ -42,6 +44,11 @@ const filteredFiles = computed(() => {
 })
 
 const tree = computed(() => buildTree(filteredFiles.value))
+
+const loadState = computed<LoadStatus>(() => {
+  if (loading.value) return 'loading'
+  return loadError.value ? 'error' : 'ready'
+})
 
 const selected = computed(
   () =>
@@ -218,9 +225,6 @@ onMounted(() => {
   unsubscribe = props.ctx.events.onEntryChange(entry => {
     if (!entry.kind || entry.kind === 'agent_memory') scheduleRefresh()
   })
-  // Apps are mounted as separate Vue instances after a dynamic import, so the
-  // native `autofocus` attribute below is never honored; focus by hand.
-  searchInput.value?.focus()
 })
 
 onUnmounted(() => {
@@ -233,13 +237,12 @@ onUnmounted(() => {
   <div class="am-layout" :class="{ 'am-layout--detail': selected }">
     <div class="tree">
       <div class="am-side-head">
-        <input
-          ref="searchInput"
+        <SearchField
           v-model="search"
-          type="search"
           class="am-search"
+          label="Filter files by path"
           placeholder="Filter by path"
-          aria-label="Filter files by path"
+          autofocus
         />
         <button
           v-if="tree.length"
@@ -254,23 +257,24 @@ onUnmounted(() => {
         </button>
       </div>
       <div class="am-tree">
-        <p v-if="loading" class="am-placeholder">Loading…</p>
-        <p v-else-if="loadError" class="am-placeholder error">
-          {{ loadError }}
-        </p>
-        <p v-else-if="tree.length === 0" class="am-placeholder">
-          No files yet. Run the servant-memory skill's push script from a repo.
-        </p>
-        <ul v-else :key="treeVersion" class="nodes">
-          <li v-for="node in tree" :key="node.path">
-            <MemoryTreeNode
-              :node="node"
-              :selected-path="selectedPath"
-              :expanded="expanded"
-              @select="select"
-            />
-          </li>
-        </ul>
+        <LoadState
+          :state="loadState"
+          :empty="tree.length === 0"
+          what="files"
+          :error-text="loadError"
+          empty-text="No files yet. Run the servant-memory skill's push script from a repo."
+        >
+          <ul :key="treeVersion" class="nodes">
+            <li v-for="node in tree" :key="node.path">
+              <MemoryTreeNode
+                :node="node"
+                :selected-path="selectedPath"
+                :expanded="expanded"
+                @select="select"
+              />
+            </li>
+          </ul>
+        </LoadState>
       </div>
     </div>
 
