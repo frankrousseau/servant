@@ -24,11 +24,13 @@ import {
 import AutocompleteInput from '../../components/AutocompleteInput.vue'
 import ComboBox from '../../components/ComboBox.vue'
 import DateInput from '../../components/DateInput.vue'
+import LoadState from '../../components/LoadState.vue'
+import SearchField from '../../components/SearchField.vue'
+import ServantDialog from '../../components/ServantDialog.vue'
 import RelationsGraph from './RelationsGraph.vue'
 
 import { contactField, contactInitials, contactName } from '../../lib/contact'
 import { formatDate } from '../../lib/datetime'
-import { openDialog } from '../../lib/dialog'
 import { safeUrl } from '../../lib/url'
 // Photos owns the shape of a stored face; read it through its helper rather
 // than re-deriving `data.faces` here.
@@ -52,6 +54,7 @@ import {
   withoutRelation,
   type Relation
 } from './relations'
+import type { LoadStatus } from '../../components/LoadState.vue'
 import type { AppContext, Entry } from '../types'
 
 const props = defineProps<{ ctx: AppContext }>()
@@ -73,6 +76,10 @@ const selectedId = ref<string | null>(query.get('selected'))
 const graphOpen = ref(query.get('view') === 'graph')
 const loading = ref(true)
 const loadError = ref('')
+const loadState = computed<LoadStatus>(() => {
+  if (loading.value) return 'loading'
+  return loadError.value ? 'error' : 'ready'
+})
 
 // The detail column is the single workplace: it shows the full contact,
 // edits it in place, and hosts creation (no modal, no separate page).
@@ -81,7 +88,6 @@ const saving = ref(false)
 const formError = ref('')
 const avatarUploading = ref(false)
 const nameInput = ref<HTMLInputElement | null>(null)
-const searchInput = ref<HTMLInputElement | null>(null)
 const form = reactive({
   display_name: '',
   org: '',
@@ -787,9 +793,6 @@ function openDuplicates() {
   mergeError.value = ''
   duplicatesOpen.value = true
 }
-function closeDuplicates() {
-  duplicatesOpen.value = false
-}
 function chooseSurvivor(key: string, id: string) {
   survivorChoice.value = { ...survivorChoice.value, [key]: id }
 }
@@ -884,7 +887,6 @@ async function reload() {
       err instanceof Error ? err.message : 'Failed to load contacts'
   } finally {
     loading.value = false
-    nextTick(() => searchInput.value?.focus())
   }
   try {
     const prefs = await props.ctx.api.entries.list({ kind: 'prefs' })
@@ -905,746 +907,723 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>
-  <p v-if="loading" class="ct-loading">Scanning address book&hellip;</p>
-  <p v-else-if="loadError" class="ct-loading">{{ loadError }}</p>
-  <div v-else class="ct-layout" :class="{ 'ct-layout--detail': detailShown }">
-    <div class="ct-list-col">
-      <div class="ct-search-wrap">
-        <input
-          ref="searchInput"
-          v-model="searchQuery"
-          class="ct-search"
-          type="text"
-          placeholder="Search contacts..."
-          aria-label="Search contacts"
-          @input="onSearch"
-        />
-      </div>
-      <div v-if="allTags.length" class="ct-tag-bar">
-        <template v-for="tag in allTags" :key="tag">
-          <input
-            v-if="renamingTag === tag"
-            :ref="el => (renameTagInput = el as HTMLInputElement | null)"
-            class="ct-tag-rename"
-            v-model="renameTagValue"
-            @keyup.enter="commitRenameTag"
-            @keyup.esc="renamingTag = null"
-            @blur="commitRenameTag"
+  <LoadState
+    :state="loadState"
+    what="contacts"
+    loading-text="Scanning address book…"
+    :error-text="loadError"
+  >
+    <div class="ct-layout" :class="{ 'ct-layout--detail': detailShown }">
+      <div class="ct-list-col">
+        <div class="ct-search-wrap">
+          <SearchField
+            v-model="searchQuery"
+            class="ct-search"
+            label="Search contacts"
+            autofocus
+            @update:model-value="onSearch"
           />
-          <button
-            v-else
-            class="ct-tag-chip"
-            :class="{ 'ct-tag-chip--active': activeTags.includes(tag) }"
-            title="Double-click to rename everywhere"
-            @click="toggleTagFilter(tag)"
-            @dblclick="startRenameTag(tag)"
-          >
-            {{ tag }}
-          </button>
-        </template>
-        <button
-          v-if="activeTags.length > 1"
-          class="ct-tag-chip ct-tag-clear"
-          @click="activeTags = []"
-        >
-          Clear
-        </button>
-      </div>
-      <div v-if="filtered.length === 0" class="ct-list">
-        <p v-if="allContacts.length === 0" class="ct-empty">
-          No contacts yet. Add one, or connect a vCard source.
-        </p>
-        <p v-else class="ct-empty">No match.</p>
-      </div>
-      <div v-else class="ct-list" v-bind="containerProps">
-        <div v-bind="wrapperProps">
-          <div
-            v-for="{ data: contact } in virtualContacts"
-            :key="contact.id"
-            class="ct-card"
-            :class="{ 'ct-card--active': contact.id === selectedId }"
-            @click="selectContact(contact.id)"
-          >
-            <span
-              v-if="fld(contact, 'photo')"
-              class="ct-avatar ct-avatar--photo"
-            >
-              <img :src="fld(contact, 'photo')" alt="" loading="lazy" />
-            </span>
-            <span
-              v-else
-              class="ct-avatar"
-              :style="avatarStyle(contactName(contact))"
-              >{{ getInitials(contactName(contact)) }}</span
-            >
-            <div class="ct-card-body">
-              <span class="ct-name"
-                >{{ contactName(contact)
-                }}<span v-if="contact.id === meId" class="ct-me-badge"
-                  >ME</span
-                ></span
-              >
-              <span class="ct-sub">{{
-                fld(contact, 'org') || getEmails(contact)[0]?.value || ''
-              }}</span>
-            </div>
-          </div>
         </div>
-      </div>
-    </div>
-
-    <div class="ct-detail-col">
-      <div class="ct-detail-topbar">
-        <button
-          v-if="detailShown"
-          type="button"
-          class="ct-back-btn"
-          aria-label="Back to list"
-          @click="backToList"
-        >
-          <ChevronLeft :size="20" />
-        </button>
-        <span class="ct-count"
-          >{{ filtered.length }}
-          <span class="ct-count-unit">{{
-            filtered.length === 1 ? 'CONTACT' : 'CONTACTS'
-          }}</span></span
-        >
-        <button
-          v-if="duplicateGroups.length"
-          class="ct-graph-btn ct-duplicates-btn"
-          title="Contacts sharing an email, a phone or a name"
-          @click="openDuplicates"
-        >
-          Duplicates ({{ duplicateGroups.length }})
-        </button>
-        <button
-          class="ct-graph-btn"
-          :class="{
-            'ct-graph-btn--active': graphOpen,
-            'ct-graph-btn--inline': duplicateGroups.length
-          }"
-          title="Relations between contacts (links to you left out)"
-          @click="toggleGraph"
-        >
-          Graph
-        </button>
-        <button class="ct-add-contact-btn" @click="openCreate">
-          <Plus :size="16" />
-          Add contact
-        </button>
-      </div>
-      <div class="ct-detail-body">
-        <RelationsGraph
-          v-if="graphOpen"
-          :contacts="allContacts"
-          :me-id="meId"
-          @select="selectContact"
-        />
-        <!-- Create / edit -->
-        <form
-          v-else-if="mode !== 'view'"
-          class="ct-form"
-          @submit.prevent="saveForm"
-        >
-          <h2 class="ct-form-title">
-            {{ mode === 'create' ? 'New contact' : 'Edit contact' }}
-          </h2>
-
-          <div class="ct-form-photo">
-            <label class="ct-form-avatar">
-              <img v-if="form.photo" :src="form.photo" alt="" />
-              <span
-                v-else
-                class="ct-form-avatar-placeholder"
-                :style="avatarStyle(form.display_name || '?')"
-                >{{ getInitials(form.display_name || '?') }}</span
-              >
-              <span
-                class="ct-form-avatar-overlay"
-                :class="{ uploading: avatarUploading }"
-              >
-                <Camera :size="20" />
-              </span>
-              <input
-                type="file"
-                accept="image/*"
-                hidden
-                @change="uploadPhoto"
-              />
-            </label>
-          </div>
-
-          <div class="ct-section-card">
-            <h3 class="ct-section-title">Basic Info</h3>
-            <div class="ct-form-grid">
-              <div class="ct-form-field ct-form-field--full">
-                <label>Name *</label>
-                <input ref="nameInput" v-model="form.display_name" required />
-              </div>
-              <div class="ct-form-field">
-                <label>Organization</label>
-                <input v-model="form.org" />
-              </div>
-              <div class="ct-form-field">
-                <label>Title</label>
-                <input
-                  v-model="form.title"
-                  placeholder="e.g. Software Engineer"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div class="ct-section-card">
-            <h3 class="ct-section-title">Contact</h3>
-            <div
-              v-for="(email, index) in form.emails"
-              :key="'email' + index"
-              class="ct-form-row"
-            >
-              <input
-                v-model="email.value"
-                type="email"
-                placeholder="Email"
-                class="ct-form-flex"
-              />
-              <input
-                v-model="email.type"
-                placeholder="Type"
-                class="ct-form-type"
-              />
-              <button
-                type="button"
-                class="ct-row-remove"
-                title="Remove"
-                aria-label="Remove email"
-                @click="removeEmail(index)"
-              >
-                <X :size="18" />
-              </button>
-            </div>
-            <button type="button" class="ct-row-add" @click="addEmail">
-              + Email
-            </button>
-            <div
-              v-for="(phone, index) in form.phones"
-              :key="'phone' + index"
-              class="ct-form-row"
-            >
-              <input
-                v-model="phone.value"
-                type="tel"
-                placeholder="Phone"
-                class="ct-form-flex"
-              />
-              <input
-                v-model="phone.type"
-                placeholder="Type"
-                class="ct-form-type"
-              />
-              <button
-                type="button"
-                class="ct-row-remove"
-                title="Remove"
-                aria-label="Remove phone"
-                @click="removePhone(index)"
-              >
-                <X :size="18" />
-              </button>
-            </div>
-            <button type="button" class="ct-row-add" @click="addPhone">
-              + Phone
-            </button>
-          </div>
-
-          <div class="ct-section-card">
-            <h3 class="ct-section-title">Details</h3>
-            <div class="ct-form-grid">
-              <div class="ct-form-field ct-form-field--full">
-                <label>Address</label>
-                <input v-model="form.address" />
-              </div>
-              <div class="ct-form-field">
-                <label>Birthday</label>
-                <DateInput v-model="form.birthday" />
-              </div>
-              <div class="ct-form-field">
-                <label>Website</label>
-                <input
-                  v-model="form.url"
-                  type="url"
-                  placeholder="https://..."
-                />
-              </div>
-            </div>
-            <div class="ct-form-field">
-              <label>Note</label>
-              <textarea v-model="form.note" rows="3"></textarea>
-            </div>
-          </div>
-
-          <p v-if="formError" class="ct-form-error">{{ formError }}</p>
-          <div class="ct-form-actions">
-            <button type="button" class="ct-btn" @click="cancelForm">
-              Cancel
-            </button>
+        <div v-if="allTags.length" class="ct-tag-bar">
+          <template v-for="tag in allTags" :key="tag">
+            <input
+              v-if="renamingTag === tag"
+              :ref="el => (renameTagInput = el as HTMLInputElement | null)"
+              class="ct-tag-rename"
+              v-model="renameTagValue"
+              @keyup.enter="commitRenameTag"
+              @keyup.esc="renamingTag = null"
+              @blur="commitRenameTag"
+            />
             <button
-              type="submit"
-              class="ct-btn ct-btn--primary"
-              :disabled="saving"
-            >
-              {{ saving ? 'Saving...' : mode === 'create' ? 'Create' : 'Save' }}
-            </button>
-          </div>
-        </form>
-
-        <!-- View -->
-        <div v-else-if="selected" class="ct-detail">
-          <div class="ct-detail-header">
-            <span
-              v-if="fld(selected, 'photo')"
-              class="ct-avatar ct-avatar--lg ct-avatar--photo"
-            >
-              <img :src="fld(selected, 'photo')" alt="" loading="lazy" />
-            </span>
-            <span
               v-else
-              class="ct-avatar ct-avatar--lg"
-              :style="avatarStyle(contactName(selected))"
-              >{{ getInitials(contactName(selected)) }}</span
-            >
-            <div>
-              <h2 class="ct-detail-name">
-                {{ contactName(selected)
-                }}<span v-if="meId === selected.id" class="ct-me-badge"
-                  >ME</span
-                >
-              </h2>
-              <span
-                v-if="fld(selected, 'title') || fld(selected, 'org')"
-                class="ct-detail-sub"
-                >{{
-                  [fld(selected, 'title'), fld(selected, 'org')]
-                    .filter(Boolean)
-                    .join(' · ')
-                }}</span
-              >
-            </div>
-            <button class="ct-footer-btn ct-header-edit" @click="openEdit">
-              Edit
-            </button>
-          </div>
-
-          <div class="ct-header-tags">
-            <button
-              v-for="tag in tagsOf(selected)"
-              :key="tag"
               class="ct-tag-chip"
+              :class="{ 'ct-tag-chip--active': activeTags.includes(tag) }"
+              title="Double-click to rename everywhere"
               @click="toggleTagFilter(tag)"
+              @dblclick="startRenameTag(tag)"
             >
               {{ tag }}
-              <span
-                class="ct-tag-x"
-                title="Remove tag"
-                aria-label="Remove tag"
-                @click.stop="removeTag(tag)"
-              >
-                <X :size="14" />
-              </span>
             </button>
-            <AutocompleteInput
-              v-model="newTag"
-              class="ct-tag-add"
-              :options="tagSuggestions"
-              placeholder="+ tag"
-              @select="addTag"
-            />
-          </div>
-
-          <div class="ct-section-card">
-            <h3 class="ct-section-title">Contact Info</h3>
-            <div
-              v-for="(email, index) in getEmails(selected)"
-              :key="'email' + index"
-              class="ct-info-row"
-            >
-              <Mail class="ct-info-icon" :size="18" />
-              <div class="ct-info-body">
-                <a class="ct-link" :href="'mailto:' + email.value">{{
-                  email.value
-                }}</a>
-                <span v-if="email.type" class="ct-info-type">{{
-                  email.type
-                }}</span>
-              </div>
-            </div>
-            <div
-              v-for="(phone, index) in getPhones(selected)"
-              :key="'phone' + index"
-              class="ct-info-row"
-            >
-              <Phone class="ct-info-icon" :size="18" />
-              <div class="ct-info-body">
-                <a class="ct-link" :href="'tel:' + phone.value">{{
-                  phone.value
-                }}</a>
-                <span v-if="phone.type" class="ct-info-type">{{
-                  phone.type
-                }}</span>
-              </div>
-            </div>
-            <span
-              v-if="!getEmails(selected).length && !getPhones(selected).length"
-              class="ct-muted"
-            >
-              No contact info
-            </span>
-          </div>
-
-          <div
-            v-if="
-              fld(selected, 'address') ||
-              fld(selected, 'birthday') ||
-              fld(selected, 'url') ||
-              fld(selected, 'note')
-            "
-            class="ct-section-card"
-          >
-            <h3 class="ct-section-title">Details</h3>
-            <div class="ct-meta-list">
-              <div v-if="fld(selected, 'address')" class="ct-meta-row">
-                <span class="ct-meta-key">Address</span
-                ><span>{{ fld(selected, 'address') }}</span>
-              </div>
-              <div v-if="fld(selected, 'birthday')" class="ct-meta-row">
-                <span class="ct-meta-key">Birthday</span
-                ><span>{{ fld(selected, 'birthday') }}</span>
-              </div>
-              <div v-if="fld(selected, 'url')" class="ct-meta-row">
-                <span class="ct-meta-key">Website</span>
-                <span>
-                  <a
-                    v-if="websiteHref"
-                    class="ct-link"
-                    :href="websiteHref"
-                    target="_blank"
-                    rel="noopener"
-                    >{{ fld(selected, 'url') }}</a
-                  >
-                  <template v-else>{{ fld(selected, 'url') }}</template>
-                </span>
-              </div>
-              <div v-if="fld(selected, 'note')" class="ct-meta-row">
-                <span class="ct-meta-key">Note</span>
-                <span class="ct-note">{{ fld(selected, 'note') }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- The whole address book relates to me: that list says nothing. -->
-          <div v-if="selected.id !== meId" class="ct-section-card">
-            <h3 class="ct-section-title">Relations</h3>
-            <div
-              v-for="relation in visibleRelations"
-              :key="relation.contact_id"
-              class="ct-linked-row"
-              role="button"
-              tabindex="0"
-              @click="selectContact(relation.contact_id)"
-              @keydown.enter="selectContact(relation.contact_id)"
-            >
-              <span class="ct-linked-meta">{{
-                relationLabel(relation.type)
-              }}</span>
-              <span class="ct-linked-title">{{
-                contactName(relation.contact)
-              }}</span>
-              <button
-                type="button"
-                class="ct-rel-x"
-                title="Remove relation"
-                aria-label="Remove relation"
-                @click.stop="removeRelation(relation.contact_id)"
-              >
-                <X :size="16" />
-              </button>
-            </div>
-            <form class="ct-rel-add" @submit.prevent="addRelation">
-              <AutocompleteInput
-                v-model="newRelType"
-                class="ct-rel-type"
-                :options="relTypeOptions"
-                placeholder="Relation..."
-              />
-              <ComboBox
-                v-model="newRelId"
-                class="ct-rel-name"
-                :options="relTargetOptions"
-                placeholder="Contact..."
-              />
-              <button type="submit" class="ct-rel-btn" :disabled="!newRelId">
-                Link
-              </button>
-            </form>
-          </div>
-
-          <div
-            v-if="showMeToggle || fld(selected, 'birthday')"
-            class="ct-section-card"
-          >
-            <h3 class="ct-section-title">Parameters</h3>
-            <div class="ct-param-list">
-              <label v-if="showMeToggle" class="ct-dash-toggle">
-                <input
-                  type="checkbox"
-                  :checked="meId === selected.id"
-                  @change="toggleMe"
-                />
-                <User :size="16" />This is me
-              </label>
-              <label v-if="fld(selected, 'birthday')" class="ct-dash-toggle">
-                <input
-                  type="checkbox"
-                  :checked="birthdayOnDashboard"
-                  @change="toggleBirthdayOnDashboard"
-                />
-                <Cake :size="16" />
-                <span
-                  >Show this birthday in the calendar and on the dashboard</span
-                >
-              </label>
-            </div>
-          </div>
-
-          <div v-if="linkedEvents.length" class="ct-section-card">
-            <h3 class="ct-section-title">Events</h3>
-            <div
-              v-for="event in linkedEvents.slice(0, 8)"
-              :key="event.id"
-              class="ct-linked-row"
-              role="button"
-              tabindex="0"
-              @click="ctx.navigate('/apps/calendar')"
-              @keydown.enter="ctx.navigate('/apps/calendar')"
-            >
-              <span class="ct-linked-meta">{{
-                formatDate(event.occurred_at || event.inserted_at)
-              }}</span>
-              <span class="ct-linked-title">
-                <span
-                  v-if="event.data.recurrence"
-                  class="ct-linked-rec"
-                  role="img"
-                  title="Recurring"
-                  aria-label="Recurring"
-                >
-                  <Repeat :size="14" />
-                </span>
-                {{ event.title || 'Untitled' }}
-              </span>
-            </div>
-          </div>
-
-          <div v-if="linkedPhotos.length" class="ct-section-card">
-            <h3 class="ct-section-title">Photos</h3>
-            <div class="ct-photo-grid">
-              <a
-                v-for="photo in linkedPhotos.slice(0, PHOTO_PREVIEW)"
-                :key="photo.id"
-                class="ct-photo"
-                :href="`/photos/${photo.id}`"
-                @click="onLinkClick(`/photos/${photo.id}`, $event)"
-              >
-                <img
-                  :src="photoThumb(photo)"
-                  :alt="photo.title || 'Photo'"
-                  loading="lazy"
-                />
-              </a>
-            </div>
-            <a
-              class="ct-photo-all"
-              :href="`/apps/photos?person=${selectedId}`"
-              @click="onLinkClick(`/apps/photos?person=${selectedId}`, $event)"
-            >
-              {{
-                linkedPhotos.length > PHOTO_PREVIEW
-                  ? `See all ${linkedPhotos.length} photos`
-                  : 'Open in Photos'
-              }}
-            </a>
-          </div>
-
-          <div v-if="mentioningNotes.length" class="ct-section-card">
-            <h3 class="ct-section-title">Mentioned in</h3>
-            <div
-              v-for="note in mentioningNotes"
-              :key="note.id"
-              class="ct-linked-row"
-              role="button"
-              tabindex="0"
-              @click="openNote(note)"
-              @keydown.enter="openNote(note)"
-            >
-              <span class="ct-linked-title">{{
-                note.title || 'Untitled'
-              }}</span>
-              <span v-if="note.data.folder" class="ct-linked-meta">{{
-                note.data.folder
-              }}</span>
-            </div>
-          </div>
-
-          <div class="ct-section-card ct-section-card--muted">
-            <h3 class="ct-section-title">Info</h3>
-            <div class="ct-meta-list">
-              <div class="ct-meta-row">
-                <span class="ct-meta-key">Source</span>
-                <span>{{
-                  fld(selected, 'source_name') || selected.source
-                }}</span>
-              </div>
-              <div class="ct-meta-row">
-                <span class="ct-meta-key">Added</span>
-                <span>{{ formatDate(selected.inserted_at) }}</span>
-              </div>
-              <div v-if="selected.external_id" class="ct-meta-row">
-                <span class="ct-meta-key">ID</span>
-                <span class="ct-mono">{{ selected.external_id }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="ct-detail-footer">
-            <button
-              class="ct-footer-btn ct-footer-btn--danger"
-              @click="deleteContact"
-            >
-              Delete contact
-            </button>
-          </div>
-        </div>
-        <p v-else class="ct-placeholder">Select a contact to view details</p>
-      </div>
-    </div>
-  </div>
-  <Teleport to="body">
-    <dialog
-      v-if="duplicatesOpen"
-      :ref="openDialog"
-      class="modal-dialog"
-      aria-labelledby="ct-duplicates-title"
-      @click.self="closeDuplicates"
-      @cancel="closeDuplicates"
-    >
-      <div class="ct-modal">
-        <h3 id="ct-duplicates-title" class="ct-modal-title">
-          Possible duplicates
-        </h3>
-        <p class="ct-modal-help">
-          Pick the contact to keep in each group. Merging moves the others'
-          details, tags, relations, photo faces, events and note mentions to it,
-          then deletes them.
-        </p>
-        <p v-if="mergeError" class="ct-modal-error">{{ mergeError }}</p>
-        <p v-if="!duplicateRows.length" class="ct-modal-empty">
-          No duplicates left.
-        </p>
-        <fieldset
-          v-for="row in duplicateRows"
-          :key="row.key"
-          class="ct-dup-group"
-        >
-          <legend class="ct-dup-reasons">{{ row.reasons }}</legend>
-          <div class="ct-dup-cards">
-            <label
-              v-for="item in row.contacts"
-              :key="item.contact.id"
-              class="ct-dup-card"
-              :class="{
-                'ct-dup-card--keep': item.contact.id === row.survivorId
-              }"
-            >
-              <span class="ct-dup-head">
-                <input
-                  type="radio"
-                  class="ct-dup-radio"
-                  :name="'keep-' + row.key"
-                  :value="item.contact.id"
-                  :checked="item.contact.id === row.survivorId"
-                  @change="chooseSurvivor(row.key, item.contact.id)"
-                />
-                <span v-if="item.photo" class="ct-avatar ct-avatar--photo">
-                  <img :src="item.photo" alt="" loading="lazy" />
-                </span>
-                <span
-                  v-else
-                  class="ct-avatar"
-                  :style="avatarStyle(item.name)"
-                  >{{ item.initials }}</span
-                >
-                <span class="ct-dup-title">
-                  <span class="ct-dup-name">{{ item.name }}</span>
-                  <span v-if="item.org" class="ct-dup-org">{{ item.org }}</span>
-                </span>
-                <span
-                  v-if="item.contact.id === row.survivorId"
-                  class="ct-dup-keep"
-                  >keep</span
-                >
-              </span>
-              <dl class="ct-dup-fields">
-                <template v-for="field in item.fields" :key="field.label">
-                  <dt>{{ field.label }}</dt>
-                  <dd v-if="field.values.length">
-                    <span
-                      v-for="value in field.values"
-                      :key="value.text"
-                      class="ct-dup-value"
-                      :class="{ 'ct-dup-value--shared': value.shared }"
-                      >{{ value.text }}</span
-                    >
-                  </dd>
-                  <dd v-else class="ct-dup-empty">-</dd>
-                </template>
-                <dt>Added</dt>
-                <dd class="ct-dup-added">{{ item.added }}</dd>
-              </dl>
-            </label>
-          </div>
-          <div class="ct-dup-actions">
-            <button
-              type="button"
-              class="ct-btn ct-btn--primary"
-              :disabled="merging !== null"
-              @click="mergeGroup(row)"
-            >
-              {{ merging === row.key ? 'Merging…' : 'Merge into the kept one' }}
-            </button>
-          </div>
-        </fieldset>
-        <div class="ct-modal-actions">
+          </template>
           <button
-            type="button"
-            class="ct-btn"
-            autofocus
-            @click="closeDuplicates"
+            v-if="activeTags.length > 1"
+            class="ct-tag-chip ct-tag-clear"
+            @click="activeTags = []"
           >
-            Close
+            Clear
           </button>
         </div>
+        <div v-if="filtered.length === 0" class="ct-list">
+          <p v-if="allContacts.length === 0" class="ct-empty">
+            No contacts yet. Add one, or connect a vCard source.
+          </p>
+          <p v-else class="ct-empty">No match.</p>
+        </div>
+        <div v-else class="ct-list" v-bind="containerProps">
+          <div v-bind="wrapperProps">
+            <div
+              v-for="{ data: contact } in virtualContacts"
+              :key="contact.id"
+              class="ct-card"
+              :class="{ 'ct-card--active': contact.id === selectedId }"
+              @click="selectContact(contact.id)"
+            >
+              <span
+                v-if="fld(contact, 'photo')"
+                class="ct-avatar ct-avatar--photo"
+              >
+                <img :src="fld(contact, 'photo')" alt="" loading="lazy" />
+              </span>
+              <span
+                v-else
+                class="ct-avatar"
+                :style="avatarStyle(contactName(contact))"
+                >{{ getInitials(contactName(contact)) }}</span
+              >
+              <div class="ct-card-body">
+                <span class="ct-name"
+                  >{{ contactName(contact)
+                  }}<span v-if="contact.id === meId" class="ct-me-badge"
+                    >ME</span
+                  ></span
+                >
+                <span class="ct-sub">{{
+                  fld(contact, 'org') || getEmails(contact)[0]?.value || ''
+                }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </dialog>
-  </Teleport>
+
+      <div class="ct-detail-col">
+        <div class="ct-detail-topbar">
+          <button
+            v-if="detailShown"
+            type="button"
+            class="ct-back-btn"
+            aria-label="Back to list"
+            @click="backToList"
+          >
+            <ChevronLeft :size="20" />
+          </button>
+          <span class="ct-count"
+            >{{ filtered.length }}
+            <span class="ct-count-unit">{{
+              filtered.length === 1 ? 'CONTACT' : 'CONTACTS'
+            }}</span></span
+          >
+          <button
+            v-if="duplicateGroups.length"
+            class="ct-graph-btn ct-duplicates-btn"
+            title="Contacts sharing an email, a phone or a name"
+            @click="openDuplicates"
+          >
+            Duplicates ({{ duplicateGroups.length }})
+          </button>
+          <button
+            class="ct-graph-btn"
+            :class="{
+              'ct-graph-btn--active': graphOpen,
+              'ct-graph-btn--inline': duplicateGroups.length
+            }"
+            title="Relations between contacts (links to you left out)"
+            @click="toggleGraph"
+          >
+            Graph
+          </button>
+          <button class="ct-add-contact-btn" @click="openCreate">
+            <Plus :size="16" />
+            Add contact
+          </button>
+        </div>
+        <div class="ct-detail-body">
+          <RelationsGraph
+            v-if="graphOpen"
+            :contacts="allContacts"
+            :me-id="meId"
+            @select="selectContact"
+          />
+          <!-- Create / edit -->
+          <form
+            v-else-if="mode !== 'view'"
+            class="ct-form"
+            @submit.prevent="saveForm"
+          >
+            <h2 class="ct-form-title">
+              {{ mode === 'create' ? 'New contact' : 'Edit contact' }}
+            </h2>
+
+            <div class="ct-form-photo">
+              <label class="ct-form-avatar">
+                <img v-if="form.photo" :src="form.photo" alt="" />
+                <span
+                  v-else
+                  class="ct-form-avatar-placeholder"
+                  :style="avatarStyle(form.display_name || '?')"
+                  >{{ getInitials(form.display_name || '?') }}</span
+                >
+                <span
+                  class="ct-form-avatar-overlay"
+                  :class="{ uploading: avatarUploading }"
+                >
+                  <Camera :size="20" />
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  @change="uploadPhoto"
+                />
+              </label>
+            </div>
+
+            <div class="ct-section-card">
+              <h3 class="ct-section-title">Basic Info</h3>
+              <div class="ct-form-grid">
+                <div class="ct-form-field ct-form-field--full">
+                  <label>Name *</label>
+                  <input ref="nameInput" v-model="form.display_name" required />
+                </div>
+                <div class="ct-form-field">
+                  <label>Organization</label>
+                  <input v-model="form.org" />
+                </div>
+                <div class="ct-form-field">
+                  <label>Title</label>
+                  <input
+                    v-model="form.title"
+                    placeholder="e.g. Software Engineer"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="ct-section-card">
+              <h3 class="ct-section-title">Contact</h3>
+              <div
+                v-for="(email, index) in form.emails"
+                :key="'email' + index"
+                class="ct-form-row"
+              >
+                <input
+                  v-model="email.value"
+                  type="email"
+                  placeholder="Email"
+                  class="ct-form-flex"
+                />
+                <input
+                  v-model="email.type"
+                  placeholder="Type"
+                  class="ct-form-type"
+                />
+                <button
+                  type="button"
+                  class="ct-row-remove"
+                  title="Remove"
+                  aria-label="Remove email"
+                  @click="removeEmail(index)"
+                >
+                  <X :size="18" />
+                </button>
+              </div>
+              <button type="button" class="ct-row-add" @click="addEmail">
+                + Email
+              </button>
+              <div
+                v-for="(phone, index) in form.phones"
+                :key="'phone' + index"
+                class="ct-form-row"
+              >
+                <input
+                  v-model="phone.value"
+                  type="tel"
+                  placeholder="Phone"
+                  class="ct-form-flex"
+                />
+                <input
+                  v-model="phone.type"
+                  placeholder="Type"
+                  class="ct-form-type"
+                />
+                <button
+                  type="button"
+                  class="ct-row-remove"
+                  title="Remove"
+                  aria-label="Remove phone"
+                  @click="removePhone(index)"
+                >
+                  <X :size="18" />
+                </button>
+              </div>
+              <button type="button" class="ct-row-add" @click="addPhone">
+                + Phone
+              </button>
+            </div>
+
+            <div class="ct-section-card">
+              <h3 class="ct-section-title">Details</h3>
+              <div class="ct-form-grid">
+                <div class="ct-form-field ct-form-field--full">
+                  <label>Address</label>
+                  <input v-model="form.address" />
+                </div>
+                <div class="ct-form-field">
+                  <label>Birthday</label>
+                  <DateInput v-model="form.birthday" />
+                </div>
+                <div class="ct-form-field">
+                  <label>Website</label>
+                  <input
+                    v-model="form.url"
+                    type="url"
+                    placeholder="https://..."
+                  />
+                </div>
+              </div>
+              <div class="ct-form-field">
+                <label>Note</label>
+                <textarea v-model="form.note" rows="3"></textarea>
+              </div>
+            </div>
+
+            <p v-if="formError" class="ct-form-error">{{ formError }}</p>
+            <div class="ct-form-actions">
+              <button type="button" class="ct-btn" @click="cancelForm">
+                Cancel
+              </button>
+              <button
+                type="submit"
+                class="ct-btn ct-btn--primary"
+                :disabled="saving"
+              >
+                {{
+                  saving ? 'Saving...' : mode === 'create' ? 'Create' : 'Save'
+                }}
+              </button>
+            </div>
+          </form>
+
+          <!-- View -->
+          <div v-else-if="selected" class="ct-detail">
+            <div class="ct-detail-header">
+              <span
+                v-if="fld(selected, 'photo')"
+                class="ct-avatar ct-avatar--lg ct-avatar--photo"
+              >
+                <img :src="fld(selected, 'photo')" alt="" loading="lazy" />
+              </span>
+              <span
+                v-else
+                class="ct-avatar ct-avatar--lg"
+                :style="avatarStyle(contactName(selected))"
+                >{{ getInitials(contactName(selected)) }}</span
+              >
+              <div>
+                <h2 class="ct-detail-name">
+                  {{ contactName(selected)
+                  }}<span v-if="meId === selected.id" class="ct-me-badge"
+                    >ME</span
+                  >
+                </h2>
+                <span
+                  v-if="fld(selected, 'title') || fld(selected, 'org')"
+                  class="ct-detail-sub"
+                  >{{
+                    [fld(selected, 'title'), fld(selected, 'org')]
+                      .filter(Boolean)
+                      .join(' · ')
+                  }}</span
+                >
+              </div>
+              <button class="ct-footer-btn ct-header-edit" @click="openEdit">
+                Edit
+              </button>
+            </div>
+
+            <div class="ct-header-tags">
+              <button
+                v-for="tag in tagsOf(selected)"
+                :key="tag"
+                class="ct-tag-chip"
+                @click="toggleTagFilter(tag)"
+              >
+                {{ tag }}
+                <span
+                  class="ct-tag-x"
+                  title="Remove tag"
+                  aria-label="Remove tag"
+                  @click.stop="removeTag(tag)"
+                >
+                  <X :size="14" />
+                </span>
+              </button>
+              <AutocompleteInput
+                v-model="newTag"
+                class="ct-tag-add"
+                :options="tagSuggestions"
+                placeholder="+ tag"
+                @select="addTag"
+              />
+            </div>
+
+            <div class="ct-section-card">
+              <h3 class="ct-section-title">Contact Info</h3>
+              <div
+                v-for="(email, index) in getEmails(selected)"
+                :key="'email' + index"
+                class="ct-info-row"
+              >
+                <Mail class="ct-info-icon" :size="18" />
+                <div class="ct-info-body">
+                  <a class="ct-link" :href="'mailto:' + email.value">{{
+                    email.value
+                  }}</a>
+                  <span v-if="email.type" class="ct-info-type">{{
+                    email.type
+                  }}</span>
+                </div>
+              </div>
+              <div
+                v-for="(phone, index) in getPhones(selected)"
+                :key="'phone' + index"
+                class="ct-info-row"
+              >
+                <Phone class="ct-info-icon" :size="18" />
+                <div class="ct-info-body">
+                  <a class="ct-link" :href="'tel:' + phone.value">{{
+                    phone.value
+                  }}</a>
+                  <span v-if="phone.type" class="ct-info-type">{{
+                    phone.type
+                  }}</span>
+                </div>
+              </div>
+              <span
+                v-if="
+                  !getEmails(selected).length && !getPhones(selected).length
+                "
+                class="ct-muted"
+              >
+                No contact info
+              </span>
+            </div>
+
+            <div
+              v-if="
+                fld(selected, 'address') ||
+                fld(selected, 'birthday') ||
+                fld(selected, 'url') ||
+                fld(selected, 'note')
+              "
+              class="ct-section-card"
+            >
+              <h3 class="ct-section-title">Details</h3>
+              <div class="ct-meta-list">
+                <div v-if="fld(selected, 'address')" class="ct-meta-row">
+                  <span class="ct-meta-key">Address</span
+                  ><span>{{ fld(selected, 'address') }}</span>
+                </div>
+                <div v-if="fld(selected, 'birthday')" class="ct-meta-row">
+                  <span class="ct-meta-key">Birthday</span
+                  ><span>{{ fld(selected, 'birthday') }}</span>
+                </div>
+                <div v-if="fld(selected, 'url')" class="ct-meta-row">
+                  <span class="ct-meta-key">Website</span>
+                  <span>
+                    <a
+                      v-if="websiteHref"
+                      class="ct-link"
+                      :href="websiteHref"
+                      target="_blank"
+                      rel="noopener"
+                      >{{ fld(selected, 'url') }}</a
+                    >
+                    <template v-else>{{ fld(selected, 'url') }}</template>
+                  </span>
+                </div>
+                <div v-if="fld(selected, 'note')" class="ct-meta-row">
+                  <span class="ct-meta-key">Note</span>
+                  <span class="ct-note">{{ fld(selected, 'note') }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- The whole address book relates to me: that list says nothing. -->
+            <div v-if="selected.id !== meId" class="ct-section-card">
+              <h3 class="ct-section-title">Relations</h3>
+              <div
+                v-for="relation in visibleRelations"
+                :key="relation.contact_id"
+                class="ct-linked-row"
+                role="button"
+                tabindex="0"
+                @click="selectContact(relation.contact_id)"
+                @keydown.enter="selectContact(relation.contact_id)"
+              >
+                <span class="ct-linked-meta">{{
+                  relationLabel(relation.type)
+                }}</span>
+                <span class="ct-linked-title">{{
+                  contactName(relation.contact)
+                }}</span>
+                <button
+                  type="button"
+                  class="ct-rel-x"
+                  title="Remove relation"
+                  aria-label="Remove relation"
+                  @click.stop="removeRelation(relation.contact_id)"
+                >
+                  <X :size="16" />
+                </button>
+              </div>
+              <form class="ct-rel-add" @submit.prevent="addRelation">
+                <AutocompleteInput
+                  v-model="newRelType"
+                  class="ct-rel-type"
+                  :options="relTypeOptions"
+                  placeholder="Relation..."
+                />
+                <ComboBox
+                  v-model="newRelId"
+                  class="ct-rel-name"
+                  :options="relTargetOptions"
+                  placeholder="Contact..."
+                />
+                <button type="submit" class="ct-rel-btn" :disabled="!newRelId">
+                  Link
+                </button>
+              </form>
+            </div>
+
+            <div
+              v-if="showMeToggle || fld(selected, 'birthday')"
+              class="ct-section-card"
+            >
+              <h3 class="ct-section-title">Parameters</h3>
+              <div class="ct-param-list">
+                <label v-if="showMeToggle" class="ct-dash-toggle">
+                  <input
+                    type="checkbox"
+                    :checked="meId === selected.id"
+                    @change="toggleMe"
+                  />
+                  <User :size="16" />This is me
+                </label>
+                <label v-if="fld(selected, 'birthday')" class="ct-dash-toggle">
+                  <input
+                    type="checkbox"
+                    :checked="birthdayOnDashboard"
+                    @change="toggleBirthdayOnDashboard"
+                  />
+                  <Cake :size="16" />
+                  <span
+                    >Show this birthday in the calendar and on the
+                    dashboard</span
+                  >
+                </label>
+              </div>
+            </div>
+
+            <div v-if="linkedEvents.length" class="ct-section-card">
+              <h3 class="ct-section-title">Events</h3>
+              <div
+                v-for="event in linkedEvents.slice(0, 8)"
+                :key="event.id"
+                class="ct-linked-row"
+                role="button"
+                tabindex="0"
+                @click="ctx.navigate('/apps/calendar')"
+                @keydown.enter="ctx.navigate('/apps/calendar')"
+              >
+                <span class="ct-linked-meta">{{
+                  formatDate(event.occurred_at || event.inserted_at)
+                }}</span>
+                <span class="ct-linked-title">
+                  <span
+                    v-if="event.data.recurrence"
+                    class="ct-linked-rec"
+                    role="img"
+                    title="Recurring"
+                    aria-label="Recurring"
+                  >
+                    <Repeat :size="14" />
+                  </span>
+                  {{ event.title || 'Untitled' }}
+                </span>
+              </div>
+            </div>
+
+            <div v-if="linkedPhotos.length" class="ct-section-card">
+              <h3 class="ct-section-title">Photos</h3>
+              <div class="ct-photo-grid">
+                <a
+                  v-for="photo in linkedPhotos.slice(0, PHOTO_PREVIEW)"
+                  :key="photo.id"
+                  class="ct-photo"
+                  :href="`/photos/${photo.id}`"
+                  @click="onLinkClick(`/photos/${photo.id}`, $event)"
+                >
+                  <img
+                    :src="photoThumb(photo)"
+                    :alt="photo.title || 'Photo'"
+                    loading="lazy"
+                  />
+                </a>
+              </div>
+              <a
+                class="ct-photo-all"
+                :href="`/apps/photos?person=${selectedId}`"
+                @click="
+                  onLinkClick(`/apps/photos?person=${selectedId}`, $event)
+                "
+              >
+                {{
+                  linkedPhotos.length > PHOTO_PREVIEW
+                    ? `See all ${linkedPhotos.length} photos`
+                    : 'Open in Photos'
+                }}
+              </a>
+            </div>
+
+            <div v-if="mentioningNotes.length" class="ct-section-card">
+              <h3 class="ct-section-title">Mentioned in</h3>
+              <div
+                v-for="note in mentioningNotes"
+                :key="note.id"
+                class="ct-linked-row"
+                role="button"
+                tabindex="0"
+                @click="openNote(note)"
+                @keydown.enter="openNote(note)"
+              >
+                <span class="ct-linked-title">{{
+                  note.title || 'Untitled'
+                }}</span>
+                <span v-if="note.data.folder" class="ct-linked-meta">{{
+                  note.data.folder
+                }}</span>
+              </div>
+            </div>
+
+            <div class="ct-section-card ct-section-card--muted">
+              <h3 class="ct-section-title">Info</h3>
+              <div class="ct-meta-list">
+                <div class="ct-meta-row">
+                  <span class="ct-meta-key">Source</span>
+                  <span>{{
+                    fld(selected, 'source_name') || selected.source
+                  }}</span>
+                </div>
+                <div class="ct-meta-row">
+                  <span class="ct-meta-key">Added</span>
+                  <span>{{ formatDate(selected.inserted_at) }}</span>
+                </div>
+                <div v-if="selected.external_id" class="ct-meta-row">
+                  <span class="ct-meta-key">ID</span>
+                  <span class="ct-mono">{{ selected.external_id }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="ct-detail-footer">
+              <button
+                class="ct-footer-btn ct-footer-btn--danger"
+                @click="deleteContact"
+              >
+                Delete contact
+              </button>
+            </div>
+          </div>
+          <p v-else class="ct-placeholder">Select a contact to view details</p>
+        </div>
+      </div>
+    </div>
+  </LoadState>
+  <ServantDialog
+    v-model:open="duplicatesOpen"
+    title="Possible duplicates"
+    size="lg"
+    initial-focus="close"
+  >
+    <p class="ct-modal-help">
+      Pick the contact to keep in each group. Merging moves the others' details,
+      tags, relations, photo faces, events and note mentions to it, then deletes
+      them.
+    </p>
+    <p v-if="mergeError" class="ct-modal-error">{{ mergeError }}</p>
+    <p v-if="!duplicateRows.length" class="ct-modal-empty">
+      No duplicates left.
+    </p>
+    <fieldset v-for="row in duplicateRows" :key="row.key" class="ct-dup-group">
+      <legend class="ct-dup-reasons">{{ row.reasons }}</legend>
+      <div class="ct-dup-cards">
+        <label
+          v-for="item in row.contacts"
+          :key="item.contact.id"
+          class="ct-dup-card"
+          :class="{
+            'ct-dup-card--keep': item.contact.id === row.survivorId
+          }"
+        >
+          <span class="ct-dup-head">
+            <input
+              type="radio"
+              class="ct-dup-radio"
+              :name="'keep-' + row.key"
+              :value="item.contact.id"
+              :checked="item.contact.id === row.survivorId"
+              @change="chooseSurvivor(row.key, item.contact.id)"
+            />
+            <span v-if="item.photo" class="ct-avatar ct-avatar--photo">
+              <img :src="item.photo" alt="" loading="lazy" />
+            </span>
+            <span v-else class="ct-avatar" :style="avatarStyle(item.name)">{{
+              item.initials
+            }}</span>
+            <span class="ct-dup-title">
+              <span class="ct-dup-name">{{ item.name }}</span>
+              <span v-if="item.org" class="ct-dup-org">{{ item.org }}</span>
+            </span>
+            <span v-if="item.contact.id === row.survivorId" class="ct-dup-keep"
+              >keep</span
+            >
+          </span>
+          <dl class="ct-dup-fields">
+            <template v-for="field in item.fields" :key="field.label">
+              <dt>{{ field.label }}</dt>
+              <dd v-if="field.values.length">
+                <span
+                  v-for="value in field.values"
+                  :key="value.text"
+                  class="ct-dup-value"
+                  :class="{ 'ct-dup-value--shared': value.shared }"
+                  >{{ value.text }}</span
+                >
+              </dd>
+              <dd v-else class="ct-dup-empty">-</dd>
+            </template>
+            <dt>Added</dt>
+            <dd class="ct-dup-added">{{ item.added }}</dd>
+          </dl>
+        </label>
+      </div>
+      <div class="ct-dup-actions">
+        <button
+          type="button"
+          class="ct-btn ct-btn--primary"
+          :disabled="merging !== null"
+          @click="mergeGroup(row)"
+        >
+          {{ merging === row.key ? 'Merging…' : 'Merge into the kept one' }}
+        </button>
+      </div>
+    </fieldset>
+  </ServantDialog>
 </template>
 
 <style scoped>
-.ct-loading {
-  color: var(--text-muted);
-  padding: 2rem;
-  font-family: var(--font-mono);
-}
 .ct-layout {
   display: flex;
   height: var(--app-height);
@@ -2359,20 +2338,6 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 
 /* ----- Duplicates modal ----- */
-.ct-modal {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1.5rem;
-  width: 100%;
-  max-width: 760px;
-  max-height: 85vh;
-  overflow-y: auto;
-}
-.ct-modal-title {
-  margin: 0 0 0.5rem;
-  font-size: 1.1rem;
-}
 .ct-modal-help {
   margin: 0 0 1rem;
   font-size: 0.85rem;
@@ -2506,11 +2471,6 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   justify-content: flex-end;
   margin-top: 0.5rem;
 }
-.ct-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-}
 
 /* ----- Responsive ----- */
 /* Without hover, the remove crosses stay on screen. */
@@ -2624,10 +2584,6 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   }
   .ct-form-flex {
     min-width: 0;
-  }
-  .ct-modal {
-    padding: 1.1rem;
-    max-height: calc(100dvh - 2rem);
   }
   .ct-dup-cards {
     grid-template-columns: 1fr;
