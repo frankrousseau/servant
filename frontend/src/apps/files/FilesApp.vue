@@ -15,6 +15,8 @@ import {
 } from 'lucide-vue-next'
 
 import ComboBox from '../../components/ComboBox.vue'
+import LoadState from '../../components/LoadState.vue'
+import SearchField from '../../components/SearchField.vue'
 
 import { formatDate } from '../../lib/datetime'
 import { formatFileSize } from '../../lib/filesize'
@@ -28,6 +30,7 @@ import {
   uploading
 } from './uploadQueue'
 import { preferenceRef } from '../preference'
+import type { LoadStatus } from '../../components/LoadState.vue'
 import type { AppContext, Entry } from '../types'
 
 const props = defineProps<{ ctx: AppContext }>()
@@ -41,6 +44,10 @@ const folderPath = ref<{ id: string | null; name: string }[]>([
 const dragover = ref(false)
 const loading = ref(true)
 const loadError = ref('')
+const loadState = computed<LoadStatus>(() => {
+  if (loading.value) return 'loading'
+  return loadError.value ? 'error' : 'ready'
+})
 
 function field<T = unknown>(e: Entry, k: string): T {
   return e.data[k] as T
@@ -701,288 +708,292 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 </script>
 
 <template>
-  <p v-if="loading" class="fs-loading">Reading directory&hellip;</p>
-  <p v-else-if="loadError" class="fs-loading">{{ loadError }}</p>
-  <div v-else class="fs-layout" :class="{ 'fs-layout--detail': selected }">
-    <div class="fs-main">
-      <div class="fs-toolbar">
-        <div class="fs-breadcrumbs">
-          <template v-for="(part, index) in folderPath" :key="index">
-            <span v-if="index > 0" class="fs-crumb-sep">/</span>
-            <span class="fs-crumb" @click="navigateCrumb(index)">{{
-              part.name
-            }}</span>
-          </template>
-        </div>
-        <div class="fs-actions">
-          <input
-            v-model="searchQuery"
-            v-autofocus
-            class="fs-search"
-            type="text"
-            placeholder="Search files..."
-            aria-label="Search files"
-          />
-          <ComboBox
-            v-model="typeFilter"
-            class="fs-type-filter"
-            :options="TYPE_FILTER_OPTIONS"
-          />
-          <button
-            class="fs-btn fs-btn-icon"
-            :title="
-              showVirtual ? 'Hide virtual storage' : 'Show virtual storage'
-            "
-            @click="toggleVirtual"
-          >
-            <component :is="showVirtual ? Eye : EyeOff" :size="15" />
-          </button>
-          <button v-if="!inVirtual" class="fs-btn" @click="newFolder">
-            + Folder
-          </button>
-          <label v-if="!inVirtual" class="fs-btn fs-upload-label">
-            + Upload
-            <input type="file" multiple hidden @change="onFileInput" />
-          </label>
-        </div>
-      </div>
-      <div v-if="uploading && uploadProgress" class="fs-uploading">
-        <span class="fs-upload-count"
-          >UPLOADING {{ uploadProgress.index }}/{{ uploadProgress.total }}</span
-        >
-        <span class="fs-upload-name">{{ uploadProgress.name }}</span>
-        <span class="fs-upload-pct">{{
-          uploadProgress.processing ? 'processing…' : uploadProgress.pct + '%'
-        }}</span>
-        <div class="fs-upload-bar">
-          <div
-            class="fs-upload-bar-fill"
-            :style="{ width: uploadProgress.pct + '%' }"
-          ></div>
-        </div>
-      </div>
-      <div v-if="uploadErrors.length" class="fs-upload-errors" role="alert">
-        <div v-for="(err, i) in uploadErrors" :key="i">{{ err }}</div>
-        <button class="fs-upload-dismiss" @click="uploadErrors = []">
-          Dismiss
-        </button>
-      </div>
-      <div
-        class="fs-list"
-        :class="{ 'fs-dragover': dragover }"
-        @dragover.prevent="dragover = !draggingId && !inVirtual"
-        @dragleave="dragover = false"
-        @drop.prevent="onDrop"
-      >
-        <div class="fs-list-head" aria-hidden="true">
-          <span></span>
-          <span>Name</span>
-          <span class="fs-col-size">Size</span>
-          <span class="fs-col-date">Added</span>
-        </div>
-        <div
-          v-if="currentFolder && !searchQuery.trim()"
-          class="fs-row fs-row--up"
-          :class="{ 'fs-row--droptarget': dropTargetId === 'up' }"
-          title="Parent directory"
-          @click="onUpClick"
-          @dblclick="goUp"
-          @dragover="onUpDragOver"
-          @dragleave="dropTargetId === 'up' && (dropTargetId = null)"
-          @drop.stop.prevent="onUpDrop"
-        >
-          <span class="fs-row-icon fs-row-icon--folder"
-            ><Folder :size="16"
-          /></span>
-          <span class="fs-name-cell"><span class="fs-name">..</span></span>
-          <span class="fs-size fs-col-size">-</span>
-          <span class="fs-col-date"></span>
-        </div>
-        <div
-          v-for="file in displayed"
-          :key="file.id"
-          class="fs-row"
-          :class="{
-            'fs-row--active': file.id === selectedId,
-            'fs-row--droptarget': dropTargetId === file.id,
-            'fs-row--dragging': draggingId === file.id
-          }"
-          :draggable="renamingId !== file.id && !isVirtual(file)"
-          @click="onRowClick(file)"
-          @dblclick="openFolder(file)"
-          @dragstart="onRowDragStart(file, $event)"
-          @dragend="onRowDragEnd"
-          @dragover="onRowDragOver(file, $event)"
-          @dragleave="onRowDragLeave(file)"
-          @drop.stop.prevent="onRowDrop(file, $event)"
-        >
-          <span
-            class="fs-row-icon"
-            :class="{ 'fs-row-icon--folder': isFolder(file) }"
-          >
-            <component :is="fileIcon(file)" :size="16" />
-          </span>
-          <span class="fs-name-cell">
-            <input
-              v-if="renamingId === file.id"
-              :ref="setRenameInput"
-              v-model="renameValue"
-              class="fs-name fs-name-input"
-              @click.stop
-              @dblclick.stop
-              @keydown.enter.prevent="renameInput?.blur()"
-              @keydown.esc.prevent="cancelRename"
-              @blur="onRenameBlur"
+  <LoadState
+    :state="loadState"
+    what="files"
+    loading-text="Reading directory…"
+    :error-text="loadError"
+  >
+    <div class="fs-layout" :class="{ 'fs-layout--detail': selected }">
+      <div class="fs-main">
+        <div class="fs-toolbar">
+          <div class="fs-breadcrumbs">
+            <template v-for="(part, index) in folderPath" :key="index">
+              <span v-if="index > 0" class="fs-crumb-sep">/</span>
+              <span class="fs-crumb" @click="navigateCrumb(index)">{{
+                part.name
+              }}</span>
+            </template>
+          </div>
+          <div class="fs-actions">
+            <SearchField
+              v-model="searchQuery"
+              class="fs-search"
+              label="Search files"
+              autofocus
             />
-            <span
-              v-else
-              class="fs-name"
-              :title="isVirtual(file) ? undefined : 'Double-click to rename'"
-              @dblclick.stop="
-                isVirtual(file) ? openFolder(file) : startRename(file)
-              "
-              >{{ fileName(file)
-              }}<span v-if="isFolder(file)" class="fs-slash">/</span></span
-            >
+            <ComboBox
+              v-model="typeFilter"
+              class="fs-type-filter"
+              :options="TYPE_FILTER_OPTIONS"
+            />
             <button
-              v-if="searchQuery.trim()"
-              class="fs-row-path"
-              title="Go to folder"
-              @click.stop="goToFolderOf(file)"
+              class="fs-btn fs-btn-icon"
+              :title="
+                showVirtual ? 'Hide virtual storage' : 'Show virtual storage'
+              "
+              @click="toggleVirtual"
             >
-              {{ folderPathOf(file) }}
+              <component :is="showVirtual ? Eye : EyeOff" :size="15" />
             </button>
-          </span>
-          <span class="fs-size fs-col-size">{{
-            isFolder(file) ? '-' : formatFileSize(fileSize(file))
-          }}</span>
-          <span class="fs-date fs-col-date">{{
-            file.inserted_at ? formatDate(file.inserted_at) : '-'
-          }}</span>
+            <button v-if="!inVirtual" class="fs-btn" @click="newFolder">
+              + Folder
+            </button>
+            <label v-if="!inVirtual" class="fs-btn fs-upload-label">
+              + Upload
+              <input type="file" multiple hidden @change="onFileInput" />
+            </label>
+          </div>
         </div>
-        <p v-if="displayed.length === 0" class="fs-empty">
-          {{
-            virtualLoading && inVirtual
-              ? 'Reading directory…'
-              : searchQuery || typeFilter
-                ? 'No match.'
-                : 'Empty directory'
-          }}
-        </p>
-      </div>
-    </div>
-    <div class="fs-detail-col">
-      <button
-        v-if="selected"
-        class="fs-back"
-        aria-label="Back to list"
-        @click="selectedId = null"
-      >
-        <ChevronLeft :size="20" />
-      </button>
-      <div v-if="selected" class="fs-detail">
-        <img
-          v-if="filePath(selected) && isImage(selected)"
-          class="fs-detail-preview"
-          :src="filePath(selected)!"
-          :alt="fileName(selected)"
-        />
-        <span
-          v-else
-          class="fs-detail-icon"
-          :class="{ 'fs-row-icon--folder': isFolder(selected) }"
+        <div v-if="uploading && uploadProgress" class="fs-uploading">
+          <span class="fs-upload-count"
+            >UPLOADING {{ uploadProgress.index }}/{{
+              uploadProgress.total
+            }}</span
+          >
+          <span class="fs-upload-name">{{ uploadProgress.name }}</span>
+          <span class="fs-upload-pct">{{
+            uploadProgress.processing ? 'processing…' : uploadProgress.pct + '%'
+          }}</span>
+          <div class="fs-upload-bar">
+            <div
+              class="fs-upload-bar-fill"
+              :style="{ width: uploadProgress.pct + '%' }"
+            ></div>
+          </div>
+        </div>
+        <div v-if="uploadErrors.length" class="fs-upload-errors" role="alert">
+          <div v-for="(err, i) in uploadErrors" :key="i">{{ err }}</div>
+          <button class="fs-upload-dismiss" @click="uploadErrors = []">
+            Dismiss
+          </button>
+        </div>
+        <div
+          class="fs-list"
+          :class="{ 'fs-dragover': dragover }"
+          @dragover.prevent="dragover = !draggingId && !inVirtual"
+          @dragleave="dragover = false"
+          @drop.prevent="onDrop"
         >
-          <component :is="fileIcon(selected)" :size="40" :stroke-width="1.5" />
-        </span>
-        <h3 class="fs-detail-name">{{ fileName(selected) }}</h3>
-        <div v-if="!isFolder(selected)" class="fs-detail-meta">
-          <div class="fs-meta-row">
-            <span class="fs-meta-label">Size</span>
-            <span>{{ formatFileSize(fileSize(selected)) }}</span>
+          <div class="fs-list-head" aria-hidden="true">
+            <span></span>
+            <span>Name</span>
+            <span class="fs-col-size">Size</span>
+            <span class="fs-col-date">Added</span>
           </div>
-          <div class="fs-meta-row">
-            <span class="fs-meta-label">Type</span>
-            <span>{{ field(selected, 'mime_type') || 'Unknown' }}</span>
+          <div
+            v-if="currentFolder && !searchQuery.trim()"
+            class="fs-row fs-row--up"
+            :class="{ 'fs-row--droptarget': dropTargetId === 'up' }"
+            title="Parent directory"
+            @click="onUpClick"
+            @dblclick="goUp"
+            @dragover="onUpDragOver"
+            @dragleave="dropTargetId === 'up' && (dropTargetId = null)"
+            @drop.stop.prevent="onUpDrop"
+          >
+            <span class="fs-row-icon fs-row-icon--folder"
+              ><Folder :size="16"
+            /></span>
+            <span class="fs-name-cell"><span class="fs-name">..</span></span>
+            <span class="fs-size fs-col-size">-</span>
+            <span class="fs-col-date"></span>
           </div>
-          <div class="fs-meta-row">
-            <span class="fs-meta-label">Added</span>
-            <span>{{
-              selected.inserted_at ? formatDate(selected.inserted_at) : '-'
+          <div
+            v-for="file in displayed"
+            :key="file.id"
+            class="fs-row"
+            :class="{
+              'fs-row--active': file.id === selectedId,
+              'fs-row--droptarget': dropTargetId === file.id,
+              'fs-row--dragging': draggingId === file.id
+            }"
+            :draggable="renamingId !== file.id && !isVirtual(file)"
+            @click="onRowClick(file)"
+            @dblclick="openFolder(file)"
+            @dragstart="onRowDragStart(file, $event)"
+            @dragend="onRowDragEnd"
+            @dragover="onRowDragOver(file, $event)"
+            @dragleave="onRowDragLeave(file)"
+            @drop.stop.prevent="onRowDrop(file, $event)"
+          >
+            <span
+              class="fs-row-icon"
+              :class="{ 'fs-row-icon--folder': isFolder(file) }"
+            >
+              <component :is="fileIcon(file)" :size="16" />
+            </span>
+            <span class="fs-name-cell">
+              <input
+                v-if="renamingId === file.id"
+                :ref="setRenameInput"
+                v-model="renameValue"
+                class="fs-name fs-name-input"
+                @click.stop
+                @dblclick.stop
+                @keydown.enter.prevent="renameInput?.blur()"
+                @keydown.esc.prevent="cancelRename"
+                @blur="onRenameBlur"
+              />
+              <span
+                v-else
+                class="fs-name"
+                :title="isVirtual(file) ? undefined : 'Double-click to rename'"
+                @dblclick.stop="
+                  isVirtual(file) ? openFolder(file) : startRename(file)
+                "
+                >{{ fileName(file)
+                }}<span v-if="isFolder(file)" class="fs-slash">/</span></span
+              >
+              <button
+                v-if="searchQuery.trim()"
+                class="fs-row-path"
+                title="Go to folder"
+                @click.stop="goToFolderOf(file)"
+              >
+                {{ folderPathOf(file) }}
+              </button>
+            </span>
+            <span class="fs-size fs-col-size">{{
+              isFolder(file) ? '-' : formatFileSize(fileSize(file))
+            }}</span>
+            <span class="fs-date fs-col-date">{{
+              file.inserted_at ? formatDate(file.inserted_at) : '-'
             }}</span>
           </div>
-          <a
-            v-if="filePath(selected)"
-            class="fs-download"
-            :href="filePath(selected)!"
-            target="_blank"
-            :download="fileName(selected)"
-            >Download</a
-          >
-          <a
-            v-if="field(selected, 'v') === 'note'"
-            class="fs-download"
-            href="#"
-            @click.prevent="openVirtualFile(selected)"
-            >Open in Notes</a
-          >
-          <a
-            v-if="invoiceUrl(selected)"
-            class="fs-download"
-            :href="invoiceUrl(selected)!"
-            target="_blank"
-            rel="noopener"
-            >Open invoice</a
-          >
+          <p v-if="displayed.length === 0" class="fs-empty">
+            {{
+              virtualLoading && inVirtual
+                ? 'Reading directory…'
+                : searchQuery || typeFilter
+                  ? 'No match.'
+                  : 'Empty directory'
+            }}
+          </p>
         </div>
-        <div v-else class="fs-detail-meta">
-          <div class="fs-meta-row">
-            <span class="fs-meta-label">Type</span>
-            <span>Folder</span>
-          </div>
-          <template v-if="selectedStats">
-            <div class="fs-meta-row">
-              <span class="fs-meta-label">Contents</span>
-              <span>{{ contentsLabel }}</span>
-            </div>
+      </div>
+      <div class="fs-detail-col">
+        <button
+          v-if="selected"
+          class="fs-back"
+          aria-label="Back to list"
+          @click="selectedId = null"
+        >
+          <ChevronLeft :size="20" />
+        </button>
+        <div v-if="selected" class="fs-detail">
+          <img
+            v-if="filePath(selected) && isImage(selected)"
+            class="fs-detail-preview"
+            :src="filePath(selected)!"
+            :alt="fileName(selected)"
+          />
+          <span
+            v-else
+            class="fs-detail-icon"
+            :class="{ 'fs-row-icon--folder': isFolder(selected) }"
+          >
+            <component
+              :is="fileIcon(selected)"
+              :size="40"
+              :stroke-width="1.5"
+            />
+          </span>
+          <h3 class="fs-detail-name">{{ fileName(selected) }}</h3>
+          <div v-if="!isFolder(selected)" class="fs-detail-meta">
             <div class="fs-meta-row">
               <span class="fs-meta-label">Size</span>
-              <span>{{ formatFileSize(selectedStats.size) }}</span>
+              <span>{{ formatFileSize(fileSize(selected)) }}</span>
             </div>
-          </template>
-          <div class="fs-meta-row">
-            <span class="fs-meta-label">Created</span>
-            <span>{{
-              selected.inserted_at ? formatDate(selected.inserted_at) : '-'
-            }}</span>
+            <div class="fs-meta-row">
+              <span class="fs-meta-label">Type</span>
+              <span>{{ field(selected, 'mime_type') || 'Unknown' }}</span>
+            </div>
+            <div class="fs-meta-row">
+              <span class="fs-meta-label">Added</span>
+              <span>{{
+                selected.inserted_at ? formatDate(selected.inserted_at) : '-'
+              }}</span>
+            </div>
+            <a
+              v-if="filePath(selected)"
+              class="fs-download"
+              :href="filePath(selected)!"
+              target="_blank"
+              :download="fileName(selected)"
+              >Download</a
+            >
+            <a
+              v-if="field(selected, 'v') === 'note'"
+              class="fs-download"
+              href="#"
+              @click.prevent="openVirtualFile(selected)"
+              >Open in Notes</a
+            >
+            <a
+              v-if="invoiceUrl(selected)"
+              class="fs-download"
+              :href="invoiceUrl(selected)!"
+              target="_blank"
+              rel="noopener"
+              >Open invoice</a
+            >
           </div>
+          <div v-else class="fs-detail-meta">
+            <div class="fs-meta-row">
+              <span class="fs-meta-label">Type</span>
+              <span>Folder</span>
+            </div>
+            <template v-if="selectedStats">
+              <div class="fs-meta-row">
+                <span class="fs-meta-label">Contents</span>
+                <span>{{ contentsLabel }}</span>
+              </div>
+              <div class="fs-meta-row">
+                <span class="fs-meta-label">Size</span>
+                <span>{{ formatFileSize(selectedStats.size) }}</span>
+              </div>
+            </template>
+            <div class="fs-meta-row">
+              <span class="fs-meta-label">Created</span>
+              <span>{{
+                selected.inserted_at ? formatDate(selected.inserted_at) : '-'
+              }}</span>
+            </div>
+          </div>
+          <button
+            v-if="isFolder(selected)"
+            class="fs-open-btn"
+            @click="openFolder(selected)"
+          >
+            Open folder
+          </button>
+          <template v-if="!isVirtual(selected)">
+            <button class="fs-rename-btn" @click="startRename(selected)">
+              Rename
+            </button>
+            <button class="fs-delete" @click="deleteItem(selected)">
+              Delete
+            </button>
+          </template>
         </div>
-        <button
-          v-if="isFolder(selected)"
-          class="fs-open-btn"
-          @click="openFolder(selected)"
-        >
-          Open folder
-        </button>
-        <template v-if="!isVirtual(selected)">
-          <button class="fs-rename-btn" @click="startRename(selected)">
-            Rename
-          </button>
-          <button class="fs-delete" @click="deleteItem(selected)">
-            Delete
-          </button>
-        </template>
+        <p v-else class="fs-placeholder">Select a file to view details</p>
       </div>
-      <p v-else class="fs-placeholder">Select a file to view details</p>
     </div>
-  </div>
+  </LoadState>
 </template>
 
 <style scoped>
-.fs-loading {
-  color: var(--text-muted);
-  padding: 2rem;
-  font-family: var(--font-mono);
-}
 .fs-layout {
   display: flex;
   height: var(--app-height);
@@ -1068,8 +1079,9 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   flex: 1;
   min-width: 160px;
   max-width: 480px;
+}
+.fs-search :deep(.search-field-input) {
   height: 32px;
-  padding: 0 0.65rem;
   font-size: 0.85rem;
   border-radius: 8px;
 }
@@ -1130,7 +1142,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   }
 }
 @media (pointer: coarse) {
-  .fs-search,
+  .fs-search :deep(.search-field-input),
   .fs-btn,
   .fs-type-filter :deep(.cb-control) {
     height: 40px;
