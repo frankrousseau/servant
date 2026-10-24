@@ -3,6 +3,9 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
 
 import ComboBox from '../../components/ComboBox.vue'
+import LoadState from '../../components/LoadState.vue'
+import SearchField from '../../components/SearchField.vue'
+import ServantDialog from '../../components/ServantDialog.vue'
 import TrackerCard from './TrackerCard.vue'
 import TrackerDetailView from './TrackerDetailView.vue'
 
@@ -11,7 +14,6 @@ import {
   utcToZonedParts,
   zonedToUtcISO
 } from '../../lib/datetime'
-import { openDialog } from '../../lib/dialog'
 import { addDays } from '../calendar/recurrence'
 import {
   TRACKER_TYPES,
@@ -24,6 +26,7 @@ import {
   type RollupRow,
   type Tracker
 } from './trackers'
+import type { LoadStatus } from '../../components/LoadState.vue'
 import type { AppContext, Entry } from '../types'
 
 const props = defineProps<{ ctx: AppContext }>()
@@ -32,11 +35,12 @@ const ctx = props.ctx
 const trackerEntries = ref<Entry[]>([])
 const logEntries = ref<Entry[]>([])
 const entryMaps = ref<Map<string, Map<string, number>>>(new Map())
-const loadState = ref<'loading' | 'ready' | 'error'>('loading')
+const loadState = ref<LoadStatus>('loading')
 
 const today = computed(() => todayInUserTz())
 const searchQuery = ref('')
-const searchEl = ref<HTMLInputElement | null>(null)
+// Back from a detail view, focus returns to the search field.
+const toolbarEl = ref<HTMLElement | null>(null)
 
 // ----- heatmap window: as many weeks as the width fits, browsable back -----
 
@@ -163,7 +167,7 @@ function openTracker(id: string, opts: { push?: boolean } = {}) {
 function closeDetail(opts: { push?: boolean } = {}) {
   selectedTrackerId.value = null
   if (opts.push !== false) history.pushState(null, '', '/apps/trackers')
-  void nextTick(() => searchEl.value?.focus())
+  void nextTick(() => toolbarEl.value?.querySelector('input')?.focus())
 }
 
 function onPopState() {
@@ -427,148 +431,130 @@ watch([windowEnd, weeksVisible], () => {
 
 <template>
   <div ref="layoutEl" class="tk-layout">
-    <p v-if="loadState === 'loading'" class="tk-placeholder">
-      Loading trackers…
-    </p>
-    <p v-else-if="loadState === 'error'" class="tk-placeholder">
-      Failed to load trackers.
-    </p>
-    <TrackerDetailView
-      v-else-if="selectedTracker"
-      :tracker="selectedTracker"
-      :by-date="mapsById.get(selectedTracker.id) || new Map()"
-      :today="today"
-      :server-rollups="selectedTracker.type === 'entry' ? detailRollups : null"
-      :server-state="selectedTracker.type === 'entry' ? detailState : 'idle'"
-      @back="closeDetail()"
-    />
-    <template v-else>
-      <div class="tk-toolbar">
-        <button
-          class="tk-nav"
-          title="Older"
-          aria-label="Older"
-          @click="shiftWindow(-1)"
-        >
-          <ChevronLeft :size="16" />
-        </button>
-        <button
-          class="tk-nav"
-          title="Newer"
-          aria-label="Newer"
-          :disabled="atToday"
-          @click="shiftWindow(1)"
-        >
-          <ChevronRight :size="16" />
-        </button>
-        <span class="tk-date"
-          >{{ windowStart }} &rarr; {{ atToday ? today : windowEnd }}</span
-        >
-        <button v-if="!atToday" class="tk-back" @click="windowEnd = today">
-          back to today
-        </button>
-        <span class="tk-spacer"></span>
-        <input
-          ref="searchEl"
-          v-model="searchQuery"
-          class="tk-search"
-          type="text"
-          placeholder="Find a tracker..."
-        />
-        <button class="tk-new" @click="openModal">+ Tracker</button>
-      </div>
+    <LoadState :state="loadState" what="trackers">
+      <TrackerDetailView
+        v-if="selectedTracker"
+        :tracker="selectedTracker"
+        :by-date="mapsById.get(selectedTracker.id) || new Map()"
+        :today="today"
+        :server-rollups="
+          selectedTracker.type === 'entry' ? detailRollups : null
+        "
+        :server-state="selectedTracker.type === 'entry' ? detailState : 'idle'"
+        @back="closeDetail()"
+      />
+      <template v-else>
+        <div ref="toolbarEl" class="tk-toolbar">
+          <button
+            class="tk-nav"
+            title="Older"
+            aria-label="Older"
+            @click="shiftWindow(-1)"
+          >
+            <ChevronLeft :size="16" />
+          </button>
+          <button
+            class="tk-nav"
+            title="Newer"
+            aria-label="Newer"
+            :disabled="atToday"
+            @click="shiftWindow(1)"
+          >
+            <ChevronRight :size="16" />
+          </button>
+          <span class="tk-date"
+            >{{ windowStart }} &rarr; {{ atToday ? today : windowEnd }}</span
+          >
+          <button v-if="!atToday" class="tk-back" @click="windowEnd = today">
+            back to today
+          </button>
+          <span class="tk-spacer"></span>
+          <SearchField
+            v-model="searchQuery"
+            class="tk-search"
+            label="Find a tracker"
+          />
+          <button class="tk-new" @click="openModal">+ Tracker</button>
+        </div>
 
-      <p v-if="!trackers.length" class="tk-placeholder">
-        {{
-          searchQuery
-            ? 'No tracker matches.'
-            : "Nothing tracked yet. A tracker can be anything: did I play guitar today, how many drinks, this morning's weight…"
-        }}
-      </p>
+        <p v-if="!trackers.length" class="tk-placeholder">
+          {{
+            searchQuery
+              ? 'No tracker matches.'
+              : "Nothing tracked yet. A tracker can be anything: did I play guitar today, how many drinks, this morning's weight…"
+          }}
+        </p>
 
-      <div class="tk-grid">
-        <TrackerCard
-          v-for="tracker in trackers"
-          :key="tracker.id"
-          :tracker="tracker"
-          :by-date="mapsById.get(tracker.id) || new Map()"
-          :today="today"
-          :weeks="weeksVisible"
-          :window-end="windowEnd"
-          @set="(date, value) => setValue(tracker, date, value)"
-          @remove="removeTracker(tracker)"
-          @open="openTracker(tracker.id)"
-        />
-      </div>
-    </template>
+        <div class="tk-grid">
+          <TrackerCard
+            v-for="tracker in trackers"
+            :key="tracker.id"
+            :tracker="tracker"
+            :by-date="mapsById.get(tracker.id) || new Map()"
+            :today="today"
+            :weeks="weeksVisible"
+            :window-end="windowEnd"
+            @set="(date, value) => setValue(tracker, date, value)"
+            @remove="removeTracker(tracker)"
+            @open="openTracker(tracker.id)"
+          />
+        </div>
+      </template>
+    </LoadState>
   </div>
 
   <Teleport to="body">
-    <dialog
-      v-if="modalOpen"
-      :ref="openDialog"
-      class="modal-dialog"
-      aria-labelledby="tk-modal-title"
-      @click.self="modalOpen = false"
-      @cancel="modalOpen = false"
-    >
-      <div class="tk-modal">
-        <div id="tk-modal-title" class="tk-modal-header">New tracker</div>
+    <ServantDialog v-model:open="modalOpen" title="New tracker" size="sm">
+      <div class="tk-modal-field">
+        <label>Name</label>
+        <input
+          v-model="draftName"
+          placeholder="e.g. Guitar, Alcohol, Weight"
+          @keydown.enter="createTracker"
+        />
+      </div>
+      <div class="tk-modal-field">
+        <label>Nature</label>
+        <ComboBox v-model="draftType" :options="TRACKER_TYPES" />
+      </div>
+      <template v-if="draftType === 'entry'">
         <div class="tk-modal-field">
-          <label>Name</label>
-          <input
-            v-model="draftName"
-            placeholder="e.g. Guitar, Alcohol, Weight"
-            @keydown.enter="createTracker"
+          <label>Entry kind</label>
+          <ComboBox
+            v-model="draftKind"
+            :options="kindOptions"
+            placeholder="pick a kind"
           />
         </div>
         <div class="tk-modal-field">
-          <label>Nature</label>
-          <ComboBox v-model="draftType" :options="TRACKER_TYPES" />
+          <label>Aggregation</label>
+          <ComboBox v-model="draftAgg" :options="AGG_OPTIONS" />
         </div>
-        <template v-if="draftType === 'entry'">
-          <div class="tk-modal-field">
-            <label>Entry kind</label>
-            <ComboBox
-              v-model="draftKind"
-              :options="kindOptions"
-              placeholder="pick a kind"
-            />
-          </div>
-          <div class="tk-modal-field">
-            <label>Aggregation</label>
-            <ComboBox v-model="draftAgg" :options="AGG_OPTIONS" />
-          </div>
-          <div v-if="draftAgg === 'sum'" class="tk-modal-field">
-            <label>Field to sum</label>
-            <ComboBox
-              v-model="draftField"
-              :options="fieldOptions"
-              :placeholder="
-                draftKind
-                  ? 'numeric fields of ' + draftKind
-                  : 'pick a kind first'
-              "
-            />
-          </div>
-        </template>
-        <div v-if="draftType !== 'check'" class="tk-modal-field">
-          <label>Unit (optional)</label>
-          <input v-model="draftUnit" placeholder="dose, kg, min…" />
+        <div v-if="draftAgg === 'sum'" class="tk-modal-field">
+          <label>Field to sum</label>
+          <ComboBox
+            v-model="draftField"
+            :options="fieldOptions"
+            :placeholder="
+              draftKind ? 'numeric fields of ' + draftKind : 'pick a kind first'
+            "
+          />
         </div>
-        <div class="tk-modal-actions">
-          <span class="tk-modal-spacer"></span>
-          <button class="tk-btn" @click="modalOpen = false">Cancel</button>
-          <button
-            class="tk-btn tk-btn--primary"
-            :disabled="saving || !draftValid"
-            @click="createTracker"
-          >
-            Create
-          </button>
-        </div>
+      </template>
+      <div v-if="draftType !== 'check'" class="tk-modal-field">
+        <label>Unit (optional)</label>
+        <input v-model="draftUnit" placeholder="dose, kg, min…" />
       </div>
-    </dialog>
+      <template #actions>
+        <button
+          class="tk-btn tk-btn--primary"
+          :disabled="saving || !draftValid"
+          @click="createTracker"
+        >
+          Create
+        </button>
+      </template>
+    </ServantDialog>
   </Teleport>
 </template>
 
@@ -592,7 +578,10 @@ watch([windowEnd, weeksVisible], () => {
 }
 .tk-search {
   width: 190px;
-  padding: 0.4rem 0.65rem;
+}
+.tk-search :deep(.search-field-input) {
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
   font-size: 0.85rem;
 }
 .tk-date {
@@ -703,19 +692,6 @@ watch([windowEnd, weeksVisible], () => {
   }
 }
 
-.tk-modal {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 1.25rem;
-  width: 100%;
-  max-width: 380px;
-}
-.tk-modal-header {
-  font-weight: 600;
-  font-size: 1.05rem;
-  margin-bottom: 1rem;
-}
 .tk-modal-field {
   display: flex;
   flex-direction: column;
@@ -725,13 +701,5 @@ watch([windowEnd, weeksVisible], () => {
 .tk-modal-field label {
   font-size: 0.85rem;
   color: var(--text-muted);
-}
-.tk-modal-actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-.tk-modal-spacer {
-  flex: 1;
 }
 </style>

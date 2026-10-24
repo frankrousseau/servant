@@ -2,6 +2,9 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ChevronLeft } from 'lucide-vue-next'
 
+import LoadState from '../../components/LoadState.vue'
+import TabBar from '../../components/TabBar.vue'
+
 import {
   TRACKER_TYPES,
   rollup,
@@ -9,6 +12,8 @@ import {
   type RollupRow,
   type Tracker
 } from './trackers'
+import type { LoadStatus } from '../../components/LoadState.vue'
+import type { TabOption } from '../../components/TabBar.vue'
 
 const props = defineProps<{
   tracker: Tracker
@@ -26,10 +31,10 @@ onMounted(() => headingEl.value?.focus())
 
 // ----- period selection -----
 
-const PERIODS: { id: RollupPeriod; label: string }[] = [
-  { id: 'week', label: 'Week' },
-  { id: 'month', label: 'Month' },
-  { id: 'year', label: 'Year' }
+const PERIODS: TabOption<RollupPeriod>[] = [
+  { value: 'week', label: 'Week' },
+  { value: 'month', label: 'Month' },
+  { value: 'year', label: 'Year' }
 ]
 
 const period = ref<RollupPeriod>('week')
@@ -48,6 +53,10 @@ const entrySource = computed(() => {
 })
 
 // ----- rows -----
+
+const historyState = computed<LoadStatus>(() =>
+  props.serverState === 'idle' ? 'ready' : props.serverState
+)
 
 const allRows = computed<RollupRow[]>(() =>
   props.tracker.type === 'entry'
@@ -223,26 +232,23 @@ const hover = ref<Bar | null>(null)
       </span>
     </div>
 
-    <div class="tkd-periods" role="group" aria-label="Aggregation period">
-      <button
-        v-for="option in PERIODS"
-        :key="option.id"
-        class="tkd-period"
-        :class="{ 'tkd-period--active': period === option.id }"
-        :aria-pressed="period === option.id"
-        @click="period = option.id"
-      >
-        {{ option.label }}
-      </button>
+    <!-- TabBar has two roots (strip + panel): the wrapper takes the class. -->
+    <div class="tkd-periods">
+      <TabBar
+        v-model="period"
+        :options="PERIODS"
+        label="Aggregation period"
+        variant="pill"
+      />
     </div>
 
-    <p v-if="serverState === 'loading'" class="tkd-empty">Loading history…</p>
-    <p v-else-if="serverState === 'error'" class="tkd-empty">
-      Failed to load the history; try reloading.
-    </p>
-    <p v-else-if="!allRows.length" class="tkd-empty">No data yet.</p>
-
-    <template v-else>
+    <LoadState
+      :state="historyState"
+      :empty="!allRows.length"
+      what="history"
+      error-text="Failed to load the history; try reloading."
+      empty-text="No data yet."
+    >
       <svg
         v-if="chart"
         class="tkd-chart"
@@ -336,7 +342,7 @@ const hover = ref<Bar | null>(null)
           </tbody>
         </table>
       </div>
-    </template>
+    </LoadState>
   </section>
 </template>
 
@@ -397,31 +403,7 @@ const hover = ref<Bar | null>(null)
 
 /* ----- Period selector ----- */
 .tkd-periods {
-  display: inline-flex;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
   align-self: flex-start;
-}
-.tkd-period {
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  padding: 0.35rem 0.9rem;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-.tkd-period + .tkd-period {
-  border-left: 1px solid var(--border);
-}
-.tkd-period--active {
-  color: var(--primary);
-  background: rgba(var(--primary-rgb), 0.1);
-}
-@media (pointer: coarse) {
-  .tkd-period {
-    min-height: 44px;
-  }
 }
 
 /* ----- Chart ----- */
@@ -454,9 +436,6 @@ const hover = ref<Bar | null>(null)
   min-height: 1.2em;
   font-family: var(--font-mono);
   font-size: 0.78rem;
-  color: var(--text-muted);
-}
-.tkd-empty {
   color: var(--text-muted);
 }
 

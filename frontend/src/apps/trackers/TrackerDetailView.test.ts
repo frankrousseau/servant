@@ -82,7 +82,7 @@ describe('TrackerDetailView', () => {
     })
 
     await wrapper
-      .findAll('.tkd-period')
+      .findAll('[role="tab"]')
       .find(button => button.text() === 'Month')!
       .trigger('click')
 
