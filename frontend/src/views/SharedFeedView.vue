@@ -174,7 +174,7 @@ function markBroken(photo: SharedPhoto) {
   gap: 0.4rem;
   color: var(--text-muted);
   font-family: var(--font-display);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.1em;
   margin-bottom: 0.75rem;
@@ -186,7 +186,7 @@ function markBroken(photo: SharedPhoto) {
 .shared-title {
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: 1.6rem;
+  font-size: var(--text-xl);
   margin: 0 0 0.25rem;
   overflow-wrap: anywhere;
 }
@@ -196,7 +196,7 @@ function markBroken(photo: SharedPhoto) {
   gap: 0.25rem 1rem;
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .shared-tags {
@@ -208,7 +208,7 @@ function markBroken(photo: SharedPhoto) {
     padding: 1rem 0.75rem calc(2rem + env(safe-area-inset-bottom));
   }
   .shared-title {
-    font-size: 1.3rem;
+    font-size: var(--text-lg);
   }
 }
 

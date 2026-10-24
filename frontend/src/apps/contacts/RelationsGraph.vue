@@ -472,7 +472,7 @@ function edgePath(edge: Edge, nodes: Map<string, Node>, slot: number): string {
 .rg-empty {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   padding: 2.5rem 1rem;
   text-align: center;
   margin: auto;

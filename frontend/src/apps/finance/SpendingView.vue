@@ -806,7 +806,7 @@ const pieCenter = computed(() => {
   align-items: center;
   gap: 0.5rem;
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   padding: 0.12rem 0.4rem;
   border-radius: 6px;
   color: var(--text-muted);
@@ -833,7 +833,7 @@ const pieCenter = computed(() => {
 }
 .sp-warn {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   color: var(--danger);
   background: transparent;
   border: none;
@@ -854,19 +854,19 @@ const pieCenter = computed(() => {
 }
 .sp-excluded-hint {
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   margin: 0 0 0.5rem;
 }
 .sp-excluded-row {
   display: flex;
   align-items: baseline;
   gap: 0.6rem;
-  font-size: 0.83rem;
+  font-size: var(--text-sm);
   padding: 0.12rem 0;
 }
 .sp-excluded-date {
   font-family: var(--font-mono);
-  font-size: 0.76rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   flex-shrink: 0;
 }
@@ -878,20 +878,20 @@ const pieCenter = computed(() => {
 }
 .sp-excluded-account {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   flex-shrink: 0;
 }
 .sp-excluded-amount {
   margin-left: auto;
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   flex-shrink: 0;
 }
 .sp-empty {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   margin: 0.5rem 0 0;
 }
 .sp-legend {
@@ -909,7 +909,7 @@ const pieCenter = computed(() => {
   background: transparent;
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   padding: 0.12rem 0.6rem;
   cursor: pointer;
   user-select: none;
@@ -1000,14 +1000,14 @@ const pieCenter = computed(() => {
 }
 .sp-readout-period {
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--text-muted);
 }
 .sp-readout-total {
   font-family: var(--font-display);
-  font-size: 1.1rem;
+  font-size: var(--text-md);
   margin-left: auto;
 }
 .sp-readout-row {
@@ -1015,7 +1015,7 @@ const pieCenter = computed(() => {
   align-items: center;
   gap: 0.4rem;
   font-family: var(--font-mono);
-  font-size: 0.74rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   padding: 0.1rem 0;
 }
@@ -1062,7 +1062,7 @@ const pieCenter = computed(() => {
 .sp-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 .sp-table th,
 .sp-table td {
@@ -1072,7 +1072,7 @@ const pieCenter = computed(() => {
   white-space: nowrap;
 }
 .sp-table th {
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);

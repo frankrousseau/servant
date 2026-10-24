@@ -690,7 +690,7 @@ onMounted(async () => {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 1.5rem;
+  font-size: var(--text-xl);
   font-weight: 600;
   padding: 0;
   transition: border-color 0.15s;
@@ -749,7 +749,7 @@ onMounted(async () => {
 }
 
 .detail-label {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -762,7 +762,7 @@ onMounted(async () => {
 }
 
 .detail-sub {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
@@ -787,7 +787,7 @@ onMounted(async () => {
 }
 
 .sync-banner {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--primary);
   background: rgba(var(--primary-rgb), 0.1);
   padding: 0.5rem 0.75rem;
@@ -846,7 +846,7 @@ onMounted(async () => {
   flex: 1;
   min-width: 0;
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   overflow-wrap: anywhere;
 }
 
@@ -869,7 +869,7 @@ onMounted(async () => {
   align-items: center;
   gap: 0.4rem;
   padding: 0.35rem 0.8rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   font-weight: 500;
   border-radius: var(--control-radius);
   cursor: pointer;
@@ -924,7 +924,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--success);
   padding: 0.35rem 0;
 }
@@ -953,18 +953,18 @@ onMounted(async () => {
   gap: 0.3rem;
 }
 .config-field label {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .config-optional {
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   opacity: 0.7;
   margin-left: 0.3rem;
 }
 .config-textarea {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   resize: vertical;
 }
 .config-save {
@@ -977,7 +977,7 @@ onMounted(async () => {
   border-radius: var(--radius);
   padding: 0.75rem;
   font-family: var(--font-mono);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -1052,7 +1052,7 @@ onMounted(async () => {
 }
 
 .log-entries {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
@@ -1064,7 +1064,7 @@ onMounted(async () => {
 }
 .log-error-text {
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   color: var(--danger);
   white-space: nowrap;
   overflow: hidden;
@@ -1075,13 +1075,13 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   white-space: nowrap;
 }
 
 .log-duration {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
@@ -1129,7 +1129,7 @@ onMounted(async () => {
   margin-top: 0.75rem;
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 
 .msg-success {
@@ -1153,14 +1153,14 @@ onMounted(async () => {
 
 .eb-hint {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   margin: 0;
 }
 
 .eb-hint code {
   display: block;
   margin-top: 0.35rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text);
   background: var(--bg-hover);
   padding: 0.25rem 0.5rem;

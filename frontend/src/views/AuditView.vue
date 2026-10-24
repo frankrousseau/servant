@@ -364,7 +364,7 @@ const ms = (us: number) =>
 .au-error {
   color: var(--danger);
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 .au-panels {
   display: grid;
@@ -386,7 +386,7 @@ const ms = (us: number) =>
 .au-panel-title {
   margin: 0 0 0.75rem;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--text-muted);
@@ -396,7 +396,7 @@ const ms = (us: number) =>
   justify-content: space-between;
   gap: 1rem;
   padding: 0.3rem 0;
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 .au-label {
   color: var(--text-muted);
@@ -421,12 +421,12 @@ const ms = (us: number) =>
 .au-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 .au-table th {
   text-align: left;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--text-muted);
@@ -451,7 +451,7 @@ const ms = (us: number) =>
 .au-empty {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   padding: 1.5rem 0;
 }
 /* Log feed: same terminal voice as the dashboard activity column */
@@ -459,7 +459,7 @@ const ms = (us: number) =>
   flex: 1;
   overflow-y: auto;
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   padding-right: 0.75rem;
 }
 .au-line {

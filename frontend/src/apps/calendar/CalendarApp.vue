@@ -1176,19 +1176,19 @@ onUnmounted(destroyPickers)
   padding: 0.3rem 0.6rem;
   border-radius: var(--control-radius);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: var(--text-base);
 }
 .cal-nav-btn:hover {
   color: var(--text);
   border-color: var(--text-muted);
 }
 .cal-today-btn {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 .cal-month-label {
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: 1.6rem;
+  font-size: var(--text-xl);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   flex: 1;
@@ -1214,7 +1214,7 @@ onUnmounted(destroyPickers)
     gap: 0.5rem 0.75rem;
   }
   .cal-month-label {
-    font-size: 1.1rem;
+    font-size: var(--text-md);
     white-space: nowrap;
   }
   .cal-header-actions {
@@ -1237,7 +1237,7 @@ onUnmounted(destroyPickers)
   padding: 0.5rem;
   text-align: center;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -1274,7 +1274,7 @@ onUnmounted(destroyPickers)
 }
 .cal-day-num {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 /* Event chips: colored rail + tint per agenda (--cal-color/--cal-rgb are set
@@ -1284,7 +1284,7 @@ onUnmounted(destroyPickers)
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   color: var(--text);
   margin-top: 2px;
   white-space: nowrap;
@@ -1310,14 +1310,14 @@ onUnmounted(destroyPickers)
 }
 .cal-cell-more {
   font-family: var(--font-mono);
-  font-size: 0.66rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   margin-top: 2px;
   padding-left: 5px;
 }
 .cal-chip-time {
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: var(--text-sm);
   color: var(--cal-color, var(--primary));
   flex-shrink: 0;
 }
@@ -1332,17 +1332,17 @@ onUnmounted(destroyPickers)
 @media (max-width: 640px) {
   .cal-grid-header {
     padding: 0.4rem 0;
-    font-size: 0.6rem;
+    font-size: var(--text-sm);
     letter-spacing: 0.04em;
   }
   .cal-cell {
     padding: 0.2rem 0.15rem;
   }
   .cal-day-num {
-    font-size: 0.72rem;
+    font-size: var(--text-sm);
   }
   .cal-cell-event {
-    font-size: 0.6rem;
+    font-size: var(--text-sm);
     padding: 1px 2px 1px 3px;
   }
   .cal-cell-event .cal-chip-rec,
@@ -1371,7 +1371,7 @@ onUnmounted(destroyPickers)
   border: 1px solid var(--border);
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   padding: 0.25rem 0.6rem;
   border-radius: 999px;
   cursor: pointer;
@@ -1438,7 +1438,7 @@ onUnmounted(destroyPickers)
   gap: 0.55rem;
   padding: 0.4rem 0.15rem;
   border-bottom: 1px solid var(--border);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 .cal-manage-name {
   flex: 1;
@@ -1450,7 +1450,7 @@ onUnmounted(destroyPickers)
 .cal-manage-count,
 .cal-manage-synced {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   flex-shrink: 0;
 }
@@ -1480,7 +1480,7 @@ onUnmounted(destroyPickers)
 }
 .cal-manage-error {
   color: var(--danger);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   margin: 0 0 0.5rem;
 }
 .cal-manage-add {
@@ -1490,7 +1490,7 @@ onUnmounted(destroyPickers)
 .cal-manage-add input {
   flex: 1;
   padding: 0.4rem 0.65rem;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   border-radius: 6px;
 }
 .cal-chip-title {
@@ -1502,14 +1502,14 @@ onUnmounted(destroyPickers)
   color: var(--text-muted);
   padding: 2rem 0;
   font-family: var(--font-mono);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 .cal-day {
   margin-bottom: 1.5rem;
 }
 .cal-day-header {
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1531,7 +1531,7 @@ onUnmounted(destroyPickers)
   width: 64px;
   flex-shrink: 0;
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--primary);
 }
 .cal-event-body {
@@ -1543,7 +1543,7 @@ onUnmounted(destroyPickers)
   font-weight: 500;
 }
 .cal-event-loc {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 @media (max-width: 640px) {
@@ -1572,7 +1572,7 @@ onUnmounted(destroyPickers)
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   cursor: pointer;
   align-self: flex-start;
@@ -1581,7 +1581,7 @@ onUnmounted(destroyPickers)
   color: var(--primary);
 }
 .cal-event-cal {
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--primary);
 }
 .cal-cell[data-date] {
@@ -1597,7 +1597,7 @@ onUnmounted(destroyPickers)
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   cursor: pointer;
   margin: 0.25rem 0;
@@ -1617,7 +1617,7 @@ onUnmounted(destroyPickers)
   margin-bottom: 0.75rem;
 }
 .cal-modal-field label {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .cal-modal-row {
@@ -1634,7 +1634,7 @@ onUnmounted(destroyPickers)
   padding: 0.35rem 0.8rem;
   border-radius: var(--control-radius);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 .cal-modal-btn:hover {
   border-color: var(--text-muted);

@@ -285,7 +285,7 @@ const alerts = computed<Alert[]>(() => {
 .ov-empty {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   padding: 2rem 0;
 }
 .ov-hero {
@@ -297,7 +297,7 @@ const alerts = computed<Alert[]>(() => {
 }
 .ov-caption {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
@@ -311,13 +311,13 @@ const alerts = computed<Alert[]>(() => {
 }
 .ov-total {
   font-family: var(--font-display);
-  font-size: 1.9rem;
+  font-size: var(--text-2xl);
   font-weight: 500;
   white-space: nowrap;
 }
 .ov-delta {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--success);
 }
 .ov-delta--down {
@@ -331,7 +331,7 @@ const alerts = computed<Alert[]>(() => {
 }
 .ov-split {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .ov-cards {
@@ -349,7 +349,7 @@ const alerts = computed<Alert[]>(() => {
   margin: 0 0 0.6rem;
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: 1.05rem;
+  font-size: var(--text-base);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -359,7 +359,7 @@ const alerts = computed<Alert[]>(() => {
 }
 .ov-spent-amount {
   font-family: var(--font-mono);
-  font-size: 1.15rem;
+  font-size: var(--text-md);
   font-weight: 600;
   color: var(--text);
 }
@@ -374,7 +374,7 @@ const alerts = computed<Alert[]>(() => {
   align-items: center;
   gap: 0.35rem;
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
 }
 .ov-cat-dot {
   width: 8px;
@@ -384,7 +384,7 @@ const alerts = computed<Alert[]>(() => {
 }
 .ov-quiet {
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   margin: 0 0 0.5rem;
 }
 .ov-link {
@@ -395,7 +395,7 @@ const alerts = computed<Alert[]>(() => {
   background: transparent;
   color: var(--primary);
   padding: 0;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 .ov-link:hover {
@@ -414,7 +414,7 @@ const alerts = computed<Alert[]>(() => {
   text-align: left;
   padding: 0.5rem 0.25rem;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 .ov-alert:first-of-type {
   border-top: none;
@@ -428,7 +428,7 @@ const alerts = computed<Alert[]>(() => {
 }
 .ov-alert-detail {
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
 }
 
 /* ----- Responsive ----- */
@@ -439,7 +439,7 @@ const alerts = computed<Alert[]>(() => {
     padding: 0.85rem 0.75rem;
   }
   .ov-total {
-    font-size: 1.6rem;
+    font-size: var(--text-xl);
   }
   .ov-cards {
     grid-template-columns: 1fr;

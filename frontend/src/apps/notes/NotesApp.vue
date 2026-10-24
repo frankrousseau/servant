@@ -1517,7 +1517,7 @@ onBeforeUnmount(() => {
 }
 .nt-count {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text);
   white-space: nowrap;
 }
@@ -1540,7 +1540,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   border-radius: 8px;
   cursor: pointer;
   transition:
@@ -1567,7 +1567,7 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   cursor: pointer;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -1593,7 +1593,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.76rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -1634,7 +1634,7 @@ onBeforeUnmount(() => {
   flex: 1;
   min-width: 0;
   padding: 0.3rem 0.5rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   border-radius: 6px;
 }
 .nt-note {
@@ -1644,7 +1644,7 @@ onBeforeUnmount(() => {
   padding: 0.45rem 0.5rem;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 0.92rem;
+  font-size: var(--text-sm);
   color: inherit;
   text-decoration: none;
 }
@@ -1656,7 +1656,7 @@ onBeforeUnmount(() => {
 }
 .nt-fav-head {
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
@@ -1680,7 +1680,7 @@ onBeforeUnmount(() => {
   text-align: center;
   padding: 2.5rem 1rem;
   font-family: var(--font-mono);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 .nt-main {
   flex: 1;
@@ -1705,7 +1705,7 @@ onBeforeUnmount(() => {
 }
 .nt-title {
   font-weight: 600;
-  font-size: 1.2rem;
+  font-size: var(--text-lg);
   padding: 0.5rem 0.75rem;
   flex: 1;
   min-width: 0;
@@ -1735,7 +1735,7 @@ onBeforeUnmount(() => {
 .nt-save-status {
   flex-shrink: 0;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   max-width: 240px;
   white-space: nowrap;
@@ -1748,7 +1748,7 @@ onBeforeUnmount(() => {
 .nt-created {
   flex-shrink: 0;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -1803,7 +1803,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 0.15rem 0.35rem 0.15rem 0.55rem;
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .nt-attachment--missing {
@@ -1848,7 +1848,7 @@ a.nt-attachment-name:hover {
   resize: none;
   padding: 1rem 1.25rem;
   font-family: var(--font-mono);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   line-height: 1.6;
   background: var(--bg);
   color: var(--text);
@@ -1877,7 +1877,7 @@ a.nt-attachment-name:hover {
   background: var(--bg-surface);
   padding: 0.1em 0.35em;
   border-radius: 4px;
-  font-size: 0.85em;
+  font-size: 0.875em;
 }
 .nt-preview pre {
   background: var(--bg-surface);
@@ -1920,7 +1920,7 @@ a.nt-attachment-name:hover {
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 0 0.5em;
-  font-size: 0.85em;
+  font-size: 0.875em;
   color: var(--text);
   cursor: pointer;
   text-decoration: none;
@@ -1940,7 +1940,7 @@ a.nt-attachment-name:hover {
   color: var(--primary);
   border-radius: 6px;
   padding: 0 0.4em;
-  font-size: 0.85em;
+  font-size: 0.875em;
 }
 .nt-backlinks {
   border-top: 1px solid var(--border);
@@ -1949,7 +1949,7 @@ a.nt-attachment-name:hover {
   overflow-y: auto;
 }
 .nt-bl-title {
-  font-size: 0.7rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
@@ -1960,7 +1960,7 @@ a.nt-attachment-name:hover {
   margin: 0 0.5rem 0.3rem 0;
   color: var(--primary);
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 .nt-bl-item:hover {
   text-decoration: underline;
@@ -1984,7 +1984,7 @@ a.nt-attachment-name:hover {
   padding: 0.35rem 0.6rem;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 .nt-ac-item:hover,
 .nt-ac-item--active {
@@ -2000,7 +2000,7 @@ a.nt-attachment-name:hover {
 .nt-attach-empty {
   margin: 0;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 .nt-attach-list {
   list-style: none;
@@ -2020,7 +2020,7 @@ a.nt-attachment-name:hover {
   padding: 0.4rem 0.5rem;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

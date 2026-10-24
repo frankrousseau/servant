@@ -70,7 +70,7 @@ const emit = defineEmits<{ retry: [] }>()
   text-align: center;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 
 .load-state-line {

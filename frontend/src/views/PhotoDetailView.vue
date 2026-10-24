@@ -192,7 +192,7 @@ async function deletePhoto() {
 .photo-topbar h1 {
   margin: 0;
   min-width: 0;
-  font-size: 1.25rem;
+  font-size: var(--text-lg);
   overflow-wrap: anywhere;
 }
 
@@ -249,7 +249,7 @@ async function deletePhoto() {
   padding: 4rem;
   color: var(--text-muted);
   opacity: 0.5;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 
 .photo-info {
@@ -266,7 +266,7 @@ async function deletePhoto() {
 }
 
 .photo-info h2 {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
@@ -284,7 +284,7 @@ async function deletePhoto() {
   align-items: baseline;
   padding: 0.45rem 0;
   border-bottom: 1px solid var(--border);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   gap: 1rem;
 }
 
@@ -300,7 +300,7 @@ async function deletePhoto() {
 
 .mono {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 
 .photo-actions {
@@ -314,7 +314,7 @@ async function deletePhoto() {
   align-items: center;
   gap: 0.4rem;
   padding: 0.35rem 0.8rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   font-weight: 500;
   border-radius: var(--control-radius);
   cursor: pointer;
@@ -358,7 +358,7 @@ async function deletePhoto() {
 
 .meta-label {
   display: block;
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
@@ -366,7 +366,7 @@ async function deletePhoto() {
 }
 
 .photo-permalink code {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--primary);
   word-break: break-all;
 }

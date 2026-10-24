@@ -80,7 +80,7 @@ const palette = useCommandPalette()
   align-items: center;
   gap: 0.5rem;
   font-family: var(--font-display);
-  font-size: 1.2rem;
+  font-size: var(--text-lg);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--primary);

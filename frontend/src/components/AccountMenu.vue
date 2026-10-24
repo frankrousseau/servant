@@ -166,7 +166,7 @@ function signOut() {
   background: rgba(var(--primary-rgb), 0.15);
   color: var(--primary);
   font-family: var(--font-display);
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
 }
 
 .account-name {
@@ -209,7 +209,7 @@ function signOut() {
   width: 100%;
   padding: 0.55rem 1rem;
   color: var(--text-muted);
-  font-size: 1rem;
+  font-size: var(--text-base);
   text-decoration: none;
   transition: color 0.15s;
 }

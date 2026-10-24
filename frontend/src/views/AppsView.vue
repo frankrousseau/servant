@@ -218,7 +218,7 @@ const order = computed(() =>
 
 .launcher-origin {
   color: var(--text-muted);
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
 }
 
 /* 44px square in the card corner: the touch target minimum */

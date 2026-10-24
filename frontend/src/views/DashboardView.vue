@@ -700,7 +700,7 @@ onMounted(fetchData)
 }
 
 .section-link {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 
 /* ----- Header: terminal-style calendar summary ----- */
@@ -712,7 +712,7 @@ onMounted(fetchData)
   padding: 1rem 1.25rem;
   margin-bottom: 1.5rem;
   font-family: var(--font-mono);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   line-height: 1.7;
 }
 
@@ -721,7 +721,7 @@ onMounted(fetchData)
   align-items: center;
   gap: 0.6rem;
   font-family: var(--font-display);
-  font-size: 1.35rem;
+  font-size: var(--text-lg);
   color: var(--primary);
   text-shadow: 0 0 8px rgba(var(--primary-rgb), 0.45);
   margin-bottom: 0.35rem;
@@ -757,7 +757,7 @@ onMounted(fetchData)
   align-items: baseline;
   gap: 0.6rem;
   padding: 0.3rem 0.5rem;
-  font-size: 0.92rem;
+  font-size: var(--text-sm);
 }
 
 .today-item--clickable {
@@ -791,7 +791,7 @@ onMounted(fetchData)
   border-radius: 999px;
   padding: 0.05rem 0.5rem;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   letter-spacing: 0.04em;
   flex-shrink: 0;
   white-space: nowrap;
@@ -803,14 +803,14 @@ onMounted(fetchData)
 
 .today-list-name {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   margin-left: auto;
   flex-shrink: 0;
 }
 
 .today-more {
   padding: 0.3rem 0.5rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 
 /* ----- Connectors ----- */
@@ -829,7 +829,7 @@ onMounted(fetchData)
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 
 .connector-status-item--clickable {
@@ -886,7 +886,7 @@ onMounted(fetchData)
 .connector-status-meta {
   color: var(--text-muted);
   margin-left: auto;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   flex-shrink: 0;
   white-space: nowrap;
 }
@@ -920,7 +920,7 @@ onMounted(fetchData)
 
 .stats-meta {
   margin: -0.35rem 0 0.75rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
@@ -991,13 +991,13 @@ onMounted(fetchData)
 
 .stat-count {
   font-weight: 700;
-  font-size: 1.25rem;
+  font-size: var(--text-lg);
   line-height: 1.2;
   color: var(--text);
 }
 
 .stat-label {
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   text-transform: capitalize;
   white-space: nowrap;
@@ -1018,7 +1018,7 @@ onMounted(fetchData)
   display: flex;
   flex-direction: column;
   font-family: var(--font-mono);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 
 .activity-item {
@@ -1057,6 +1057,6 @@ onMounted(fetchData)
   color: var(--text-muted);
   margin-left: auto;
   flex-shrink: 0;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
 }
 </style>

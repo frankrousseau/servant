@@ -247,7 +247,7 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid var(--border);
   background: transparent;
   padding: 0.85rem 1rem;
-  font-size: 1rem;
+  font-size: var(--text-base);
   font-family: var(--font-mono);
 }
 /* The default focus ring would hug the input inside the panel; the visible
@@ -267,7 +267,7 @@ onBeforeUnmount(() => {
   gap: 0.6rem;
   padding: 0.45rem 0.6rem;
   cursor: pointer;
-  font-size: 0.92rem;
+  font-size: var(--text-sm);
 }
 /* Cursor row: violet rail + tint, same language as the rest of the system */
 .cp-item--active {
@@ -290,7 +290,7 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -298,7 +298,7 @@ onBeforeUnmount(() => {
   color: var(--text-muted);
   text-align: center;
   padding: 1.25rem;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   margin: 0;
 }
 .cp-footer {
@@ -306,6 +306,6 @@ onBeforeUnmount(() => {
   padding: 0.4rem 1rem;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: var(--text-sm);
 }
 </style>

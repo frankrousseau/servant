@@ -988,7 +988,7 @@ onMounted(() => {
 }
 
 .app-subhead {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
@@ -1032,7 +1032,7 @@ onMounted(() => {
   margin-bottom: 0;
 }
 .tk-domain-label {
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .tk-domain-select {
@@ -1042,7 +1042,7 @@ onMounted(() => {
 
 .tk-hint {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   margin: 0 0 1rem;
 }
@@ -1053,13 +1053,13 @@ onMounted(() => {
 .tk-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   margin-bottom: 1rem;
 }
 .tk-table th {
   text-align: left;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--text-muted);
@@ -1076,7 +1076,7 @@ onMounted(() => {
 .tk-empty {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   margin: 0 0 1rem;
 }
 
@@ -1100,7 +1100,7 @@ onMounted(() => {
 }
 
 .msg {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   margin-bottom: 0.5rem;
   padding: 0.4rem 0.6rem;
   border-radius: var(--radius);
@@ -1112,7 +1112,7 @@ onMounted(() => {
 
 .run-error {
   color: var(--danger);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   max-width: 26rem;
   white-space: normal;
   word-break: break-word;
@@ -1131,7 +1131,7 @@ onMounted(() => {
   text-align: center;
 }
 .report-agent-name {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text);
   margin: 0.75rem 0 0.35rem;
 }
@@ -1147,7 +1147,7 @@ onMounted(() => {
   border-radius: var(--radius);
   color: var(--text-muted);
   padding: 0.4rem 0.65rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   cursor: pointer;
   width: 100%;
   text-align: left;
@@ -1162,7 +1162,7 @@ onMounted(() => {
 }
 .report-content {
   white-space: pre-wrap;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1174,13 +1174,13 @@ onMounted(() => {
 }
 .report-rendered {
   white-space: normal;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 .report-rendered :deep(h1),
 .report-rendered :deep(h2),
 .report-rendered :deep(h3),
 .report-rendered :deep(h4) {
-  font-size: 1rem;
+  font-size: var(--text-base);
   margin: 0.75rem 0 0.35rem;
 }
 .report-rendered :deep(p),
@@ -1213,7 +1213,7 @@ onMounted(() => {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 4px;
-  font-size: 0.85em;
+  font-size: 0.875em;
   padding: 0.05em 0.3em;
 }
 .report-rendered :deep(pre) {
@@ -1254,13 +1254,13 @@ onMounted(() => {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   color: var(--text-muted);
-  font-size: 0.7rem;
+  font-size: var(--text-sm);
   margin-left: 0.35rem;
   padding: 0.05rem 0.4rem;
 }
 .recipe-json {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 
 /* ----- Responsive ----- */
@@ -1310,7 +1310,7 @@ onMounted(() => {
     flex: 0 0 5.5rem;
     color: var(--text-muted);
     font-family: var(--font-mono);
-    font-size: 0.72rem;
+    font-size: var(--text-sm);
     text-transform: uppercase;
     letter-spacing: 0.06em;
   }

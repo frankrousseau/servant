@@ -450,7 +450,7 @@ onUnmounted(() => {
   text-align: center;
   padding: 2.5rem 1rem;
   font-family: var(--font-mono);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 
 /* ----- Main: topbar with count and actions ----- */
@@ -494,7 +494,7 @@ onUnmounted(() => {
 
 .am-count {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text);
   white-space: nowrap;
 }
@@ -517,7 +517,7 @@ onUnmounted(() => {
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   border-radius: 8px;
   cursor: pointer;
   transition:
@@ -556,7 +556,7 @@ onUnmounted(() => {
   padding: 0.6rem 1.25rem;
   border-bottom: 1px solid var(--border);
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
 }
 
 .am-path {
@@ -579,7 +579,7 @@ onUnmounted(() => {
   border-radius: 6px;
   background: rgba(var(--primary-rgb), 0.15);
   color: var(--primary);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -590,14 +590,14 @@ onUnmounted(() => {
   border-bottom: 1px solid var(--border);
   background: rgba(var(--primary-rgb), 0.08);
   color: var(--text);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 
 .am-action-error {
   margin: 0;
   padding: 0.5rem 1.25rem;
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 
 /* ----- Editor: a modest, resizable textarea in the reading column ----- */
@@ -612,7 +612,7 @@ onUnmounted(() => {
   border: 1px solid var(--border);
   border-radius: var(--control-radius);
   font-family: var(--font-mono);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   line-height: 1.6;
   background: var(--bg);
   color: var(--text);
@@ -639,7 +639,7 @@ onUnmounted(() => {
   border-radius: 8px;
   background: var(--bg-surface);
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   line-height: 1.5;
 }
 
@@ -668,7 +668,7 @@ onUnmounted(() => {
   color: var(--primary);
   border-radius: 6px;
   padding: 0 0.4em;
-  font-size: 0.85em;
+  font-size: 0.875em;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -681,7 +681,7 @@ onUnmounted(() => {
 }
 
 .markdown {
-  font-size: 1.08rem;
+  font-size: var(--text-md);
   line-height: 1.7;
 }
 
@@ -709,7 +709,7 @@ onUnmounted(() => {
   background: var(--bg-surface);
   padding: 0.1em 0.35em;
   border-radius: 4px;
-  font-size: 0.85em;
+  font-size: 0.875em;
 }
 
 .markdown :deep(pre) {
@@ -758,7 +758,7 @@ onUnmounted(() => {
   color: var(--primary);
   border-radius: 6px;
   padding: 0 0.4em;
-  font-size: 0.85em;
+  font-size: 0.875em;
 }
 
 /* ----- Responsive ----- */

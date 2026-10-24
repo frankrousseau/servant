@@ -149,7 +149,7 @@ function onKeydown(event: KeyboardEvent, index: number) {
 
 .tab-bar--underline .tab-bar-tab {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.1em;
   padding: 0.5rem 0.9rem;
@@ -177,7 +177,7 @@ function onKeydown(event: KeyboardEvent, index: number) {
 }
 
 .tab-bar--pill .tab-bar-tab {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   padding: 0.3rem 0.7rem;
   border-radius: calc(var(--control-radius) - 2px);
 }

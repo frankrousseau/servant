@@ -568,7 +568,7 @@ watch([windowEnd, weeksVisible], () => {
 .tk-placeholder {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   padding: 1.5rem 0;
 }
 .tk-toolbar {
@@ -582,7 +582,7 @@ watch([windowEnd, weeksVisible], () => {
 }
 .tk-date {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
@@ -616,7 +616,7 @@ watch([windowEnd, weeksVisible], () => {
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   text-decoration: underline;
   padding: 0;
 }
@@ -630,7 +630,7 @@ watch([windowEnd, weeksVisible], () => {
   color: var(--text);
   padding: 0.35rem 0.8rem;
   border-radius: 8px;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -695,7 +695,7 @@ watch([windowEnd, weeksVisible], () => {
   margin-bottom: 0.75rem;
 }
 .tk-modal-field label {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 </style>

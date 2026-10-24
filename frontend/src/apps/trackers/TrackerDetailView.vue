@@ -369,7 +369,7 @@ const hover = ref<Bar | null>(null)
   color: var(--text);
   padding: 0.35rem 0.8rem;
   border-radius: 8px;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 .tkd-back:hover {
@@ -384,7 +384,7 @@ const hover = ref<Bar | null>(null)
 }
 .tkd-name {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: var(--text-md);
   font-weight: 600;
 }
 .tkd-name:focus {
@@ -392,7 +392,7 @@ const hover = ref<Bar | null>(null)
 }
 .tkd-meta {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 @media (pointer: coarse) {
@@ -435,7 +435,7 @@ const hover = ref<Bar | null>(null)
   margin: 0;
   min-height: 1.2em;
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
@@ -449,7 +449,7 @@ const hover = ref<Bar | null>(null)
 .tkd-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 .tkd-table th,
 .tkd-table td {
@@ -461,7 +461,7 @@ const hover = ref<Bar | null>(null)
   position: sticky;
   top: 0;
   background: var(--bg-surface);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);

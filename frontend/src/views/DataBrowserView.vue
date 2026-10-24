@@ -596,7 +596,7 @@ onMounted(() => {
 }
 
 .filter-count {
-  font-size: 1rem;
+  font-size: var(--text-base);
   color: var(--text-muted);
   margin-left: auto;
 }
@@ -648,19 +648,19 @@ onMounted(() => {
 }
 
 .entry-title {
-  font-size: 1rem;
+  font-size: var(--text-base);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .entry-subtitle {
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
 .entry-kind-badge {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   background: var(--bg-hover);
   padding: 0.15rem 0.5rem;
@@ -732,19 +732,19 @@ onMounted(() => {
 }
 
 .detail-label {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .detail-value {
-  font-size: 1rem;
+  font-size: var(--text-base);
 }
 
 .detail-value.mono {
   font-family: var(--font-mono);
-  font-size: 1rem;
+  font-size: var(--text-base);
   word-break: break-all;
 }
 
@@ -760,7 +760,7 @@ onMounted(() => {
 }
 
 .detail-data h3 {
-  font-size: 1rem;
+  font-size: var(--text-base);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -772,7 +772,7 @@ onMounted(() => {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.75rem;
-  font-size: 1rem;
+  font-size: var(--text-base);
   overflow-x: auto;
   white-space: pre-wrap;
   word-break: break-word;
@@ -784,6 +784,6 @@ onMounted(() => {
 .form-error {
   color: var(--danger);
   margin: 0 0 0.5rem;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 </style>

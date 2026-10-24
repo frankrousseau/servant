@@ -472,7 +472,7 @@ onUnmounted(() => {
 }
 .vp-time {
   color: rgba(255, 255, 255, 0.9);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   margin-left: 0.5rem;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;

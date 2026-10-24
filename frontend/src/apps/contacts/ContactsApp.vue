@@ -1682,7 +1682,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 .ct-tag-chip:hover {
@@ -1705,11 +1705,11 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   border-radius: 999px;
   background: var(--bg-surface);
   color: var(--text);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
 }
 .ct-count {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text);
   white-space: nowrap;
 }
@@ -1749,14 +1749,14 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   flex-shrink: 0;
 }
 .ct-avatar--lg {
   width: 56px;
   height: 56px;
-  font-size: 1.2rem;
+  font-size: var(--text-lg);
 }
 .ct-card-body {
   min-width: 0;
@@ -1770,7 +1770,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   text-overflow: ellipsis;
 }
 .ct-sub {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -1782,7 +1782,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   text-align: center;
   padding: 3rem 1rem;
   font-family: var(--font-mono);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 .ct-detail {
   max-width: 640px;
@@ -1797,11 +1797,11 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   margin: 0;
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: 1.6rem;
+  font-size: var(--text-xl);
   letter-spacing: 0.03em;
 }
 .ct-detail-sub {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .ct-header-tags {
@@ -1833,7 +1833,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .ct-tag-add :deep(input) {
   width: 100%;
   padding: 0.15rem 0.5rem;
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   border-radius: 999px;
   background: transparent;
   border: 1px dashed var(--border);
@@ -1876,7 +1876,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .ct-section-title {
   margin: 0 0 0.6rem;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--text-muted);
@@ -1901,7 +1901,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   flex-direction: column;
 }
 .ct-info-type {
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   text-transform: capitalize;
 }
@@ -1916,7 +1916,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   gap: 1rem;
   padding: 0.4rem 0;
   border-bottom: 1px solid var(--border);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 .ct-meta-row:last-child {
   border-bottom: none;
@@ -1935,16 +1935,16 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 .ct-muted {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 .ct-note {
   white-space: pre-wrap;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .ct-mono {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 .ct-photo-grid {
   display: grid;
@@ -1971,7 +1971,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   display: inline-block;
   margin-top: 0.55rem;
   color: var(--primary);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   text-decoration: none;
   cursor: pointer;
 }
@@ -1984,7 +1984,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   gap: 0.6rem;
   padding: 0.45rem 0.25rem;
   border-bottom: 1px solid var(--border);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   cursor: pointer;
   border-radius: 6px;
 }
@@ -2008,7 +2008,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 .ct-linked-meta {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   flex-shrink: 0;
 }
 .ct-linked-row .ct-linked-meta:last-child {
@@ -2052,7 +2052,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   color: var(--text);
   padding: 0.35rem 0.8rem;
   border-radius: 8px;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -2067,7 +2067,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .ct-me-badge {
   margin-left: 0.4rem;
   font-family: var(--font-mono);
-  font-size: 0.62rem;
+  font-size: var(--text-sm);
   letter-spacing: 0.08em;
   padding: 0.05rem 0.4rem;
   border-radius: 999px;
@@ -2104,7 +2104,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   justify-content: flex-end;
 }
 .ct-footer-btn {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   background: transparent;
   border: 1px solid var(--border);
@@ -2131,7 +2131,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 .ct-graph-btn:hover,
@@ -2153,7 +2153,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -2194,7 +2194,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  font-size: 1.4rem;
+  font-size: var(--text-xl);
 }
 .ct-form-photo {
   display: flex;
@@ -2222,7 +2222,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   justify-content: center;
   background: rgba(108, 206, 201, 0.15);
   color: #6ccec9;
-  font-size: 1.4rem;
+  font-size: var(--text-xl);
   font-weight: 600;
 }
 .ct-form-avatar-overlay {
@@ -2257,7 +2257,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   gap: 0.25rem;
 }
 .ct-form-field label {
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .ct-form-row {
@@ -2293,7 +2293,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   background: transparent;
   border: none;
   color: var(--primary);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   cursor: pointer;
   padding: 0.3rem 0;
 }
@@ -2302,7 +2302,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 .ct-form-error {
   color: var(--danger);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   margin: 0;
 }
 .ct-form-actions {
@@ -2313,7 +2313,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .ct-btn {
   padding: 0.5rem 1rem;
   border-radius: 8px;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
   background: transparent;
@@ -2340,18 +2340,18 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 /* ----- Duplicates modal ----- */
 .ct-modal-help {
   margin: 0 0 1rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .ct-modal-error {
   margin: 0 0 0.75rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--danger);
 }
 .ct-modal-empty {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 .ct-dup-group {
   border: 1px solid var(--border);
@@ -2362,7 +2362,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .ct-dup-reasons {
   padding: 0 0.4rem;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--primary);
@@ -2414,7 +2414,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   white-space: nowrap;
 }
 .ct-dup-org {
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2422,7 +2422,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 .ct-dup-keep {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--primary);
@@ -2434,11 +2434,11 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   grid-template-columns: auto 1fr;
   gap: 0.3rem 0.75rem;
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 .ct-dup-fields dt {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
@@ -2557,7 +2557,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
     min-width: 0;
   }
   .ct-detail-name {
-    font-size: 1.35rem;
+    font-size: var(--text-lg);
     overflow-wrap: anywhere;
   }
   .ct-meta-row {

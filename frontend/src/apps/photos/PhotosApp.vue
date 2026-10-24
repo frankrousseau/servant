@@ -1867,13 +1867,13 @@ onUnmounted(() => {
 }
 .ph-sel-count {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   letter-spacing: 0.06em;
   color: var(--primary);
 }
 .ph-status {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text);
   white-space: nowrap;
 }
@@ -1897,7 +1897,7 @@ onUnmounted(() => {
   padding: 0.4rem 0.75rem;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   white-space: nowrap;
 }
 .ph-btn:hover {
@@ -1981,7 +1981,7 @@ onUnmounted(() => {
      filters. */
   .ph-upload-btn {
     min-width: 40px;
-    font-size: 1.1rem;
+    font-size: var(--text-md);
   }
   .ph-upload-word {
     position: absolute;
@@ -2016,7 +2016,7 @@ onUnmounted(() => {
 .ph-tag-pill {
   padding: 0.2rem 0.6rem;
   border-radius: 20px;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   background: var(--bg-hover);
   color: var(--text-muted);
   cursor: pointer;
@@ -2077,13 +2077,13 @@ onUnmounted(() => {
   justify-content: center;
   background: rgba(108, 206, 201, 0.15);
   color: #6ccec9;
-  font-size: 0.7rem;
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 .ph-people-no-results {
   padding: 0.75rem;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   text-align: center;
 }
 .ph-tag-sep {
@@ -2111,7 +2111,7 @@ onUnmounted(() => {
   gap: 0.35rem 0.75rem;
   padding: 0.5rem 1rem;
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   color: var(--primary);
   background: rgba(var(--primary-rgb), 0.08);
 }
@@ -2147,7 +2147,7 @@ onUnmounted(() => {
 .ph-upload-errors {
   padding: 0.5rem 1rem;
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   color: var(--danger);
   background: rgba(255, 92, 122, 0.08);
   display: flex;
@@ -2159,7 +2159,7 @@ onUnmounted(() => {
   align-self: flex-start;
   margin-top: 0.25rem;
   padding: 0.2rem 0.6rem;
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   background: transparent;
   border: 1px solid var(--danger);
   color: var(--danger);
@@ -2196,7 +2196,7 @@ onUnmounted(() => {
   margin: 0 -0.1rem 0.5rem;
   background: var(--bg);
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
@@ -2339,7 +2339,7 @@ onUnmounted(() => {
   z-index: 1;
 }
 .ph-thumb-tag {
-  font-size: 0.65rem;
+  font-size: var(--text-sm);
   padding: 0.1rem 0.4rem;
   background: rgba(0, 0, 0, 0.6);
   color: #fff;
@@ -2399,7 +2399,7 @@ onUnmounted(() => {
 }
 .ph-empty-hint {
   font-family: var(--font-mono);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 .ph-modal-input {
   width: 100%;
@@ -2412,7 +2412,7 @@ onUnmounted(() => {
 .ph-shots-status {
   margin: 0 0 0.75rem;
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .ph-shots {
@@ -2447,12 +2447,12 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--danger) 12%, transparent);
   color: var(--danger);
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 .ph-shot-title {
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2467,12 +2467,12 @@ onUnmounted(() => {
 }
 .ph-faces-empty {
   color: var(--text-muted);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 .ph-faces-help {
   margin: -0.5rem 0 0.5rem;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 .ph-face-row {
   display: flex;
@@ -2495,7 +2495,7 @@ onUnmounted(() => {
 }
 .ph-face-count {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -2507,7 +2507,7 @@ onUnmounted(() => {
 .ph-face-done {
   margin-left: auto;
   color: var(--primary);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 /* Every face of the group, wrapping: the whole set is judged at once. */
 .ph-face-chips {
@@ -2551,7 +2551,7 @@ onUnmounted(() => {
 .ph-modal-suggestion {
   padding: 0.2rem 0.6rem;
   border-radius: 20px;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   background: var(--bg-hover);
   color: var(--text-muted);
   cursor: pointer;
@@ -2566,14 +2566,14 @@ onUnmounted(() => {
 button.ph-modal-suggestion {
   border: none;
   font: inherit;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
 }
 .ph-modal-suggestion--active {
   background: var(--primary);
   color: var(--primary-contrast);
 }
 .ph-modal-section-label {
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -2591,7 +2591,7 @@ button.ph-modal-suggestion {
   gap: 0.3rem;
   padding: 0.2rem 0.5rem;
   border-radius: 20px;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   background: var(--primary);
   color: var(--primary-contrast);
 }
@@ -2614,12 +2614,12 @@ button.ph-modal-suggestion {
 /* ----- Share modal ----- */
 .ph-share-help {
   margin: 0 0 1rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .ph-share-error {
   margin: 0 0 0.75rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--danger);
 }
 .ph-share-list-label {
@@ -2650,11 +2650,11 @@ button.ph-modal-suggestion {
   min-width: 0;
 }
 .ph-share-label {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 .ph-share-url {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   color: var(--primary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2700,7 +2700,7 @@ button.ph-modal-suggestion {
   }
   .ph-modal-tag-remove {
     padding: 0.25rem 0.4rem;
-    font-size: 1.2rem;
+    font-size: var(--text-lg);
   }
 }
 </style>

@@ -147,7 +147,7 @@ const stroke = computed(() => props.color || 'var(--primary)')
 .bc-empty {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   padding: 1.5rem 0;
   margin: 0;
 }

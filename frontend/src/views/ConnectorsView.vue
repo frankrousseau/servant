@@ -360,7 +360,7 @@ onMounted(fetchConnectors)
 }
 
 .section-title {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -478,12 +478,12 @@ onMounted(fetchConnectors)
 }
 
 .active-meta {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
 .active-error {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--danger);
   white-space: nowrap;
   overflow: hidden;
@@ -491,7 +491,7 @@ onMounted(fetchConnectors)
 }
 
 .active-arrow {
-  font-size: 1.5rem;
+  font-size: var(--text-xl);
   color: var(--text-muted);
   flex-shrink: 0;
   line-height: 1;
@@ -507,7 +507,7 @@ onMounted(fetchConnectors)
 }
 
 .catalog-group-title {
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -569,7 +569,7 @@ onMounted(fetchConnectors)
 }
 
 .catalog-desc {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   line-height: 1.35;
 }
@@ -598,13 +598,13 @@ onMounted(fetchConnectors)
 }
 
 .setup-desc {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   margin: 0 0 1.25rem;
 }
 
 .field-optional {
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   font-weight: 400;
   margin-left: 0.35rem;
@@ -613,7 +613,7 @@ onMounted(fetchConnectors)
 /* PEM keys and other multiline secrets */
 .field-textarea {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   resize: vertical;
 }
 

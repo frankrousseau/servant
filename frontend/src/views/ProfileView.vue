@@ -457,7 +457,7 @@ async function changePassword() {
 
 .card-header h2 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: var(--text-md);
 }
 
 .card-icon {
@@ -475,19 +475,19 @@ async function changePassword() {
 
 .card-desc {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   margin: 0 0 0.5rem;
 }
 
 .field-hint {
   margin: 0.35rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
 /* Messages */
 .msg {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   margin-bottom: 0.5rem;
   padding: 0.4rem 0.6rem;
   border-radius: var(--radius);
@@ -538,7 +538,7 @@ async function changePassword() {
   justify-content: center;
   background: var(--bg-hover);
   color: var(--text-muted);
-  font-size: 2rem;
+  font-size: var(--text-2xl);
   font-weight: 600;
 }
 
@@ -584,7 +584,7 @@ async function changePassword() {
 }
 .totp-secret {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   word-break: break-all;
   margin: 0 0 0.75rem;
@@ -604,7 +604,7 @@ async function changePassword() {
 
 .info-label {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 
 .info-value {
@@ -613,7 +613,7 @@ async function changePassword() {
 
 .info-value.mono {
   font-family: var(--font-mono);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 
 /* ----- Responsive ----- */

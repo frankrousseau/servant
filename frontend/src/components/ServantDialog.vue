@@ -195,7 +195,7 @@ function onCancel(event: Event) {
 .servant-dialog-title {
   flex: 1;
   margin: 0;
-  font-size: 1.05rem;
+  font-size: var(--text-base);
   font-weight: 600;
 }
 

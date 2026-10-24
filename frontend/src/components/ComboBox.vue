@@ -296,7 +296,7 @@ function onFocusout(event: FocusEvent) {
   /* Same vertical metrics as the global input rule, so a combo sitting
      next to a text input lines up. */
   padding: 0.5rem 0.9rem;
-  font-size: 1rem;
+  font-size: var(--text-base);
   line-height: 1.4;
   cursor: pointer;
   text-align: left;
@@ -351,7 +351,7 @@ function onFocusout(event: FocusEvent) {
   padding: 0.42rem 0.65rem;
   /* Flat left edge, flush with the active rail (same as palette rows). */
   border-radius: 0 6px 6px 0;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
@@ -369,7 +369,7 @@ function onFocusout(event: FocusEvent) {
 @media (pointer: coarse) {
   .cb-option {
     padding: 0.7rem 0.75rem;
-    font-size: 0.95rem;
+    font-size: var(--text-base);
     /* A narrow screen wraps a long label instead of cutting it */
     white-space: normal;
   }
@@ -377,7 +377,7 @@ function onFocusout(event: FocusEvent) {
 .cb-empty {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   padding: 0.6rem 0.65rem;
   margin: 0;
 }

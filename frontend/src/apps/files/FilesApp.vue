@@ -1046,7 +1046,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   align-items: center;
   gap: 0.15rem;
   font-family: var(--font-mono);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   min-width: 0;
   overflow: hidden;
 }
@@ -1090,7 +1090,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 .fs-type-filter :deep(.cb-control) {
   height: 32px;
   padding: 0 0.65rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 .fs-btn {
   display: inline-flex;
@@ -1103,7 +1103,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   padding: 0 0.75rem;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -1155,7 +1155,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   gap: 0.35rem 0.75rem;
   padding: 0.5rem 1rem;
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   color: var(--primary);
   background: rgba(var(--primary-rgb), 0.08);
 }
@@ -1191,7 +1191,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 .fs-upload-errors {
   padding: 0.5rem 1rem;
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   color: var(--danger);
   background: rgba(255, 92, 122, 0.08);
   display: flex;
@@ -1202,7 +1202,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   align-self: flex-start;
   margin-top: 0.25rem;
   padding: 0.2rem 0.6rem;
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   background: transparent;
   border: 1px solid var(--danger);
   color: var(--danger);
@@ -1234,7 +1234,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   z-index: 2;
   background: var(--bg);
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--text-muted);
@@ -1281,7 +1281,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 }
 .fs-name {
   font-family: var(--font-mono);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1289,7 +1289,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 }
 .fs-row-path {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   background: none;
   border: none;
@@ -1311,7 +1311,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 .fs-size,
 .fs-date {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -1348,14 +1348,14 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   text-align: center;
   padding: 3rem;
   font-family: var(--font-mono);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 .fs-placeholder {
   color: var(--text-muted);
   text-align: center;
   padding: 3rem 1rem;
   font-family: var(--font-mono);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 /* Back to the listing, phone only */
 .fs-back {
@@ -1399,7 +1399,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
 .fs-detail-name {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 0.95rem;
+  font-size: var(--text-base);
   text-align: center;
   word-break: break-word;
 }
@@ -1411,7 +1411,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   display: flex;
   justify-content: space-between;
   padding: 0.4rem 0;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   border-bottom: 1px solid var(--border);
 }
 .fs-meta-label {
@@ -1423,7 +1423,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   margin-top: 0.75rem;
   color: var(--primary);
   text-decoration: none;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 .fs-download:hover {
   text-decoration: underline;
@@ -1443,7 +1443,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   padding: 0.4rem 1rem;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   width: 100%;
 }
 @media (hover: none) {
@@ -1459,7 +1459,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   padding: 0.4rem 1rem;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   width: 100%;
 }
 .fs-rename-btn:hover {
@@ -1474,7 +1474,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   padding: 0.4rem 1rem;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   width: 100%;
 }
 .fs-delete:hover {

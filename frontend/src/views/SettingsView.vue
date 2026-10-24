@@ -965,7 +965,7 @@ onMounted(() => {
 
 .card-header h2 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: var(--text-md);
 }
 
 .card-icon {
@@ -983,7 +983,7 @@ onMounted(() => {
 
 /* Built-in app toggles */
 .app-subhead {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
@@ -1090,7 +1090,7 @@ onMounted(() => {
 
 .theme-name {
   font-family: var(--font-display);
-  font-size: 1.05rem;
+  font-size: var(--text-base);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -1112,13 +1112,13 @@ onMounted(() => {
 
 .field-hint {
   margin: 0.35rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
 /* Messages */
 .msg {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   margin-bottom: 0.5rem;
   padding: 0.4rem 0.6rem;
   border-radius: var(--radius);
@@ -1131,7 +1131,7 @@ onMounted(() => {
 
 .export-desc {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   margin: 0 0 0.5rem;
 }
 
@@ -1142,7 +1142,7 @@ onMounted(() => {
 
 .build-info {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   text-align: right;
   margin: 0.5rem 0 1rem;
@@ -1165,7 +1165,7 @@ onMounted(() => {
 }
 .app-repo {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   word-break: break-all;
 }
@@ -1185,7 +1185,7 @@ onMounted(() => {
 /* API tokens */
 .tk-hint {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   margin: 0 0 1rem;
 }
@@ -1201,7 +1201,7 @@ onMounted(() => {
 }
 .tk-created-warning {
   color: var(--primary);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   margin: 0 0 0.5rem;
 }
 /* The token reads as a field with its action attached, not as loose text
@@ -1219,7 +1219,7 @@ onMounted(() => {
   border-radius: var(--radius);
   padding: 0.5rem 0.65rem;
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   word-break: break-all;
   user-select: all;
 }
@@ -1229,7 +1229,7 @@ onMounted(() => {
   gap: 0.35rem;
   flex-shrink: 0;
   padding: 0.4rem 0.85rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 /* Secondary to the copy: dismissing is not what you came for. */
 .tk-dismiss {
@@ -1238,7 +1238,7 @@ onMounted(() => {
   color: var(--text-muted);
   margin-top: 0.6rem;
   padding: 0.3rem 0.75rem;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
 }
 .tk-dismiss:hover {
   background: var(--bg-hover);
@@ -1247,13 +1247,13 @@ onMounted(() => {
 .tk-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   margin-bottom: 1rem;
 }
 .tk-table th {
   text-align: left;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--text-muted);
@@ -1268,7 +1268,7 @@ onMounted(() => {
 }
 .tk-prefix {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .tk-scope {
@@ -1277,13 +1277,13 @@ onMounted(() => {
   color: var(--primary);
   border-radius: 6px;
   padding: 0 0.4em;
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   margin: 0 0.25rem 0.25rem 0;
 }
 .tk-empty {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   margin: 0 0 1rem;
 }
 .tk-revoke {
@@ -1309,7 +1309,7 @@ onMounted(() => {
 .ps-url {
   display: block;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   color: var(--primary);
   word-break: break-all;
   user-select: all;
@@ -1338,7 +1338,7 @@ onMounted(() => {
   gap: 0.75rem;
 }
 .tk-domain-label {
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .tk-domain-select {

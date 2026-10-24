@@ -412,7 +412,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   align-items: center;
   gap: 0.75rem;
   color: rgba(255, 255, 255, 0.3);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 
 /* Top bar */
@@ -436,7 +436,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .mv-title {
   color: #fff;
   font-weight: 500;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -444,12 +444,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 
 .mv-subtitle {
   color: rgba(255, 255, 255, 0.5);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
 }
 
 .mv-counter {
   color: rgba(255, 255, 255, 0.5);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   white-space: nowrap;
 }
 
@@ -544,7 +544,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 
 .mv-note-input {
   resize: vertical;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.15);
   color: #fff;
@@ -563,7 +563,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.65);
   color: #fff;
-  font-size: 0.95rem;
+  font-size: var(--text-base);
   line-height: 1.45;
   white-space: pre-line;
   text-align: center;
@@ -577,7 +577,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 
 .mv-info-label {
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: rgba(255, 255, 255, 0.4);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -585,7 +585,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 
 .mv-info-value {
   color: rgba(255, 255, 255, 0.9);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   word-break: break-word;
 }
 
@@ -672,7 +672,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   .mv-caption {
     bottom: calc(7rem + env(safe-area-inset-bottom));
     max-width: calc(100% - 7rem);
-    font-size: 0.88rem;
+    font-size: var(--text-sm);
   }
 
   .mv-info-panel {

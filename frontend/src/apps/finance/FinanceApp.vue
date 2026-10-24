@@ -1359,13 +1359,13 @@ function saveShared(account: Account, shared: boolean) {
 }
 .fin-crypto-price {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .fin-crypto-qty-input {
   width: 140px;
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   text-align: right;
   padding: 0.15rem 0.4rem;
 }
@@ -1382,7 +1382,7 @@ function saveShared(account: Account, shared: boolean) {
 .fin-empty {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   padding: 2rem 0;
 }
 .fin-toolbar {
@@ -1405,7 +1405,7 @@ function saveShared(account: Account, shared: boolean) {
 }
 .fin-ref-label {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
@@ -1416,7 +1416,7 @@ function saveShared(account: Account, shared: boolean) {
   color: var(--text);
   padding: 0.35rem 0.8rem;
   border-radius: 8px;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -1457,18 +1457,18 @@ function saveShared(account: Account, shared: boolean) {
   margin: 0;
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: 1.3rem;
+  font-size: var(--text-lg);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 .fin-total {
   font-family: var(--font-mono);
-  font-size: 1.15rem;
+  font-size: var(--text-md);
   font-weight: 600;
 }
 .fin-delta {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   color: var(--success, #4fd674);
 }
 .fin-delta--down {
@@ -1476,7 +1476,7 @@ function saveShared(account: Account, shared: boolean) {
 }
 .fin-warn {
   color: var(--danger);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   font-family: var(--font-mono);
   margin: 0.35rem 0 0;
 }
@@ -1495,7 +1495,7 @@ function saveShared(account: Account, shared: boolean) {
   align-items: baseline;
   gap: 0.6rem;
   padding: 0.5rem 0.25rem;
-  font-size: 0.92rem;
+  font-size: var(--text-sm);
 }
 .fin-account-caret {
   display: inline-flex;
@@ -1517,7 +1517,7 @@ function saveShared(account: Account, shared: boolean) {
 }
 .fin-badge {
   font-family: var(--font-mono);
-  font-size: 0.65rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
@@ -1527,7 +1527,7 @@ function saveShared(account: Account, shared: boolean) {
 }
 .fin-account-type {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
@@ -1536,12 +1536,12 @@ function saveShared(account: Account, shared: boolean) {
 }
 .fin-model-hint {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   margin: -0.5rem 0 1rem;
 }
 .fin-total-caption {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
@@ -1551,7 +1551,7 @@ function saveShared(account: Account, shared: boolean) {
 }
 .fin-col-label {
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
@@ -1566,7 +1566,7 @@ function saveShared(account: Account, shared: boolean) {
 }
 .fin-tx-col {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   flex-shrink: 0;
   width: 52px;
@@ -1576,7 +1576,7 @@ function saveShared(account: Account, shared: boolean) {
   background: transparent;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   padding: 0;
   cursor: pointer;
   text-decoration: underline dotted;
@@ -1586,7 +1586,7 @@ function saveShared(account: Account, shared: boolean) {
 }
 .fin-fresh {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   flex-shrink: 0;
   width: 68px;
 }
@@ -1602,7 +1602,7 @@ function saveShared(account: Account, shared: boolean) {
 .fin-account-amount {
   margin-left: auto;
   font-family: var(--font-mono);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   flex-shrink: 0;
 }
 /* The account list is a table: every column but the name is a fixed width,
@@ -1615,7 +1615,7 @@ function saveShared(account: Account, shared: boolean) {
 }
 .fin-account-converted {
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   margin-left: 0.4rem;
 }
 .fin-mini-btn {
@@ -1624,7 +1624,7 @@ function saveShared(account: Account, shared: boolean) {
   color: var(--text-muted);
   border-radius: 6px;
   padding: 0.1rem 0.5rem;
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -1673,7 +1673,7 @@ function saveShared(account: Account, shared: boolean) {
 }
 .fin-ident-label {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
@@ -1681,18 +1681,18 @@ function saveShared(account: Account, shared: boolean) {
 }
 .fin-ident-input {
   width: 260px;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   padding: 0.15rem 0.4rem;
 }
 .fin-ident-hint {
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .fin-shared-toggle {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text);
   cursor: pointer;
   white-space: nowrap;
@@ -1711,7 +1711,7 @@ function saveShared(account: Account, shared: boolean) {
   align-items: baseline;
   gap: 0.75rem;
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   padding: 0.15rem 0;
 }
 .fin-history-date {
@@ -1719,7 +1719,7 @@ function saveShared(account: Account, shared: boolean) {
 }
 .fin-history-note {
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   font-family: var(--font-mono);
   margin: 0.25rem 0 0;
 }
@@ -1727,7 +1727,7 @@ function saveShared(account: Account, shared: boolean) {
 /* Footer combined total: present but never the headline */
 .fin-grand {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   letter-spacing: 0.08em;
   color: var(--text-muted);
   text-align: right;
@@ -1742,7 +1742,7 @@ function saveShared(account: Account, shared: boolean) {
   margin-bottom: 0.75rem;
 }
 .fin-modal-field label {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .fin-modal-row {
@@ -1754,7 +1754,7 @@ function saveShared(account: Account, shared: boolean) {
 }
 .fin-modal-hint {
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   margin: 0 0 0.75rem;
 }
 /* ----- Taxes tab ----- */
@@ -1783,14 +1783,17 @@ function saveShared(account: Account, shared: boolean) {
   .fin-universe {
     padding: 0.85rem 0.75rem;
   }
-  /* Accounts: each row becomes a two-line card, name and balance first,
-     type, tx count, freshness and actions below; the header row goes. */
+  /* Accounts: each row becomes a small card, name and balance first,
+     type, tx count and freshness below, the actions on a line of their
+     own (next to the freshness, they overlap it on a narrow phone); the
+     header row goes. */
   .fin-universe .fin-account-row {
     display: grid;
     grid-template-columns: 0.9em auto auto minmax(0, 1fr) auto;
     grid-template-areas:
       'caret name name name amount'
-      '. type tx fresh actions';
+      '. type tx fresh fresh'
+      '. actions actions actions actions';
     align-items: center;
     column-gap: 0.6rem;
     row-gap: 0.2rem;
@@ -1823,6 +1826,7 @@ function saveShared(account: Account, shared: boolean) {
   }
   .fin-universe .fin-account-actions {
     grid-area: actions;
+    justify-self: end;
     width: auto;
   }
   /* The converted amount goes under the native one. */

@@ -93,7 +93,7 @@ function onKeydown(event: KeyboardEvent) {
 /* The clear button below replaces the browser's own (WebKit only). */
 .search-field--sm .search-field-input {
   height: 32px;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 
 .search-field-input::-webkit-search-cancel-button {

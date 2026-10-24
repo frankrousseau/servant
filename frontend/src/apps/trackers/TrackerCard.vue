@@ -284,7 +284,7 @@ function onDatePick(value: string) {
 }
 .tk-name {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--text-base);
   font-weight: 600;
   min-width: 0;
   overflow: hidden;
@@ -305,7 +305,7 @@ function onDatePick(value: string) {
 .tk-stat {
   margin-left: auto;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
@@ -341,13 +341,13 @@ function onDatePick(value: string) {
 }
 .tk-auto {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .tk-cell-info {
   margin-left: auto;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   display: inline-flex;
   align-items: center;
@@ -359,7 +359,7 @@ function onDatePick(value: string) {
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   text-decoration: underline;
   padding: 0;
 }
@@ -375,7 +375,7 @@ function onDatePick(value: string) {
   color: var(--text-muted);
   padding: 0.35rem 0.9rem;
   border-radius: 8px;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 .tk-toggle--on {
@@ -391,7 +391,7 @@ function onDatePick(value: string) {
   height: 34px;
   padding: 0;
   border-radius: 8px;
-  font-size: 1.05rem;
+  font-size: var(--text-base);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -408,11 +408,11 @@ function onDatePick(value: string) {
 .tk-set {
   width: auto;
   padding: 0 0.7rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 .tk-count {
   font-family: var(--font-mono);
-  font-size: 1.1rem;
+  font-size: var(--text-md);
   font-weight: 600;
   min-width: 2.2em;
   text-align: center;
@@ -420,11 +420,11 @@ function onDatePick(value: string) {
 .tk-date-pick {
   width: 150px;
   padding: 0.3rem 0.5rem;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
 }
 .tk-unit {
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   font-weight: 400;
   padding-left: 0.35rem;
 }
@@ -436,7 +436,7 @@ function onDatePick(value: string) {
 .tk-value-input {
   width: 120px;
   padding: 0.35rem 0.6rem;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 @media (pointer: coarse) {
   .tk-step,

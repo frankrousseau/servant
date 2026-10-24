@@ -969,7 +969,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 }
 .cl-count {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text);
   white-space: nowrap;
 }
@@ -987,7 +987,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   border-radius: 8px;
   cursor: pointer;
 }
@@ -1009,7 +1009,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   border-radius: 6px;
   cursor: pointer;
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 .cl-folder:hover {
   background: var(--bg-hover);
@@ -1066,7 +1066,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   flex: 1;
   min-width: 0;
   padding: 0.15rem 0.4rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   border-radius: 6px;
 }
 /* A real link so a checklist opens in a new tab (middle or Ctrl+click);
@@ -1078,7 +1078,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   padding: 0.3rem 0.4rem;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: inherit;
   text-decoration: none;
 }
@@ -1104,7 +1104,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   color: var(--text-muted);
 }
 .cl-row-count {
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   flex-shrink: 0;
 }
@@ -1113,7 +1113,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   text-align: center;
   padding: 2.5rem 1rem;
   font-family: var(--font-mono);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 .cl-main {
   flex: 1;
@@ -1153,7 +1153,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   flex: 1;
   min-width: 0;
   font-weight: 600;
-  font-size: 1.05rem;
+  font-size: var(--text-base);
 }
 .cl-folder-input {
   width: 200px;
@@ -1161,7 +1161,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 }
 .cl-save-status {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -1172,7 +1172,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   white-space: nowrap;
   cursor: pointer;
@@ -1189,7 +1189,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   color: var(--text);
   padding: 0.35rem 0.7rem;
   border-radius: 8px;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -1298,7 +1298,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
 /* Status readout: 3/7 DONE */
 .cl-progress {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
@@ -1372,7 +1372,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   flex: 1;
   min-width: 0;
   padding: 0.3rem 0.5rem;
-  font-size: 0.95rem;
+  font-size: var(--text-base);
   border-radius: 6px;
   background: transparent;
   border: 1px solid transparent;
@@ -1409,7 +1409,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   border-radius: 999px;
   padding: 0.05rem 0.5rem;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   letter-spacing: 0.04em;
   cursor: pointer;
   flex-shrink: 0;
@@ -1445,7 +1445,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   width: 110px;
   flex-shrink: 0;
   padding: 0.15rem 0.4rem;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   border-radius: 6px;
 }
 .cl-due-clear {
@@ -1524,7 +1524,7 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
   color: var(--text);
   padding: 0.35rem 0.8rem;
   border-radius: 8px;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 .cl-add-btn:hover:not(:disabled) {

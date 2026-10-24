@@ -74,7 +74,7 @@ const emit = defineEmits<{ select: [node: TreeNode] }>()
   list-style: none;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.76rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   user-select: none;
@@ -121,7 +121,7 @@ details[open] > .folder .folder-caret-open {
   background: none;
   color: inherit;
   font: inherit;
-  font-size: 0.92rem;
+  font-size: var(--text-sm);
   text-align: left;
   cursor: pointer;
 }

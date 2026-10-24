@@ -145,12 +145,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
 
 .confirm-title {
   margin: 0 0 0.5rem;
-  font-size: 1.1rem;
+  font-size: var(--text-md);
 }
 
 .confirm-message {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   margin: 0 0 1.25rem;
   line-height: 1.4;
 }
@@ -164,7 +164,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
   flex: 1;
   padding: 0.6rem 1rem;
   border-radius: 8px;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
   transition:

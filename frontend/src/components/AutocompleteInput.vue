@@ -164,7 +164,7 @@ function onKeydown(event: KeyboardEvent) {
 }
 .ac-option {
   padding: 0.4rem 0.6rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
@@ -174,7 +174,7 @@ function onKeydown(event: KeyboardEvent) {
 @media (pointer: coarse) {
   .ac-option {
     padding: 0.7rem 0.75rem;
-    font-size: 0.95rem;
+    font-size: var(--text-base);
   }
 }
 /* Cursor option: violet rail + tint, same language as list rows */

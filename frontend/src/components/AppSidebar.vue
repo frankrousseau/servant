@@ -347,7 +347,7 @@ function startDrag(id: string, event: DragEvent) {
   align-items: center;
   gap: 0.6rem;
   font-family: var(--font-display);
-  font-size: 1.5rem;
+  font-size: var(--text-xl);
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -397,7 +397,7 @@ function startDrag(id: string, event: DragEvent) {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   color: var(--text);
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   pointer-events: none;
 }
 
@@ -405,7 +405,7 @@ function startDrag(id: string, event: DragEvent) {
 .sidebar-tip kbd {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
 }
 
 /* Below the icon, right-aligned: a tip poking past the sidebar's right
@@ -461,7 +461,7 @@ function startDrag(id: string, event: DragEvent) {
   gap: 0.65rem;
   padding: 0.6rem 1.25rem;
   color: var(--text-muted);
-  font-size: 1rem;
+  font-size: var(--text-base);
   text-decoration: none;
   transition: color 0.15s;
 }
@@ -509,7 +509,7 @@ function startDrag(id: string, event: DragEvent) {
 .sidebar-count {
   margin-left: auto;
   font-family: var(--font-mono);
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
 }
 
 /* ----- Uploads, Sources and the collapse toggle ----- */
@@ -523,7 +523,7 @@ function startDrag(id: string, event: DragEvent) {
   color: var(--primary);
   text-decoration: none;
   font-family: var(--font-mono);
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   animation: sidebar-upload-pulse 1.6s ease-in-out infinite;
@@ -548,7 +548,7 @@ function startDrag(id: string, event: DragEvent) {
   padding: 0.6rem 1.25rem;
   color: var(--text-muted);
   text-decoration: none;
-  font-size: 1rem;
+  font-size: var(--text-base);
   transition: color 0.15s;
 }
 

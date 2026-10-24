@@ -705,13 +705,13 @@ async function openLinked(tx: Entry) {
   margin: 0;
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: 1.3rem;
+  font-size: var(--text-lg);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 .ftx-count {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .ftx-spacer {
@@ -725,12 +725,12 @@ async function openLinked(tx: Entry) {
 }
 .ftx-empty {
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   margin: 0.5rem 0 0;
 }
 .ftx-month {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
@@ -742,11 +742,11 @@ async function openLinked(tx: Entry) {
   gap: 0.6rem;
   padding: 0.28rem 0.25rem;
   border-top: 1px solid var(--border);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 .ftx-date {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   flex-shrink: 0;
   width: 1.6em;
@@ -791,7 +791,7 @@ async function openLinked(tx: Entry) {
   align-items: center;
   gap: 0.3rem;
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   max-width: 220px;
 }
 .ftx-doc-name {
@@ -823,7 +823,7 @@ async function openLinked(tx: Entry) {
 .ftx-cat {
   flex-shrink: 0;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 0.05rem 0.55rem;
@@ -844,12 +844,12 @@ async function openLinked(tx: Entry) {
 }
 .ftx-cat-edit :deep(input) {
   width: 100%;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   padding: 0.15rem 0.4rem;
 }
 .ftx-amount {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   flex-shrink: 0;
   min-width: 7.5em;
   text-align: right;
@@ -881,7 +881,7 @@ async function openLinked(tx: Entry) {
 }
 .ftx-bulk-count {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .ftx-bulk-cat {
@@ -889,7 +889,7 @@ async function openLinked(tx: Entry) {
 }
 .ftx-bulk-cat :deep(input) {
   width: 100%;
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   padding: 0.25rem 0.5rem;
 }
 .ftx-auto-row {
@@ -897,7 +897,7 @@ async function openLinked(tx: Entry) {
   align-items: center;
   gap: 0.5rem;
   padding: 0.2rem 0;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   cursor: pointer;
   border-top: 1px solid var(--border);
 }
@@ -916,16 +916,16 @@ async function openLinked(tx: Entry) {
 }
 .ftx-auto-cat {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
 }
 .ftx-auto-count {
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   flex-shrink: 0;
 }
 .ftx-auto-examples {
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -939,7 +939,7 @@ async function openLinked(tx: Entry) {
   color: var(--text-muted);
   border-radius: 8px;
   padding: 0.3rem 0.7rem;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -956,7 +956,7 @@ async function openLinked(tx: Entry) {
 }
 .ftx-dedup-hint {
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   margin: 0 0 0.5rem;
 }
 .ftx-dedup-group {
@@ -968,7 +968,7 @@ async function openLinked(tx: Entry) {
   align-items: center;
   gap: 0.6rem;
   padding: 0.15rem 0;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 .ftx-dedup-row input {
@@ -983,7 +983,7 @@ async function openLinked(tx: Entry) {
 }
 .ftx-dedup-meta {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   flex-shrink: 0;
 }
@@ -997,7 +997,7 @@ async function openLinked(tx: Entry) {
   color: var(--danger);
   border-radius: 8px;
   padding: 0.3rem 0.8rem;
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 .ftx-dedup-delete:disabled {
@@ -1028,7 +1028,7 @@ async function openLinked(tx: Entry) {
   color: var(--text);
   padding: 0.35rem 0.8rem;
   border-radius: 8px;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 .ftx-more:hover {
