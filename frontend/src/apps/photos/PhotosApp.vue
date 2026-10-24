@@ -2045,13 +2045,13 @@ onUnmounted(() => {
   top: 100%;
   left: 1rem;
   right: 1rem;
-  background: var(--bg-surface);
+  background: var(--bg-raised);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   max-height: 240px;
   overflow-y: auto;
   z-index: 10;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-raised);
 }
 .ph-people-result {
   display: flex;

@@ -1968,14 +1968,14 @@ a.nt-attachment-name:hover {
 .nt-ac {
   position: fixed;
   z-index: 10000;
-  background: var(--bg-surface);
+  background: var(--bg-raised);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 0.25rem;
   min-width: 180px;
   max-height: 240px;
   overflow-y: auto;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-raised);
 }
 .nt-ac-item {
   display: flex;

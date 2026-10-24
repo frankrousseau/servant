@@ -290,7 +290,7 @@ function onFocusout(event: FocusEvent) {
   align-items: center;
   gap: 0.5rem;
   background: var(--bg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--control-radius);
   color: var(--text);
   /* Same vertical metrics as the global input rule, so a combo sitting
@@ -336,10 +336,10 @@ function onFocusout(event: FocusEvent) {
   z-index: 200;
   width: max-content;
   max-width: 320px;
-  background: var(--bg-surface);
+  background: var(--bg-raised);
   border: 1px solid var(--border);
   border-radius: var(--control-radius);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-raised);
   overflow: hidden;
   padding: 0.25rem;
 }

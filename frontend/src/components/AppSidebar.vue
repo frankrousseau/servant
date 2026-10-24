@@ -393,7 +393,7 @@ function startDrag(id: string, event: DragEvent) {
   gap: 0.5rem;
   padding: 0.3rem 0.6rem;
   white-space: nowrap;
-  background: var(--bg-hover);
+  background: var(--bg-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   color: var(--text);

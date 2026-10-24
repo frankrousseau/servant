@@ -233,10 +233,10 @@ onBeforeUnmount(() => {
   background: rgba(0, 0, 0, 0.55);
 }
 .cp-panel {
-  background: var(--bg-surface);
+  background: var(--bg-raised);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--shadow-raised);
   overflow: hidden;
   display: flex;
   flex-direction: column;

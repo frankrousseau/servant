@@ -31,11 +31,19 @@
 
 /* ----- 1. Design tokens and themes ----- */
 
+/* Every theme defines the same colors. Three layers of surface: the page
+   (--bg), panels and cards (--bg-surface), and what floats over them,
+   menus, the palette, tips (--bg-raised under --shadow-raised). --border
+   draws dividers and card edges; form controls take --border-strong, at
+   3:1 against both surfaces (WCAG 1.4.11: a field's edge is what makes it
+   recognizable as one). */
 :root {
   --bg: #05070f;
-  --bg-surface: #0a0e1c;
+  --bg-surface: #0c1122;
+  --bg-raised: #141a35;
   --bg-hover: #121830;
-  --border: #1c2342;
+  --border: #212a4e;
+  --border-strong: #535e9f;
   --text: #d6dcf5;
   --text-muted: #7a83b3;
   --primary: #9d7bff;
@@ -46,7 +54,9 @@
   --danger-hover: #f0435f;
   --success: #4fd674;
   --warning: #ffb454;
-  --radius: 6px;
+  --shadow-raised:
+    0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --radius: 8px;
   --control-radius: 8px;
   --sidebar-width: 220px;
   /* The sidebar folded to its icons (.app-layout--rail) */
@@ -69,9 +79,11 @@
 
 [data-theme='night'] {
   --bg: #05070f;
-  --bg-surface: #0a0e1c;
+  --bg-surface: #0c1122;
+  --bg-raised: #141a35;
   --bg-hover: #121830;
-  --border: #1c2342;
+  --border: #212a4e;
+  --border-strong: #535e9f;
   --text: #d6dcf5;
   --text-muted: #7a83b3;
   --primary: #9d7bff;
@@ -82,14 +94,18 @@
   --danger-hover: #f0435f;
   --success: #4fd674;
   --warning: #ffb454;
+  --shadow-raised:
+    0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3);
   color-scheme: dark;
 }
 
 [data-theme='graphite'] {
   --bg: #0a0a0a;
   --bg-surface: #131313;
+  --bg-raised: #1b1b1b;
   --bg-hover: #1d1d1d;
   --border: #2b2b2b;
+  --border-strong: #636363;
   --text: #e7e7e7;
   --text-muted: #909090;
   --primary: #d8d8d8;
@@ -100,14 +116,18 @@
   --danger-hover: #c9414c;
   --success: #6fbf7d;
   --warning: #d8a35c;
+  --shadow-raised:
+    0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3);
   color-scheme: dark;
 }
 
 [data-theme='day'] {
   --bg: #f6f5fa;
   --bg-surface: #ffffff;
+  --bg-raised: #ffffff;
   --bg-hover: #edeaf6;
   --border: #ddd8ec;
+  --border-strong: #8e89a0;
   --text: #221d38;
   --text-muted: #6a6590;
   --primary: #6b46d9;
@@ -118,6 +138,8 @@
   --danger-hover: #b82c4b;
   --success: #1f8a50;
   --warning: #a86a12;
+  --shadow-raised:
+    0 12px 32px rgba(34, 29, 56, 0.16), 0 2px 6px rgba(34, 29, 56, 0.08);
   color-scheme: light;
 }
 
@@ -126,8 +148,10 @@
 [data-theme='cyanotype'] {
   --bg: #e9eff7;
   --bg-surface: #f5f8fc;
+  --bg-raised: #f5f8fc;
   --bg-hover: #dbe5f2;
   --border: #c3d2e6;
+  --border-strong: #79899e;
   --text: #16283e;
   --text-muted: #58718f;
   --primary: #1f4e96;
@@ -138,6 +162,8 @@
   --danger-hover: #a02b44;
   --success: #1d7d55;
   --warning: #8f6a12;
+  --shadow-raised:
+    0 12px 32px rgba(22, 40, 62, 0.16), 0 2px 6px rgba(22, 40, 62, 0.08);
   color-scheme: light;
 }
 
@@ -146,8 +172,10 @@
 [data-theme='rosewood'] {
   --bg: #e6d7cf;
   --bg-surface: #efe3dc;
+  --bg-raised: #f4eae3;
   --bg-hover: #dcc8bd;
   --border: #c8b2a7;
+  --border-strong: #82777b;
   --text: #2a2d43;
   --text-muted: #5c618a;
   --primary: #8a5054;
@@ -158,14 +186,18 @@
   --danger-hover: #8c2f3e;
   --success: #5f7d5a;
   --warning: #96702e;
+  --shadow-raised:
+    0 12px 32px rgba(42, 45, 67, 0.16), 0 2px 6px rgba(42, 45, 67, 0.08);
   color-scheme: light;
 }
 
 [data-theme='sepia'] {
   --bg: #f2e9d8;
   --bg-surface: #faf3e4;
+  --bg-raised: #fdf8ee;
   --bg-hover: #e9dec7;
   --border: #d7c8a8;
+  --border-strong: #91836d;
   --text: #3f3227;
   --text-muted: #75634d;
   --primary: #9c5f1e;
@@ -176,6 +208,8 @@
   --danger-hover: #97301f;
   --success: #57772f;
   --warning: #8a6a10;
+  --shadow-raised:
+    0 12px 32px rgba(63, 50, 39, 0.16), 0 2px 6px rgba(63, 50, 39, 0.08);
   color-scheme: light;
 }
 
@@ -358,7 +392,7 @@ select {
   width: 100%;
   padding: 0.5rem 0.9rem;
   background: var(--bg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--control-radius);
   color: var(--text);
   font-size: 1rem;
@@ -733,9 +767,9 @@ dialog {
 /* Flatpickr, themed by the variables above (global: the picker renders on
    document.body; used by the Calendar app and components/DateInput.vue). */
 .flatpickr-calendar {
-  background: var(--bg-surface) !important;
+  background: var(--bg-raised) !important;
   border-color: var(--border) !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+  box-shadow: var(--shadow-raised) !important;
   /* Breathing room; width auto lets the fixed-width day grid size the box. */
   width: auto !important;
   padding: 0.85rem;
@@ -765,16 +799,16 @@ span.flatpickr-weekday {
 
 .flatpickr-months,
 .flatpickr-weekdays {
-  background: var(--bg-surface) !important;
+  background: var(--bg-raised) !important;
 }
 .flatpickr-month,
 .flatpickr-current-month .flatpickr-monthDropdown-months {
-  background: var(--bg-surface) !important;
+  background: var(--bg-raised) !important;
   color: var(--text) !important;
 }
 span.flatpickr-weekday {
   color: var(--text-muted) !important;
-  background: var(--bg-surface) !important;
+  background: var(--bg-raised) !important;
 }
 .flatpickr-day {
   color: var(--text) !important;
@@ -821,13 +855,13 @@ span.flatpickr-weekday {
   border-bottom-color: var(--border) !important;
 }
 .flatpickr-calendar.arrowTop::after {
-  border-bottom-color: var(--bg-surface) !important;
+  border-bottom-color: var(--bg-raised) !important;
 }
 .flatpickr-calendar.arrowBottom::before {
   border-top-color: var(--border) !important;
 }
 .flatpickr-calendar.arrowBottom::after {
-  border-top-color: var(--bg-surface) !important;
+  border-top-color: var(--bg-raised) !important;
 }
 .flatpickr-current-month input.cur-year {
   color: var(--text) !important;
@@ -835,7 +869,7 @@ span.flatpickr-weekday {
 .flatpickr-current-month
   .flatpickr-monthDropdown-months
   .flatpickr-monthDropdown-month {
-  background: var(--bg-surface);
+  background: var(--bg-raised);
   color: var(--text);
 }
 .flatpickr-day.flatpickr-disabled,
@@ -848,7 +882,7 @@ span.flatpickr-weekday {
 }
 .flatpickr-time input,
 .flatpickr-time .flatpickr-am-pm {
-  background: var(--bg-surface) !important;
+  background: var(--bg-raised) !important;
   color: var(--text) !important;
 }
 .flatpickr-time input:hover,

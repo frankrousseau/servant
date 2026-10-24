@@ -157,10 +157,10 @@ function onKeydown(event: KeyboardEvent) {
   z-index: 30;
   max-height: 220px;
   overflow-y: auto;
-  background: var(--bg-surface);
+  background: var(--bg-raised);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-raised);
 }
 .ac-option {
   padding: 0.4rem 0.6rem;

@@ -185,8 +185,8 @@ function signOut() {
 
 /* Opens upward, over the bottom of the nav: the footer sits at the very
    bottom of the sidebar, there is no room below it. A raised panel (the
-   hover tone, a primary-tinted edge, a deep shadow) so it reads as
-   floating over the links rather than as more sidebar. */
+   raised layer, a primary-tinted edge) so it reads as floating over the
+   links rather than as more sidebar. */
 .account-menu {
   position: absolute;
   left: 0.75rem;
@@ -195,12 +195,10 @@ function signOut() {
   z-index: 10;
   list-style: none;
   padding: 0.35rem 0;
-  background: var(--bg-hover);
+  background: var(--bg-raised);
   border: 1px solid rgba(var(--primary-rgb), 0.35);
   border-radius: var(--radius);
-  box-shadow:
-    0 12px 32px rgba(0, 0, 0, 0.55),
-    0 2px 6px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-raised);
 }
 
 .account-link,
