@@ -86,11 +86,6 @@ describe('CalendarApp event modal', () => {
   it('moves the end date with the start date, duration kept', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-05T09:00:00Z'))
-    HTMLDialogElement.prototype.showModal ??= function (
-      this: HTMLDialogElement
-    ) {
-      this.open = true
-    }
     const ctx = makeCtx()
     ctx.api.entries.list = vi.fn(async (filters?: Record<string, string>) =>
       filters?.kind === 'event'
