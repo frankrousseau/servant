@@ -670,9 +670,9 @@ onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
           New checklist
         </button>
       </div>
-      <p v-if="loadState === 'loading'" class="cl-placeholder">
-        Loading checklists…
-      </p>
+      <!-- While loading, the sidebar's LoadState says so: the pane stays blank
+           rather than say it twice (on phones only the sidebar shows). -->
+      <template v-if="loadState === 'loading'" />
       <p v-else-if="!selected" class="cl-placeholder">
         Select or create a checklist to get started.
       </p>

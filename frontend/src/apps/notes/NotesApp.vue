@@ -1258,9 +1258,9 @@ onBeforeUnmount(() => {
           </button>
         </div>
       </div>
-      <p v-if="loadState === 'loading'" class="nt-placeholder">
-        Loading notes…
-      </p>
+      <!-- While loading, the sidebar's LoadState says so: the pane stays blank
+           rather than say it twice (on phones only the sidebar shows). -->
+      <template v-if="loadState === 'loading'" />
       <p v-else-if="!selected" class="nt-placeholder">
         Select or create a note to start writing.
       </p>
