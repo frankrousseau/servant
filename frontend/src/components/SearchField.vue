@@ -4,7 +4,9 @@ import { Search, X } from 'lucide-vue-next'
 
 // The Servant search box: a labelled field with a search icon, a clear
 // button and Escape to clear. `autofocus` makes it the page's landing focus
-// (AGENTS.md: default focus goes to the search field when there is one).
+// (AGENTS.md: default focus goes to the search field when there is one):
+// the directive focuses it on mount, and the native attribute is what
+// showModal() reads when the field sits in a dialog.
 //
 // <SearchField v-model="query" label="Search notes" autofocus />
 const props = withDefaults(
@@ -42,6 +44,7 @@ function onKeydown(event: KeyboardEvent) {
     <input
       ref="input"
       v-autofocus="autofocus"
+      :autofocus="autofocus"
       type="search"
       class="search-field-input"
       :value="modelValue"

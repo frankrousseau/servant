@@ -64,6 +64,8 @@ describe('SearchField', () => {
   it('takes the landing focus when asked', () => {
     const wrapper = mountField({ autofocus: true })
     expect(document.activeElement).toBe(wrapper.find('input').element)
+    // The attribute showModal() reads when the field sits in a dialog.
+    expect(wrapper.find('input').attributes('autofocus')).toBeDefined()
     wrapper.unmount()
   })
 })

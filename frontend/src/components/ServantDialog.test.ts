@@ -77,4 +77,21 @@ describe('ServantDialog', () => {
     expect(picker.calendarContainer.closest('dialog')).not.toBeNull()
     picker.destroy()
   })
+
+  it('puts start actions before the close button, and can focus it first', () => {
+    const wrapper = mountDialog(
+      { initialFocus: 'close' },
+      {
+        'start-actions': '<button class="delete">Delete</button>',
+        actions: '<button>Save</button>'
+      }
+    )
+    const labels = wrapper
+      .findAll('.servant-dialog-actions button')
+      .map(button => button.text())
+    expect(labels).toEqual(['Delete', 'Cancel', 'Save'])
+    expect(
+      wrapper.find('.servant-dialog-cancel').attributes('autofocus')
+    ).toBeDefined()
+  })
 })

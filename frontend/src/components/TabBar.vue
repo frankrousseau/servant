@@ -9,7 +9,7 @@ export interface TabOption<V extends string = string> {
 </script>
 
 <script setup lang="ts" generic="T extends string">
-import { computed, nextTick, ref, useId, useSlots } from 'vue'
+import { computed, nextTick, onMounted, ref, useId, useSlots } from 'vue'
 
 // The Servant tab strip: a role="tablist" of buttons bound to v-model, with
 // the keyboard model assistive tech expects (one Tab stop on the selected
@@ -23,6 +23,9 @@ import { computed, nextTick, ref, useId, useSlots } from 'vue'
 // With content, the bar wraps it in the matching role="tabpanel". Without
 // (a view switch in a header, far from what it switches), it renders the
 // strip alone and leaves aria-controls out rather than point at nothing.
+// A class given to <TabBar> lands on the strip; panel-class styles the panel
+// (a flex child that must grow, for instance). `autofocus` makes the selected
+// tab the page's landing focus, for pages without a search field.
 const props = withDefaults(
   defineProps<{
     modelValue: T
@@ -30,9 +33,13 @@ const props = withDefaults(
     // Accessible name of the strip: what the tabs switch between.
     label: string
     variant?: 'underline' | 'pill'
+    panelClass?: string
+    autofocus?: boolean
   }>(),
-  { variant: 'underline' }
+  { variant: 'underline', panelClass: undefined, autofocus: false }
 )
+// Two root nodes (strip, panel): the parent's attributes go to the strip.
+defineOptions({ inheritAttrs: false })
 const emit = defineEmits<{ 'update:modelValue': [value: T] }>()
 
 const slots = useSlots()
@@ -42,6 +49,14 @@ const hasPanel = computed(() => Boolean(slots.default))
 
 const tabId = (value: T) => `${baseId}-tab-${value}`
 const panelId = `${baseId}-panel`
+
+onMounted(() => {
+  if (!props.autofocus) return
+  const index = props.options.findIndex(
+    option => option.value === props.modelValue
+  )
+  buttons.value[Math.max(index, 0)]?.focus()
+})
 
 async function select(index: number) {
   const option = props.options[index]
@@ -71,6 +86,7 @@ function onKeydown(event: KeyboardEvent, index: number) {
     :class="`tab-bar--${variant}`"
     role="tablist"
     :aria-label="label"
+    v-bind="$attrs"
   >
     <button
       v-for="(option, index) in options"
@@ -96,6 +112,7 @@ function onKeydown(event: KeyboardEvent, index: number) {
     :id="panelId"
     role="tabpanel"
     class="tab-bar-panel"
+    :class="panelClass"
     :aria-labelledby="tabId(modelValue)"
   >
     <slot />
@@ -144,6 +161,12 @@ function onKeydown(event: KeyboardEvent, index: number) {
   box-shadow: inset 0 -2px 0 var(--primary);
 }
 
+/* The strip scrolls sideways when it overflows, which would clip an outer
+   focus ring: draw it inside the tab instead. */
+.tab-bar--underline .tab-bar-tab:focus-visible {
+  outline-offset: -2px;
+}
+
 /* ----- Pill: compact view switch ----- */
 .tab-bar--pill {
   gap: 0.2rem;
@@ -163,6 +186,12 @@ function onKeydown(event: KeyboardEvent, index: number) {
 .tab-bar--pill .tab-bar-tab--active:hover {
   background: var(--primary);
   color: var(--primary-contrast);
+}
+
+@media (max-width: 640px) {
+  .tab-bar--underline .tab-bar-tab {
+    padding: 0.5rem 0.7rem;
+  }
 }
 
 @media (pointer: coarse) {

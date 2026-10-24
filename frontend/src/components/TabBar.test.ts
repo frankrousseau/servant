@@ -79,4 +79,23 @@ describe('TabBar', () => {
     )
     wrapper.unmount()
   })
+
+  it('focuses the selected tab when asked, and passes its class to the strip', () => {
+    const wrapper = mount(TabBar, {
+      props: {
+        modelValue: 'taxes',
+        options: OPTIONS,
+        label: 'Finance sections',
+        autofocus: true,
+        panelClass: 'grow'
+      },
+      attrs: { class: 'fin-strip' },
+      slots: { default: '<p>Taxes</p>' },
+      attachTo: document.body
+    })
+    expect(document.activeElement?.textContent?.trim()).toBe('Taxes')
+    expect(wrapper.find('[role="tablist"]').classes()).toContain('fin-strip')
+    expect(wrapper.find('[role="tabpanel"]').classes()).toContain('grow')
+    wrapper.unmount()
+  })
 })

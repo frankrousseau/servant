@@ -15,15 +15,24 @@ import { openDialog } from '../lib/dialog'
 //   ...fields...
 //   <template #actions><button autofocus @click="save">Save</button></template>
 // </ServantDialog>
+//
+// #start-actions holds an action set apart on the left (Delete), before the
+// close button in tab order too. A dialog without a primary action (a list
+// to read) passes initial-focus="close" so focus lands on the text button
+// rather than on the icon one. In the lg and xl boxes, made for lists, the
+// body scrolls inside the box once it outgrows the screen while the header
+// and the actions stay in view. The sm and md form boxes grow instead: a
+// scrolling body would clip the suggestion list of an AutocompleteInput.
 const props = withDefaults(
   defineProps<{
     open: boolean
     title: string
-    size?: 'sm' | 'md' | 'lg'
+    size?: 'sm' | 'md' | 'lg' | 'xl'
     // Label of the text close button; "Cancel" next to actions, else "Close".
     closeLabel?: string
+    initialFocus?: 'close'
   }>(),
-  { size: 'md', closeLabel: undefined }
+  { size: 'md', closeLabel: undefined, initialFocus: undefined }
 )
 const emit = defineEmits<{ 'update:open': [value: boolean]; close: [] }>()
 const slots = useSlots()
@@ -83,7 +92,15 @@ function onCancel(event: Event) {
         <slot />
       </div>
       <footer class="servant-dialog-actions">
-        <button type="button" class="servant-dialog-cancel" @click="close">
+        <div v-if="slots['start-actions']" class="servant-dialog-start">
+          <slot name="start-actions" />
+        </div>
+        <button
+          type="button"
+          class="servant-dialog-cancel"
+          :autofocus="initialFocus === 'close'"
+          @click="close"
+        >
           {{ closeLabel ?? (slots.actions ? 'Cancel' : 'Close') }}
         </button>
         <slot name="actions" />
@@ -136,6 +153,8 @@ function onCancel(event: Event) {
 
 /* ----- Box ----- */
 .servant-dialog-box {
+  display: flex;
+  flex-direction: column;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -155,8 +174,18 @@ function onCancel(event: Event) {
   max-width: 760px;
 }
 
+.servant-dialog-box--xl {
+  max-width: 1100px;
+}
+
+.servant-dialog-box--lg,
+.servant-dialog-box--xl {
+  max-height: calc(100dvh - 3rem);
+}
+
 /* ----- Header ----- */
 .servant-dialog-header {
+  flex-shrink: 0;
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
@@ -187,13 +216,28 @@ function onCancel(event: Event) {
   color: var(--text);
 }
 
+/* ----- Body ----- */
+.servant-dialog-box--lg .servant-dialog-body,
+.servant-dialog-box--xl .servant-dialog-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 /* ----- Actions ----- */
 .servant-dialog-actions {
+  flex-shrink: 0;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.5rem;
   margin-top: 1.25rem;
+}
+
+.servant-dialog-start {
+  display: flex;
+  gap: 0.5rem;
+  margin-right: auto;
 }
 
 .servant-dialog-cancel {
