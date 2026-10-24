@@ -15,6 +15,7 @@ import {
 } from 'lucide-vue-next'
 
 import ComboBox from '../components/ComboBox.vue'
+import LoadState from '../components/LoadState.vue'
 
 import {
   connectorLogs,
@@ -380,275 +381,281 @@ onMounted(async () => {
       </div>
     </div>
 
-    <p v-if="loading">Loading...</p>
-
-    <template v-else-if="connector">
-      <!-- Info card -->
-      <section class="detail-card">
-        <div class="detail-grid">
-          <div class="detail-item">
-            <span class="detail-label">Status</span>
-            <span v-if="isImportOnly" class="detail-val">Manual import</span>
-            <span v-else class="detail-val">
-              <span
-                class="status-dot"
-                :class="{ active: connector.enabled, error: connector.error }"
-              ></span>
-              {{ connector.enabled ? 'Enabled' : 'Disabled' }}
-            </span>
+    <LoadState
+      :state="loading ? 'loading' : 'ready'"
+      :empty="!connector"
+      what="source"
+      empty-text="Connector not found."
+    >
+      <template v-if="connector">
+        <!-- Info card -->
+        <section class="detail-card">
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="detail-label">Status</span>
+              <span v-if="isImportOnly" class="detail-val">Manual import</span>
+              <span v-else class="detail-val">
+                <span
+                  class="status-dot"
+                  :class="{ active: connector.enabled, error: connector.error }"
+                ></span>
+                {{ connector.enabled ? 'Enabled' : 'Disabled' }}
+              </span>
+            </div>
+            <div v-if="!isImportOnly" class="detail-item">
+              <span class="detail-label">Schedule</span>
+              <ComboBox
+                class="inline-select"
+                :model-value="connector.schedule"
+                :options="scheduleOptions"
+                @update:model-value="onScheduleChange"
+              />
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">{{
+                isImportOnly ? 'Last import' : 'Last sync'
+              }}</span>
+              <span class="detail-val">
+                <template v-if="connector.last_synced_at">
+                  {{ relativeTime(connector.last_synced_at) }}
+                  <span class="detail-sub">
+                    ({{ formatDateTime(connector.last_synced_at) }})
+                  </span>
+                </template>
+                <template v-else>Never</template>
+              </span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Created</span>
+              <span class="detail-val">
+                {{ formatDate(connector.inserted_at) }}
+              </span>
+            </div>
           </div>
-          <div v-if="!isImportOnly" class="detail-item">
-            <span class="detail-label">Schedule</span>
-            <ComboBox
-              class="inline-select"
-              :model-value="connector.schedule"
-              :options="scheduleOptions"
-              @update:model-value="onScheduleChange"
-            />
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">{{
-              isImportOnly ? 'Last import' : 'Last sync'
-            }}</span>
-            <span class="detail-val">
-              <template v-if="connector.last_synced_at">
-                {{ relativeTime(connector.last_synced_at) }}
-                <span class="detail-sub">
-                  ({{ formatDateTime(connector.last_synced_at) }})
-                </span>
-              </template>
-              <template v-else>Never</template>
-            </span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">Created</span>
-            <span class="detail-val">
-              {{ formatDate(connector.inserted_at) }}
-            </span>
-          </div>
-        </div>
 
-        <div v-if="syncing" class="sync-banner">Syncing...</div>
+          <div v-if="syncing" class="sync-banner">Syncing...</div>
 
-        <div v-if="connector.error && !syncing" class="connector-error">
-          <span class="connector-error-text">{{ connector.error }}</span>
-          <button
-            class="copy-error-btn"
-            @click.stop="copyError(connector.error!, 'main')"
-            :title="copiedId === 'main' ? 'Copied!' : 'Copy error'"
-            :aria-label="copiedId === 'main' ? 'Copied' : 'Copy error'"
-          >
-            <Check v-if="copiedId === 'main'" :size="16" />
-            <Copy v-else :size="16" />
-          </button>
-        </div>
-
-        <div class="action-bar">
-          <div v-if="!isImportOnly" class="action-group">
+          <div v-if="connector.error && !syncing" class="connector-error">
+            <span class="connector-error-text">{{ connector.error }}</span>
             <button
-              class="action-btn action-btn--primary"
-              @click="syncNow"
-              :disabled="syncing"
+              class="copy-error-btn"
+              @click.stop="copyError(connector.error!, 'main')"
+              :title="copiedId === 'main' ? 'Copied!' : 'Copy error'"
+              :aria-label="copiedId === 'main' ? 'Copied' : 'Copy error'"
             >
-              <RefreshCw :size="15" :class="{ spin: syncing }" />
-              {{ syncing ? 'Syncing...' : 'Sync Now' }}
-            </button>
-            <button class="action-btn action-btn--ghost" @click="toggleEnabled">
-              <ToggleRight v-if="connector.enabled" :size="15" />
-              <ToggleLeft v-else :size="15" />
-              {{ connector.enabled ? 'Disable' : 'Enable' }}
+              <Check v-if="copiedId === 'main'" :size="16" />
+              <Copy v-else :size="16" />
             </button>
           </div>
-          <div v-else class="action-group"></div>
-          <button
-            class="action-btn action-btn--danger"
-            @click="deleteConnector"
-          >
-            <Trash2 :size="15" /> Delete
-          </button>
-        </div>
-        <Transition name="fade">
-          <div v-if="actionFeedback" class="action-feedback">
-            <Check :size="14" /> {{ actionFeedback }}
-          </div>
-        </Transition>
-      </section>
 
-      <!-- Config -->
-      <section class="detail-card">
-        <h2>{{ isImportable ? 'Import' : 'Configuration' }}</h2>
-
-        <!-- CSV Upload zone (bank_csv only) -->
-        <div v-if="isImportable && importConfig" class="upload-zone">
-          <label class="upload-area" :class="{ uploading }">
-            <Upload :size="24" />
-            <span v-if="uploading">Importing...</span>
-            <span v-else
-              >Drop a {{ importConfig.label }} file or click to browse</span
-            >
-            <input
-              type="file"
-              :accept="importConfig.accept"
-              class="upload-input"
-              @change="uploadCSV"
-              :disabled="uploading"
-            />
-          </label>
-
-          <div v-if="uploadResult" class="upload-result msg-success">
-            Imported {{ uploadResult.imported }} {{ importConfig.items
-            }}<template v-if="uploadResult.skipped"
-              >, {{ uploadResult.skipped }} skipped (duplicates)</template
-            >.
-          </div>
-          <div v-if="uploadError" class="upload-result msg-error">
-            {{ uploadError }}
-          </div>
-        </div>
-
-        <!-- Bank consent flow (enable_banking only) -->
-        <div v-if="isEnableBanking" class="eb-zone">
-          <p v-if="ebConnected" class="msg-success">
-            Connected: {{ ebAccounts.length }} account(s)<template
-              v-if="ebValidUntil"
-            >
-              , consent valid until
-              {{ new Date(ebValidUntil).toLocaleDateString() }}</template
-            >.
-          </p>
-          <p v-else class="eb-hint">
-            Not connected to the bank yet. Register this redirect URL in your
-            Enable Banking application, then connect:
-            <code>{{ ebRedirectUrl }}</code>
-          </p>
-          <button type="button" :disabled="ebConnecting" @click="ebConnect">
-            {{
-              ebConnecting
-                ? 'Redirecting…'
-                : ebConnected
-                  ? 'Reconnect (renew consent)'
-                  : 'Connect bank account'
-            }}
-          </button>
-          <p v-if="ebError" class="upload-result msg-error">{{ ebError }}</p>
-        </div>
-
-        <form
-          v-if="configFields.length"
-          class="config-form"
-          @submit.prevent="saveConfig"
-        >
-          <div
-            v-for="field in configFields"
-            :key="field.key"
-            class="config-field"
-          >
-            <label :for="`cfg-${field.key}`">
-              {{ field.label }}
-              <span v-if="!field.required" class="config-optional"
-                >optional</span
+          <div class="action-bar">
+            <div v-if="!isImportOnly" class="action-group">
+              <button
+                class="action-btn action-btn--primary"
+                @click="syncNow"
+                :disabled="syncing"
               >
+                <RefreshCw :size="15" :class="{ spin: syncing }" />
+                {{ syncing ? 'Syncing...' : 'Sync Now' }}
+              </button>
+              <button
+                class="action-btn action-btn--ghost"
+                @click="toggleEnabled"
+              >
+                <ToggleRight v-if="connector.enabled" :size="15" />
+                <ToggleLeft v-else :size="15" />
+                {{ connector.enabled ? 'Disable' : 'Enable' }}
+              </button>
+            </div>
+            <div v-else class="action-group"></div>
+            <button
+              class="action-btn action-btn--danger"
+              @click="deleteConnector"
+            >
+              <Trash2 :size="15" /> Delete
+            </button>
+          </div>
+          <Transition name="fade">
+            <div v-if="actionFeedback" class="action-feedback">
+              <Check :size="14" /> {{ actionFeedback }}
+            </div>
+          </Transition>
+        </section>
+
+        <!-- Config -->
+        <section class="detail-card">
+          <h2>{{ isImportable ? 'Import' : 'Configuration' }}</h2>
+
+          <!-- CSV Upload zone (bank_csv only) -->
+          <div v-if="isImportable && importConfig" class="upload-zone">
+            <label class="upload-area" :class="{ uploading }">
+              <Upload :size="24" />
+              <span v-if="uploading">Importing...</span>
+              <span v-else
+                >Drop a {{ importConfig.label }} file or click to browse</span
+              >
+              <input
+                type="file"
+                :accept="importConfig.accept"
+                class="upload-input"
+                @change="uploadCSV"
+                :disabled="uploading"
+              />
             </label>
-            <ComboBox
-              v-if="field.type === 'select' && field.options"
-              v-model="configForm[field.key]"
-              :options="field.options"
-            />
-            <textarea
-              v-else-if="field.type === 'textarea'"
-              :id="`cfg-${field.key}`"
-              v-model="configForm[field.key]"
-              class="config-textarea"
-              rows="5"
-              :placeholder="field.placeholder"
-              spellcheck="false"
-            ></textarea>
-            <input
-              v-else
-              :id="`cfg-${field.key}`"
-              v-model="configForm[field.key]"
-              :type="field.type"
-              :placeholder="field.placeholder"
-            />
+
+            <div v-if="uploadResult" class="upload-result msg-success">
+              Imported {{ uploadResult.imported }} {{ importConfig.items
+              }}<template v-if="uploadResult.skipped"
+                >, {{ uploadResult.skipped }} skipped (duplicates)</template
+              >.
+            </div>
+            <div v-if="uploadError" class="upload-result msg-error">
+              {{ uploadError }}
+            </div>
           </div>
-          <p v-if="configErrorMsg" class="upload-result msg-error">
-            {{ configErrorMsg }}
-          </p>
-          <button
-            type="submit"
-            class="action-btn action-btn--primary config-save"
-            :disabled="configSaving"
-          >
-            {{ configSaving ? 'Saving...' : 'Save configuration' }}
-          </button>
-        </form>
 
-        <h3 v-if="isImportable || isEnableBanking || configFields.length">
-          Settings
-        </h3>
-        <pre class="config-pre">{{
-          JSON.stringify(connector.config, null, 2)
-        }}</pre>
-      </section>
+          <!-- Bank consent flow (enable_banking only) -->
+          <div v-if="isEnableBanking" class="eb-zone">
+            <p v-if="ebConnected" class="msg-success">
+              Connected: {{ ebAccounts.length }} account(s)<template
+                v-if="ebValidUntil"
+              >
+                , consent valid until
+                {{ new Date(ebValidUntil).toLocaleDateString() }}</template
+              >.
+            </p>
+            <p v-else class="eb-hint">
+              Not connected to the bank yet. Register this redirect URL in your
+              Enable Banking application, then connect:
+              <code>{{ ebRedirectUrl }}</code>
+            </p>
+            <button type="button" :disabled="ebConnecting" @click="ebConnect">
+              {{
+                ebConnecting
+                  ? 'Redirecting…'
+                  : ebConnected
+                    ? 'Reconnect (renew consent)'
+                    : 'Connect bank account'
+              }}
+            </button>
+            <p v-if="ebError" class="upload-result msg-error">{{ ebError }}</p>
+          </div>
 
-      <!-- Sync history -->
-      <section class="detail-card">
-        <h2>{{ isImportOnly ? 'Import History' : 'Sync History' }}</h2>
-        <p v-if="logsLoading">Loading...</p>
-        <div v-else-if="logs.length" class="log-list">
-          <div
-            v-for="log in logs"
-            :key="log.id"
-            class="log-row"
-            :class="'log-' + log.status"
+          <form
+            v-if="configFields.length"
+            class="config-form"
+            @submit.prevent="saveConfig"
           >
-            <span class="log-icon" :class="'log-icon-' + log.status">
-              <Check v-if="log.status === 'completed'" :size="14" />
-              <X v-else-if="log.status === 'failed'" :size="14" />
-              <LoaderCircle v-else :size="14" class="spin" />
-            </span>
-            <div class="log-body">
-              <span class="log-status">{{ log.status }}</span>
-              <span v-if="log.entries_count > 0" class="log-entries">
-                {{ log.entries_count }}
-                {{ log.entries_count === 1 ? 'entry' : 'entries' }}
-              </span>
-              <span v-if="log.error" class="log-error">
-                <span class="log-error-text">{{ log.error }}</span>
-                <button
-                  class="copy-error-btn"
-                  @click.stop="copyError(log.error!, `log-${log.id}`)"
-                  :title="
-                    copiedId === `log-${log.id}` ? 'Copied!' : 'Copy error'
-                  "
-                  :aria-label="
-                    copiedId === `log-${log.id}` ? 'Copied' : 'Copy error'
-                  "
+            <div
+              v-for="field in configFields"
+              :key="field.key"
+              class="config-field"
+            >
+              <label :for="`cfg-${field.key}`">
+                {{ field.label }}
+                <span v-if="!field.required" class="config-optional"
+                  >optional</span
                 >
-                  <Check v-if="copiedId === `log-${log.id}`" :size="14" />
-                  <Copy v-else :size="14" />
-                </button>
-              </span>
+              </label>
+              <ComboBox
+                v-if="field.type === 'select' && field.options"
+                v-model="configForm[field.key]"
+                :options="field.options"
+              />
+              <textarea
+                v-else-if="field.type === 'textarea'"
+                :id="`cfg-${field.key}`"
+                v-model="configForm[field.key]"
+                class="config-textarea"
+                rows="5"
+                :placeholder="field.placeholder"
+                spellcheck="false"
+              ></textarea>
+              <input
+                v-else
+                :id="`cfg-${field.key}`"
+                v-model="configForm[field.key]"
+                :type="field.type"
+                :placeholder="field.placeholder"
+              />
             </div>
-            <div class="log-time">
-              <span>{{ relativeTime(log.started_at) }}</span>
-              <span class="log-duration">{{ duration(log) }}</span>
+            <p v-if="configErrorMsg" class="upload-result msg-error">
+              {{ configErrorMsg }}
+            </p>
+            <button
+              type="submit"
+              class="action-btn action-btn--primary config-save"
+              :disabled="configSaving"
+            >
+              {{ configSaving ? 'Saving...' : 'Save configuration' }}
+            </button>
+          </form>
+
+          <h3 v-if="isImportable || isEnableBanking || configFields.length">
+            Settings
+          </h3>
+          <pre class="config-pre">{{
+            JSON.stringify(connector.config, null, 2)
+          }}</pre>
+        </section>
+
+        <!-- Sync history -->
+        <section class="detail-card">
+          <h2>{{ isImportOnly ? 'Import History' : 'Sync History' }}</h2>
+          <p v-if="logsLoading">Loading...</p>
+          <div v-else-if="logs.length" class="log-list">
+            <div
+              v-for="log in logs"
+              :key="log.id"
+              class="log-row"
+              :class="'log-' + log.status"
+            >
+              <span class="log-icon" :class="'log-icon-' + log.status">
+                <Check v-if="log.status === 'completed'" :size="14" />
+                <X v-else-if="log.status === 'failed'" :size="14" />
+                <LoaderCircle v-else :size="14" class="spin" />
+              </span>
+              <div class="log-body">
+                <span class="log-status">{{ log.status }}</span>
+                <span v-if="log.entries_count > 0" class="log-entries">
+                  {{ log.entries_count }}
+                  {{ log.entries_count === 1 ? 'entry' : 'entries' }}
+                </span>
+                <span v-if="log.error" class="log-error">
+                  <span class="log-error-text">{{ log.error }}</span>
+                  <button
+                    class="copy-error-btn"
+                    @click.stop="copyError(log.error!, `log-${log.id}`)"
+                    :title="
+                      copiedId === `log-${log.id}` ? 'Copied!' : 'Copy error'
+                    "
+                    :aria-label="
+                      copiedId === `log-${log.id}` ? 'Copied' : 'Copy error'
+                    "
+                  >
+                    <Check v-if="copiedId === `log-${log.id}`" :size="14" />
+                    <Copy v-else :size="14" />
+                  </button>
+                </span>
+              </div>
+              <div class="log-time">
+                <span>{{ relativeTime(log.started_at) }}</span>
+                <span class="log-duration">{{ duration(log) }}</span>
+              </div>
             </div>
           </div>
-        </div>
-        <p v-else class="empty">No sync history yet.</p>
+          <p v-else class="empty">No sync history yet.</p>
 
-        <button
-          v-if="!logsLoading"
-          class="small refresh-btn"
-          @click="fetchLogs()"
-        >
-          Refresh
-        </button>
-      </section>
-    </template>
-
-    <p v-else class="empty">Connector not found.</p>
+          <button
+            v-if="!logsLoading"
+            class="small refresh-btn"
+            @click="fetchLogs()"
+          >
+            Refresh
+          </button>
+        </section>
+      </template>
+    </LoadState>
   </div>
 </template>
 

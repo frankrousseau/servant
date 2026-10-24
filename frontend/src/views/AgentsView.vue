@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Pencil, Play, Plus, Trash2, Undo2, Wrench } from 'lucide-vue-next'
 
 import ComboBox from '../components/ComboBox.vue'
+import SearchField from '../components/SearchField.vue'
+import TabBar from '../components/TabBar.vue'
 
 import { listEntriesPage } from '../api/entries'
 import { useApi } from '../composables/useApi'
@@ -11,6 +13,7 @@ import { useConfirm } from '../composables/useConfirm'
 import { formatDate } from '../lib/datetime'
 import { renderMarkdown } from '../lib/markdown'
 import { useAppsStore } from '../stores/apps'
+import type { TabOption } from '../components/TabBar.vue'
 import type { Agent, AgentRun, AiConfig, Entry } from '../types'
 
 const api = useApi()
@@ -23,13 +26,19 @@ const router = useRouter()
 
 const aiConfig = ref<AiConfig | null>(null)
 
-const tab = computed(() =>
-  route.query.tab === 'builder' ? 'builder' : 'recurrents'
-)
+type AgentsTab = 'recurrents' | 'builder'
 
-function setTab(next: string) {
-  router.replace({ query: { ...route.query, tab: next } })
-}
+const TABS: TabOption<AgentsTab>[] = [
+  { value: 'recurrents', label: 'Recurring' },
+  { value: 'builder', label: 'Builder' }
+]
+
+const tab = computed<AgentsTab>({
+  get: () => (route.query.tab === 'builder' ? 'builder' : 'recurrents'),
+  set: next => {
+    router.replace({ query: { ...route.query, tab: next } })
+  }
+})
 
 const serverHost = computed(() => {
   try {
@@ -126,10 +135,10 @@ async function loadReports(opts: { append?: boolean } = {}) {
 }
 
 // Searching restarts at the first page; typing shouldn't fire a request per key.
-function onReportSearch() {
+watch(reportQuery, () => {
   clearTimeout(reportSearchTimer)
   reportSearchTimer = setTimeout(() => void loadReports(), 300)
-}
+})
 
 async function loadMoreReports() {
   reportPage.value += 1
@@ -144,7 +153,13 @@ function reportContent(report: Entry): string {
   return typeof report.data.content === 'string' ? report.data.content : ''
 }
 
-const rawReport = ref(false)
+type ReportView = 'rendered' | 'markdown'
+
+const REPORT_VIEWS: TabOption<ReportView>[] = [
+  { value: 'rendered', label: 'Rendered' },
+  { value: 'markdown', label: 'Markdown' }
+]
+const reportView = ref<ReportView>('rendered')
 
 // The renderer escapes the model's HTML, so v-html below only injects markup
 // markdown-it produced itself (see lib/markdown.ts).
@@ -433,531 +448,514 @@ onMounted(() => {
         them.
       </p>
 
-      <div class="tabs" role="tablist">
-        <button
-          v-autofocus
-          role="tab"
-          :aria-selected="tab === 'recurrents'"
-          :class="{ active: tab === 'recurrents' }"
-          @click="setTab('recurrents')"
-        >
-          Recurring
-        </button>
-        <button
-          role="tab"
-          :aria-selected="tab === 'builder'"
-          :class="{ active: tab === 'builder' }"
-          @click="setTab('builder')"
-        >
-          Builder
-        </button>
-      </div>
+      <!-- No search field above the tabs: the landing focus goes to the
+           selected tab, once the strip renders (it waits for the AI config). -->
+      <TabBar v-model="tab" :options="TABS" label="Agent sections" autofocus>
+        <!-- Recurring tab -->
+        <template v-if="tab === 'recurrents'">
+          <section class="card">
+            <div class="card-body">
+              <div class="agents-head">
+                <h3 class="app-subhead">Your agents</h3>
+                <button type="button" @click="openCreate">
+                  <Plus :size="14" /> New agent
+                </button>
+              </div>
+              <p class="tk-hint">
+                Each agent gathers your entries of the given kinds from the last
+                lookback window and asks the model for a report.
+              </p>
 
-      <!-- Recurring tab -->
-      <template v-if="tab === 'recurrents'">
-        <section class="card">
-          <div class="card-body">
-            <div class="agents-head">
-              <h3 class="app-subhead">Your agents</h3>
-              <button type="button" @click="openCreate">
-                <Plus :size="14" /> New agent
-              </button>
+              <div v-if="agents.length" class="table-scroll">
+                <table class="tk-table ag-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Kinds</th>
+                      <th>Schedule</th>
+                      <th>Enabled</th>
+                      <th>Last run</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="agent in agents" :key="agent.id">
+                      <td class="ag-name">
+                        {{ agent.name }}
+                        <span class="mode-badge">{{ agent.mode }}</span>
+                      </td>
+                      <td data-label="Kinds">{{ agent.kinds.join(', ') }}</td>
+                      <td data-label="Schedule">
+                        {{ scheduleLabel(agent.schedule) }}
+                      </td>
+                      <td data-label="Enabled">
+                        <label class="toggle">
+                          <input
+                            type="checkbox"
+                            :checked="agent.enabled"
+                            @change="toggleAgent(agent)"
+                          />
+                        </label>
+                      </td>
+                      <td data-label="Last run">
+                        <template v-if="lastRunOf(agent.id)">
+                          {{ formatDate(lastRunOf(agent.id)!.inserted_at) }} -
+                          {{ lastRunOf(agent.id)!.status }}
+                        </template>
+                        <template v-else-if="agent.last_run_at">
+                          {{ formatDate(agent.last_run_at) }}
+                        </template>
+                        <template v-else>never</template>
+                      </td>
+                      <td class="app-actions">
+                        <button
+                          type="button"
+                          class="tk-revoke"
+                          title="Run now"
+                          :disabled="runningId === agent.id"
+                          @click="runNow(agent)"
+                        >
+                          <Play :size="14" />
+                        </button>
+                        <button
+                          type="button"
+                          class="tk-revoke"
+                          title="Edit"
+                          @click="openEdit(agent)"
+                        >
+                          <Pencil :size="14" />
+                        </button>
+                        <button
+                          type="button"
+                          class="tk-revoke"
+                          title="Delete"
+                          @click="deleteAgent(agent)"
+                        >
+                          <Trash2 :size="14" />
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p v-else class="tk-empty">No agents yet.</p>
+
+              <form
+                v-if="formOpen"
+                class="app-form"
+                @submit.prevent="saveAgent"
+              >
+                <input v-model="fName" type="text" placeholder="Agent name" />
+                <label class="tk-expiry">
+                  <span class="tk-domain-label">Mode</span>
+                  <ComboBox
+                    class="tk-domain-select"
+                    :model-value="fMode"
+                    :options="MODE_OPTIONS"
+                    @update:model-value="
+                      value => (fMode = value as 'prompt' | 'recipe')
+                    "
+                  />
+                </label>
+                <textarea
+                  v-if="fMode === 'prompt'"
+                  v-model="fPrompt"
+                  rows="3"
+                  placeholder="What should the agent look for or summarize?"
+                ></textarea>
+                <template v-if="fMode === 'recipe'">
+                  <textarea
+                    v-model="fDescription"
+                    rows="2"
+                    placeholder="Describe the script, e.g. sum bank_tx amounts by category each week"
+                  ></textarea>
+                  <div class="card-actions">
+                    <button
+                      type="button"
+                      :disabled="
+                        drafting || !fDescription.trim() || !fKinds.trim()
+                      "
+                      @click="draftRecipe"
+                    >
+                      {{ drafting ? 'Drafting...' : 'Generate recipe' }}
+                    </button>
+                  </div>
+                  <textarea
+                    v-model="fRecipeJson"
+                    rows="8"
+                    class="recipe-json"
+                    placeholder='{"aggregate": {"op": "count"}}'
+                  ></textarea>
+                  <p class="tk-hint">
+                    The recipe runs deterministically on schedule; the model is
+                    only used here, to draft it. Edit it freely before saving.
+                  </p>
+                </template>
+                <input
+                  v-model="fKinds"
+                  type="text"
+                  placeholder="bank_tx, transaction"
+                />
+                <p class="tk-hint">Comma-separated entry kinds, e.g. bank_tx</p>
+                <label class="tk-expiry">
+                  <span class="tk-domain-label">Lookback (days)</span>
+                  <input
+                    v-model.number="fLookback"
+                    type="number"
+                    min="1"
+                    max="365"
+                  />
+                </label>
+                <label class="tk-expiry">
+                  <span class="tk-domain-label">Schedule</span>
+                  <ComboBox
+                    class="tk-domain-select"
+                    :model-value="fSchedule"
+                    :options="SCHEDULE_OPTIONS"
+                    @update:model-value="v => (fSchedule = v)"
+                  />
+                </label>
+                <template v-if="fSchedule !== 'every_hour'">
+                  <label class="tk-expiry">
+                    <span class="tk-domain-label">At hour</span>
+                    <input
+                      v-model="fHour"
+                      type="number"
+                      min="0"
+                      max="23"
+                      placeholder="any"
+                    />
+                  </label>
+                  <p class="tk-hint">
+                    Hour of the day in your timezone. Leave empty to run once
+                    the interval has elapsed, wherever the previous run landed.
+                  </p>
+                </template>
+                <template v-if="fMode === 'prompt'">
+                  <label class="tk-expiry">
+                    <span class="tk-domain-label">Model</span>
+                    <input
+                      v-model="fModel"
+                      type="text"
+                      :placeholder="aiConfig?.model || 'model from Settings'"
+                    />
+                  </label>
+                  <p class="tk-hint">
+                    Leave empty to use the model from Settings. A per-agent
+                    value lets a daily digest run on a cheap model and a weekly
+                    analysis on a stronger one.
+                  </p>
+                </template>
+                <p v-if="agentError" class="msg msg-error">
+                  {{ agentError }}
+                </p>
+                <div class="card-actions">
+                  <button
+                    type="submit"
+                    :disabled="
+                      fSaving ||
+                      !fName.trim() ||
+                      !fKinds.trim() ||
+                      (fMode === 'prompt'
+                        ? !fPrompt.trim()
+                        : !fRecipeJson.trim())
+                    "
+                  >
+                    {{ fSaving ? 'Saving...' : 'Save' }}
+                  </button>
+                  <button type="button" @click="formOpen = false">
+                    Cancel
+                  </button>
+                </div>
+              </form>
             </div>
-            <p class="tk-hint">
-              Each agent gathers your entries of the given kinds from the last
-              lookback window and asks the model for a report.
-            </p>
+          </section>
 
-            <div v-if="agents.length" class="table-scroll">
-              <table class="tk-table ag-table">
+          <section v-if="agents.length" class="card">
+            <div class="card-body">
+              <h3 class="app-subhead">Reports</h3>
+              <SearchField
+                v-model="reportQuery"
+                class="report-search"
+                label="Search reports"
+              />
+              <template v-for="agent in agents" :key="agent.id">
+                <template v-if="reportsOf(agent.id).length">
+                  <p class="report-agent-name">{{ agent.name }}</p>
+                  <div
+                    v-for="report in reportsOf(agent.id)"
+                    :key="report.id"
+                    class="report-item"
+                  >
+                    <button
+                      type="button"
+                      class="report-toggle"
+                      @click="
+                        expandedReport =
+                          expandedReport === report.id ? '' : report.id
+                      "
+                    >
+                      {{ report.title || 'Report' }} -
+                      {{ formatDate(report.occurred_at || report.inserted_at) }}
+                    </button>
+                    <template v-if="expandedReport === report.id">
+                      <TabBar
+                        v-model="reportView"
+                        class="report-view-tabs"
+                        :options="REPORT_VIEWS"
+                        label="Report view"
+                        variant="pill"
+                      />
+                      <pre
+                        v-if="reportView === 'markdown'"
+                        class="report-content"
+                        >{{ reportContent(report) }}</pre>
+                      <div
+                        v-else
+                        class="report-content report-rendered"
+                        v-html="reportHtml(report)"
+                      ></div>
+                    </template>
+                  </div>
+                </template>
+              </template>
+              <p
+                v-if="!agents.some(agent => reportsOf(agent.id).length)"
+                class="tk-empty"
+              >
+                {{ reportQuery ? 'No report matches.' : 'No reports yet.' }}
+              </p>
+              <div v-if="reports.length < reportTotal" class="report-more">
+                <button type="button" @click="loadMoreReports">
+                  Load more ({{ reports.length }} of {{ reportTotal }})
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-body">
+              <h3 class="app-subhead">Recent runs</h3>
+              <div v-if="recurrentRuns.length" class="table-scroll">
+                <table class="tk-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Agent</th>
+                      <th>Model</th>
+                      <th>Tokens</th>
+                      <th>Duration</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="run in recurrentRuns" :key="run.id">
+                      <td>{{ formatDate(run.inserted_at) }}</td>
+                      <td>{{ agentName(run.agent_id) }}</td>
+                      <td>{{ run.model || '-' }}</td>
+                      <td>
+                        {{
+                          run.input_tokens != null
+                            ? `${run.input_tokens} in / ${run.output_tokens} out`
+                            : '-'
+                        }}
+                      </td>
+                      <td>
+                        {{
+                          run.duration_ms != null
+                            ? `${Math.round(run.duration_ms / 1000)}s`
+                            : '-'
+                        }}
+                      </td>
+                      <td>
+                        {{ run.status }}
+                        <div
+                          v-if="run.error"
+                          class="run-error"
+                          :title="run.error"
+                        >
+                          {{ run.error }}
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p v-else class="tk-empty">No runs yet.</p>
+            </div>
+          </section>
+        </template>
+
+        <!-- Builder tab -->
+        <template v-else>
+          <section class="card">
+            <div class="card-body">
+              <h3 class="app-subhead">Generate an app</h3>
+              <p class="tk-hint">
+                Describe the app; the configured model writes it and it installs
+                like any other app. Review it before trusting it with your data.
+              </p>
+              <form class="app-form" @submit.prevent="generateApp">
+                <input v-model="genName" type="text" placeholder="App name" />
+                <textarea
+                  v-model="genDescription"
+                  rows="3"
+                  placeholder="What should the app do?"
+                ></textarea>
+                <p v-if="genError" class="msg msg-error">{{ genError }}</p>
+                <div class="card-actions">
+                  <button
+                    type="submit"
+                    :disabled="
+                      genBusy || !genName.trim() || !genDescription.trim()
+                    "
+                  >
+                    {{
+                      genBusy
+                        ? `Generating with ${aiConfig.model}...`
+                        : `Generate (runs on ${aiConfig.model})`
+                    }}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-body">
+              <h3 class="app-subhead">Generated apps</h3>
+
+              <table v-if="generatedApps.length" class="tk-table">
                 <thead>
                   <tr>
                     <th>Name</th>
-                    <th>Kinds</th>
-                    <th>Schedule</th>
-                    <th>Enabled</th>
-                    <th>Last run</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="agent in agents" :key="agent.id">
-                    <td class="ag-name">
-                      {{ agent.name }}
-                      <span class="mode-badge">{{ agent.mode }}</span>
-                    </td>
-                    <td data-label="Kinds">{{ agent.kinds.join(', ') }}</td>
-                    <td data-label="Schedule">
-                      {{ scheduleLabel(agent.schedule) }}
-                    </td>
-                    <td data-label="Enabled">
-                      <label class="toggle">
-                        <input
-                          type="checkbox"
-                          :checked="agent.enabled"
-                          @change="toggleAgent(agent)"
-                        />
-                      </label>
-                    </td>
-                    <td data-label="Last run">
-                      <template v-if="lastRunOf(agent.id)">
-                        {{ formatDate(lastRunOf(agent.id)!.inserted_at) }} -
-                        {{ lastRunOf(agent.id)!.status }}
-                      </template>
-                      <template v-else-if="agent.last_run_at">
-                        {{ formatDate(agent.last_run_at) }}
-                      </template>
-                      <template v-else>never</template>
-                    </td>
-                    <td class="app-actions">
-                      <button
-                        type="button"
-                        class="tk-revoke"
-                        title="Run now"
-                        :disabled="runningId === agent.id"
-                        @click="runNow(agent)"
-                      >
-                        <Play :size="14" />
-                      </button>
-                      <button
-                        type="button"
-                        class="tk-revoke"
-                        title="Edit"
-                        @click="openEdit(agent)"
-                      >
-                        <Pencil :size="14" />
-                      </button>
-                      <button
-                        type="button"
-                        class="tk-revoke"
-                        title="Delete"
-                        @click="deleteAgent(agent)"
-                      >
-                        <Trash2 :size="14" />
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p v-else class="tk-empty">No agents yet.</p>
-
-            <form v-if="formOpen" class="app-form" @submit.prevent="saveAgent">
-              <input v-model="fName" type="text" placeholder="Agent name" />
-              <label class="tk-expiry">
-                <span class="tk-domain-label">Mode</span>
-                <ComboBox
-                  class="tk-domain-select"
-                  :model-value="fMode"
-                  :options="MODE_OPTIONS"
-                  @update:model-value="
-                    value => (fMode = value as 'prompt' | 'recipe')
-                  "
-                />
-              </label>
-              <textarea
-                v-if="fMode === 'prompt'"
-                v-model="fPrompt"
-                rows="3"
-                placeholder="What should the agent look for or summarize?"
-              ></textarea>
-              <template v-if="fMode === 'recipe'">
-                <textarea
-                  v-model="fDescription"
-                  rows="2"
-                  placeholder="Describe the script, e.g. sum bank_tx amounts by category each week"
-                ></textarea>
-                <div class="card-actions">
-                  <button
-                    type="button"
-                    :disabled="
-                      drafting || !fDescription.trim() || !fKinds.trim()
-                    "
-                    @click="draftRecipe"
-                  >
-                    {{ drafting ? 'Drafting...' : 'Generate recipe' }}
-                  </button>
-                </div>
-                <textarea
-                  v-model="fRecipeJson"
-                  rows="8"
-                  class="recipe-json"
-                  placeholder='{"aggregate": {"op": "count"}}'
-                ></textarea>
-                <p class="tk-hint">
-                  The recipe runs deterministically on schedule; the model is
-                  only used here, to draft it. Edit it freely before saving.
-                </p>
-              </template>
-              <input
-                v-model="fKinds"
-                type="text"
-                placeholder="bank_tx, transaction"
-              />
-              <p class="tk-hint">Comma-separated entry kinds, e.g. bank_tx</p>
-              <label class="tk-expiry">
-                <span class="tk-domain-label">Lookback (days)</span>
-                <input
-                  v-model.number="fLookback"
-                  type="number"
-                  min="1"
-                  max="365"
-                />
-              </label>
-              <label class="tk-expiry">
-                <span class="tk-domain-label">Schedule</span>
-                <ComboBox
-                  class="tk-domain-select"
-                  :model-value="fSchedule"
-                  :options="SCHEDULE_OPTIONS"
-                  @update:model-value="v => (fSchedule = v)"
-                />
-              </label>
-              <template v-if="fSchedule !== 'every_hour'">
-                <label class="tk-expiry">
-                  <span class="tk-domain-label">At hour</span>
-                  <input
-                    v-model="fHour"
-                    type="number"
-                    min="0"
-                    max="23"
-                    placeholder="any"
-                  />
-                </label>
-                <p class="tk-hint">
-                  Hour of the day in your timezone. Leave empty to run once the
-                  interval has elapsed, wherever the previous run landed.
-                </p>
-              </template>
-              <template v-if="fMode === 'prompt'">
-                <label class="tk-expiry">
-                  <span class="tk-domain-label">Model</span>
-                  <input
-                    v-model="fModel"
-                    type="text"
-                    :placeholder="aiConfig?.model || 'model from Settings'"
-                  />
-                </label>
-                <p class="tk-hint">
-                  Leave empty to use the model from Settings. A per-agent value
-                  lets a daily digest run on a cheap model and a weekly analysis
-                  on a stronger one.
-                </p>
-              </template>
-              <p v-if="agentError" class="msg msg-error">{{ agentError }}</p>
-              <div class="card-actions">
-                <button
-                  type="submit"
-                  :disabled="
-                    fSaving ||
-                    !fName.trim() ||
-                    !fKinds.trim() ||
-                    (fMode === 'prompt' ? !fPrompt.trim() : !fRecipeJson.trim())
-                  "
-                >
-                  {{ fSaving ? 'Saving...' : 'Save' }}
-                </button>
-                <button type="button" @click="formOpen = false">Cancel</button>
-              </div>
-            </form>
-          </div>
-        </section>
-
-        <section v-if="agents.length" class="card">
-          <div class="card-body">
-            <h3 class="app-subhead">Reports</h3>
-            <input
-              v-model="reportQuery"
-              class="report-search"
-              type="search"
-              placeholder="Search reports..."
-              aria-label="Search reports"
-              @input="onReportSearch"
-            />
-            <template v-for="agent in agents" :key="agent.id">
-              <template v-if="reportsOf(agent.id).length">
-                <p class="report-agent-name">{{ agent.name }}</p>
-                <div
-                  v-for="report in reportsOf(agent.id)"
-                  :key="report.id"
-                  class="report-item"
-                >
-                  <button
-                    type="button"
-                    class="report-toggle"
-                    @click="
-                      expandedReport =
-                        expandedReport === report.id ? '' : report.id
-                    "
-                  >
-                    {{ report.title || 'Report' }} -
-                    {{ formatDate(report.occurred_at || report.inserted_at) }}
-                  </button>
-                  <template v-if="expandedReport === report.id">
-                    <div class="report-view-tabs">
-                      <button
-                        type="button"
-                        :class="{ active: !rawReport }"
-                        @click="rawReport = false"
-                      >
-                        Rendered
-                      </button>
-                      <button
-                        type="button"
-                        :class="{ active: rawReport }"
-                        @click="rawReport = true"
-                      >
-                        Markdown
-                      </button>
-                    </div>
-                    <pre v-if="rawReport" class="report-content">{{
-                      reportContent(report)
-                    }}</pre>
-                    <div
-                      v-else
-                      class="report-content report-rendered"
-                      v-html="reportHtml(report)"
-                    ></div>
+                  <template v-for="app in generatedApps" :key="app.id">
+                    <tr>
+                      <td>{{ app.name }}</td>
+                      <td class="app-actions">
+                        <button
+                          type="button"
+                          class="tk-revoke"
+                          title="Modify with the configured model"
+                          :disabled="genBusy"
+                          @click="
+                            modifyingId = modifyingId === app.id ? '' : app.id
+                          "
+                        >
+                          <Pencil :size="14" />
+                        </button>
+                        <button
+                          v-if="app.has_previous"
+                          type="button"
+                          class="tk-revoke"
+                          title="Restore the previous version"
+                          :disabled="restoringId === app.id"
+                          @click="restoreApp(app.id)"
+                        >
+                          <Undo2 :size="14" />
+                        </button>
+                        <button
+                          type="button"
+                          class="tk-revoke"
+                          title="Uninstall"
+                          @click="uninstallGenerated(app.id, app.name)"
+                        >
+                          <Trash2 :size="14" />
+                        </button>
+                      </td>
+                    </tr>
+                    <tr v-if="modifyingId === app.id">
+                      <td colspan="2">
+                        <form
+                          class="app-form"
+                          @submit.prevent="modifyApp(app.id)"
+                        >
+                          <textarea
+                            v-model="modifyInstruction"
+                            rows="3"
+                            placeholder="Describe the change"
+                          ></textarea>
+                          <div class="card-actions">
+                            <button
+                              type="submit"
+                              :disabled="genBusy || !modifyInstruction.trim()"
+                            >
+                              {{
+                                genBusy
+                                  ? `Running on ${aiConfig.model}...`
+                                  : `Modify (runs on ${aiConfig.model})`
+                              }}
+                            </button>
+                          </div>
+                        </form>
+                      </td>
+                    </tr>
                   </template>
-                </div>
-              </template>
-            </template>
-            <p
-              v-if="!agents.some(agent => reportsOf(agent.id).length)"
-              class="tk-empty"
-            >
-              {{ reportQuery ? 'No report matches.' : 'No reports yet.' }}
-            </p>
-            <div v-if="reports.length < reportTotal" class="report-more">
-              <button type="button" @click="loadMoreReports">
-                Load more ({{ reports.length }} of {{ reportTotal }})
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section class="card">
-          <div class="card-body">
-            <h3 class="app-subhead">Recent runs</h3>
-            <div v-if="recurrentRuns.length" class="table-scroll">
-              <table class="tk-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Agent</th>
-                    <th>Model</th>
-                    <th>Tokens</th>
-                    <th>Duration</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="run in recurrentRuns" :key="run.id">
-                    <td>{{ formatDate(run.inserted_at) }}</td>
-                    <td>{{ agentName(run.agent_id) }}</td>
-                    <td>{{ run.model || '-' }}</td>
-                    <td>
-                      {{
-                        run.input_tokens != null
-                          ? `${run.input_tokens} in / ${run.output_tokens} out`
-                          : '-'
-                      }}
-                    </td>
-                    <td>
-                      {{
-                        run.duration_ms != null
-                          ? `${Math.round(run.duration_ms / 1000)}s`
-                          : '-'
-                      }}
-                    </td>
-                    <td>
-                      {{ run.status }}
-                      <div
-                        v-if="run.error"
-                        class="run-error"
-                        :title="run.error"
-                      >
-                        {{ run.error }}
-                      </div>
-                    </td>
-                  </tr>
                 </tbody>
               </table>
+              <p v-else class="tk-empty">No generated apps yet.</p>
             </div>
-            <p v-else class="tk-empty">No runs yet.</p>
-          </div>
-        </section>
-      </template>
+          </section>
 
-      <!-- Builder tab -->
-      <template v-else>
-        <section class="card">
-          <div class="card-body">
-            <h3 class="app-subhead">Generate an app</h3>
-            <p class="tk-hint">
-              Describe the app; the configured model writes it and it installs
-              like any other app. Review it before trusting it with your data.
-            </p>
-            <form class="app-form" @submit.prevent="generateApp">
-              <input v-model="genName" type="text" placeholder="App name" />
-              <textarea
-                v-model="genDescription"
-                rows="3"
-                placeholder="What should the app do?"
-              ></textarea>
-              <p v-if="genError" class="msg msg-error">{{ genError }}</p>
-              <div class="card-actions">
-                <button
-                  type="submit"
-                  :disabled="
-                    genBusy || !genName.trim() || !genDescription.trim()
-                  "
-                >
-                  {{
-                    genBusy
-                      ? `Generating with ${aiConfig.model}...`
-                      : `Generate (runs on ${aiConfig.model})`
-                  }}
-                </button>
-              </div>
-            </form>
-          </div>
-        </section>
-
-        <section class="card">
-          <div class="card-body">
-            <h3 class="app-subhead">Generated apps</h3>
-
-            <table v-if="generatedApps.length" class="tk-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <template v-for="app in generatedApps" :key="app.id">
-                  <tr>
-                    <td>{{ app.name }}</td>
-                    <td class="app-actions">
-                      <button
-                        type="button"
-                        class="tk-revoke"
-                        title="Modify with the configured model"
-                        :disabled="genBusy"
-                        @click="
-                          modifyingId = modifyingId === app.id ? '' : app.id
-                        "
-                      >
-                        <Pencil :size="14" />
-                      </button>
-                      <button
-                        v-if="app.has_previous"
-                        type="button"
-                        class="tk-revoke"
-                        title="Restore the previous version"
-                        :disabled="restoringId === app.id"
-                        @click="restoreApp(app.id)"
-                      >
-                        <Undo2 :size="14" />
-                      </button>
-                      <button
-                        type="button"
-                        class="tk-revoke"
-                        title="Uninstall"
-                        @click="uninstallGenerated(app.id, app.name)"
-                      >
-                        <Trash2 :size="14" />
-                      </button>
-                    </td>
-                  </tr>
-                  <tr v-if="modifyingId === app.id">
-                    <td colspan="2">
-                      <form
-                        class="app-form"
-                        @submit.prevent="modifyApp(app.id)"
-                      >
-                        <textarea
-                          v-model="modifyInstruction"
-                          rows="3"
-                          placeholder="Describe the change"
-                        ></textarea>
-                        <div class="card-actions">
-                          <button
-                            type="submit"
-                            :disabled="genBusy || !modifyInstruction.trim()"
-                          >
-                            {{
-                              genBusy
-                                ? `Running on ${aiConfig.model}...`
-                                : `Modify (runs on ${aiConfig.model})`
-                            }}
-                          </button>
+          <section class="card">
+            <div class="card-body">
+              <h3 class="app-subhead">Recent runs</h3>
+              <div v-if="builderRuns.length" class="table-scroll">
+                <table class="tk-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Action</th>
+                      <th>App</th>
+                      <th>Model</th>
+                      <th>Tokens</th>
+                      <th>Duration</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="run in builderRuns" :key="run.id">
+                      <td>{{ formatDate(run.inserted_at) }}</td>
+                      <td>{{ run.action }}</td>
+                      <td>{{ run.app_id || '-' }}</td>
+                      <td>{{ run.model || '-' }}</td>
+                      <td>
+                        {{
+                          run.input_tokens != null
+                            ? `${run.input_tokens} in / ${run.output_tokens} out`
+                            : '-'
+                        }}
+                      </td>
+                      <td>
+                        {{
+                          run.duration_ms != null
+                            ? `${Math.round(run.duration_ms / 1000)}s`
+                            : '-'
+                        }}
+                      </td>
+                      <td>
+                        {{ run.status }}
+                        <div
+                          v-if="run.error"
+                          class="run-error"
+                          :title="run.error"
+                        >
+                          {{ run.error }}
                         </div>
-                      </form>
-                    </td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
-            <p v-else class="tk-empty">No generated apps yet.</p>
-          </div>
-        </section>
-
-        <section class="card">
-          <div class="card-body">
-            <h3 class="app-subhead">Recent runs</h3>
-            <div v-if="builderRuns.length" class="table-scroll">
-              <table class="tk-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Action</th>
-                    <th>App</th>
-                    <th>Model</th>
-                    <th>Tokens</th>
-                    <th>Duration</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="run in builderRuns" :key="run.id">
-                    <td>{{ formatDate(run.inserted_at) }}</td>
-                    <td>{{ run.action }}</td>
-                    <td>{{ run.app_id || '-' }}</td>
-                    <td>{{ run.model || '-' }}</td>
-                    <td>
-                      {{
-                        run.input_tokens != null
-                          ? `${run.input_tokens} in / ${run.output_tokens} out`
-                          : '-'
-                      }}
-                    </td>
-                    <td>
-                      {{
-                        run.duration_ms != null
-                          ? `${Math.round(run.duration_ms / 1000)}s`
-                          : '-'
-                      }}
-                    </td>
-                    <td>
-                      {{ run.status }}
-                      <div
-                        v-if="run.error"
-                        class="run-error"
-                        :title="run.error"
-                      >
-                        {{ run.error }}
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p v-else class="tk-empty">No runs yet.</p>
             </div>
-            <p v-else class="tk-empty">No runs yet.</p>
-          </div>
-        </section>
-      </template>
+          </section>
+        </template>
+      </TabBar>
     </template>
   </div>
 </template>
@@ -1157,27 +1155,6 @@ onMounted(() => {
   color: var(--text);
 }
 
-.tabs {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-.tabs button {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text-muted);
-  padding: 0.45rem 1rem;
-  cursor: pointer;
-}
-.tabs button:hover {
-  background: var(--bg-hover);
-  color: var(--text);
-}
-.tabs button.active {
-  color: var(--text);
-  border-color: var(--primary);
-}
 .agents-disabled {
   color: var(--text-muted);
 }
@@ -1190,26 +1167,8 @@ onMounted(() => {
   padding: 0.75rem 1rem;
 }
 .report-view-tabs {
-  display: flex;
-  gap: 0.25rem;
+  display: inline-flex;
   margin: 0.35rem 0;
-}
-.report-view-tabs button {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  padding: 0.15rem 0.6rem;
-  cursor: pointer;
-}
-.report-view-tabs button:hover {
-  background: var(--bg-hover);
-  color: var(--text);
-}
-.report-view-tabs button.active {
-  color: var(--text);
-  border-color: var(--primary);
 }
 .report-rendered {
   white-space: normal;

@@ -102,9 +102,7 @@ describe('SharedFeedView', () => {
     const wrapper = mount(SharedFeedView, mountOptions)
     await flushPromises()
 
-    expect(wrapper.find('.shared-state').text()).toContain(
-      'no longer available'
-    )
+    expect(wrapper.find('.load-state').text()).toContain('no longer available')
     expect(wrapper.findAll('.shared-thumb')).toHaveLength(0)
   })
 
@@ -114,6 +112,6 @@ describe('SharedFeedView', () => {
     await flushPromises()
 
     expect(wrapper.find('.shared-title').text()).toBe('Summer')
-    expect(wrapper.find('.shared-state').text()).toContain('No photos')
+    expect(wrapper.find('.load-state').text()).toContain('No photos')
   })
 })

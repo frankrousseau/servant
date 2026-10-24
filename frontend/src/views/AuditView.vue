@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import TabBar from '../components/TabBar.vue'
 
 import { useApi } from '../composables/useApi'
 import { utcToZonedParts } from '../lib/datetime'
 import { formatFileSize } from '../lib/filesize'
+import type { TabOption } from '../components/TabBar.vue'
 
 interface SystemStats {
   cpu: {
@@ -70,10 +72,10 @@ const api = useApi()
 type Tab = 'resources' | 'access' | 'errors'
 const tab = ref<Tab>('resources')
 
-const TABS: Array<{ id: Tab; label: string }> = [
-  { id: 'resources', label: 'Resources' },
-  { id: 'access', label: 'Access log' },
-  { id: 'errors', label: 'Error log' }
+const TABS: TabOption<Tab>[] = [
+  { value: 'resources', label: 'Resources' },
+  { value: 'access', label: 'Access log' },
+  { value: 'errors', label: 'Error log' }
 ]
 
 const stats = ref<SystemStats | null>(null)
@@ -105,10 +107,7 @@ async function refresh() {
   }
 }
 
-function selectTab(next: Tab) {
-  tab.value = next
-  refresh()
-}
+watch(tab, refresh)
 
 let timer: ReturnType<typeof setInterval> | null = null
 onMounted(() => {
@@ -175,20 +174,14 @@ const ms = (us: number) =>
   <div class="view au-view">
     <h1>Audit</h1>
 
-    <div class="au-tabs" role="tablist">
-      <button
-        v-for="(option, index) in TABS"
-        :key="option.id"
-        v-autofocus="index === 0"
-        class="au-tab"
-        :class="{ 'au-tab--active': tab === option.id }"
-        role="tab"
-        :aria-selected="tab === option.id"
-        @click="selectTab(option.id)"
-      >
-        {{ option.label }}
-      </button>
-    </div>
+    <!-- No search field here: the landing focus goes to the selected tab. -->
+    <TabBar
+      v-model="tab"
+      class="au-tab-strip"
+      :options="TABS"
+      label="Audit sections"
+      autofocus
+    />
 
     <p v-if="loadError" class="au-error">{{ loadError }}</p>
 
@@ -364,30 +357,9 @@ const ms = (us: number) =>
   /* Minus the .content padding, so the log feeds scroll inside */
   height: calc(var(--app-height) - 4rem);
 }
-.au-tabs {
-  display: flex;
-  gap: 0.25rem;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 1rem;
-}
-.au-tab {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  padding: 0.5rem 0.9rem;
-  cursor: pointer;
-  border-radius: 0;
-}
-.au-tab:hover {
-  color: var(--text);
-}
-.au-tab--active {
-  color: var(--primary);
-  box-shadow: inset 0 -2px 0 var(--primary);
+/* The log feeds below take the remaining height; the tabs never shrink */
+.au-tab-strip {
+  flex-shrink: 0;
 }
 .au-error {
   color: var(--danger);
@@ -552,21 +524,6 @@ const ms = (us: number) =>
 @media (max-width: 640px) {
   .au-view {
     height: calc(var(--app-height) - 2.5rem - env(safe-area-inset-bottom));
-  }
-  /* The tab row scrolls inside itself, labels stay on one line */
-  .au-tabs {
-    overflow-x: auto;
-    scrollbar-width: none;
-    flex-shrink: 0;
-  }
-  .au-tab {
-    flex-shrink: 0;
-    white-space: nowrap;
-    padding: 0.6rem 0.75rem;
-  }
-  /* Inside the scrolling row, an outer outline would be clipped */
-  .au-tab:focus-visible {
-    outline-offset: -2px;
   }
   .au-panels,
   .au-logs {

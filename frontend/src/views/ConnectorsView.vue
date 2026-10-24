@@ -3,6 +3,9 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import ComboBox from '../components/ComboBox.vue'
+import LoadState from '../components/LoadState.vue'
+import SearchField from '../components/SearchField.vue'
+import ServantDialog from '../components/ServantDialog.vue'
 
 import {
   connectorSchedules,
@@ -18,7 +21,6 @@ import {
 } from '../connectors'
 import { SCHEDULE_LABELS } from '../lib/connectors'
 import { relativeTime } from '../lib/datetime'
-import { openDialog } from '../lib/dialog'
 import { useAuthStore } from '../stores/auth'
 import type { ConnectorDef } from '../connectors'
 import type { ConnectorConfig, Schedule } from '../types'
@@ -123,6 +125,14 @@ function closeSetup() {
   setupDef.value = null
 }
 
+// The modal stays bound to the def being set up.
+const setupOpen = computed({
+  get: () => setupDef.value !== null,
+  set: open => {
+    if (!open) closeSetup()
+  }
+})
+
 async function loadSchedules(type: string) {
   try {
     const data = await connectorSchedules(type)
@@ -170,9 +180,7 @@ onMounted(fetchConnectors)
 
 <template>
   <div class="sources-layout">
-    <p v-if="loading" class="text-muted" style="padding: 2rem">Loading...</p>
-
-    <template v-else>
+    <LoadState :state="loading ? 'loading' : 'ready'" what="sources">
       <!-- Left: Active connectors -->
       <div class="sources-col">
         <h2 class="section-title">Active</h2>
@@ -224,13 +232,11 @@ onMounted(fetchConnectors)
       <!-- Right: Add a source -->
       <div class="sources-col">
         <h2 class="section-title">Add a Source</h2>
-        <input
+        <SearchField
           v-model="catalogSearch"
-          v-autofocus
-          type="text"
           class="catalog-search"
-          placeholder="Search sources..."
-          aria-label="Search sources"
+          label="Search sources"
+          autofocus
         />
         <div
           v-for="group in catalogGroups"
@@ -257,27 +263,24 @@ onMounted(fetchConnectors)
           </div>
         </div>
       </div>
-    </template>
+    </LoadState>
 
     <!-- Setup modal -->
-    <dialog
-      v-if="setupDef"
-      :ref="openDialog"
-      class="modal-dialog"
-      aria-labelledby="setup-title"
-      @click.self="closeSetup"
-      @cancel="closeSetup"
+    <ServantDialog
+      v-model:open="setupOpen"
+      :title="setupDef?.name ?? ''"
+      size="md"
     >
-      <div class="setup-modal">
-        <div class="setup-header">
-          <div class="setup-logo" v-html="setupDef.logo"></div>
-          <div>
-            <h2 id="setup-title">{{ setupDef.name }}</h2>
-            <p class="setup-desc">{{ setupDef.description }}</p>
-          </div>
-        </div>
+      <template #title>
+        <span class="setup-title">
+          <span class="setup-logo" v-html="setupDef?.logo"></span>
+          {{ setupDef?.name }}
+        </span>
+      </template>
+      <template v-if="setupDef">
+        <p class="setup-desc">{{ setupDef.description }}</p>
 
-        <form @submit.prevent="submitSetup">
+        <form id="setup-form" @submit.prevent="submitSetup">
           <div class="field">
             <label>
               Name
@@ -331,18 +334,14 @@ onMounted(fetchConnectors)
               @update:model-value="onSetupScheduleChange"
             />
           </div>
-
-          <div class="setup-actions">
-            <button type="button" class="btn-secondary" @click="closeSetup">
-              Cancel
-            </button>
-            <button type="submit" :disabled="saving">
-              {{ saving ? 'Adding...' : 'Add Source' }}
-            </button>
-          </div>
         </form>
-      </div>
-    </dialog>
+      </template>
+      <template #actions>
+        <button type="submit" form="setup-form" :disabled="saving">
+          {{ saving ? 'Adding...' : 'Add Source' }}
+        </button>
+      </template>
+    </ServantDialog>
   </div>
 </template>
 
@@ -575,32 +574,18 @@ onMounted(fetchConnectors)
   line-height: 1.35;
 }
 
-/* Setup modal */
-.setup-modal {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.5rem;
-  width: 100%;
-  max-width: 460px;
-}
-
-.setup-header {
+/* ----- Setup modal ----- */
+.setup-title {
   display: flex;
-  gap: 1rem;
-  align-items: flex-start;
-  margin-bottom: 1.25rem;
-}
-
-.setup-header h2 {
-  margin: 0;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .setup-logo {
-  width: 48px;
-  height: 48px;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
   background: #000;
 }
@@ -615,7 +600,7 @@ onMounted(fetchConnectors)
 .setup-desc {
   font-size: 0.9rem;
   color: var(--text-muted);
-  margin: 0.25rem 0 0;
+  margin: 0 0 1.25rem;
 }
 
 .field-optional {
@@ -630,31 +615,6 @@ onMounted(fetchConnectors)
   font-family: var(--font-mono);
   font-size: 0.8rem;
   resize: vertical;
-}
-
-.setup-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1.25rem;
-}
-
-@media (max-width: 640px) {
-  .setup-modal {
-    padding: 1.1rem;
-    max-height: calc(100dvh - 2rem);
-    overflow-y: auto;
-  }
-}
-
-.btn-secondary {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text);
-}
-
-.btn-secondary:hover {
-  border-color: var(--text-muted);
 }
 
 .text-muted {

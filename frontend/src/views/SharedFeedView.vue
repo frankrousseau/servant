@@ -3,11 +3,13 @@ import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Play } from 'lucide-vue-next'
 
+import LoadState from '../components/LoadState.vue'
 import MediaViewer from '../components/MediaViewer.vue'
 
 import { fetchSharedFeed } from '../api/photoShares'
 import { formatDate } from '../lib/datetime'
 import type { ViewerItem } from '../apps/types'
+import type { LoadStatus } from '../components/LoadState.vue'
 import type { SharedFeed, SharedPhoto } from '../types'
 
 const route = useRoute()
@@ -36,6 +38,17 @@ async function load() {
 }
 
 watch(() => route.params.token, load, { immediate: true })
+
+const loadState = computed<LoadStatus>(() => {
+  if (loading.value) return 'loading'
+  return loadError.value ? 'error' : 'ready'
+})
+// A gone link and an empty feed share the empty line, with their own text.
+const emptyText = computed(() =>
+  missing.value
+    ? 'This link is no longer available.'
+    : 'No photos in this feed yet.'
+)
 
 const title = computed(() => {
   if (!feed.value) return 'Shared photos'
@@ -100,42 +113,39 @@ function markBroken(photo: SharedPhoto) {
       </p>
     </header>
 
-    <p v-if="loading" class="shared-state">Loading...</p>
-    <p v-else-if="missing" class="shared-state">
-      This link is no longer available.
-    </p>
-    <p v-else-if="loadError" class="shared-state shared-state--error">
-      {{ loadError }}
-    </p>
-    <p v-else-if="photos.length === 0" class="shared-state">
-      No photos in this feed yet.
-    </p>
-
-    <div v-else class="shared-grid">
-      <button
-        v-for="(cell, index) in cells"
-        :key="cell.photo.id"
-        type="button"
-        class="shared-thumb"
-        :title="cell.photo.title || cell.date"
-        :autofocus="index === 0"
-        @click="viewerIndex = index"
-      >
-        <img
-          v-if="cell.showImage"
-          :src="cell.photo.thumb || ''"
-          :alt="cell.alt"
-          loading="lazy"
-          @error="markBroken(cell.photo)"
-        />
-        <span v-else class="shared-thumb-tile" aria-hidden="true">
-          <Play v-if="cell.photo.video" :size="28" />
-        </span>
-        <span v-if="cell.photo.video && cell.showImage" class="shared-play">
-          <Play :size="22" />
-        </span>
-      </button>
-    </div>
+    <LoadState
+      :state="loadState"
+      :empty="missing || photos.length === 0"
+      what="photos"
+      :error-text="loadError"
+      :empty-text="emptyText"
+    >
+      <div class="shared-grid">
+        <button
+          v-for="(cell, index) in cells"
+          :key="cell.photo.id"
+          type="button"
+          class="shared-thumb"
+          :title="cell.photo.title || cell.date"
+          :autofocus="index === 0"
+          @click="viewerIndex = index"
+        >
+          <img
+            v-if="cell.showImage"
+            :src="cell.photo.thumb || ''"
+            :alt="cell.alt"
+            loading="lazy"
+            @error="markBroken(cell.photo)"
+          />
+          <span v-else class="shared-thumb-tile" aria-hidden="true">
+            <Play v-if="cell.photo.video" :size="28" />
+          </span>
+          <span v-if="cell.photo.video && cell.showImage" class="shared-play">
+            <Play :size="22" />
+          </span>
+        </button>
+      </div>
+    </LoadState>
 
     <MediaViewer
       v-if="viewerIndex !== null && viewerItems.length"
@@ -200,15 +210,6 @@ function markBroken(photo: SharedPhoto) {
   .shared-title {
     font-size: 1.3rem;
   }
-}
-
-/* ----- States ----- */
-.shared-state {
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-}
-.shared-state--error {
-  color: var(--danger);
 }
 
 /* ----- Grid ----- */

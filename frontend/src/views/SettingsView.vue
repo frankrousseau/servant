@@ -15,6 +15,7 @@ import {
 
 import ComboBox from '../components/ComboBox.vue'
 import DateInput from '../components/DateInput.vue'
+import TabBar from '../components/TabBar.vue'
 
 import { updateProfile } from '../api/auth'
 import { deletePhotoShare, listPhotoShares } from '../api/photoShares'
@@ -35,6 +36,7 @@ import {
 import { THEMES, applyTheme, storedTheme, type ThemeId } from '../lib/theme'
 import { useAppsStore } from '../stores/apps'
 import { useAuthStore } from '../stores/auth'
+import type { TabOption } from '../components/TabBar.vue'
 import type { AiConfig, ApiToken, PhotoShare } from '../types'
 
 const route = useRoute()
@@ -46,24 +48,25 @@ const { ask } = useConfirm()
 
 // ----- Tabs (query-driven, same pattern as the Agents page) -----
 
-const TABS = [
-  { id: 'appearance', label: 'Appearance' },
-  { id: 'tokens', label: 'API Tokens' },
-  { id: 'apps', label: 'Apps' },
-  { id: 'agents', label: 'Agents' },
-  { id: 'export', label: 'Export' }
+const TABS: TabOption[] = [
+  { value: 'appearance', label: 'Appearance' },
+  { value: 'tokens', label: 'API Tokens' },
+  { value: 'apps', label: 'Apps' },
+  { value: 'agents', label: 'Agents' },
+  { value: 'export', label: 'Export' }
 ]
 
-const tab = computed(() => {
-  const requested = route.query.tab
-  return TABS.some(option => option.id === requested)
-    ? String(requested)
-    : 'appearance'
+const tab = computed({
+  get: () => {
+    const requested = route.query.tab
+    return TABS.some(option => option.value === requested)
+      ? String(requested)
+      : 'appearance'
+  },
+  set: next => {
+    router.replace({ query: { ...route.query, tab: next } })
+  }
 })
-
-function setTab(next: string) {
-  router.replace({ query: { ...route.query, tab: next } })
-}
 
 const buildCommit = __BUILD_COMMIT__
 const buildDate = __BUILD_DATE__
@@ -485,19 +488,8 @@ onMounted(() => {
   <div class="view">
     <h1>Settings</h1>
 
-    <div class="tabs" role="tablist">
-      <button
-        v-for="(option, i) in TABS"
-        :key="option.id"
-        v-autofocus="i === 0"
-        role="tab"
-        :aria-selected="tab === option.id"
-        :class="{ active: tab === option.id }"
-        @click="setTab(option.id)"
-      >
-        {{ option.label }}
-      </button>
-    </div>
+    <!-- No search field here: the landing focus goes to the selected tab. -->
+    <TabBar v-model="tab" :options="TABS" label="Settings sections" autofocus />
 
     <!-- Appearance -->
     <section v-if="tab === 'appearance'" class="card">
@@ -950,27 +942,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.tabs {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-.tabs button {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text-muted);
-  padding: 0.45rem 1rem;
-  cursor: pointer;
-}
-.tabs button:hover {
-  background: var(--bg-hover);
-  color: var(--text);
-}
-.tabs button.active {
-  color: var(--text);
-  border-color: var(--primary);
-}
 .card {
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -1440,19 +1411,6 @@ onMounted(() => {
   }
 }
 @media (max-width: 640px) {
-  /* The tab row scrolls inside itself instead of widening the page */
-  .tabs {
-    overflow-x: auto;
-    scrollbar-width: none;
-    /* Room for the active tab's focus outline */
-    padding: 3px;
-    margin: -3px -3px calc(1rem - 3px);
-  }
-  .tabs button {
-    flex-shrink: 0;
-    white-space: nowrap;
-    padding: 0.45rem 0.8rem;
-  }
   .card-header {
     padding: 0.85rem 1rem;
   }

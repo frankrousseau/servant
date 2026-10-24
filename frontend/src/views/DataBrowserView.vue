@@ -6,6 +6,8 @@ import { X } from 'lucide-vue-next'
 import ComboBox from '../components/ComboBox.vue'
 import DateInput from '../components/DateInput.vue'
 import KindIcon from '../components/KindIcon.vue'
+import LoadState from '../components/LoadState.vue'
+import ServantDialog from '../components/ServantDialog.vue'
 
 import {
   createEntry,
@@ -20,7 +22,6 @@ import {
 import { useConfirm } from '../composables/useConfirm'
 import { debounce, useSocket } from '../composables/useSocket'
 import { formatDateTime, relativeTime } from '../lib/datetime'
-import { openDialog } from '../lib/dialog'
 import type { Entry, PaginationMeta } from '../types'
 
 const route = useRoute()
@@ -379,57 +380,59 @@ onMounted(() => {
       </div>
     </div>
 
-    <p v-if="loading" class="loading-text">Loading...</p>
-
     <!-- Entry list -->
-    <div v-else-if="entries.length" class="entry-list">
-      <div
-        v-for="entry in entries"
-        :key="entry.id"
-        class="entry-row"
-        @click="openDetail(entry)"
-        v-click-key
-        role="button"
-        tabindex="0"
-      >
-        <KindIcon :kind="entry.kind" :size="14" />
-        <div class="entry-main">
-          <span class="entry-title">
-            {{ entry.title || entry.external_id || '(untitled)' }}
-          </span>
-          <span class="entry-subtitle">
-            {{ entry.source }}
-            <template v-if="entry.occurred_at">
-              &middot; {{ relativeTime(entry.occurred_at) }}
-            </template>
-          </span>
+    <LoadState
+      :state="loading ? 'loading' : 'ready'"
+      :empty="!entries.length"
+      what="entries"
+      empty-text="No entries found."
+    >
+      <div class="entry-list">
+        <div
+          v-for="entry in entries"
+          :key="entry.id"
+          class="entry-row"
+          @click="openDetail(entry)"
+          v-click-key
+          role="button"
+          tabindex="0"
+        >
+          <KindIcon :kind="entry.kind" :size="14" />
+          <div class="entry-main">
+            <span class="entry-title">
+              {{ entry.title || entry.external_id || '(untitled)' }}
+            </span>
+            <span class="entry-subtitle">
+              {{ entry.source }}
+              <template v-if="entry.occurred_at">
+                &middot; {{ relativeTime(entry.occurred_at) }}
+              </template>
+            </span>
+          </div>
+          <span class="entry-kind-badge">{{ entry.kind }}</span>
         </div>
-        <span class="entry-kind-badge">{{ entry.kind }}</span>
       </div>
-    </div>
-
-    <p v-else class="empty">No entries found.</p>
+    </LoadState>
 
     <!-- Detail panel -->
-    <dialog
-      v-if="showDetail && selectedEntry"
-      :ref="openDialog"
-      class="modal-dialog"
-      aria-labelledby="detail-title"
-      @click.self="closeDetail"
-      @cancel="closeDetail"
+    <ServantDialog
+      :open="showDetail && !!selectedEntry"
+      :title="selectedEntry?.title || selectedEntry?.kind || ''"
+      size="lg"
+      close-label="Close"
+      @close="closeDetail"
     >
-      <div class="detail-panel">
-        <div class="detail-header">
-          <div>
-            <KindIcon :kind="selectedEntry.kind" :size="18" />
-            <h2 id="detail-title">
-              {{ selectedEntry.title || selectedEntry.kind }}
-            </h2>
-          </div>
-          <button class="small" @click="closeDetail">Close</button>
-        </div>
-
+      <template #title>
+        <span class="detail-title">
+          <KindIcon
+            v-if="selectedEntry"
+            :kind="selectedEntry.kind"
+            :size="18"
+          />
+          {{ selectedEntry?.title || selectedEntry?.kind }}
+        </span>
+      </template>
+      <template v-if="selectedEntry">
         <div class="detail-meta">
           <div class="detail-meta-item">
             <span class="detail-label">Kind</span>
@@ -473,62 +476,51 @@ onMounted(() => {
           <h3>Metadata</h3>
           <pre>{{ formatData(selectedEntry.metadata) }}</pre>
         </div>
-
-        <div class="detail-actions">
-          <button class="small" @click="openEdit(selectedEntry!)">Edit</button>
-          <button class="small danger" @click="deleteEntry(selectedEntry!)">
-            Delete
-          </button>
-        </div>
-      </div>
-    </dialog>
+      </template>
+      <template #actions>
+        <button @click="openEdit(selectedEntry!)">Edit</button>
+        <button class="danger" @click="deleteEntry(selectedEntry!)">
+          Delete
+        </button>
+      </template>
+    </ServantDialog>
 
     <!-- Create/Edit Modal -->
-    <dialog
-      v-if="showModal"
-      :ref="openDialog"
-      class="modal-dialog"
-      aria-labelledby="entry-form-title"
-      @click.self="showModal = false"
-      @cancel="showModal = false"
+    <ServantDialog
+      v-model:open="showModal"
+      :title="editingEntry ? 'Edit Entry' : 'New Entry'"
     >
-      <div class="modal">
-        <h2 id="entry-form-title">
-          {{ editingEntry ? 'Edit Entry' : 'New Entry' }}
-        </h2>
-        <form @submit.prevent="saveEntry">
-          <div class="field">
-            <label>Kind</label>
-            <input
-              v-model="formKind"
-              placeholder="e.g. transaction, article, note"
-              required
-            />
-          </div>
-          <div class="field">
-            <label>Source</label>
-            <input v-model="formSource" required />
-          </div>
-          <div class="field">
-            <label>Title</label>
-            <input v-model="formTitle" placeholder="Optional title" />
-          </div>
-          <div class="field">
-            <label>Data (JSON)</label>
-            <textarea v-model="formData" rows="8"></textarea>
-          </div>
-          <p v-if="formError" class="form-error" role="alert">
-            {{ formError }}
-          </p>
-          <div class="modal-actions">
-            <button type="button" @click="showModal = false">Cancel</button>
-            <button type="submit" :disabled="saving">
-              {{ saving ? 'Saving...' : 'Save' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </dialog>
+      <form id="entry-form" @submit.prevent="saveEntry">
+        <div class="field">
+          <label>Kind</label>
+          <input
+            v-model="formKind"
+            placeholder="e.g. transaction, article, note"
+            required
+          />
+        </div>
+        <div class="field">
+          <label>Source</label>
+          <input v-model="formSource" required />
+        </div>
+        <div class="field">
+          <label>Title</label>
+          <input v-model="formTitle" placeholder="Optional title" />
+        </div>
+        <div class="field">
+          <label>Data (JSON)</label>
+          <textarea v-model="formData" rows="8"></textarea>
+        </div>
+        <p v-if="formError" class="form-error" role="alert">
+          {{ formError }}
+        </p>
+      </form>
+      <template #actions>
+        <button type="submit" form="entry-form" :disabled="saving">
+          {{ saving ? 'Saving...' : 'Save' }}
+        </button>
+      </template>
+    </ServantDialog>
   </div>
 </template>
 
@@ -607,10 +599,6 @@ onMounted(() => {
   font-size: 1rem;
   color: var(--text-muted);
   margin-left: auto;
-}
-
-.loading-text {
-  color: var(--text-muted);
 }
 
 /* Phone: the filters pair up on a two-column grid. */
@@ -723,34 +711,12 @@ onMounted(() => {
   }
 }
 
-/* Detail panel */
-.detail-panel {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.5rem;
-  width: 100%;
-  max-width: 600px;
-  max-height: 85vh;
-  overflow-y: auto;
-}
-
-.detail-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1rem;
-}
-
-.detail-header > div {
+/* ----- Detail panel ----- */
+.detail-title {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-}
-
-.detail-header h2 {
-  margin: 0;
-  font-size: 1.15rem;
+  overflow-wrap: anywhere;
 }
 
 .detail-meta {
@@ -782,6 +748,13 @@ onMounted(() => {
   word-break: break-all;
 }
 
+/* Phone: the metadata stacks. */
+@media (max-width: 640px) {
+  .detail-meta {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .detail-data {
   margin-bottom: 1rem;
 }
@@ -807,39 +780,7 @@ onMounted(() => {
   overflow-y: auto;
 }
 
-.detail-actions {
-  display: flex;
-  gap: 0.5rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--border);
-}
-
-/* Phone: tighter padding, the panel scrolls inside the screen, the
-   metadata stacks and a long title wraps instead of pushing Close out. */
-@media (max-width: 640px) {
-  .detail-panel {
-    padding: 1.1rem;
-    max-height: calc(100dvh - 2rem);
-  }
-
-  .detail-header {
-    gap: 0.75rem;
-  }
-
-  .detail-header > div {
-    min-width: 0;
-  }
-
-  .detail-header h2 {
-    overflow-wrap: anywhere;
-  }
-
-  .detail-meta {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* Create/Edit modal */
+/* ----- Create/Edit modal ----- */
 .form-error {
   color: var(--danger);
   margin: 0 0 0.5rem;
