@@ -54,6 +54,17 @@ describe('useDragReorder', () => {
     expect(place).toHaveBeenLastCalledWith('calendar', 3)
   })
 
+  it('drops at the end from an element past the last row', () => {
+    const { place, drag } = setup()
+    drag.onDragStart('contacts', dragEvent())
+    const over = dragEvent(5)
+    drag.onDragOverEnd(over)
+    expect(over.preventDefault).toHaveBeenCalled()
+    expect(drag.marks.value).toEqual({ photos: 'after' })
+    drag.onDrop(dragEvent())
+    expect(place).toHaveBeenCalledWith('contacts', 3)
+  })
+
   it('marks nothing and places nothing around the dragged row itself', () => {
     const { place, drag } = setup()
     drag.onDragStart('files', dragEvent())
@@ -67,6 +78,7 @@ describe('useDragReorder', () => {
     const { place, drag } = setup()
     const over = dragEvent(30)
     drag.onDragOver(0, over)
+    drag.onDragOverEnd(over)
     expect(over.preventDefault).not.toHaveBeenCalled()
     drag.onDrop(dragEvent())
     expect(place).not.toHaveBeenCalled()

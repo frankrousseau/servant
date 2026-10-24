@@ -19,6 +19,9 @@ import { useAuthStore } from '../stores/auth'
 // rarely enough that they should not cost a sidebar row each. A disclosure
 // rather than an ARIA menu: plain links in tab order, the list placed after
 // the trigger in the DOM (shown above it) so Tab walks straight into it.
+// On the folded sidebar (`rail`) the trigger is the avatar alone.
+defineProps<{ rail: boolean }>()
+
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
@@ -71,7 +74,12 @@ function signOut() {
 </script>
 
 <template>
-  <div ref="root" class="account" @keydown.escape="onEscape">
+  <div
+    ref="root"
+    class="account"
+    :class="{ 'account--rail': rail }"
+    @keydown.escape="onEscape"
+  >
     <button
       ref="trigger"
       type="button"
@@ -80,6 +88,7 @@ function signOut() {
       :aria-label="`Account: ${name}`"
       aria-controls="account-menu"
       :aria-expanded="open"
+      :data-tip="name"
       @click="open = !open"
     >
       <img
@@ -230,5 +239,24 @@ function signOut() {
 .account-signout:hover {
   background: none;
   color: var(--danger);
+}
+
+/* ----- Rail ----- */
+
+/* The avatar alone (its name is the trigger's aria-label and the rail's
+   tip), and a menu wider than the rail, reaching over the page */
+.account--rail .account-trigger {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.account--rail .account-name,
+.account--rail .account-chevron {
+  display: none;
+}
+
+.account--rail .account-menu {
+  right: auto;
+  width: 13rem;
 }
 </style>

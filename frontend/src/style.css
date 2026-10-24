@@ -49,6 +49,8 @@
   --radius: 6px;
   --control-radius: 8px;
   --sidebar-width: 220px;
+  /* The sidebar folded to its icons (.app-layout--rail) */
+  --sidebar-rail-width: 64px;
   /* Responsive shell. Two breakpoints, written as literals in the media
      queries (custom properties cannot be used there):
        max-width: 1024px  tablet: the sidebar becomes a drawer under a
@@ -245,6 +247,12 @@ a:hover {
   margin-left: var(--sidebar-width);
   padding: 2rem;
   min-width: 0;
+}
+
+/* The sidebar folded to a rail of icons (AppSidebar's collapse toggle,
+   desktop only): both the sidebar and the content margin read the width */
+.app-layout--rail {
+  --sidebar-width: var(--sidebar-rail-width);
 }
 
 /* Apps bring their own full-height chrome (sidebars, toolbars, panels that pad

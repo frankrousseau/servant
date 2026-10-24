@@ -54,6 +54,15 @@ export function useDragReorder(
     gap.value = event.clientY < box.top + box.height / 2 ? index : index + 1
   }
 
+  // On an element after the last row (the sidebar's All apps): it drops at
+  // the end, so the line it shows under the last row keeps its promise.
+  function onDragOverEnd(event: DragEvent) {
+    if (!draggingId.value) return
+    event.preventDefault()
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+    gap.value = ids().length
+  }
+
   // On the list element: the pointer left the list for good (not just
   // crossed from one row to the next), so no gap stays marked.
   function onDragLeave(event: DragEvent) {
@@ -83,6 +92,7 @@ export function useDragReorder(
     marks,
     onDragStart,
     onDragOver,
+    onDragOverEnd,
     onDragLeave,
     onDrop,
     onDragEnd

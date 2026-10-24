@@ -1,7 +1,15 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { Cable, LayoutGrid, Search, Upload } from 'lucide-vue-next'
+import {
+  Cable,
+  LayoutGrid,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
+  Upload,
+  X
+} from 'lucide-vue-next'
 
 import AccountMenu from './AccountMenu.vue'
 import BrandMark from './BrandMark.vue'
@@ -19,11 +27,19 @@ import { useDragReorder } from '../composables/useDragReorder'
 import { appIcon } from '../lib/appIcons'
 import { useAppsStore } from '../stores/apps'
 
+import type { UploadProgress } from '../lib/uploadQueue'
+
 // In drawer mode (below the tablet breakpoint) the nav slides in over the
 // page from the top bar's toggle; closed, it is inert so neither the tab
-// order nor assistive tech can reach links that are off screen.
-const props = defineProps<{ drawer: boolean; open: boolean }>()
-const emit = defineEmits<{ close: [] }>()
+// order nor assistive tech can reach links that are off screen. Above it,
+// `collapsed` folds the sidebar to a rail of icons (App.vue keeps the
+// choice); the drawer always has room for the names.
+const props = defineProps<{
+  drawer: boolean
+  open: boolean
+  collapsed: boolean
+}>()
+const emit = defineEmits<{ close: []; toggleCollapsed: [] }>()
 
 const hidden = computed(() => props.drawer && !props.open)
 
@@ -40,12 +56,14 @@ const pinnedLinks = computed(() =>
 )
 
 // Drag a pinned app to reorder the sidebar in place (mouse only; the Apps
-// page has arrow buttons for the keyboard and touch screens)
+// page has arrow buttons for the keyboard and touch screens). All apps,
+// right after the last pinned app, drops at the end.
 const {
   draggingId,
   marks,
   onDragStart,
   onDragOver,
+  onDragOverEnd,
   onDragLeave,
   onDrop,
   onDragEnd
@@ -69,6 +87,65 @@ const allAppsLabel = computed(() =>
     ? `All apps, ${apps.unpinned.length} not in the sidebar`
     : 'All apps'
 )
+
+// "3/10" while an upload queue reports its progress
+function progressText(progress: UploadProgress | null) {
+  return progress ? `${progress.index}/${progress.total}` : ''
+}
+
+const photosCount = computed(() => progressText(photosProgress.value))
+const filesCount = computed(() => progressText(filesProgress.value))
+
+// Folded to a rail, the sidebar names each icon in a tip beside it, on
+// hover and on keyboard focus. The names stay in the DOM for assistive
+// tech, so the tip is only visual. One tip for the whole nav, fixed to the
+// viewport: the app list scrolls, and a tip inside it would be clipped.
+interface Tip {
+  label: string
+  kbd?: string
+  top: number
+  left: number
+}
+
+const tip = ref<Tip | null>(null)
+
+const tipStyle = computed(() =>
+  tip.value ? { top: `${tip.value.top}px`, left: `${tip.value.left}px` } : {}
+)
+
+function showTip(event: Event) {
+  if (!props.collapsed) return
+  const target = (event.target as Element | null)?.closest<HTMLElement>(
+    '[data-tip]'
+  )
+  if (!target) return
+  // Level with the icon, in one column past the rail's edge
+  const box = target.getBoundingClientRect()
+  const rail = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  tip.value = {
+    label: target.dataset.tip ?? '',
+    kbd: target.dataset.tipKbd,
+    top: box.top + box.height / 2,
+    left: rail.right + 8
+  }
+}
+
+function hideTip() {
+  tip.value = null
+}
+
+// The toggle itself is under the pointer when the rail unfolds
+watch(() => props.collapsed, hideTip)
+
+function onEscape() {
+  hideTip()
+  emit('close')
+}
+
+function startDrag(id: string, event: DragEvent) {
+  hideTip()
+  onDragStart(id, event)
+}
 </script>
 
 <template>
@@ -81,23 +158,43 @@ const allAppsLabel = computed(() =>
   <nav
     id="app-sidebar"
     class="sidebar"
-    :class="{ 'sidebar--drawer': drawer, 'sidebar--open': drawer && open }"
+    :class="{
+      'sidebar--drawer': drawer,
+      'sidebar--open': drawer && open,
+      'sidebar--rail': collapsed
+    }"
     aria-label="Main"
     :inert="hidden"
-    @keydown.escape="emit('close')"
+    @keydown.escape="onEscape"
+    @pointerover="showTip"
+    @pointerout="hideTip"
+    @focusin="showTip"
+    @focusout="hideTip"
   >
     <div class="sidebar-head">
-      <router-link to="/" class="sidebar-brand">
+      <router-link to="/" class="sidebar-brand" data-tip="Dashboard">
         <BrandMark :size="26" />
-        Servant
+        <span class="sidebar-label">Servant</span>
       </router-link>
-      <!-- The phone top bar has its own search button -->
+      <!-- The phone top bar has its own search button. Its menu toggle is
+           under the open drawer, so the drawer brings a close button. -->
       <button
-        v-if="!drawer"
+        v-if="drawer"
+        type="button"
+        class="sidebar-close"
+        aria-label="Close menu"
+        @click="emit('close')"
+      >
+        <X :size="20" />
+      </button>
+      <button
+        v-else
         type="button"
         class="sidebar-search"
         aria-label="Search"
         aria-keyshortcuts="Control+K Meta+K"
+        data-tip="Search"
+        :data-tip-kbd="shortcut"
         @click="palette.toggle()"
       >
         <Search :size="18" />
@@ -109,7 +206,7 @@ const allAppsLabel = computed(() =>
     <!-- The pinned apps (Apps page), then the way to all of them. The
          brand logo already lands on the dashboard; the rarely visited
          pages wait behind the account menu. -->
-    <ul class="sidebar-nav" @dragleave="onDragLeave">
+    <ul class="sidebar-nav" @dragleave="onDragLeave" @scroll="hideTip">
       <li
         v-for="(app, i) in pinnedLinks"
         :key="app.id"
@@ -123,21 +220,25 @@ const allAppsLabel = computed(() =>
       >
         <router-link
           :to="`/apps/${app.id}`"
+          :data-tip="app.name"
           draggable="true"
-          @dragstart="onDragStart(app.id, $event)"
+          @dragstart="startDrag(app.id, $event)"
           @dragend="onDragEnd"
         >
-          <component :is="app.icon" :size="18" />{{ app.name }}
+          <component :is="app.icon" :size="18" />
+          <span class="sidebar-label">{{ app.name }}</span>
         </router-link>
       </li>
-      <li>
+      <li @dragover="onDragOverEnd" @drop="onDrop">
         <router-link
           to="/apps"
           class="sidebar-all"
           :class="{ 'sidebar-all--current': inUnpinnedApp }"
           :aria-label="allAppsLabel"
+          :data-tip="allAppsLabel"
         >
-          <LayoutGrid :size="18" />All apps
+          <LayoutGrid :size="18" />
+          <span class="sidebar-label">All apps</span>
           <span v-if="apps.unpinned.length" class="sidebar-count"
             >+{{ apps.unpinned.length }}</span
           >
@@ -149,38 +250,56 @@ const allAppsLabel = computed(() =>
       to="/apps/photos"
       class="sidebar-upload"
       title="Photo upload in progress"
+      :data-tip="`Photo upload ${photosCount}`"
     >
-      <Upload :size="14" />photos
-      {{
-        photosProgress ? `${photosProgress.index}/${photosProgress.total}` : ''
-      }}
+      <Upload :size="16" />
+      <span class="sidebar-label">photos {{ photosCount }}</span>
     </router-link>
     <router-link
       v-if="filesUploading"
       to="/apps/files"
       class="sidebar-upload"
       title="File upload in progress"
+      :data-tip="`File upload ${filesCount}`"
     >
-      <Upload :size="14" />files
-      {{ filesProgress ? `${filesProgress.index}/${filesProgress.total}` : '' }}
+      <Upload :size="16" />
+      <span class="sidebar-label">files {{ filesCount }}</span>
     </router-link>
-    <router-link to="/connectors" class="sidebar-settings-link">
-      <Cable :size="18" />Sources
+    <router-link to="/connectors" class="sidebar-row" data-tip="Sources">
+      <Cable :size="18" />
+      <span class="sidebar-label">Sources</span>
     </router-link>
-    <AccountMenu />
+    <button
+      v-if="!drawer"
+      type="button"
+      class="sidebar-row sidebar-collapse"
+      :aria-label="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+      data-tip="Expand sidebar"
+      @click="emit('toggleCollapsed')"
+    >
+      <PanelLeftOpen v-if="collapsed" :size="18" />
+      <PanelLeftClose v-else :size="18" />
+      <span class="sidebar-label">Collapse</span>
+    </button>
+    <AccountMenu :rail="collapsed" />
+    <span v-if="tip" class="sidebar-tip" :style="tipStyle" aria-hidden="true"
+      >{{ tip.label }}<kbd v-if="tip.kbd">{{ tip.kbd }}</kbd></span
+    >
   </nav>
 </template>
 
 <style scoped>
 /* ----- Layout ----- */
 
-/* Moved here with the markup. `:deep(svg)` below finally applies: the
-   rule lived in the global sheet, where that Vue-only selector is
-   invalid, so lucide icons could shrink under a long app name. */
+/* Only the app list scrolls (.sidebar-nav): the brand, Sources and the
+   account stay in place, and the account menu and the rail's tips can
+   reach past the sidebar's right edge. Above the page content, which the
+   account menu covers when the sidebar is a rail. */
 .sidebar {
   position: fixed;
   top: 0;
   left: 0;
+  z-index: 20;
   width: var(--sidebar-width);
   height: 100vh;
   background: var(--bg-surface);
@@ -188,7 +307,6 @@ const allAppsLabel = computed(() =>
   display: flex;
   flex-direction: column;
   padding-top: 1rem;
-  overflow-y: auto;
 }
 
 /* Off-canvas below the tablet breakpoint: parked left of the viewport,
@@ -214,7 +332,7 @@ const allAppsLabel = computed(() =>
   background: rgba(0, 0, 0, 0.55);
 }
 
-/* ----- Brand and search ----- */
+/* ----- Brand, search and close ----- */
 
 .sidebar-head {
   display: flex;
@@ -267,13 +385,9 @@ const allAppsLabel = computed(() =>
   color: var(--text);
 }
 
-/* Below the icon, right-aligned: the sidebar scrolls, so a tip poking
-   past its right edge would be clipped. */
-.sidebar-search-tip {
-  position: absolute;
-  top: calc(100% + 0.35rem);
-  right: 0;
-  z-index: 10;
+/* Shared by the search tip and the rail's tip */
+.sidebar-search-tip,
+.sidebar-tip {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -284,8 +398,24 @@ const allAppsLabel = computed(() =>
   border-radius: var(--radius);
   color: var(--text);
   font-size: 0.875rem;
-  opacity: 0;
   pointer-events: none;
+}
+
+.sidebar-search-tip kbd,
+.sidebar-tip kbd {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+}
+
+/* Below the icon, right-aligned: a tip poking past the sidebar's right
+   edge would sit over the page title. */
+.sidebar-search-tip {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 10;
+  opacity: 0;
   transition: opacity 0.15s;
 }
 
@@ -294,10 +424,26 @@ const allAppsLabel = computed(() =>
   opacity: 1;
 }
 
-.sidebar-search-tip kbd {
+/* 44px square (the drawer is the touch layout), the icon on the rows'
+   1.25rem padding: (44 - 20) / 2 = 12px */
+.sidebar-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  margin-left: auto;
+  margin-right: -12px;
+  padding: 0;
+  background: transparent;
   color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
+  transition: color 0.15s;
+}
+
+.sidebar-close:hover {
+  background: transparent;
+  color: var(--text);
 }
 
 /* ----- Apps ----- */
@@ -305,6 +451,8 @@ const allAppsLabel = computed(() =>
 .sidebar-nav {
   list-style: none;
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .sidebar-nav li a {
@@ -315,13 +463,16 @@ const allAppsLabel = computed(() =>
   color: var(--text-muted);
   font-size: 1rem;
   text-decoration: none;
-  transition:
-    background 0.15s,
-    color 0.15s;
+  transition: color 0.15s;
 }
 
 .sidebar-nav li a :deep(svg) {
   flex-shrink: 0;
+}
+
+/* Inside the ring: the list scrolls, so an outer ring would be clipped */
+.sidebar-nav li a:focus-visible {
+  outline-offset: -2px;
 }
 
 .sidebar-nav li a:hover {
@@ -329,9 +480,16 @@ const allAppsLabel = computed(() =>
 }
 
 /* vue-router stamps aria-current="page" on the exact active link; styling
-   the attribute keeps the announced and visible states in sync. */
-.sidebar-nav li a[aria-current='page'] {
+   the attribute keeps the announced and visible states in sync. The icon
+   takes the primary color: on the rail it is all that is left to see. */
+.sidebar-nav li a[aria-current='page'],
+.sidebar-nav li a.sidebar-all--current {
   color: var(--text);
+}
+
+.sidebar-nav li a[aria-current='page'] :deep(svg),
+.sidebar-nav li a.sidebar-all--current :deep(svg) {
+  color: var(--primary);
 }
 
 /* Drag to reorder: the dragged row fades, a primary line marks the gap
@@ -348,17 +506,13 @@ const allAppsLabel = computed(() =>
   box-shadow: inset 0 -2px 0 var(--primary);
 }
 
-.sidebar-nav li a.sidebar-all--current {
-  color: var(--text);
-}
-
 .sidebar-count {
   margin-left: auto;
   font-family: var(--font-mono);
   font-size: 0.875rem;
 }
 
-/* ----- Uploads and Sources ----- */
+/* ----- Uploads, Sources and the collapse toggle ----- */
 
 /* Global photo-upload pulse: the queue keeps running across app switches */
 .sidebar-upload {
@@ -369,7 +523,7 @@ const allAppsLabel = computed(() =>
   color: var(--primary);
   text-decoration: none;
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: 0.875rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   animation: sidebar-upload-pulse 1.6s ease-in-out infinite;
@@ -386,23 +540,84 @@ const allAppsLabel = computed(() =>
   }
 }
 
-.sidebar-settings-link {
+.sidebar-row {
   display: flex;
   align-items: center;
   gap: 0.65rem;
+  width: 100%;
+  padding: 0.6rem 1.25rem;
   color: var(--text-muted);
   text-decoration: none;
   font-size: 1rem;
-  padding: 0.6rem 1.25rem;
   transition: color 0.15s;
 }
 
 /* aria-current covers the exact page; .router-link-active stays for the
    ancestor case, it keeps Sources lit on a child page (/connectors/:id). */
-.sidebar-settings-link:hover,
-.sidebar-settings-link[aria-current='page'],
-.sidebar-settings-link.router-link-active {
+.sidebar-row:hover,
+.sidebar-row[aria-current='page'],
+.sidebar-row.router-link-active {
   color: var(--text);
   text-decoration: none;
+}
+
+.sidebar-row[aria-current='page'] :deep(svg),
+.sidebar-row.router-link-active :deep(svg) {
+  color: var(--primary);
+}
+
+/* A row like Sources, without the global button paint */
+.sidebar-collapse {
+  background: none;
+  border: none;
+  border-radius: 0;
+  line-height: inherit;
+  text-align: left;
+}
+
+.sidebar-collapse:hover {
+  background: none;
+}
+
+/* ----- Rail ----- */
+
+/* Folded to its icons: the names leave the screen but stay in the DOM,
+   so every link keeps its accessible name; the tip shows them on hover
+   and focus. */
+.sidebar--rail .sidebar-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.sidebar--rail .sidebar-head {
+  flex-direction: column;
+  padding: 0.5rem 0 1rem;
+}
+
+.sidebar--rail .sidebar-search {
+  margin: 0;
+}
+
+.sidebar--rail .sidebar-search-tip,
+.sidebar--rail .sidebar-count {
+  display: none;
+}
+
+.sidebar--rail .sidebar-nav li a,
+.sidebar--rail .sidebar-upload,
+.sidebar--rail .sidebar-row {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+/* Beside the hovered or focused icon (coordinates from showTip) */
+.sidebar-tip {
+  position: fixed;
+  z-index: 10;
+  transform: translateY(-50%);
 }
 </style>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useMediaQuery } from '@vueuse/core'
+import { useLocalStorage, useMediaQuery } from '@vueuse/core'
 
 import AppSidebar from './components/AppSidebar.vue'
 import AppTopbar from './components/AppTopbar.vue'
@@ -48,9 +48,20 @@ async function toggleNav() {
   document.querySelector<HTMLElement>(target)?.focus()
 }
 
-// Escape or a tap on the backdrop: close and hand the focus back
+// Escape, the close button or a tap on the backdrop: close and hand the
+// focus back
 function onDrawerClose() {
   if (navOpen.value) void toggleNav()
+}
+
+// The sidebar folded to a rail of icons, from its own toggle. Remembered
+// per device rather than in the account: a laptop screen and a wide
+// monitor do not want the same answer. The drawer ignores it.
+const sidebarCollapsed = useLocalStorage('servant_sidebar_collapsed', false)
+const rail = computed(() => sidebarCollapsed.value && !compact.value)
+
+function toggleCollapsed() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
 }
 
 // Installed apps come from the API, so they can only load once authenticated;
@@ -70,7 +81,10 @@ watch(
 </script>
 
 <template>
-  <div class="app-layout" :class="{ authenticated: shell }">
+  <div
+    class="app-layout"
+    :class="{ authenticated: shell, 'app-layout--rail': shell && rail }"
+  >
     <AppTopbar
       v-if="shell && compact"
       :nav-open="navOpen"
@@ -80,7 +94,9 @@ watch(
       v-if="shell"
       :drawer="compact"
       :open="navOpen"
+      :collapsed="rail"
       @close="onDrawerClose"
+      @toggle-collapsed="toggleCollapsed"
     />
     <main class="content" :class="{ 'content--flush': flushContent }">
       <router-view />
