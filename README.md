@@ -71,7 +71,7 @@ Open `http://localhost:4000` and register the first account. More in the
   </tr>
 </table>
 
-<sub>Seeded demo data, captured with `npm run screenshots` (see [development.md](docs/development.md#readme-screenshots)).</sub>
+<sub>Seeded demo data, captured with `npm run screenshots` (see [development.md](docs/development.md#docs-screenshots)).</sub>
 
 ## Documentation
 

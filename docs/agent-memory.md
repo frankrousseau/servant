@@ -14,6 +14,9 @@ The agents sync themselves with a skill and an API token: Servant never touches 
 
 1. **Create a token** in **Settings > API Tokens**, with **Agent memory** set to **Read +
    write**. One token per machine lets you revoke a lost laptop alone.
+
+   ![The API Tokens form: the token is named "Laptop" and Agent memory is set to Read + write](screenshots/guides/agent-memory-token.webp)
+
 2. **Export it** in your shell profile (`~/.zshrc`, `~/.bashrc`):
 
    ```bash

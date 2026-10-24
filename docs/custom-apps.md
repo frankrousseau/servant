@@ -18,11 +18,15 @@ In **Settings > Apps**:
 - **Update:** the refresh button clones again and replaces the files. The `id` must not change.
 - **Uninstall:** removes the files and the sidebar entry.
 
+![Settings > Apps: the switches of the built-in apps, then the Installed apps section with a repository URL ready to install](screenshots/guides/custom-apps-install.webp)
+
 ## Let Servant write it
 
-Turn agents on (**Settings > Agents**), then click **Generate an app** in **Agents > Builder**
-and describe what you want. Your model server (OpenAI-compatible, a local Ollama by default)
-writes the module, and Servant installs it like a git app.
+Turn agents on (**Settings > Agents**), then in **Agents > Builder**, name the app, describe
+what you want and click **Generate**. Your model server (OpenAI-compatible, a local Ollama by
+default) writes the module, and Servant installs it like a git app.
+
+![The Builder tab of the Agents section: an app named "Reading list", its description and the Generate button](screenshots/guides/custom-apps-builder.webp)
 
 - **Modify** it with a new instruction; **Restore** brings the previous version back
   (`index.prev.js`).

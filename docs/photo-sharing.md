@@ -13,6 +13,8 @@ gallery. The feed stays live: tag a photo and it appears, untag it and it disapp
 3. Optionally, name the link: the name becomes the page title.
 4. Click **Create link**. The URL is in your clipboard.
 
+![The Share dialog: the beach and sunset tags and Alice Irving are selected, with "Photos with any of these" and the link name "Summer 2026"](screenshots/guides/photo-sharing-dialog.webp)
+
 > [!TIP]
 > Caption a photo: open it, click **Info** and type in **Note**. Your guests see the caption
 > under the photo.
@@ -23,6 +25,8 @@ The **Share** dialog and **Settings > API Tokens > Shared photo links** list you
 **Copy**, **Open** and **Revoke**. Revoking cuts access at once.
 
 ## What your guests see
+
+![The public page of the "Summer 2026" link: thirteen beach and sunset photos in a grid](screenshots/guides/photo-sharing-page.webp)
 
 **They see** the photos, newest first, in a viewer with zoom, full resolution and download,
 with the title, date, media type and note of each photo.

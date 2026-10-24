@@ -16,6 +16,9 @@ DAVx5 (Android).
 
 1. In **Settings > API Tokens**, create a token with **Calendar** and **Contacts** set to
    **Read + write** (**Read** for a one-way sync). Copy the `srv_...` value.
+
+   ![The API Tokens form: the token is named "Phone sync", and Calendar and Contacts are set to Read + write](screenshots/guides/dav-token.webp)
+
 2. Add an account on the phone:
 
 | | Android (DAVx5) | iOS |

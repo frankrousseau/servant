@@ -80,21 +80,24 @@ mix phx.server                 # uses the usual servant_dev.db
 You can use `DEV_DB` with the seed task (`DEV_DB=demo mix servant.seed`) to keep more than one
 populated database.
 
-### README screenshots
+### Docs screenshots
 
-`frontend/scripts/screenshots.mjs` makes the README gallery (`docs/screenshots/*.webp`) from a
-seeded temporary database. It uses playwright-core with the local Chrome. To use a different
-Chromium, set `CHROME_PATH`.
+`frontend/scripts/screenshots.mjs` makes the README gallery (`docs/screenshots/*.webp`) and the
+guide pictures (`docs/screenshots/guides/*.webp`) from a seeded temporary database. It uses
+playwright-core with the local Chrome. To use a different Chromium, set `CHROME_PATH`.
 
 ```bash
-DEV_DB=screenshots mix servant.seed          # new file only: you cannot run the seed again
-DEV_DB=screenshots PORT=4011 mix phx.server  # serves the built SPA (run cd frontend && npm run build first)
-cd frontend && npm run screenshots
+DEV_DB=screenshots mix servant.seed --photos 30  # new file only: you cannot run the seed again
+DEV_DB=screenshots PORT=4011 mix phx.server      # serves the built SPA (run cd frontend && npm run build first)
+cd frontend && npm run screenshots               # all; or one group: npm run screenshots -- guides
 ```
 
 The script logs in as `demo`, enables all the built-in apps and saves one 1440x900 WebP for
-each screen. To seed again, first delete `servant_dev_screenshots.db`. The seed is random, so
-look at the screenshots before you commit them.
+each README screen (group `readme`). For the guides (group `guides`), it first tags the photos,
+names two contacts on them and turns agents on through the API. Then it crops each picture to
+the part of the screen that the guide describes. To seed again, first delete
+`servant_dev_screenshots.db`. The seed is random, so look at the screenshots before you commit
+them.
 
 ## Project structure
 

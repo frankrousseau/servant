@@ -12,6 +12,8 @@ a computer. A photo sent twice is updated, never duplicated.
 In **Settings > API Tokens**, create a token with **Photos** set to **Read + write**, and copy
 the `srv_...` value: it shows only once.
 
+![The API Tokens form: the token is named "Phone backup" and Photos is set to Read + write](screenshots/guides/phone-backup-token.webp)
+
 ## 2. Connect the app
 
 | Field | Value |
