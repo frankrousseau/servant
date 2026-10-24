@@ -1,10 +1,10 @@
 defmodule ServantWeb.Plugs.FileAuth do
   @moduledoc """
   Authenticates `/files/…` requests. Browsers use the HttpOnly
-  `_servant_auth` cookie (they can't attach a Bearer header to
-  `<img>`/`<a>` requests); scripts may use an `srv_` API token carrying the
-  explicit `data:read-binary` scope. Assigns `:current_user` or responds
-  401/403.
+  `_servant_auth` cookie, because they cannot attach a Bearer header to
+  `<img>`/`<a>` requests. Scripts can use an `srv_` API token that carries
+  the explicit `data:read-binary` scope. Assigns `:current_user` or responds
+  with 401/403.
   """
   import Plug.Conn
 
@@ -20,8 +20,8 @@ defmodule ServantWeb.Plugs.FileAuth do
     end
   end
 
-  # Raw bytes are a deliberate opt-in: the token must carry data:read-binary,
-  # which data:read/data:write never imply.
+  # Raw bytes are a deliberate opt-in. The token must carry data:read-binary,
+  # and data:read/data:write never imply that scope.
   defp api_token_auth(conn, token) do
     case Auth.authenticate_api_token(conn, token) do
       {:ok, user, scopes} ->

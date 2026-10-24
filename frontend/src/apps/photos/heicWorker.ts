@@ -1,9 +1,9 @@
 /// <reference lib="webworker" />
 import { heicTo } from 'heic-to/next'
 
-// Decoding a 48MP HEIC blocks for seconds; done inline a 500-file batch
-// freezes the tab. heic-to/next is the OffscreenCanvas build made for
-// workers.
+// The decode of a 48MP HEIC blocks for seconds. If the decode runs inline, a
+// batch of 500 files freezes the tab. heic-to/next is the OffscreenCanvas
+// build made for workers.
 self.onmessage = async (e: MessageEvent<{ file: File }>) => {
   try {
     const blob = await heicTo({

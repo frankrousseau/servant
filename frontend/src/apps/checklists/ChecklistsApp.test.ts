@@ -146,7 +146,7 @@ describe('ChecklistsApp', () => {
     const wrapper = mount(ChecklistsApp, { props: { ctx: ctx as never } })
     await flushPromises()
 
-    // no completed item: the button is hidden
+    // There is no completed item: the button is hidden.
     await selectList(wrapper, 'Vide')
     expect(wrapper.find('.cl-sort-btn').exists()).toBe(false)
 

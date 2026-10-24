@@ -341,7 +341,7 @@ function startDrag(id: string, event: DragEvent) {
   padding: 0.5rem 1.25rem 1.25rem;
 }
 
-/* Owl-butler logo + wordmark, links back to the dashboard */
+/* The owl-butler logo and the wordmark. They link back to the dashboard. */
 .sidebar-brand {
   display: flex;
   align-items: center;
@@ -479,9 +479,9 @@ function startDrag(id: string, event: DragEvent) {
   color: var(--text);
 }
 
-/* vue-router stamps aria-current="page" on the exact active link; styling
-   the attribute keeps the announced and visible states in sync. The icon
-   takes the primary color: on the rail it is all that is left to see. */
+/* vue-router sets aria-current="page" on the exact active link. A style on
+   the attribute keeps the announced state and the visible state in sync. The
+   icon takes the primary color: on the rail, it is all that is left to see. */
 .sidebar-nav li a[aria-current='page'],
 .sidebar-nav li a.sidebar-all--current {
   color: var(--text);
@@ -515,7 +515,8 @@ function startDrag(id: string, event: DragEvent) {
 
 /* ----- Uploads, Sources and the collapse toggle ----- */
 
-/* Global photo-upload pulse: the queue keeps running across app switches */
+/* The global pulse of the photo upload and of the file upload: each queue
+   continues to run when the user goes to another app. */
 .sidebar-upload {
   display: flex;
   align-items: center;
@@ -553,8 +554,8 @@ function startDrag(id: string, event: DragEvent) {
   transition: color 0.15s;
 }
 
-/* aria-current covers the exact page; .router-link-active stays for the
-   ancestor case, it keeps Sources lit on a child page (/connectors/:id). */
+/* aria-current covers the exact page. .router-link-active stays for the
+   ancestor case: it keeps Sources lit on a child page (/connectors/:id). */
 .sidebar-row:hover,
 .sidebar-row[aria-current='page'],
 .sidebar-row.router-link-active {

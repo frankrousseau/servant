@@ -8,8 +8,9 @@ import {
 } from './faces'
 import type { Entry } from '../types'
 
-// Toy embeddings: same-person vectors are close, different persons far.
-// Real descriptors are 128-d; the logic only cares about distances.
+// Toy embeddings: the vectors of the same person are near, the vectors of
+// different persons are far. Real descriptors are 128-d, but the logic uses
+// only the distances.
 const alice = (jitter = 0) => [1 + jitter, 0, 0]
 const bob = (jitter = 0) => [0, 1 + jitter, 0]
 
@@ -55,7 +56,8 @@ describe('clusterFaces', () => {
     ]
     const clusters = clusterFaces(photos, new Map())
     expect(clusters).toHaveLength(2)
-    // Sorted by size desc; both have 2 here, insertion order breaks the tie.
+    // The clusters are sorted by size, largest first. Here the two clusters
+    // have 2 faces, and the insertion order breaks the tie.
     expect(clusters[0].faces).toHaveLength(2)
     expect(clusters[1].faces).toHaveLength(2)
     const ids = clusters[0].faces.map(f => f.photoId)

@@ -103,7 +103,7 @@ defmodule Servant.ApiTokensTest do
 
       assert Enum.map(ApiTokens.list_tokens(u1.id), & &1.id) == [t1.id]
 
-      # cannot delete someone else's token
+      # A user cannot delete the token of a different user.
       assert ApiTokens.delete_token(u2.id, t1.id) == {:error, :not_found}
 
       assert {:ok, _} = ApiTokens.delete_token(u1.id, t1.id)

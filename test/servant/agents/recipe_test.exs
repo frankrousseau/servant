@@ -51,7 +51,7 @@ defmodule Servant.Agents.RecipeTest do
                  "where" => [%{"field" => "data.x", "op" => "explode", "value" => 1}]
                })
 
-      # numeric ops need a numeric value, contains needs a string
+      # The numeric ops must have a numeric value. contains must have a string.
       assert {:error, _} =
                Recipe.validate(%{
                  "where" => [%{"field" => "data.x", "op" => "gt", "value" => "high"}]
@@ -62,7 +62,7 @@ defmodule Servant.Agents.RecipeTest do
                  "where" => [%{"field" => "data.x", "op" => "contains", "value" => 3}]
                })
 
-      # exists takes no value
+      # exists takes no value.
       assert {:error, _} =
                Recipe.validate(%{
                  "where" => [%{"field" => "data.x", "op" => "exists", "value" => 1}]
@@ -80,7 +80,7 @@ defmodule Servant.Agents.RecipeTest do
                Recipe.validate(%{"aggregate" => %{"op" => "median", "field" => "data.x"}})
 
       assert {:error, _} = Recipe.validate(%{"aggregate" => %{"op" => "sum"}})
-      # count takes no field
+      # count takes no field.
       assert {:error, _} =
                Recipe.validate(%{"aggregate" => %{"op" => "count", "field" => "data.x"}})
 
@@ -234,7 +234,8 @@ defmodule Servant.Agents.RecipeTest do
 
       assert {:ok, content} = Recipe.run(recipe, entries)
       assert content =~ "| data.category |"
-      # fuel (50) before grocery (15); entries without the group field land under "-"
+      # fuel (50) comes before grocery (15). The entries without the group field go
+      # under "-".
       {fuel_idx, _} = :binary.match(content, "fuel")
       {grocery_idx, _} = :binary.match(content, "grocery")
       assert fuel_idx < grocery_idx
@@ -259,7 +260,7 @@ defmodule Servant.Agents.RecipeTest do
       assert {:ok, by_month} = Recipe.run(month, entries)
       assert by_month =~ "2026-06"
       assert by_month =~ "2026-07"
-      # chronological: June row before July row
+      # Chronological order: the June row comes before the July row.
       {june_idx, _} = :binary.match(by_month, "2026-06")
       {july_idx, _} = :binary.match(by_month, "2026-07")
       assert june_idx < july_idx

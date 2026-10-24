@@ -1,7 +1,7 @@
 defmodule Servant.Connectors.Solana.TokenMetadata do
   @moduledoc """
-  Resolves SPL token mint addresses to name/symbol using the Jupiter strict token list.
-  Results are cached in connector_environment with a 24h TTL.
+  Resolves the mint addresses of SPL tokens to a name and a symbol with the strict token list
+  of Jupiter. The module caches the results in connector_environment with a TTL of 24 hours.
   """
 
   alias Servant.Connectors
@@ -13,7 +13,7 @@ defmodule Servant.Connectors.Solana.TokenMetadata do
 
   @doc """
   Resolves a list of mint addresses to `%{mint => %{symbol, name}}`.
-  Fetches from cache first, bulk-fetches missing from Jupiter.
+  Reads the cache first, then fetches the missing mints from Jupiter in bulk.
   """
   def resolve(mints) when is_list(mints) do
     {cached, missing} =
@@ -29,7 +29,7 @@ defmodule Servant.Connectors.Solana.TokenMetadata do
     Map.merge(cached, fetch_missing(missing))
   end
 
-  @doc "Resolves a single mint, falling back to a shortened mint address."
+  @doc "Resolves a single mint. The fallback is a shortened mint address."
   def resolve_one(mint) do
     Map.get(resolve([mint]), mint, unknown(mint))
   end
@@ -42,8 +42,8 @@ defmodule Servant.Connectors.Solana.TokenMetadata do
         token_map = Map.new(tokens, fn token -> {token["address"], token} end)
         Map.new(mints, fn mint -> {mint, cache(mint, Map.get(token_map, mint))} end)
 
-      # Without the list there is nothing to cache: fall back to a short mint
-      # and retry on the next sync.
+      # Without the list, there is nothing to cache. Use a short mint as the
+      # fallback and retry on the next sync.
       {:error, _reason} ->
         Map.new(mints, fn mint -> {mint, unknown(mint)} end)
     end

@@ -63,8 +63,8 @@ defmodule Servant.Connectors.Solana.TransactionParserTest do
       assert [transfer] = parsed.transfers
       assert transfer.direction == "received"
       assert transfer.amount == 1_000_000_000
-      # Regression: incoming transfers used to always resolve counterparty to nil
-      # because the two-`if` block discarded the received-case result.
+      # Regression: before, the incoming transfers always resolved counterparty to
+      # nil, because the two-`if` block discarded the result of the received case.
       assert transfer.counterparty == @other
     end
   end
@@ -129,7 +129,7 @@ defmodule Servant.Connectors.Solana.TransactionParserTest do
           }
         })
 
-      # Default min_lamports is 1_000_000, so a change of 500 is below
+      # The default min_lamports is 1_000_000. A change of 500 is below it.
       assert :skip = TransactionParser.parse(tx, @wallet)
     end
 

@@ -3,8 +3,9 @@ import { utcToZonedParts } from '../../lib/datetime'
 
 // Pure logic for the Finance app. Core principle: a balance is an
 // observation (snapshot), never a derivation from transactions. Bank CSV
-// imports already carry a balance-after-transaction, so bank accounts get
-// their history for free; everything else is snapshotted by hand.
+// imports already contain a balance-after-transaction, so bank accounts get
+// their history at no cost. For all other accounts, the user records the
+// snapshots by hand.
 
 export type Universe = 'tradfi' | 'crypto'
 export type AccountType = 'bank' | 'cash' | 'livret' | 'broker' | 'wallet'
@@ -21,11 +22,12 @@ export interface Account {
   key: string // entity id, or "bank:<name>" when derived from bank_tx
   entryId: string | null // set when entity-backed
   name: string
-  // Account name carried by imported transactions (data.account); lets an
-  // entity claim transactions when its display name differs from the CSV's.
+  // The account name that the imported transactions contain (data.account).
+  // It lets an entity claim transactions when its display name is different
+  // from the name in the CSV.
   identifier: string | null
-  // Shared with someone else: spending counts half. Balances stay whole,
-  // they are real observations of the real account.
+  // Shared with another person: spending counts half. Balances stay whole,
+  // because they are real observations of the real account.
   shared: boolean
   type: AccountType
   currency: string
@@ -38,8 +40,8 @@ export interface SnapshotPoint {
   amount: number // in the account's currency
 }
 
-// 1 unit of a currency in reference-currency units. The reference itself is
-// always 1 and never stored.
+// The value of 1 unit of a currency in reference-currency units. The
+// reference itself is always 1, and the app never stores it.
 export type Rates = Record<string, number>
 
 export const universeOf = (type: AccountType): Universe =>
@@ -61,7 +63,7 @@ function txAmount(tx: Entry): number | null {
   return typeof a === 'number' && Number.isFinite(a) ? a : null
 }
 
-// The name an account matches transactions on.
+// The name that an account uses to match transactions.
 export const accountTxName = (a: Account) => a.identifier || a.name
 
 export function accountTxs(account: Account, bankTxs: Entry[]): Entry[] {
@@ -69,10 +71,11 @@ export function accountTxs(account: Account, bankTxs: Entry[]): Entry[] {
   return bankTxs.filter(tx => norm(txAccountName(tx)) === key)
 }
 
-// Entity-backed accounts (kind "account") plus accounts derived from
-// bank_tx data.account (same pattern as synced calendar agendas). An entity
-// whose name matches a CSV account claims it: the entity absorbs the
-// transaction-derived history and can also take manual snapshots.
+// Returns the entity-backed accounts (kind "account") plus the accounts
+// derived from bank_tx data.account (same pattern as synced calendar
+// agendas). An entity whose name matches a CSV account claims it. The entity
+// then absorbs the transaction-derived history and can also take manual
+// snapshots.
 export function buildAccounts(
   accountEntries: Entry[],
   bankTxs: Entry[]
@@ -122,13 +125,14 @@ export function buildAccounts(
   )
 }
 
-// Snapshot series for one account, one point per day (the latest observation
-// of the day wins), sorted ascending. Sources: manual balance entries
-// (data.account_id) and, for the matching bank account name (the account's
-// identifier, or its name), the balance-after-transaction carried by bank_tx
-// imports. Past the last observation the series is projected forward by
-// applying subsequent transaction amounts, so the current value stays live
-// between snapshots.
+// Returns the snapshot series for one account, in ascending order. There is
+// one point for each day: the latest observation of the day wins. The sources
+// are the manual balance entries (data.account_id) and the
+// balance-after-transaction of the bank_tx imports. The imports must match
+// the bank account name (the identifier of the account, or its name). After
+// the last observation, the function projects the series forward: it applies
+// the amounts of the later transactions. As a result, the current value stays
+// live between snapshots.
 export function snapshotSeries(
   account: Account,
   balanceEntries: Entry[],
@@ -175,8 +179,9 @@ export function snapshotSeries(
 
   if (!observations.length) return materialize()
 
-  // Project forward: transactions strictly after the last observation, that
-  // don't carry a balance themselves (those already are observations).
+  // Project forward: use the transactions strictly after the last
+  // observation that do not have a balance themselves. The transactions with
+  // a balance are already observations.
   const pending = txs
     .filter(
       tx =>
@@ -209,8 +214,8 @@ export function rateFor(
   return typeof r === 'number' && Number.isFinite(r) && r > 0 ? r : null
 }
 
-// Sum forward-filled curves: one point per date where any curve changes,
-// each curve holding its last value (0 before its first point).
+// Sums forward-filled curves. There is one point for each date where a curve
+// changes. Each curve holds its last value (0 before its first point).
 export function sumCurves(curves: SnapshotPoint[][]): SnapshotPoint[] {
   const dates = [
     ...new Set(curves.flatMap(curve => curve.map(point => point.date)))
@@ -221,9 +226,9 @@ export function sumCurves(curves: SnapshotPoint[][]): SnapshotPoint[] {
   }))
 }
 
-// Overview-only display adjustment: scale a curve (crypto tax haircut, as
-// if the whole value were taxable gain), then shift it by a flat amount
-// (a fixed tax provision owed). Stored balances stay untouched.
+// Display adjustment for the overview only. Scale a curve (crypto tax
+// haircut, as if the whole value were taxable gain). Then shift it by a flat
+// amount (a fixed tax provision owed). Stored balances do not change.
 export function adjustCurve(
   points: SnapshotPoint[],
   scale: number,
@@ -236,9 +241,10 @@ export function adjustCurve(
   }))
 }
 
-// Forward-filled total across accounts, in the reference currency: one point
-// per date where any account changes. Accounts whose currency has no rate
-// are excluded (and reported) rather than silently counted at zero.
+// Returns the forward-filled total across accounts, in the reference
+// currency. There is one point for each date where an account changes. The
+// function excludes (and reports) the accounts whose currency has no rate.
+// It does not silently count them at zero.
 export function universeCurve(
   accounts: Account[],
   seriesByKey: Map<string, SnapshotPoint[]>,
@@ -262,11 +268,12 @@ export function universeCurve(
   return { points: sumCurves(scaled), excluded }
 }
 
-// Portfolio value snapshots: balance entries carrying data.universe
-// ('crypto') instead of an account_id. Each is a dated observation of the
-// whole portfolio's value in its own currency; one point per day, the
-// latest observation of the day wins. Snapshots whose currency has no rate
-// to `ref` are excluded and reported, same rule as accounts.
+// Portfolio value snapshots: balance entries that have data.universe
+// ('crypto') instead of an account_id. Each one is a dated observation of
+// the value of the whole portfolio, in its own currency. There is one point
+// for each day: the latest observation of the day wins. The function
+// excludes and reports the snapshots whose currency has no rate to `ref`,
+// the same rule as for accounts.
 export function portfolioSeries(
   balanceEntries: Entry[],
   rates: Rates,
@@ -309,10 +316,10 @@ export function portfolioSeries(
   }
 }
 
-// The crypto universe curve. As soon as portfolio snapshots exist they are
-// the curve (an observed value beats a derivation, even when the snapshots
-// are currently unconvertible); the quantity-times-manual-rate derivation
-// only serves users who never snapshotted.
+// The crypto universe curve. When portfolio snapshots exist, they are the
+// curve. An observed value beats a derivation, even when no rate can convert
+// the snapshots at this time. The quantity-times-manual-rate derivation is
+// only for users who never made a snapshot.
 export function cryptoCurve(
   cryptoAccounts: Account[],
   seriesByKey: Map<string, SnapshotPoint[]>,
@@ -332,10 +339,11 @@ export interface CryptoTotal {
   counted: number
 }
 
-// Live value of the crypto holdings in the reference currency. Spot price
-// first (that is what "worth right now" means), manual rate as fallback;
-// an account with neither is excluded and named. `approx` flags any spot
-// component, `counted` says how many accounts entered the sum.
+// Returns the live value of the crypto holdings in the reference currency.
+// The spot price comes first (that is what "worth right now" means), and the
+// manual rate is the fallback. The function excludes and names an account
+// that has neither. `approx` flags any spot component. `counted` tells how
+// many accounts are in the sum.
 export function cryptoSpotTotal(
   accounts: Account[],
   seriesByKey: Map<string, SnapshotPoint[]>,
@@ -370,7 +378,8 @@ export function cryptoSpotTotal(
   return { total, excluded, approx, counted }
 }
 
-// Value of a forward-filled curve at a date (0 before the first point).
+// Returns the value of a forward-filled curve at a date (0 before the first
+// point).
 export function valueAt(points: SnapshotPoint[], date: string): number {
   let value = 0
   for (const p of points) {
@@ -395,7 +404,8 @@ export function freshnessDays(
   return daysBetween(series[series.length - 1].date, today)
 }
 
-// A balance you can trust is a recent one; staleness is first-class info.
+// A balance that you can trust is a recent one. Staleness is first-class
+// information.
 export function freshnessLevel(days: number | null): 'ok' | 'warn' | 'stale' {
   if (days == null) return 'stale'
   if (days <= 35) return 'ok'
@@ -411,17 +421,18 @@ export interface SpendingRow {
   total: number
 }
 
-// Normalized tx-account names of shared accounts, for monthlySpending.
+// Returns the normalized tx-account names of the shared accounts, for
+// monthlySpending.
 export function sharedTxNames(accounts: Account[]): Set<string> {
   const out = new Set<string>()
   for (const a of accounts) if (a.shared) out.add(norm(accountTxName(a)))
   return out
 }
 
-// Monthly spending by category, in the reference currency. Only outgoing
-// amounts count (amount < 0, stored positive here). Transactions in a
-// currency with no known rate are skipped and returned in `excluded`.
-// Transactions of a shared account count half.
+// Returns the monthly spending by category, in the reference currency. Only
+// outgoing amounts count (amount < 0, stored positive here). The function
+// skips the transactions in a currency with no known rate and returns them
+// in `excluded`. Transactions of a shared account count half.
 export function monthlySpending(
   txs: Entry[],
   rates: Rates,
@@ -463,8 +474,8 @@ export function monthlySpending(
   return { months, rows, excluded }
 }
 
-// Deterministic tint per category (same trick as contact avatars); the
-// uncategorized bucket stays gray.
+// Deterministic tint for each category (same trick as contact avatars).
+// The uncategorized bucket stays gray.
 export function categoryColor(category: string): string {
   if (category === UNCATEGORIZED) return 'hsl(0, 0%, 55%)'
   let h = 0
@@ -473,10 +484,10 @@ export function categoryColor(category: string): string {
   return `hsl(${h}, 55%, 55%)`
 }
 
-// Compact money formatting: big fiat amounts read better without cents,
-// small crypto quantities (0.052 BTC) need their decimals. `maxDigits` pins
-// the precision when the caller knows better, e.g. a table of totals where
-// cents are noise.
+// Compact money formatting. Large fiat amounts are easier to read without
+// cents. Small crypto quantities (0.052 BTC) must keep their decimals.
+// `maxDigits` pins the precision when the caller knows better, for example
+// in a table of totals where cents are noise.
 export function formatAmount(
   amount: number,
   currency: string,

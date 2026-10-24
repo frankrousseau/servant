@@ -1,5 +1,5 @@
 defmodule ServantWeb.ContactsController do
-  @moduledoc "Contact-specific operations beyond entry CRUD: merging duplicates."
+  @moduledoc "Contact-specific operations beyond entry CRUD: the merge of duplicates."
 
   use ServantWeb, :controller
   use OpenApiSpex.ControllerSpecs

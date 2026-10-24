@@ -1,8 +1,9 @@
 defmodule ServantWeb.Plugs.OpenApiError do
   @moduledoc """
-  Renders OpenApiSpex cast failures in the API's own error envelope
-  (`%{"error" => message}`), so a request rejected by the spec looks like every
-  other 422 instead of switching to the library's JSON:API-ish shape.
+  Renders OpenApiSpex cast failures in the error envelope of the API
+  (`%{"error" => message}`). As a result, a request that the spec rejects looks
+  like all the other 422s. It does not change to the JSON:API-ish shape of the
+  library.
   """
 
   @behaviour Plug
@@ -22,8 +23,8 @@ defmodule ServantWeb.Plugs.OpenApiError do
     |> Conn.send_resp(422, Jason.encode!(%{error: "Invalid request: #{message}"}))
   end
 
-  # "#/kind: is required" rather than just "is required": with several errors
-  # in one response, the field is the useful half.
+  # Returns "#/kind: is required" and not only "is required". With several
+  # errors in one response, the field is the useful half.
   defp describe(%Error{} = error) do
     case Error.path_to_string(error) do
       "" -> Error.message(error)

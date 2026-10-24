@@ -1,15 +1,15 @@
 defmodule Servant.Events do
   @moduledoc """
-  Shared PubSub broadcasting for user-scoped data changes. Entry/note changes are
-  published on the `"data:<user_id>"` topic and pushed to clients by
-  `ServantWeb.DataChannel`. Kept in one place so the topic and semantics can't
-  drift between contexts.
+  Shared PubSub broadcasting for user-scoped data changes. The module publishes
+  the entry and note changes on the `"data:<user_id>"` topic, and
+  `ServantWeb.DataChannel` pushes them to the clients. This code is in one
+  place, so that the topic and the semantics cannot drift between contexts.
   """
 
-  @doc "PubSub topic for a user's data changes."
+  @doc "Returns the PubSub topic for the data changes of a user."
   def topic(user_id), do: "data:#{user_id}"
 
-  @doc "Broadcasts `message` to a user's data topic."
+  @doc "Broadcasts `message` to the data topic of a user."
   def broadcast(user_id, message) do
     Phoenix.PubSub.broadcast(Servant.PubSub, topic(user_id), message)
   end

@@ -1,10 +1,11 @@
-// Spotting failed shots, in the browser and from the thumbnail alone: a
-// blurry, dark or blown-out photo shows it even at 400px. Sharpness is the
-// variance of the Laplacian (edges make it high, blur flattens it),
-// exposure the mean luminance plus the share of crushed or clipped pixels.
-// ponytail: fixed thresholds tuned on phone photos; they are the calibration
-// knob if a camera or a style (night shots, snow) trips them too often, and
-// "Keep" settles any false positive for good.
+// Finds the failed shots, in the browser and from the thumbnail only. A
+// blurry, dark or overexposed photo shows its flaw also at 400px. The
+// sharpness is the variance of the Laplacian: edges make it high, blur makes
+// it low. The exposure is the mean luminance plus the share of crushed or
+// clipped pixels.
+// ponytail: the thresholds are fixed and tuned on phone photos. They are the
+// values to adjust if a camera or a style (night shots, snow) triggers them
+// too often. "Keep" permanently solves a false positive.
 
 export interface QualityMetrics {
   sharpness: number
@@ -28,7 +29,8 @@ const BRIGHT_BRIGHTNESS = 225
 const BRIGHT_HIGHLIGHTS = 0.4
 const SHADOW_LEVEL = 20
 const HIGHLIGHT_LEVEL = 250
-// Analysis size: enough detail for the Laplacian, cheap on any machine.
+// The size for the analysis. It gives sufficient detail for the Laplacian and
+// has a low cost on all machines.
 const MAX_SIDE = 320
 
 const round = (value: number) => Math.round(value * 1000) / 1000
@@ -87,8 +89,8 @@ export function flawsOf(metrics: QualityMetrics): Flaw[] {
   const overexposed =
     metrics.brightness > BRIGHT_BRIGHTNESS ||
     metrics.highlights > BRIGHT_HIGHLIGHTS
-  // A near-black or near-white frame has no edges to speak of: call it by
-  // its exposure rather than also blaming the focus.
+  // A frame that is almost black or almost white has almost no edges. Report
+  // only its exposure flaw, and not the focus too.
   if (metrics.sharpness < SHARPNESS_MIN && !dark && !overexposed)
     flaws.push('blurry')
   if (dark) flaws.push('dark')

@@ -1,5 +1,6 @@
 defmodule Servant.PhotoSharesTest do
-  # SQLite: user inserts from two async modules collide ("Database busy"); keep serial.
+  # SQLite: the user inserts from two async modules collide ("Database busy").
+  # Keep this module serial.
   use Servant.DataCase, async: false
 
   alias Servant.PhotoShares

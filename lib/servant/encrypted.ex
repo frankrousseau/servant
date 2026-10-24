@@ -3,12 +3,13 @@ defmodule Servant.Encrypted do
   AES-256-GCM encryption for data at rest (connector secrets).
 
   Payload layout: `"ENC1" <> iv(12) <> tag(16) <> ciphertext`. The magic prefix
-  doubles as GCM associated data and lets us tell ciphertext from legacy
-  plaintext JSON (which starts with `{`/`[`).
+  is also the GCM associated data. It also makes it possible to tell
+  ciphertext from legacy plaintext JSON (which starts with `{` or `[`).
 
-  The key is derived (SHA-256) from `:connector_encryption_key` if configured,
-  otherwise from the endpoint `secret_key_base`. **Changing that secret makes
-  existing connector secrets undecryptable**: you'd have to re-enter them.
+  The key comes (through SHA-256) from `:connector_encryption_key` if it is
+  configured. If not, it comes from the endpoint `secret_key_base`. **If you
+  change that secret, you cannot decrypt the existing connector secrets**:
+  you must enter them again.
   """
 
   @magic "ENC1"

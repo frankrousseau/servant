@@ -12,8 +12,8 @@ defmodule ServantWeb.DataChannelTest do
         display_name: "Channel User"
       })
 
-    # The socket carries the verified user id (a binary_id/UUID), exactly as
-    # `ServantWeb.UserSocket.connect/3` assigns it after token verification.
+    # The socket carries the verified user id (a binary_id/UUID). This is exactly
+    # what `ServantWeb.UserSocket.connect/3` assigns after the token verification.
     socket =
       Phoenix.ChannelTest.socket(ServantWeb.UserSocket, "user_socket:#{user.id}", %{
         user_id: user.id
@@ -69,8 +69,8 @@ defmodule ServantWeb.DataChannelTest do
     assert_push "entry_change", %{type: "updated", entry: %{title: "After"}}
   end
 
-  # A connector sync inserting thousands of rows sends one aggregated signal
-  # instead of one event per entry.
+  # A connector sync that inserts thousands of rows sends one aggregated signal,
+  # not one event for each entry.
   test "pushes a single entries_changed signal for bulk inserts", %{socket: socket, user: user} do
     {:ok, _reply, _socket} = subscribe_and_join(socket, "data:#{user.id}", %{})
 
@@ -85,7 +85,7 @@ defmodule ServantWeb.DataChannelTest do
     refute_push "entry_change", %{}
   end
 
-  # Every socket only ever sees its owner's topic.
+  # Each socket sees only the topic of its owner, at all times.
   test "another user's changes are never pushed", %{socket: socket, user: user} do
     {:ok, _reply, _socket} = subscribe_and_join(socket, "data:#{user.id}", %{})
 

@@ -310,14 +310,15 @@ defmodule ServantWeb.EntryController do
   )
 
   @doc """
-  Regenerates missing photo previews (thumbnails + display JPEGs) for the
-  caller. Runs in the background; the client polls its photo list to see
-  results land.
+  Regenerates the missing photo previews (thumbnails + display JPEGs) for the
+  caller. Runs in the background. The client polls its photo list to see the
+  results arrive.
   """
   def backfill_media(conn, _params) do
-    # Supervised, one job per user in flight (see Servant.Media.Backfill): a
-    # user can't stack concurrent full-library reprocessing jobs. The client
-    # polls its photo list to see results land.
+    # The job is supervised, with one job per user in flight (see
+    # Servant.Media.Backfill). A user cannot stack concurrent jobs that
+    # reprocess the full library. The client polls its photo list to see the
+    # results arrive.
     Servant.Media.Backfill.start(conn.assigns.current_user.id)
 
     json(conn, %{status: "started"})
@@ -577,7 +578,7 @@ defmodule ServantWeb.EntryController do
       kind != nil and not Scopes.can_kind?(scopes, kind, :write) ->
         forbidden(conn, required_for(kind, :write))
 
-      # Without a kind the sweep can span domains: full data:write only.
+      # Without a kind, the sweep can span domains. Only full data:write can do it.
       kind == nil and not Scopes.can?(scopes, "data", :write) ->
         forbidden(conn, "data:write")
 
@@ -587,8 +588,9 @@ defmodule ServantWeb.EntryController do
     end
   end
 
-  # Session tokens see everything. An explicit kind filter outside the token's
-  # scopes is a 403; without one, the query is restricted to readable kinds.
+  # Session tokens see everything. An explicit kind filter outside the scopes
+  # of the token is a 403. Without a kind filter, the query is restricted to
+  # the readable kinds.
   defp restrict_params(params, nil), do: {:ok, params}
 
   defp restrict_params(%{"kind" => kind} = params, scopes) do

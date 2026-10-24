@@ -1,25 +1,22 @@
 defmodule ServantWeb.ChannelCase do
   @moduledoc """
-  This module defines the test case to be used by
-  channel tests.
+  This module defines the test case that the channel tests use.
 
-  Such tests rely on `Phoenix.ChannelTest` and also
-  import other functionality to make it easier
-  to build common data structures and query the data layer.
+  These tests use `Phoenix.ChannelTest`. They also import other functions
+  that help to build common data structures and to query the data layer.
 
-  Finally, if the test case interacts with the database,
-  we enable the SQL sandbox, so changes done to the database
-  are reverted at the end of every test.
+  The module starts the SQL sandbox for each test. Then the sandbox reverts
+  the changes to the database at the end of the test.
   """
 
   use ExUnit.CaseTemplate
 
   using do
     quote do
-      # The default endpoint for testing
+      # The default endpoint for the tests
       @endpoint ServantWeb.Endpoint
 
-      # Import conveniences for testing with channels
+      # Import the helpers for the tests that use channels.
       import Phoenix.ChannelTest
       import Servant.Fixtures
       import ServantWeb.ChannelCase

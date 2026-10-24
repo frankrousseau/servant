@@ -23,8 +23,8 @@ defmodule ServantWeb.ScopeEnforcementTest do
   end
 
   describe "uploads" do
-    # async: false at module level; mutates the FILES_DIR env var like
-    # UploadControllerTest does.
+    # async: false at module level. This setup mutates the FILES_DIR env var,
+    # the same as UploadControllerTest.
     setup do
       dir =
         Path.join(

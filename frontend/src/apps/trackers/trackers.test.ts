@@ -194,7 +194,7 @@ describe('heatmapWeeks', () => {
       '2026-06-10'
     )
     expect(weeks).toHaveLength(2)
-    // Last column is the week of June 10 (Mon June 8), fully lived.
+    // The last column is the week of June 10 (Mon June 8), fully lived.
     expect(weeks[1][0]!.date).toBe('2026-06-08')
     expect(weeks[1][6]!.date).toBe('2026-06-14')
     expect(weeks.flat().every(c => c !== null)).toBe(true)

@@ -1,19 +1,24 @@
 defmodule Servant.Notes do
   @moduledoc """
   The Notes context. A note is a `Servant.Data.Entry` with `kind: "note"` and
-  `source: "notes"`, so notes flow through the universal data browser, search,
-  timeline and realtime channels for free. This context owns the note-specific
-  concerns: slug/path derivation, `[[wikilink]]`, `@[[mention]]` (contacts and
-  events) and `#tag` parsing, and maintenance of the `note_links` table (used
-  for backlinks, mention lookups and, later, the note graph). All functions are
-  scoped by `user_id`.
+  `source: "notes"`. As a result, the notes go through the universal data
+  browser, the search, the timeline and the realtime channels with no added
+  work. This context owns the note-specific concerns:
+
+  - the calculation of the slug and the path
+  - the parse of `[[wikilink]]`, `@[[mention]]` (contacts and events) and
+    `#tag`
+  - the maintenance of the `note_links` table (for the backlinks, the mention
+    lookups and, later, the note graph)
+
+  `user_id` scopes all the functions.
 
   Storage convention on the entry:
     * `title`: the note title (last path segment)
-    * `external_id`: canonical full-path slug, unique per user
+    * `external_id`: canonical full-path slug, unique for each user
     * `data["body"]`: raw markdown
-    * `data["folder"]`: parent path (e.g. "Projets/Servant"), "" at root
-    * `data["tags"]`: list of tags parsed from `#hashtags` in the body
+    * `data["folder"]`: parent path (for example "Projets/Servant"), "" at root
+    * `data["tags"]`: list of the tags from the `#hashtags` in the body
   """
 
   import Ecto.Query
@@ -26,21 +31,22 @@ defmodule Servant.Notes do
   @source "notes"
   @mention_kinds ["contact", "event"]
 
-  # `(?<!@)` keeps plain wikilinks from also matching the tail of `@[[mention]]`.
+  # `(?<!@)` prevents a match of a plain wikilink on the tail of `@[[mention]]`.
   @wikilink_re ~r/(?<!@)\[\[([^\]\[]+)\]\]/
   @mention_re ~r/@\[\[([^\]\[]+)\]\]/
-  # `#tag` not preceded by a word char (so it ignores markdown headings, which
-  # are `#` + space) and made of letters/digits/_/-/ nested paths.
+  # Matches a `#tag` with no word char before it. As a result, it ignores the
+  # markdown headings, which are `#` + space. A tag contains letters, digits,
+  # `_`, `-` and `/` for nested paths.
   @tag_re ~r/(?<![\w#])#([\p{L}0-9_][\p{L}0-9_\/-]*)/u
 
-  @doc "Lists a user's notes (entries of kind `note`), ordered for tree building."
+  @doc "Lists the notes of a user (entries of kind `note`), sorted for the build of the tree."
   def list_notes(user_id) do
     notes_query(user_id)
     |> order_by([e], asc: e.external_id)
     |> Repo.all()
   end
 
-  @doc "Fetches one note, raising if it does not exist or belongs to another user."
+  @doc "Fetches one note. Raises if the note does not exist or belongs to another user."
   def get_note!(user_id, id) do
     notes_query(user_id)
     |> where([e], e.id == ^id)
@@ -76,9 +82,9 @@ defmodule Servant.Notes do
     note = get_note!(user_id, id)
     {title, folder, body} = extract(attrs, note)
 
-    # Captured before the write: links that currently resolve to this note are
-    # the ones to rewrite if the rename changes its keys (reconcile_inbound
-    # un-resolves them as part of after_write).
+    # Capture the ids before the write. The links that resolve to this note at
+    # this time are the links to rewrite if the rename changes its keys.
+    # reconcile_inbound removes their resolution as part of after_write.
     inbound_ids = inbound_source_ids(note)
 
     entry_attrs = %{
@@ -111,7 +117,7 @@ defmodule Servant.Notes do
   def delete_note(user_id, id) do
     note = get_note!(user_id, id)
 
-    # note_links rows are dropped/nilified via FK on_delete; just remove the entry.
+    # The FK on_delete drops or nilifies the note_links rows. Only remove the entry.
     case Repo.delete(note) do
       {:ok, note} ->
         broadcast(user_id, {:entry_deleted, note})
@@ -123,8 +129,8 @@ defmodule Servant.Notes do
   end
 
   @doc """
-  Returns the notes that link to `note` via a `[[wikilink]]` ("mentioned in"),
-  deduped and excluding the note itself.
+  Returns the notes that link to `note` through a `[[wikilink]]` ("mentioned
+  in"), without duplicates and without the note itself.
   """
   def backlinks(user_id, %Entry{} = note) do
     keys = note_keys(note)
@@ -146,7 +152,7 @@ defmodule Servant.Notes do
 
   @doc """
   Returns the notes that `@[[mention]]` the given entry (a contact or an
-  event), matched by resolved target id.
+  event). The match uses the resolved target id.
   """
   def mentioning(user_id, entry_id) do
     source_ids =
@@ -163,7 +169,7 @@ defmodule Servant.Notes do
     |> Repo.all()
   end
 
-  @doc "Extracts canonical `[[wikilink]]` targets from markdown body."
+  @doc "Extracts the canonical `[[wikilink]]` targets from a markdown body."
   def parse_wikilinks(body) when is_binary(body) do
     @wikilink_re
     |> Regex.scan(body, capture: :all_but_first)
@@ -174,7 +180,7 @@ defmodule Servant.Notes do
 
   def parse_wikilinks(_), do: []
 
-  @doc "Extracts canonical `@[[mention]]` targets (contacts/events) from markdown body."
+  @doc "Extracts the canonical `@[[mention]]` targets (contacts, events) from a markdown body."
   def parse_mentions(body) when is_binary(body) do
     @mention_re
     |> Regex.scan(body, capture: :all_but_first)
@@ -185,7 +191,7 @@ defmodule Servant.Notes do
 
   def parse_mentions(_), do: []
 
-  @doc "Extracts `#hashtag` tags from markdown body (headings are ignored)."
+  @doc "Extracts the `#hashtag` tags from a markdown body. Ignores the headings."
   def parse_tags(body) when is_binary(body) do
     @tag_re
     |> Regex.scan(body, capture: :all_but_first)
@@ -196,14 +202,16 @@ defmodule Servant.Notes do
   def parse_tags(_), do: []
 
   @doc """
-  Recomputes a note's outgoing `note_links`: drops the old rows and inserts one
-  per distinct `[[wikilink]]` target (kind `"wikilink"`, resolved to a note)
-  and per distinct `@[[mention]]` target (kind `"mention"`, resolved to a
-  contact/event entry). Bulk-write pattern mirrors `Servant.Data.create_entries/2`.
+  Calculates the outgoing `note_links` of a note again. Drops the old rows.
+  Then inserts one row for each distinct `[[wikilink]]` target (kind
+  `"wikilink"`, resolved to a note) and one row for each distinct
+  `@[[mention]]` target (kind `"mention"`, resolved to a contact or event
+  entry). The bulk-write pattern mirrors `Servant.Data.create_entries/2`.
   """
-  # `notes` may be a preloaded snapshot of the user's notes so a batch caller
-  # (rename propagation) resolves wikilink targets without reloading the whole
-  # vault once per source. `nil` loads it lazily for the single-note path.
+  # `notes` can be a preloaded snapshot of the notes of the user. A batch
+  # caller (rename propagation) then resolves the wikilink targets and does
+  # not load the full vault again for each source. `nil` loads the snapshot
+  # lazily for the path with one note.
   def sync_links(user_id, %Entry{} = note, notes \\ nil) do
     body = Map.get(note.data, "body", "")
     wikilinks = parse_wikilinks(body)
@@ -238,10 +246,11 @@ defmodule Servant.Notes do
 
   # ----- internals -----
 
-  # A note needs a non-blank title (and thus a non-empty slug). validate_required
-  # treats "" as missing, so it rejects empty titles before insert/update.
-  # The slug pre-check turns the entries unique-index violation into a friendly
-  # `:title` error (the index is still the backstop under concurrency).
+  # A note must have a non-blank title (and as a result a non-empty slug).
+  # validate_required sees "" as missing, so it rejects an empty title before
+  # the insert or the update. The slug pre-check changes the unique-index
+  # violation of the entries into a friendly `:title` error. The index stays
+  # the backstop under concurrency.
   defp note_changeset(entry, attrs, user_id) do
     entry
     |> Entry.changeset(attrs)
@@ -284,9 +293,10 @@ defmodule Servant.Notes do
 
   defp after_write(_user_id, error, _event), do: error
 
-  # Keep inbound link resolution accurate across creates and renames: links that
-  # used to resolve to this note but no longer match its keys are un-resolved,
-  # and links whose target matches its keys are pointed at it.
+  # Keep the resolution of the inbound links accurate after a create or a
+  # rename. A link that resolved to this note and no longer matches its keys
+  # loses its resolution. A link with a target that matches its keys points
+  # at this note.
   defp reconcile_inbound(user_id, %Entry{} = note) do
     keys = note_keys(note)
 
@@ -297,10 +307,11 @@ defmodule Servant.Notes do
     )
     |> Repo.update_all(set: [target_note_id: nil])
 
-    # Only claim keys this note can unambiguously own. The full path is always
-    # unique, but a bare `[[title]]` must stay unresolved when several notes
-    # share that title (same rule as resolve_targets); claiming it here would let
-    # the last-written same-named note steal every such backlink.
+    # Claim only the keys that this note owns without ambiguity. The full path
+    # is always unique. But a bare `[[title]]` must stay unresolved when
+    # several notes share that title (same rule as resolve_targets). If this
+    # code claims it, the last-written note with that name takes all such
+    # backlinks.
     claimable = claimable_keys(user_id, note)
 
     from(l in NoteLink,
@@ -331,8 +342,9 @@ defmodule Servant.Notes do
     |> Enum.all?(fn t -> canon(t || "") != canon_title end)
   end
 
-  # Ids of notes whose links currently resolve to `note` (including itself, so
-  # self-links get rewritten on rename too).
+  # Returns the ids of the notes with links that resolve to `note` at this
+  # time. This includes `note` itself, so that a rename also rewrites the
+  # self-links.
   defp inbound_source_ids(%Entry{} = note) do
     from(l in NoteLink,
       where: l.kind == "wikilink" and l.target_note_id == ^note.id,
@@ -342,10 +354,11 @@ defmodule Servant.Notes do
     |> Repo.all()
   end
 
-  # Obsidian-style rename propagation: when an update changes the note's keys,
-  # rewrite `[[wikilinks]]` in the notes that pointed at it (`[[title]]` links
-  # get the new title, `[[folder/title]]` links the new full path), then
-  # re-sync those sources' outgoing links so everything still resolves.
+  # Obsidian-style rename propagation. When an update changes the keys of the
+  # note, rewrite the `[[wikilinks]]` in the notes that pointed at it. The
+  # `[[title]]` links get the new title, and the `[[folder/title]]` links get
+  # the new full path. Then sync the outgoing links of those sources again, so
+  # that all the links still resolve.
   defp propagate_rename(_user_id, _old_note, _note, []), do: :ok
 
   defp propagate_rename(user_id, %Entry{} = old_note, %Entry{} = note, source_ids) do
@@ -365,9 +378,10 @@ defmodule Servant.Notes do
     else
       {:ok, rewritten} =
         Repo.transaction(fn ->
-          # Snapshot the vault once and reuse it for every source's link re-sync:
-          # rewriting only changes bodies (not titles/paths), so target keys are
-          # stable; avoids reloading all notes per source (was O(N × vault)).
+          # Take one snapshot of the vault and use it for the link re-sync of
+          # each source. The rewrite changes only bodies (not titles or
+          # paths), so the target keys are stable. This prevents a reload of
+          # all the notes for each source (it was O(N × vault)).
           all_notes = Repo.all(notes_query(user_id))
 
           all_notes
@@ -407,10 +421,10 @@ defmodule Servant.Notes do
     end)
   end
 
-  # Maps each target string to a note id when a matching note exists. A
-  # full-path key (`folder/title`) is unique per user and always wins; a bare
-  # `title` key only resolves when exactly one note carries it; otherwise the
-  # link is left unresolved rather than pointing at an arbitrary same-named note.
+  # Maps each target string to a note id when a note matches. A full-path key
+  # (`folder/title`) is unique for each user and always wins. A bare `title`
+  # key resolves only when exactly one note has it. If not, the link stays
+  # unresolved and does not point at an arbitrary note with the same name.
   defp resolve_targets(_user_id, [], _notes), do: %{}
 
   defp resolve_targets(user_id, targets, notes) do
@@ -436,9 +450,9 @@ defmodule Servant.Notes do
     |> Map.take(targets)
   end
 
-  # Maps each mention string to a contact/event entry id when one matches. A
-  # contact is mentionable by its display name (or bare title as fallback), an
-  # event by its title.
+  # Maps each mention string to the id of a contact or event entry when one
+  # matches. You can mention a contact by its display name (or by its bare
+  # title as a fallback) and an event by its title.
   defp resolve_mentions(_user_id, []), do: %{}
 
   defp resolve_mentions(user_id, names) do
@@ -454,9 +468,9 @@ defmodule Servant.Notes do
     |> Map.take(names)
   end
 
-  # vcard contact titles look like "Name - org - email" (entries created
-  # before July 2026 used " — "); the display name (or the title's first
-  # segment) is the handle people actually type.
+  # The titles of vcard contacts look like "Name - org - email" (the entries
+  # created before July 2026 used " — "). The display name (or the first
+  # segment of the title) is the handle that people type.
   defp mention_keys(title, display_name) do
     title = to_string(title)
 
@@ -478,8 +492,9 @@ defmodule Servant.Notes do
     [canon(note.title || ""), canon(full_path(folder, note.title || ""))] |> Enum.uniq()
   end
 
-  # On update, attrs may be partial: keys absent from `attrs` keep the note's
-  # current value (explicit "" still clears, since "" is truthy here).
+  # On update, attrs can be partial. A key that is absent from `attrs` keeps
+  # the current value of the note. An explicit "" still clears the value,
+  # because "" is truthy here.
   defp extract(attrs, note \\ nil) do
     title = attrs |> get(:title, note && note.title) |> to_string() |> String.trim()
 
@@ -497,8 +512,9 @@ defmodule Servant.Notes do
   defp get(attrs, key, default),
     do: Map.get(attrs, Atom.to_string(key)) || Map.get(attrs, key) || default
 
-  # Boolean-safe (the `get` helper above would swallow an explicit `false`):
-  # absent keeps the note's current flag, present coerces to a strict boolean.
+  # Boolean-safe: the `get` helper above loses an explicit `false`. An absent
+  # key keeps the current flag of the note. A present key becomes a strict
+  # boolean.
   defp favorite(attrs, note) do
     case Map.get(attrs, "favorite", Map.get(attrs, :favorite)) do
       nil -> (note && note.data["favorite"]) == true
@@ -506,10 +522,11 @@ defmodule Servant.Notes do
     end
   end
 
-  # Entry ids of files attached to the note (Files app entries). Absent keeps
-  # the current list; present replaces it wholesale, sanitized to a deduped
-  # list of ids. Resolution stays client-side: a stale id (deleted file)
-  # renders as missing and can simply be detached.
+  # Returns the entry ids of the files attached to the note (Files app
+  # entries). An absent key keeps the current list. A present key replaces the
+  # full list, sanitized to a list of ids without duplicates. The resolution
+  # stays client-side: a stale id (deleted file) renders as missing, and the
+  # user can detach it.
   defp attachments(attrs, note) do
     case Map.get(attrs, "attachments", Map.get(attrs, :attachments)) do
       nil ->
@@ -528,8 +545,9 @@ defmodule Servant.Notes do
   defp full_path("", title), do: title
   defp full_path(folder, title), do: folder <> "/" <> title
 
-  # Canonical form for slugs and link matching: trimmed, lower-cased, internal
-  # whitespace collapsed. Keeps slashes (path separators) and accents.
+  # Canonical form for slugs and for the match of links: trimmed, lower-cased,
+  # with collapsed internal whitespace. Keeps slashes (path separators) and
+  # accents.
   defp canon(str) do
     str
     |> to_string()

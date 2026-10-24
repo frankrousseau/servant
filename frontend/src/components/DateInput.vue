@@ -4,10 +4,10 @@ import flatpickr from 'flatpickr'
 import { pickerPlacement } from '../lib/dialog'
 import 'flatpickr/dist/flatpickr.min.css'
 
-// Themed replacement for <input type="date">: same "YYYY-MM-DD" string
-// contract, but the popup is flatpickr, styled by the global overrides in
-// style.css (the native calendar only follows light/dark, never the
-// palette).
+// A themed replacement for <input type="date">. It has the same "YYYY-MM-DD"
+// string contract, but the popup is flatpickr. The global overrides in
+// style.css give the popup its style. The native calendar follows only
+// light/dark, never the palette.
 const props = defineProps<{
   modelValue: string
   max?: string
@@ -25,8 +25,9 @@ onMounted(() => {
     dateFormat: 'Y-m-d',
     maxDate: props.max,
     defaultDate: props.modelValue || undefined,
-    // Let optional fields (filters, birthday, token expiry) be cleared by
-    // deleting the text; the native date input had a clear affordance too.
+    // Let the user clear an optional field (filters, birthday, token expiry):
+    // the user deletes the text. The native date input also had a clear
+    // affordance.
     allowInput: true,
     onChange: (_dates, str) => emit('update:modelValue', str),
     onClose: (_dates, str) => {

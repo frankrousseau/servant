@@ -3,14 +3,14 @@ import { addDays } from '../calendar/recurrence'
 
 import type { Entry } from '../types'
 
-// Pure logic for trackers. A tracker is an entry (kind tracker);
-// each day's observation is a tracker_log entry (one per tracker per day,
-// upserted). Four natures:
-//   check: did it happen (guitar practice), value 0/1
-//   count: how many (alcohol doses), incremented through the day
-//   value: a measured number (weight, minutes), set rather than incremented
-//   entry: computed from existing entries of a kind (commits per day),
-//          COUNT or SUM of a data field via /api/entries/aggregate; no logs
+// Pure logic for trackers. A tracker is an entry (kind tracker). The
+// observation of each day is a tracker_log entry (one for each tracker and
+// each day, upserted). There are four natures:
+//   check: did it occur (guitar practice), value 0/1
+//   count: how many (alcohol doses), incremented during the day
+//   value: a measured number (weight, minutes), set and not incremented
+//   entry: computed from existing entries of a kind (commits for each day),
+//          COUNT or SUM of a data field through /api/entries/aggregate, no logs
 
 export type TrackerType = 'check' | 'count' | 'value' | 'entry'
 
@@ -42,8 +42,8 @@ const PALETTE = [
   '#5ca0ff'
 ]
 
-// Stable default color per name (djb2), same scheme as calendar agendas;
-// an explicit data.color wins.
+// Returns a stable default color for each name (djb2), with the same scheme
+// as the calendar agendas. An explicit data.color has priority.
 export function trackerColor(name: string, stored?: string): string {
   if (stored) return stored
   let hash = 5381
@@ -77,7 +77,8 @@ export function trackerFromEntry(entry: Entry): Tracker {
   }
 }
 
-// date -> value from /api/entries/aggregate day buckets (already in user tz).
+// Maps date -> value from the day buckets of /api/entries/aggregate. The
+// buckets are already in the time zone of the user.
 export function aggregateByDate(
   rows: { bucket: string; value: number }[]
 ): Map<string, number> {
@@ -89,8 +90,8 @@ export function aggregateByDate(
   return byDate
 }
 
-// date (user tz) -> value, from that tracker's logs. Later observations of
-// the same day win (occurred_at order).
+// Maps date (user time zone) -> value, from the logs of that tracker. The
+// later observations of the same day have priority (occurred_at order).
 export function logsByDate(
   logs: Entry[],
   trackerId: string
@@ -107,8 +108,8 @@ export function logsByDate(
   return byDate
 }
 
-// Consecutive days with a positive value, ending today; a not-yet-logged
-// today does not break the streak (the day is not over).
+// Counts the consecutive days with a positive value, up to today. If today
+// has no log yet, this does not break the streak (the day is not complete).
 export function streak(byDate: Map<string, number>, today: string): number {
   let day = today
   if (!((byDate.get(day) ?? 0) > 0)) day = addDays(day, -1)
@@ -120,7 +121,7 @@ export function streak(byDate: Map<string, number>, today: string): number {
   return count
 }
 
-// Sum over the last `days` days, today included.
+// Returns the sum of the last `days` days, today included.
 export function sumLastDays(
   byDate: Map<string, number>,
   today: string,
@@ -131,7 +132,7 @@ export function sumLastDays(
   return total
 }
 
-// Most recent logged value on or before today (for measures).
+// Returns the most recent logged value on or before today (for measures).
 export function lastValue(
   byDate: Map<string, number>,
   today: string
@@ -146,12 +147,14 @@ export function lastValue(
 export type RollupPeriod = 'week' | 'month' | 'year'
 
 export interface RollupRow {
-  // 'YYYY-MM-DD' Monday for weeks, 'YYYY-MM' for months, 'YYYY' for years;
-  // same keys as the backend aggregate buckets, lexicographically sortable
+  // The 'YYYY-MM-DD' of the Monday for weeks, 'YYYY-MM' for months, 'YYYY' for
+  // years. These are the same keys as the aggregate buckets of the backend.
+  // They sort lexicographically.
   bucket: string
-  // per-type semantics: check = days done, count = sum, value = mean
+  // The meaning depends on the type: check = days done, count = sum,
+  // value = mean.
   value: number
-  // logged days contributing (0 for zero-filled gap rows)
+  // The number of logged days that contribute (0 for zero-filled gap rows).
   days: number
 }
 
@@ -171,8 +174,9 @@ export function nextBucket(bucket: string, period: RollupPeriod): string {
   return String(Number(bucket) + 1)
 }
 
-// Every bucket from the earliest row up to bucketOf(today), gap buckets
-// zero-filled so quiet periods stay visible. Sorted ascending.
+// Returns every bucket from the earliest row up to bucketOf(today). The gap
+// buckets are zero-filled, to keep the quiet periods visible. The result is
+// sorted in ascending order.
 export function fillBuckets(
   rows: RollupRow[],
   period: RollupPeriod,
@@ -189,9 +193,10 @@ export function fillBuckets(
   return out
 }
 
-// Rolls a tracker's byDate map up into periods. check counts done days,
-// count sums, value averages over logged days (a weight logged twice a
-// week must not sum). Future-dated logs are excluded, like heatmapWeeks.
+// Rolls the byDate map of a tracker up into periods. check counts the done
+// days, count adds the values and value averages over the logged days (a
+// weight logged two times in a week must not sum). The function excludes the
+// logs with a future date, as heatmapWeeks does.
 export function rollup(
   byDate: Map<string, number>,
   type: TrackerType,
@@ -226,20 +231,20 @@ export function rollup(
 export interface HeatCell {
   date: string
   value: number
-  // 0 = nothing, 1..4 = intensity (scaled to the window's max for counters)
+  // 0 = nothing, 1..4 = intensity (scaled to the max of the window for counters)
   level: number
 }
 
-// Monday of the week containing `date` (Mon-first weeks).
+// Returns the Monday of the week that contains `date` (Mon-first weeks).
 export function weekMonday(date: string): string {
   const [year, month, day] = date.split('-').map(Number)
   const weekday = (new Date(Date.UTC(year, month - 1, day)).getUTCDay() + 6) % 7 // Mon=0
   return addDays(date, -weekday)
 }
 
-// Monday-first column per week, `weeks` columns ending with the week of
-// `endDate` (today by default, earlier when browsing the past); days after
-// today are null (not yet lived).
+// Returns one Monday-first column for each week. There are `weeks` columns
+// and the last one is the week of `endDate` (today by default, earlier when
+// the user browses the past). The days after today are null (not yet lived).
 export function heatmapWeeks(
   byDate: Map<string, number>,
   today: string,

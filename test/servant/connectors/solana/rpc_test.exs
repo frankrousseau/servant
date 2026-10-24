@@ -32,8 +32,8 @@ defmodule Servant.Connectors.Solana.RPCTest do
     assert RPC.call("getTransaction", ["bad"]) == {:error, error}
   end
 
-  # Public RPC nodes answer 200 with a 429 error object; that must be retried,
-  # not surfaced as a permanent failure.
+  # The public RPC nodes answer 200 with a 429 error object. The client must
+  # retry this answer and not report it as a permanent failure.
   test "retries a rate limit reported inside a 200 body" do
     Req.Test.expect(Servant.HTTP, fn conn ->
       Req.Test.json(conn, %{"error" => %{"code" => 429, "message" => "Too many requests"}})

@@ -98,8 +98,8 @@ defmodule Servant.Connectors.SolanaConnectorTest do
       }
     end
 
-    # One stub for the whole RPC conversation: signatures first, then one
-    # getTransaction per signature.
+    # One stub for the full RPC conversation: the signatures first, then one
+    # getTransaction for each signature.
     defp stub_rpc(signatures, transactions) do
       Req.Test.stub(Servant.HTTP, fn conn ->
         {:ok, raw, conn} = Plug.Conn.read_body(conn)
@@ -121,7 +121,7 @@ defmodule Servant.Connectors.SolanaConnectorTest do
     end
 
     test "builds an entry per transaction, oldest first, and advances the cursor" do
-      # getSignaturesForAddress returns newest-first
+      # getSignaturesForAddress returns the newest signatures first.
       stub_rpc(
         [%{"signature" => "sigNew", "err" => nil}, %{"signature" => "sigOld", "err" => nil}],
         %{"sigNew" => sol_tx("sigNew"), "sigOld" => sol_tx("sigOld")}
@@ -177,8 +177,9 @@ defmodule Servant.Connectors.SolanaConnectorTest do
       assert state.last_signature == "sigGone"
     end
 
-    # Regression: advancing past a transaction that failed to fetch would make
-    # the next sync (which only asks for newer signatures) skip it forever.
+    # Regression: if the cursor advances past a transaction with a failed
+    # fetch, the next sync skips it forever. The next sync only asks for newer
+    # signatures.
     test "a fetch error halts the batch and leaves the cursor behind" do
       Req.Test.stub(Servant.HTTP, fn conn ->
         {:ok, raw, conn} = Plug.Conn.read_body(conn)

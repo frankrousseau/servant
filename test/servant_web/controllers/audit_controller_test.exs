@@ -26,7 +26,7 @@ defmodule ServantWeb.AuditControllerTest do
     end
 
     test "403 for a non-admin user" do
-      # setup already created the first user (the admin); this one is not.
+      # setup already created the first user (the admin). This user is not an admin.
       non_admin = user_fixture()
       token = ServantWeb.Auth.sign_token(ServantWeb.Endpoint, non_admin)
 
@@ -41,8 +41,8 @@ defmodule ServantWeb.AuditControllerTest do
 
   describe "logs" do
     test "returns access logs by default", %{conn: conn} do
-      # This very request goes through the AccessLog plug, so after a second
-      # call the first one must be visible in the buffer.
+      # This request itself goes through the AccessLog plug. As a result, after
+      # a second call, the first call must be visible in the buffer.
       get(conn, "/api/audit/logs")
       _ = :sys.get_state(Servant.Audit.LogBuffer)
 

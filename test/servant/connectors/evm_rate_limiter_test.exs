@@ -3,7 +3,7 @@ defmodule Servant.Connectors.EVM.RateLimiterTest do
 
   alias Servant.Connectors.EVM.RateLimiter
 
-  # The reservation logic alone: wait/1 is a no-op in tests (no sleeping).
+  # Only the reservation logic: wait/1 is a no-op in the tests (no sleep).
   defp reserve(state, key), do: RateLimiter.handle_call({:reserve, key}, self(), state)
 
   test "back-to-back calls on one key are spaced, other keys are independent" do

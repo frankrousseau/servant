@@ -49,7 +49,7 @@ defmodule ServantWeb.UploadControllerTest do
 
     assert %{"path" => path} = json_response(conn, 200)
     assert String.ends_with?(path, ".heic")
-    # Bogus bytes: thumbnail/display generation must fail gracefully.
+    # Bogus bytes: the thumbnail/display generation must fail gracefully.
     refute Map.has_key?(json_response(conn, 200), "thumb_path")
     refute Map.has_key?(json_response(conn, 200), "display_path")
   end
@@ -60,7 +60,7 @@ defmodule ServantWeb.UploadControllerTest do
   end
 
   test "rejects a file over the size limit", %{conn: conn} do
-    # Shrink the limit so the test doesn't have to write a 1GB file.
+    # Decrease the limit so that a 1GB file is not necessary for the test.
     Application.put_env(:servant, :max_upload_size, 1_000)
     on_exit(fn -> Application.delete_env(:servant, :max_upload_size) end)
 

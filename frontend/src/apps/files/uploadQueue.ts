@@ -3,9 +3,9 @@ import { createUploadQueue } from '../../lib/uploadQueue'
 
 export type { UploadProgress } from '../../lib/uploadQueue'
 
-// Files upload pipeline on the shared module-level queue: uploads survive
-// navigating to another app. The target folder is captured per file at
-// enqueue time.
+// Upload pipeline of Files on the shared module-level queue: the uploads
+// survive a navigation to another app. The pipeline captures the target
+// folder of each file at enqueue time.
 
 type FilesApi = AppContext['api']
 

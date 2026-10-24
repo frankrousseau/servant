@@ -1,11 +1,12 @@
-// Crossing reduction for the relations graph. A force layout settles wherever
-// its seed leads, often with a branch folded back over its neighbours. Every
-// branch hanging off a contact (the nodes that reach the rest only through it:
-// a leaf, a chain, a small cycle) is tried at other angles around that contact,
-// the opposite side included, and kept wherever it crosses fewer edges.
-// ponytail: greedy, straight segments stand in for the shallow arcs, a few
-// rounds max; enough for an address book, a proper planarity pass would be
-// the upgrade if graphs ever reach thousands of relations.
+// Crossing reduction for the relations graph. A force layout settles where its
+// seed leads, and a branch often folds back over its neighbors. A branch of a
+// contact is the set of nodes that reach the rest only through that contact: a
+// leaf, a chain, a small cycle. This pass tries each branch at other angles
+// around its contact, the opposite side included. It keeps the angle where the
+// branch crosses fewer edges.
+// ponytail: this pass is greedy. Straight segments replace the shallow arcs.
+// It does a few rounds at most. That is sufficient for an address book. If
+// graphs get to thousands of relations, the upgrade is a proper planarity pass.
 
 export interface Point {
   id: string
@@ -19,7 +20,8 @@ export interface Link {
 
 const ROTATIONS = [1, 2, 3, 4, 5, 6, 7].map(step => (step * Math.PI) / 4)
 
-// Proper intersection of segments ab and cd (shared endpoints do not count).
+// Finds if the segments ab and cd have a proper intersection. Shared endpoints
+// do not count.
 function segmentsCross(a: Point, b: Point, c: Point, d: Point): boolean {
   if (a === c || a === d || b === c || b === d) return false
   const orient = (p: Point, q: Point, r: Point) =>
@@ -30,7 +32,8 @@ function segmentsCross(a: Point, b: Point, c: Point, d: Point): boolean {
   )
 }
 
-// Crossings involving at least one of `subset` (every crossing when omitted).
+// Counts the crossings that include at least one link of `subset`. Without
+// `subset`, it counts every crossing.
 export function crossingCount(
   nodes: Map<string, Point>,
   links: Link[],
@@ -43,7 +46,7 @@ export function crossingCount(
     const b = nodes.get(link.to)!
     for (const other of links) {
       if (other === link) continue
-      // A pair inside the subset is met twice; count it once.
+      // The loop meets a pair inside the subset twice. Count it once.
       if (inSubset.has(other) && links.indexOf(other) < links.indexOf(link))
         continue
       if (segmentsCross(a, b, nodes.get(other.from)!, nodes.get(other.to)!))
@@ -53,8 +56,9 @@ export function crossingCount(
   return count
 }
 
-// Groups of nodes that hang off `pivot`: the connected pieces left once it is
-// removed, minus the largest one (the rest of the graph stays put).
+// Returns the groups of nodes that hang off `pivot`. These are the connected
+// pieces that stay when you remove `pivot`, minus the largest one. The largest
+// one is the rest of the graph, and it does not move.
 function branchesOf(pivot: string, adjacency: Map<string, string[]>) {
   const seen = new Set([pivot])
   const pieces: string[][] = []

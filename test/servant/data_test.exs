@@ -49,7 +49,7 @@ defmodule Servant.DataTest do
 
     test "delete_entry cannot delete another user's entry", %{user_a: a, b1: b1} do
       assert_raise Ecto.NoResultsError, fn -> Data.delete_entry(a.id, b1.id) end
-      # B's entry still exists for B
+      # The entry of B still exists for B.
       assert Data.get_entry!(b1.user_id, b1.id).id == b1.id
     end
 
@@ -59,12 +59,12 @@ defmodule Servant.DataTest do
       # A keeps the photo, B keeps their task.
       assert a.id |> Data.list_entries() |> Enum.map(& &1.id) == [a2.id]
       assert Data.get_entry!(b.id, b1.id).id == b1.id
-      # Nothing left to delete: returns 0.
+      # There is nothing left to delete: the function returns 0.
       assert Data.delete_entries_matching(a.id, %{"kind" => "task"}) == 0
     end
 
     test "filters never cross the user boundary", %{user_a: a, a1: a1, b1: b1} do
-      # B has a "task" too, but A's task filter must surface only A's.
+      # B also has a "task", but the task filter of A must return only the tasks of A.
       ids = a.id |> Data.list_entries(%{"kind" => "task"}) |> Enum.map(& &1.id)
       assert ids == [a1.id]
       refute b1.id in ids
@@ -93,7 +93,7 @@ defmodule Servant.DataTest do
     test "dedupes on (user, source, external_id) via on_conflict", %{user: user} do
       dup = %{"kind" => "note", "source" => "bulk", "external_id" => "same", "title" => "x"}
       assert {:ok, 1} = Data.create_entries(user.id, [dup, dup])
-      # re-running inserts nothing new
+      # A second run inserts nothing new.
       assert {:ok, 0} = Data.create_entries(user.id, [dup])
       assert Data.count_entries(user.id) == 1
     end

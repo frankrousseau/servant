@@ -3,13 +3,14 @@ defmodule ServantWeb.SpaController do
 
   use ServantWeb, :controller
 
-  # `script-src 'self'` blocks injected/inline scripts (the payoff of removing
-  # inline handlers in). `style-src` keeps 'unsafe-inline' because the
-  # apps and Vue set inline style attributes; that's a far smaller risk than
-  # inline scripts. The HEIC-to-JPEG converter (heic-to) runs libheif in a
-  # blob: worker, hence `worker-src blob:`; `wasm-unsafe-eval` permits wasm
-  # compilation only (never JS eval) and engines differ on requiring it.
-  # Only applies in production (Vite serves index.html in dev).
+  # `script-src 'self'` blocks injected and inline scripts (the payoff of the
+  # removal of the inline handlers). `style-src` keeps 'unsafe-inline' because
+  # the apps and Vue set inline style attributes. That is a much smaller risk
+  # than inline scripts. The HEIC-to-JPEG converter (heic-to) runs libheif in
+  # a blob: worker, and `worker-src blob:` is there for that reason.
+  # `wasm-unsafe-eval` lets only wasm compilation run (never JS eval). Some
+  # engines must have it and others do not.
+  # This CSP applies only in production (Vite serves index.html in dev).
   @csp Enum.join(
          [
            "default-src 'self'",
@@ -18,8 +19,8 @@ defmodule ServantWeb.SpaController do
            "style-src 'self' 'unsafe-inline'",
            "img-src 'self' data:",
            "font-src 'self'",
-           # Crypto spot prices (finance Cryptos tab): CoinGecko for majors,
-           # DexScreener search for everything else. Both are public, no key.
+           # Crypto spot prices (finance Cryptos tab): CoinGecko for the majors,
+           # DexScreener search for all the others. Both are public and use no key.
            "connect-src 'self' https://api.coingecko.com https://api.dexscreener.com",
            "object-src 'none'",
            "base-uri 'self'",

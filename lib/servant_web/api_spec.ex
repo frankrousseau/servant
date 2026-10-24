@@ -1,5 +1,5 @@
 defmodule ServantWeb.ApiSpec do
-  @moduledoc "OpenAPI specification, served at /api/openapi.json (SwaggerUI at /api/docs)."
+  @moduledoc "OpenAPI specification. /api/openapi.json serves it and /api/docs serves SwaggerUI."
 
   @behaviour OpenApiSpex.OpenApi
 

@@ -101,8 +101,9 @@ defmodule ServantWeb.AuthController do
   )
 
   @doc """
-  Public auth capabilities, so the SPA can hide the register page/link when
-  the operator closed self-registration (REGISTRATION_ENABLED=false).
+  Returns the public auth capabilities. With them, the SPA can hide the
+  register page and link when the operator closed self-registration
+  (REGISTRATION_ENABLED=false).
   """
   def config(conn, _params) do
     json(conn, %{registration_enabled: registration_enabled?()})
@@ -159,8 +160,8 @@ defmodule ServantWeb.AuthController do
             Throttle.reset(key)
 
             if Accounts.totp_enabled?(user) do
-              # Password checked out but the session only opens after the TOTP
-              # step: hand back a short-lived ticket instead of a token.
+              # The password is correct, but the session opens only after the TOTP
+              # step. Return a short-lived ticket and not a token.
               ticket = Phoenix.Token.sign(conn, "totp pending", user.id)
               json(conn, %{requires_totp: true, ticket: ticket})
             else
@@ -209,7 +210,8 @@ defmodule ServantWeb.AuthController do
 
   # ----- TOTP (two-factor authentication) -----
 
-  # Second login step: the ticket proves the password was just verified.
+  # Second login step: the ticket proves that the password was correct a short
+  # time before.
   @totp_ticket_max_age 300
 
   operation(:totp_verify,
@@ -248,7 +250,7 @@ defmodule ServantWeb.AuthController do
         too_many(conn, retry_after)
 
       _ ->
-        # Count the bad code against the user's ticket, throttling guesses.
+        # Count the bad code against the ticket of the user, to throttle guesses.
         with {:ok, user_id} <-
                Phoenix.Token.verify(conn, "totp pending", ticket, max_age: @totp_ticket_max_age) do
           Throttle.record_failure("totp:" <> user_id)
@@ -266,8 +268,8 @@ defmodule ServantWeb.AuthController do
     |> json(%{errors: %{detail: "ticket and code are required"}})
   end
 
-  # Enrollment step 1: a fresh secret, never persisted at this point. It
-  # travels back inside a signed payload so confirm can stay stateless.
+  # Enrollment step 1: a new secret, which is not persisted at this point. It
+  # goes back to the client in a signed payload, so confirm can stay stateless.
   @totp_setup_max_age 600
 
   operation(:totp_setup,
@@ -302,7 +304,7 @@ defmodule ServantWeb.AuthController do
     })
   end
 
-  # Enrollment step 2: prove the authenticator holds the secret.
+  # Enrollment step 2: prove that the authenticator holds the secret.
   operation(:totp_confirm,
     summary: "Confirm TOTP enrollment",
     description: "Session-only. Proves the authenticator holds the secret from /auth/totp/setup.",
@@ -386,8 +388,9 @@ defmodule ServantWeb.AuthController do
   )
 
   def logout(conn, _params) do
-    # Bump the user's token_version so the token just used (and any leaked
-    # copy) stops verifying everywhere, not only in this browser's cookie.
+    # Increment the token_version of the user. Then the token of this request
+    # (and each leaked copy) is invalid everywhere, not only in the cookie of
+    # this browser.
     Accounts.bump_token_version(conn.assigns.current_user)
 
     conn
@@ -440,9 +443,9 @@ defmodule ServantWeb.AuthController do
   def me(conn, _params) do
     user = conn.assigns.current_user
 
-    # Also hand back a fresh token: after a reload the SPA has no token in memory
-    # (it isn't stored in localStorage anymore) and uses this (authenticated via
-    # the HttpOnly cookie) to open the realtime socket.
+    # Also return a new token. After a reload, the SPA has no token in memory
+    # (localStorage does not store it anymore). The SPA uses this response
+    # (authenticated through the HttpOnly cookie) to open the realtime socket.
     json(conn, %{
       token: Auth.sign_token(conn, user),
       data: %{

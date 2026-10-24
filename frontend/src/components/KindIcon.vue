@@ -18,10 +18,11 @@ import {
 
 import { kindColor } from '../lib/kind'
 
-// Decorative by default (the icon usually sits next to the kind's name);
-// pass a label when the icon stands alone so assistive tech announces it.
-// `plain` drops the kind-colored tile and draws the glyph in the current
-// text color, for hosts that theme the surrounding badge themselves.
+// The icon is decorative by default, because it is usually next to the name
+// of the kind. Pass a label when the icon is alone, so that assistive tech
+// announces it. `plain` drops the kind-colored tile and draws the glyph in
+// the current text color. It is for the hosts that give a theme to the badge
+// around the icon themselves.
 const props = withDefaults(
   defineProps<{
     kind: string
@@ -32,8 +33,8 @@ const props = withDefaults(
   { size: 16, label: undefined, plain: false }
 )
 
-// The lucide component per kind is render-layer knowledge and stays here;
-// the color comes from the shared kind palette in lib/kind.ts.
+// The lucide component for each kind is knowledge of the render layer and
+// stays here. The color comes from the shared kind palette in lib/kind.ts.
 const iconMap: Record<string, typeof ArrowLeftRight> = {
   transaction: ArrowLeftRight,
   bank_tx: Landmark,

@@ -1,5 +1,5 @@
 defmodule Servant.ApiTokens.ApiToken do
-  @moduledoc "A scoped, individually revocable API token. Only the SHA-256 hash is stored."
+  @moduledoc "A scoped, individually revocable API token. Servant stores only the SHA-256 hash."
 
   use Ecto.Schema
 
@@ -22,8 +22,8 @@ defmodule Servant.ApiTokens.ApiToken do
     timestamps(type: :utc_datetime)
   end
 
-  # user_id, token_hash and prefix are set programmatically by the context,
-  # never cast from params.
+  # The context sets user_id, token_hash and prefix programmatically. The
+  # changeset never casts them from params.
   def changeset(api_token, attrs) do
     api_token
     |> cast(attrs, [:name, :scopes, :expires_at])
@@ -43,7 +43,7 @@ defmodule Servant.ApiTokens.ApiToken do
     end)
   end
 
-  @doc "JSON shape for the management API. Never includes the hash."
+  @doc "Returns the JSON shape for the management API. The shape never includes the hash."
   def to_json(%__MODULE__{} = t) do
     %{
       id: t.id,

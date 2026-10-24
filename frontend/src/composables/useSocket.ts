@@ -13,17 +13,18 @@ export function useSocket() {
   const entryChangeCallbacks: Array<(entry: Entry) => void> = []
   const bulkChangeCallbacks: Array<() => void> = []
 
-  // Both subscriptions return an unsubscribe, for callers that outlive a
-  // single consumer (the app host keeps one socket while apps come and go).
+  // The two subscriptions return an unsubscribe function, for the callers
+  // that live longer than a single consumer. The app host keeps one socket
+  // while apps come and go.
   function onEntryChange(cb: (entry: Entry) => void) {
     entryChangeCallbacks.push(cb)
     return () => remove(entryChangeCallbacks, cb)
   }
 
-  // Fires on the aggregated "entries_changed" signal (connector syncs / bulk
-  // imports), which the server emits once for many rows instead of one
-  // entry_change per row. Consumers should refetch here rather than relying on
-  // per-entry events (which never arrive for bulk writes).
+  // Fires on the aggregated "entries_changed" signal (connector syncs, bulk
+  // imports). The server emits it one time for many rows, and not one
+  // entry_change for each row. Consumers must refetch here. They must not
+  // rely on the events for each entry, which never arrive for bulk writes.
   function onBulkChange(cb: () => void) {
     bulkChangeCallbacks.push(cb)
     return () => remove(bulkChangeCallbacks, cb)
@@ -44,9 +45,10 @@ export function useSocket() {
       params: { token: auth.token }
     })
 
-    // A silently dead realtime channel (expired token mid-session, server error)
-    // leaves the UI showing stale data with no signal; surface it instead.
-    // phoenix's bundled types omit Socket.onError, but it exists at runtime.
+    // A realtime channel can die with no signal (expired token in the middle
+    // of a session, server error). The UI then shows stale data. Report the
+    // failure. The bundled types of phoenix omit Socket.onError, but it
+    // exists at runtime.
     ;(socket as unknown as { onError(cb: () => void): void }).onError(() =>
       reportClientError('socket', 'websocket connection error')
     )
@@ -90,9 +92,9 @@ export function useSocket() {
     }
   }
 
-  // Connect only once both the token AND the user are available. On a reload
-  // the user is populated asynchronously (auth.hydrate), so we must react to it
-  // and not just to the token.
+  // Connect only when the token AND the user are both available. On a reload,
+  // auth.hydrate populates the user asynchronously. As a result, the watch
+  // must react to the user and not only to the token.
   watch(
     () => auth.isAuthenticated && !!auth.user,
     ready => {
@@ -113,9 +115,10 @@ export function useSocket() {
 }
 
 /**
- * Wraps a zero-arg callback so bursts of calls collapse into a single trailing
- * invocation after `delay` ms of quiet. Use to coalesce refetches driven by
- * many socket events (a connector sync fires one event per entry).
+ * Wraps a zero-arg callback so that a burst of calls becomes a single
+ * trailing call after `delay` ms of quiet. Use it to merge the refetches
+ * that many socket events trigger (a connector sync fires one event for each
+ * entry).
  */
 export function debounce(fn: () => void, delay = 400): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null

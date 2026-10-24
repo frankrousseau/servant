@@ -1,10 +1,12 @@
 import type { Entry } from '../types'
 
-// Pure logic for face recognition. Detection (faceScan.ts) stores faces on
-// photo entries as data.faces; here we cluster the unnamed ones and match
-// clusters against people already confirmed, so naming one cluster tags
-// every photo it appears in. Embeddings are face-api 128-d descriptors:
-// two shots of the same person sit within euclidean distance ~0.5.
+// Pure logic for face recognition. The detection (faceScan.ts) stores the
+// faces on the photo entries as data.faces. This module clusters the unnamed
+// faces and matches the clusters against the confirmed people. As a result,
+// when the user names one cluster, the name tags every photo that the
+// cluster appears in. The embeddings are face-api 128-d descriptors. Two
+// shots of the same person are at a euclidean distance of approximately 0.5
+// or less.
 
 export interface StoredFace {
   box: number[] // [x, y, w, h] relative to the image (0..1)
@@ -13,8 +15,9 @@ export interface StoredFace {
 }
 
 export const FACE_MATCH_DISTANCE = 0.5
-// References kept per person when matching (newest first is fine; more adds
-// noise and cost, not accuracy).
+// The number of references kept for each person for the match. It is
+// satisfactory to keep the newest ones first. More references add noise and
+// cost, not accuracy.
 const MAX_REFS = 20
 
 export function faceDistance(a: number[], b: number[]): number {
@@ -31,14 +34,15 @@ export function facesOf(photo: Entry): StoredFace[] {
   return Array.isArray(faces) ? (faces as StoredFace[]) : []
 }
 
-// A face plus where it lives, so naming it can update its photo entry.
+// A face together with its location. The location lets the code update the
+// photo entry when the user names the face.
 export interface FaceRef {
   photoId: string
   index: number
   face: StoredFace
 }
 
-// person_id -> reference embeddings, from faces already confirmed.
+// Maps each person_id to its reference embeddings, from the confirmed faces.
 export function namedReferences(photos: Entry[]): Map<string, number[][]> {
   const refs = new Map<string, number[][]>()
   for (const p of photos) {
@@ -57,12 +61,14 @@ export function namedReferences(photos: Entry[]): Map<string, number[][]> {
 export interface FaceCluster {
   faces: FaceRef[]
   centroid: number[]
-  // Closest known person within FACE_MATCH_DISTANCE, if any.
+  // The nearest known person at a distance less than FACE_MATCH_DISTANCE, if
+  // there is one.
   suggestedPersonId?: string
 }
 
-// Greedy centroid clustering of the unnamed faces: order-dependent and
-// O(faces * clusters), plenty at personal-library scale.
+// Greedy centroid clustering of the unnamed faces. The result depends on the
+// order and the cost is O(faces * clusters). This is sufficient for the size
+// of a personal library.
 export function clusterFaces(
   photos: Entry[],
   refs: Map<string, number[][]>

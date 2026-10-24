@@ -1,12 +1,13 @@
 defmodule Servant.Connectors.SolanaConnector do
   @moduledoc """
   Connector for Solana wallet transactions.
-  Tracks SOL and SPL token transfers for a given wallet address
-  using incremental sync via the last seen transaction signature.
+  Tracks the SOL and SPL token transfers for a given wallet address.
+  Uses an incremental sync through the signature of the last seen transaction.
 
-  The wallet address may be a `.sol` domain (Solana Name Service); it is
-  resolved to the owner's pubkey at sync time and cached for the worker's
-  lifetime, so a re-pointed domain is picked up on the next restart.
+  The wallet address can be a `.sol` domain (Solana Name Service). The
+  connector resolves it to the pubkey of the owner at sync time and caches the
+  result for the lifetime of the worker. As a result, the next restart picks
+  up a domain that points to a new pubkey.
   """
 
   use Servant.Connectors.Connector
@@ -20,8 +21,8 @@ defmodule Servant.Connectors.SolanaConnector do
   @tx_fetch_delay_ms 1_000
   @sigs_per_page 1000
   @max_pages 10
-  # Cap transactions processed per sync. At ~1s/tx (rate-limit throttling), an
-  # unbounded backfill would block the worker GenServer for many minutes. The
+  # Cap the transactions processed per sync. At ~1s/tx (rate-limit throttling),
+  # an unbounded backfill blocks the worker GenServer for many minutes. The
   # persisted `last_signature` cursor lets the next scheduled sync continue.
   @max_tx_per_sync 50
 
@@ -75,8 +76,8 @@ defmodule Servant.Connectors.SolanaConnector do
   end
 
   @doc false
-  # Public for tests. Maps the configured address to the actual wallet pubkey:
-  # `.sol` domains are resolved through SNS, plain addresses pass through.
+  # Public for tests. Maps the configured address to the real wallet pubkey.
+  # SNS resolves the `.sol` domains. Plain addresses pass through.
   def resolve_wallet(%{resolved_address: address} = state) when is_binary(address),
     do: {:ok, state}
 
@@ -91,8 +92,8 @@ defmodule Servant.Connectors.SolanaConnector do
     end
   end
 
-  # ponytail: resolves via the public SNS SDK proxy (one GET, no crypto);
-  # switch to on-chain PDA derivation through the RPC if the proxy goes away.
+  # ponytail: resolves through the public SNS SDK proxy (one GET, no crypto).
+  # Change to on-chain PDA derivation through the RPC if the proxy goes away.
   # The old sns-sdk-proxy.bonfida.workers.dev host died with a Cloudflare
   # 1042 page when SNS moved from Bonfida to sns.id.
   defp resolve_sol_domain(domain) do
@@ -118,8 +119,8 @@ defmodule Servant.Connectors.SolanaConnector do
         {:ok, [], state}
 
       {:ok, all_signatures} ->
-        # Process oldest-first for consistent state, bounded per sync so the
-        # worker isn't blocked for ~1s/tx during a large backfill.
+        # Process the oldest first for a consistent state. Bound the count per
+        # sync so that a large backfill does not block the worker for ~1s/tx.
         all_signatures = all_signatures |> Enum.reverse() |> Enum.take(@max_tx_per_sync)
 
         {entries, new_last_sig, _errors} =
@@ -128,7 +129,7 @@ defmodule Servant.Connectors.SolanaConnector do
                                                                                errors} ->
             signature = sig_info["signature"]
 
-            # Skip failed transactions
+            # Skip failed transactions.
             if sig_info["err"] != nil do
               {:cont, {acc, signature, errors}}
             else
@@ -144,10 +145,11 @@ defmodule Servant.Connectors.SolanaConnector do
                 {:error, reason} ->
                   Logger.warning("Failed to fetch tx #{signature}: #{inspect(reason)}")
                   # Halt at the first fetch error and keep the cursor at the last
-                  # successfully-processed signature. Continuing would let a later
-                  # success advance last_signature *past* this failed tx, which the
-                  # next sync (querying only signatures newer than the cursor)
-                  # would then never re-fetch: silent, permanent data loss.
+                  # signature processed successfully. If the loop continues, a
+                  # later success moves last_signature *past* this failed tx. The
+                  # next sync queries only the signatures newer than the cursor,
+                  # so it never fetches this tx again. The result is a silent,
+                  # permanent data loss.
                   {:halt, {acc, last_sig, errors + 1}}
               end
             end
@@ -161,7 +163,7 @@ defmodule Servant.Connectors.SolanaConnector do
     end
   end
 
-  # Paginate through all signatures since last_signature
+  # Paginate through all the signatures after last_signature.
   defp fetch_all_signatures(address, last_signature, rpc_opts) do
     fetch_all_signatures(address, last_signature, rpc_opts, nil, [], 0)
   end
@@ -189,7 +191,7 @@ defmodule Servant.Connectors.SolanaConnector do
           # Last page
           {:ok, new_acc}
         else
-          # More pages available; use the last signature as cursor
+          # More pages are available. Use the last signature as the cursor.
           last = List.last(signatures)
           Servant.HTTP.throttle(500)
 
@@ -207,7 +209,7 @@ defmodule Servant.Connectors.SolanaConnector do
         if acc == [] do
           {:error, reason}
         else
-          # Return what we have
+          # Return what we have.
           {:ok, acc}
         end
     end
@@ -233,7 +235,7 @@ defmodule Servant.Connectors.SolanaConnector do
   end
 
   defp build_entry(parsed, wallet_address) do
-    # Resolve token symbols for SPL transfers
+    # Resolve the token symbols for the SPL transfers.
     spl_mints =
       parsed.transfers
       |> Enum.filter(&(&1.type == "spl" && &1.mint))

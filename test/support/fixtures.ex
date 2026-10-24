@@ -1,14 +1,14 @@
 defmodule Servant.Fixtures do
   @moduledoc """
-  Shared test fixtures. Imported by `DataCase`, `ConnCase` and `ChannelCase`.
+  Shared test fixtures. `DataCase`, `ConnCase` and `ChannelCase` import them.
   """
 
   alias Servant.Accounts
   alias Servant.Data
 
   @doc """
-  Registers a user with sensible, unique defaults. Pass string-keyed `attrs`
-  to override (`%{"username" => "...", "password" => "...", ...}`).
+  Registers a user with sensible, unique defaults. To override them, pass
+  `attrs` with string keys (`%{"username" => "...", "password" => "...", ...}`).
   """
   def user_fixture(attrs \\ %{}) do
     n = System.unique_integer([:positive])
@@ -26,15 +26,16 @@ defmodule Servant.Fixtures do
   end
 
   @doc """
-  Creates an entry for `user_id`. Pass string-keyed `attrs` to override.
+  Creates an entry for `user_id`. To override the defaults, pass `attrs` with
+  string keys.
   """
   def entry_fixture(user_id, attrs \\ %{}) do
     {:ok, entry} =
       Data.create_entry(
         user_id,
         Enum.into(attrs, %{
-          # A neutral kind: "note" entries are managed by the Notes context and
-          # are intentionally not mutable through the generic entries API.
+          # A neutral kind. The Notes context manages the "note" entries. On
+          # purpose, the generic entries API cannot change them.
           "kind" => "bookmark",
           "source" => "test",
           "title" => "Entry"

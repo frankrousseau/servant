@@ -25,8 +25,8 @@ export function createAppContext(viewer: ViewerAPI): AppContext {
     navigate(path: string) {
       router.push(path)
     },
-    // Read through on every access: a toggle in Settings reaches a mounted
-    // app without remounting it.
+    // Each access reads the current value. As a result, a toggle in Settings
+    // reaches a mounted app, and a remount is not necessary.
     get enabledApps() {
       return auth.user?.enabled_apps ?? null
     },
@@ -42,9 +42,9 @@ export function createAppContext(viewer: ViewerAPI): AppContext {
         stats: async () => (await entryStats()).data,
         aggregate: aggregateEntries
       },
-      // Multipart upload keeps its own request: the browser must set the
-      // multipart Content-Type boundary, and XHR (unlike fetch) can report
-      // upload progress.
+      // The multipart upload keeps its own request. The browser must set the
+      // boundary of the multipart Content-Type. And XHR, unlike fetch, can
+      // report the upload progress.
       upload(
         file: File,
         app = 'files',
@@ -75,7 +75,7 @@ export function createAppContext(viewer: ViewerAPI): AppContext {
               try {
                 msg = JSON.parse(xhr.responseText).error || msg
               } catch {
-                // keep the generic message
+                // Keep the generic message.
               }
               reject(new Error(msg))
             }

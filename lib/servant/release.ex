@@ -1,5 +1,5 @@
 defmodule Servant.Release do
-  @moduledoc "Release tasks (migrations) runnable without Mix."
+  @moduledoc "Release tasks (migrations) that you can run without Mix."
   @app :servant
 
   def migrate do
@@ -37,7 +37,7 @@ defmodule Servant.Release do
     {ok, length(results)}
   end
 
-  @doc "Fills date and location of photos imported without them (iPhone HEIC)."
+  @doc "Fills the date and the location of the photos that had none at import (iPhone HEIC)."
   def backfill_photo_exif do
     load_app()
 

@@ -167,7 +167,7 @@ defmodule ServantWeb.ConnectorControllerTest do
       assert %{"status" => "stopped"} =
                json_response(post(conn, "/api/connectors/#{config.id}/stop"), 200)
 
-      # Stopping twice is not an error: the endpoint is idempotent
+      # A second stop is not an error: the endpoint is idempotent.
       assert %{"status" => "stopped"} =
                json_response(post(conn, "/api/connectors/#{config.id}/stop"), 200)
     end
@@ -184,7 +184,7 @@ defmodule ServantWeb.ConnectorControllerTest do
       assert %{"status" => "sync_triggered"} =
                json_response(post(conn, "/api/connectors/#{config.id}/sync"), 200)
 
-      # Let the cast be handled before the test connection goes away
+      # Let the worker handle the cast before the test connection goes away.
       [{pid, _}] = Registry.lookup(Servant.Connectors.Registry, {user.id, config.id})
       _ = :sys.get_state(pid)
     end

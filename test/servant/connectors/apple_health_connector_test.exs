@@ -30,7 +30,11 @@ defmodule Servant.Connectors.AppleHealthConnectorTest do
       {:ok, state} = AppleHealthConnector.init(%{}, %{})
       {:ok, entries} = AppleHealthConnector.import_health(@sample_xml, state)
 
-      # Should get: steps (sum), heart_rate (avg), weight (latest), workout
+      # The result must have these entries:
+      # - steps (sum)
+      # - heart_rate (avg)
+      # - weight (latest)
+      # - workout
       assert length(entries) == 4
 
       kinds = entries |> Enum.map(& &1["kind"]) |> Enum.uniq()

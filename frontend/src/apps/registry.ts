@@ -1,6 +1,6 @@
 import type { AppDef } from './types'
 
-// Alphabetical by name; this array is the sidebar display order.
+// Alphabetical by name. This array is the display order of the sidebar.
 export const BUILTIN_APPS: AppDef[] = [
   {
     id: 'agent_memory',
@@ -71,34 +71,36 @@ export const BUILTIN_APPS: AppDef[] = [
 // toggles (user.enabled_apps is null).
 export const DEFAULT_ENABLED_APPS = ['calendar', 'contacts', 'files', 'photos']
 
-// The built-in apps the user kept enabled; null/undefined means the default
-// set. Unknown ids (from a newer frontend or an uninstalled custom app id
-// that leaked in) are ignored.
+// The built-in apps that the user kept enabled. null or undefined means the
+// default set. The function ignores unknown ids (from a newer frontend, or
+// the id of an uninstalled custom app that leaked in).
 export function enabledBuiltins(ids: string[] | null | undefined): AppDef[] {
   const enabled = ids ?? DEFAULT_ENABLED_APPS
   return BUILTIN_APPS.filter(a => enabled.includes(a.id))
 }
 
-// Agents is not a mounted app (it keeps its own /agents route) but it is
-// toggled like one: hidden from the sidebar and palette unless enabled.
-// Not in DEFAULT_ENABLED_APPS, so it is off until the user opts in.
+// Agents is not a mounted app (it keeps its own /agents route), but the user
+// toggles it like one: it is hidden from the sidebar and the palette unless
+// enabled. It is not in DEFAULT_ENABLED_APPS. As a result, it is off until
+// the user opts in.
 export function agentsEnabled(ids: string[] | null | undefined): boolean {
   return (ids ?? DEFAULT_ENABLED_APPS).includes('agents')
 }
 
-// Crypto is a slice across the app rather than an app: the blockchain
-// connectors and the crypto side of Finance. Toggled the same way, and off
-// until the user opts in. Configured connectors keep syncing when it is off,
-// they are only hidden; the Settings copy says so.
+// Crypto is a slice across the app, not an app: the blockchain connectors
+// and the crypto side of Finance. The user toggles it the same way, and it is
+// off until the user opts in. When it is off, the configured connectors
+// continue to sync and are only hidden. The Settings copy says so.
 export function cryptoEnabled(ids: string[] | null | undefined): boolean {
   return (ids ?? DEFAULT_ENABLED_APPS).includes('crypto')
 }
 
 // Entry kinds that stay out of the everyday surfaces (dashboard feed and
 // stats, command palette). agent_memory is agent-facing plumbing, never an
-// everyday-surface kind, so it is always hidden; blockchain_tx belongs to the
-// opt-in crypto slice, hidden only while crypto is off. The data browser is
-// exempt on purpose, it is the raw view of what the database holds.
+// everyday-surface kind. As a result, it is always hidden. blockchain_tx
+// belongs to the opt-in crypto slice and is hidden only while crypto is off.
+// The data browser is exempt on purpose: it is the raw view of what the
+// database holds.
 export function hiddenEntryKinds(ids: string[] | null | undefined): string[] {
   const hidden = ['agent_memory']
   return cryptoEnabled(ids) ? hidden : [...hidden, 'blockchain_tx']

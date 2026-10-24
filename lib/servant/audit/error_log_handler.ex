@@ -1,8 +1,8 @@
 defmodule Servant.Audit.ErrorLogHandler do
   @moduledoc """
-  `:logger` handler that mirrors error-and-worse log events into
-  `Servant.Audit.LogBuffer`. Installed by `Servant.Application` after the
-  buffer starts (level filtering happens in the handler config).
+  `:logger` handler that mirrors the log events of level error and worse
+  into `Servant.Audit.LogBuffer`. `Servant.Application` installs it after
+  the buffer starts (the handler config filters the levels).
   """
 
   @max_message_length 2_000
@@ -16,7 +16,7 @@ defmodule Servant.Audit.ErrorLogHandler do
 
     Servant.Audit.LogBuffer.record_error(entry)
   catch
-    # A crashing log handler must never take the logger down with it.
+    # A log handler that crashes must never crash the logger too.
     _, _ -> :ok
   end
 

@@ -265,7 +265,7 @@ describe('TransactionsSection', () => {
 
     const rows = wrapper.findAll('.ftx-dedup-row')
     expect(rows.length).toBe(2)
-    // dupA carries the balance: kept despite being the newer import.
+    // dupA has the balance: the app keeps it, although it is the newer import.
     const checked = rows.map(
       r => (r.find('input').element as HTMLInputElement).checked
     )
@@ -279,8 +279,8 @@ describe('TransactionsSection', () => {
   })
 
   it('groups near-date duplicates and preselects only likely twins', async () => {
-    // CSV and bank-API imports of the same movement: label worded
-    // differently by each source, booking date shifted by a day.
+    // CSV and bank-API imports of the same movement. Each source words the
+    // label differently, and the booking date is shifted by a day.
     const csvTx = tx('n1', {
       date: '2026-07-05',
       description: 'VIR SEPA ACME CORP',
@@ -295,7 +295,8 @@ describe('TransactionsSection', () => {
       source: 'enable_banking',
       inserted_at: '2026-02-01T00:00:00Z'
     }
-    // Same source, same amount, unrelated label: shown but not preselected.
+    // Same source, same amount, unrelated label: the app shows it but does
+    // not preselect it.
     const other = {
       ...tx('n3', { date: '2026-07-06', description: 'Fnac', amount: -120 }),
       inserted_at: '2026-03-01T00:00:00Z'

@@ -1,5 +1,5 @@
 defmodule ServantWeb.VersionController do
-  @moduledoc "Which backend build this instance runs."
+  @moduledoc "Returns the backend build that this instance runs."
 
   use ServantWeb, :controller
   use OpenApiSpex.ControllerSpecs

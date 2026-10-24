@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 
-// A face crop rendered from a photo thumbnail: the box is relative (0..1),
-// so any same-aspect derivative of the original works as source.
+// A face crop rendered from a photo thumbnail. The box is relative (0..1).
+// As a result, each derivative of the original with the same aspect ratio
+// can be the source.
 const props = defineProps<{ src: string; box: number[] }>()
 
 const SIZE = 56
-const MARGIN = 0.25 // widen the crop so the face is not wall-to-wall
+const MARGIN = 0.25 // a wider crop keeps the face away from the edges
 
 const canvas = ref<HTMLCanvasElement | null>(null)
 
@@ -18,7 +19,8 @@ function draw() {
     const [boxX, boxY, boxWidth, boxHeight] = props.box
     const naturalWidth = img.naturalWidth
     const naturalHeight = img.naturalHeight
-    // Square source region centered on the box, margin included.
+    // The source region is a square centered on the box, with the margin
+    // included.
     const side =
       Math.max(boxWidth * naturalWidth, boxHeight * naturalHeight) *
       (1 + MARGIN * 2)
@@ -45,8 +47,9 @@ function draw() {
       SIZE
     )
   }
-  // A missing/deleted thumbnail would otherwise leave a blank canvas: draw a
-  // placeholder glyph so the chip reads as "image unavailable", not empty.
+  // Without this handler, a missing or deleted thumbnail gives a blank
+  // canvas. Draw a placeholder glyph. Then the chip means "image
+  // unavailable", not "empty".
   img.onerror = () => {
     const ctx = el.getContext('2d')
     if (!ctx) return
@@ -66,7 +69,7 @@ watch(() => [props.src, props.box], draw)
 </script>
 
 <template>
-  <!-- An unnamed face crop has no useful description to announce: the
+  <!-- An unnamed face crop has no useful description to announce. The
        adjacent name input is the interactive part of the row. -->
   <canvas
     ref="canvas"

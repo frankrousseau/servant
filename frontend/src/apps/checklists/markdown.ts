@@ -3,15 +3,15 @@ export interface Item {
   done: boolean
   // 1 = sub-item (one level deep); absent = top level
   indent?: number
-  // Deadline as "YYYY-MM-DD"; shown on the row and in the calendar
+  // Deadline as "YYYY-MM-DD". The row and the calendar show it.
   due?: string
 }
 
 // One item per line of a pasted list: `- x`, `* x`, `+ x`, `• x`, `1. x`,
 // `- [ ] x`, `- [x] x` (Notion todos) or bare `[ ] x`. A line indented by
-// two or more spaces (or a tab) becomes a sub-item; deeper nesting clamps
-// to that single sub-level. Returns null when any non-empty line is not a
-// list line: the paste is not a list and should go through untouched.
+// two or more spaces (or a tab) becomes a sub-item. Deeper nesting clamps
+// to that single sub-level. Returns null when a non-empty line is not a
+// list line: the paste is not a list and must go through unchanged.
 export function parseListText(text: string): Item[] | null {
   const lines = text.split(/\r?\n/).filter(l => l.trim())
   const items: Item[] = []

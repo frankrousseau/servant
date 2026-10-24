@@ -174,7 +174,8 @@ describe('snapshotSeries', () => {
       []
     )
     const txs = [
-      // Before the snapshot: already reflected in it, ignored.
+      // Before the snapshot: the snapshot already includes it, so it is
+      // ignored.
       spendTx('N26', '2026-06-05T10:00:00Z', -50),
       spendTx('N26', '2026-06-12T10:00:00Z', -30),
       spendTx('N26', '2026-06-12T18:00:00Z', -20),
@@ -216,7 +217,7 @@ describe('snapshotSeries', () => {
       spendTx('COMPTE 0001', '2026-06-02T12:00:00Z', -100)
     ]
     const accounts = buildAccounts([entity], txs)
-    // The identifier claims the CSV account: no derived duplicate.
+    // The identifier claims the CSV account: there is no derived duplicate.
     expect(accounts).toHaveLength(1)
     const series = snapshotSeries(accounts[0], [], txs)
     expect(series).toEqual([
@@ -535,7 +536,7 @@ describe('cryptoSpotTotal', () => {
       { ETH: 2000, BTC: 40000 },
       'EUR'
     )
-    // BTC at spot (50000, not the stale manual 40000), ETH at its rate.
+    // BTC is at spot (50000, not the stale manual 40000). ETH is at its rate.
     expect(total).toBe(0.5 * 50000 + 2 * 2000)
     expect(excluded).toEqual(['DOG'])
     expect(approx).toBe(true)

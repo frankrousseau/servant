@@ -1,11 +1,13 @@
 defmodule Servant.AgentMemory do
   @moduledoc """
-  Memory and skills of coding agents (Claude Code, Cursor), one `agent_memory`
-  entry per file, identified by its path (`external_id`, so the entries unique
-  index makes paths unique per user). Agents push and pull through
-  `/api/agent_memory`; the app reads, edits and deletes through the same routes.
+  Memory and skills of the coding agents (Claude Code, Cursor).
 
-  Everything derives from the path:
+  Each file is one `agent_memory` entry, and its path identifies it. The path
+  is the `external_id`. As a result, the unique index of the entries makes
+  each path unique for each user. The agents push and pull through
+  `/api/agent_memory`. The app reads, edits and deletes through the same routes.
+
+  The path gives all the other values:
 
     * `memory/<project>/<file>`: project memory, tool `claude`
     * `skills/<tool>/<name>/<file>` (and deeper): global skill, project `""`
@@ -23,7 +25,7 @@ defmodule Servant.AgentMemory do
   @tools ~w(claude cursor shared)
   @segment ~r/^[A-Za-z0-9._-]+$/
 
-  @doc "Derives project, tool and title from a path."
+  @doc "Gets the project, the tool and the title from a path."
   @spec parse_path(term) :: {:ok, map} | {:error, :invalid_path}
   def parse_path(path) when is_binary(path) do
     segments = String.split(path, "/")
@@ -49,9 +51,10 @@ defmodule Servant.AgentMemory do
   end
 
   @doc """
-  Lists a user's files sorted by path. `project` also keeps global files
-  (project `""`), `tool` also keeps `shared` ones, so one call returns what a
-  session in a repo needs.
+  Lists the files of a user, sorted by path. The `project` filter also keeps
+  the global files (project `""`). The `tool` filter also keeps the `shared`
+  files. As a result, one call returns all the files that are necessary for a
+  session in a repo.
   """
   @spec list(String.t(), map) :: [Entry.t()]
   def list(user_id, filters \\ %{}) do
@@ -65,10 +68,10 @@ defmodule Servant.AgentMemory do
     |> Enum.filter(&valid_entry?/1)
   end
 
-  # A row is only trustworthy once its stored path both re-parses cleanly and
-  # still matches the external_id it was upserted under (a row inserted or
-  # edited outside upsert_all/2, directly against the entries table, could
-  # carry a stale or malicious path in `data`).
+  # A row is trustworthy only when its stored path parses again without an
+  # error and is still equal to the external_id of its upsert. A row that
+  # something inserted or edited directly in the entries table, not through
+  # upsert_all/2, can have a stale or malicious path in `data`.
   defp valid_entry?(entry) do
     case parse_path(entry.data["path"]) do
       {:ok, _attrs} -> entry.data["path"] == entry.external_id
@@ -89,16 +92,18 @@ defmodule Servant.AgentMemory do
   end
 
   @doc """
-  Upserts `[%{"path", "body"}]` by path in one transaction. Any invalid file
-  rejects the whole batch. An unchanged body is left alone (`updated_at` stays).
-  A path conflicting with an existing entry (a changeset error on insert or
-  update) rolls the whole batch back and returns `{:error, :conflict}`.
+  Upserts `[%{"path", "body"}]` by path in one transaction. One invalid file
+  rejects the full batch. The function does not touch a body that did not
+  change (`updated_at` stays). A path can conflict with an existing entry (a
+  changeset error on insert or update). Such a conflict rolls the full batch
+  back and returns `{:error, :conflict}`.
 
-  `origin` says who writes. The app (`:app`) curates: its edit marks the file
-  `pending: "modified"` so agents apply it over their own copy, and writing a
-  soft-deleted path restores it. An agent (`:agent`, the default) takes the
-  file back: its push clears `modified`, and a push to a soft-deleted path is
-  refused with `{:error, :deleted}` until the app restores it.
+  `origin` tells who writes. The app (`:app`) curates. Its edit marks the file
+  `pending: "modified"`, so that the agents apply the edit over their own
+  copy. When the app writes a soft-deleted path, it restores the path. An
+  agent (`:agent`, the default) takes the file back. Its push clears
+  `modified`. The function refuses a push to a soft-deleted path with
+  `{:error, :deleted}` until the app restores the path.
   """
   @spec upsert_all(String.t(), list, :agent | :app) ::
           {:ok, [Entry.t()]}
@@ -112,8 +117,8 @@ defmodule Servant.AgentMemory do
       |> run_upserts(user_id, origin)
       |> case do
         {:ok, entries_and_events} ->
-          # Broadcasts fire only once the transaction actually commits, so a
-          # rolled-back conflict never announces a change that didn't happen.
+          # The broadcasts fire only after the transaction commits. As a result,
+          # a rolled-back conflict never announces a change that did not occur.
           Enum.each(entries_and_events, fn
             {_entry, nil} -> :ok
             {_entry, event} -> Events.broadcast(user_id, event)
@@ -150,9 +155,9 @@ defmodule Servant.AgentMemory do
     end
   end
 
-  # Returns `{entry, event | nil}`: the event is broadcast by the caller only
-  # once the whole transaction commits, and a changeset error (a path racing
-  # another insert/update) rolls the batch back instead of raising.
+  # Returns `{entry, event | nil}`. The caller broadcasts the event only after
+  # the full transaction commits. A changeset error (a path in a race with
+  # another insert or update) rolls the batch back and does not raise.
   defp upsert_one(user_id, attrs, body, origin) do
     sha = Base.encode16(:crypto.hash(:sha256, body), case: :lower)
     data = attrs |> Map.delete("title") |> Map.merge(%{"body" => body, "sha256" => sha})
@@ -202,10 +207,11 @@ defmodule Servant.AgentMemory do
   end
 
   @doc """
-  Soft-deletes the file at `path`: the row stays, marked `pending: "deleted"`,
-  so every machine removes its copy at its next pull (a hard delete would
-  vanish from the manifest, and the next push from a machine that still has
-  the file would bring it back). `purge/2` removes the row for good.
+  Soft-deletes the file at `path`. The row stays, with the mark
+  `pending: "deleted"`. As a result, each machine removes its copy at its next
+  pull. A hard delete disappears from the manifest. Then the next push from a
+  machine that still has the file brings the file back. `purge/2` removes the
+  row permanently.
   """
   @spec delete(String.t(), String.t()) :: {:ok, Entry.t()} | {:error, :not_found}
   def delete(user_id, path) do
@@ -224,7 +230,7 @@ defmodule Servant.AgentMemory do
     end
   end
 
-  @doc "Removes the row at `path` for good."
+  @doc "Removes the row at `path` permanently."
   @spec purge(String.t(), String.t()) :: {:ok, Entry.t()} | {:error, :not_found}
   def purge(user_id, path) do
     case get_by_path(user_id, path) do
@@ -238,7 +244,7 @@ defmodule Servant.AgentMemory do
     end
   end
 
-  @doc "Manifest row for a file; `include_body?` adds the markdown."
+  @doc "Returns the manifest row for a file. `include_body?` adds the markdown."
   @spec to_json(Entry.t(), boolean) :: map
   def to_json(%Entry{} = entry, include_body? \\ false) do
     body = entry.data["body"] || ""

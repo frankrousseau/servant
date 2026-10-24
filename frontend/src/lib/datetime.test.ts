@@ -6,8 +6,8 @@ import { useAuthStore } from '../stores/auth'
 
 import type { User } from '../types'
 
-// 2026-12-31 14:30 UTC, read in a fixed zone so the assertions hold wherever
-// the suite runs.
+// 2026-12-31 14:30 UTC. The tests read it in a fixed zone, so the assertions
+// are true in all the places where the suite runs.
 const ISO = '2026-12-31T14:30:00Z'
 
 function asUser(prefs: Partial<User>) {
@@ -52,12 +52,13 @@ describe('display preferences', () => {
     expect(formatDateTime(ISO)).toBe('2026-12-31 14:30')
   })
 
-  // A caller asking for a shape means it: a global setting must not rewrite
-  // a deliberately compact label.
+  // A caller that asks for a shape wants that shape. A global setting must
+  // not change a label that is compact on purpose.
   it('leaves explicit options alone', () => {
     asUser({ date_format: 'iso' })
-    // Month name and day, in the runner's locale ("Dec 31", "31 déc."):
-    // what matters is that the preference did not force 2026-12-31.
+    // The result is the month name and the day, in the locale of the runner
+    // ("Dec 31", "31 déc."). The important point is that the preference did
+    // not force 2026-12-31.
     const compact = formatDate(ISO, { month: 'short', day: 'numeric' })
     expect(compact).toContain('31')
     expect(compact).not.toContain('2026')
@@ -65,8 +66,8 @@ describe('display preferences', () => {
 
   it('falls back to the browser when nothing is set', () => {
     asUser({})
-    // Whatever the runner's locale is, the medium date style is not one of
-    // the three explicit orders.
+    // For all runner locales, the medium date style is not one of the three
+    // explicit orders.
     expect(formatDate(ISO)).not.toBe('2026-12-31')
     expect(formatDate(ISO)).not.toBe('')
   })

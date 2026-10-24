@@ -22,15 +22,16 @@ defmodule Servant.Connectors.SchedulerTest do
     on_exit(fn -> Connectors.stop_connector(user.id, enabled.id) end)
 
     pid = start_supervised!({Scheduler, name: :test_connector_scheduler})
-    # handle_continue has run once the process answers
+    # When the process answers, handle_continue is complete.
     _ = :sys.get_state(pid)
 
     assert [{_pid, _}] = Registry.lookup(Servant.Connectors.Registry, {user.id, enabled.id})
     assert [] == Registry.lookup(Servant.Connectors.Registry, {user.id, disabled.id})
   end
 
-  # A connector whose config no longer starts must not take the boot down with
-  # it: every other user's workers depend on this sweep finishing.
+  # A connector with a config that does not start anymore must not take the
+  # boot down with it. The workers of all the other users depend on the
+  # completion of this sweep.
   test "a connector that cannot start does not stop the boot sweep" do
     user = user_fixture()
     broken = bank_config(user.id, %{"enabled" => true, "config" => %{"preset" => "nope"}})

@@ -2,7 +2,7 @@ defmodule Servant.Accounts.User do
   @moduledoc "User schema: credentials, profile, timezone and display preferences."
 
   @themes ~w(night graphite day cyanotype sepia rosewood)
-  # nil on either means "render like the browser does".
+  # For each of the two formats, nil means "render like the browser does".
   @time_formats ~w(24h 12h)
   @date_formats ~w(dmy mdy iso)
   @max_preferences_bytes 65_536
@@ -23,12 +23,13 @@ defmodule Servant.Accounts.User do
     field :time_format, :string
     field :date_format, :string
     # nil means "the default set" (DEFAULT_ENABLED_APPS in the frontend
-    # registry); ids are opaque here, the frontend owns the app list
+    # registry). The ids are opaque here. The frontend owns the list of apps.
     field :enabled_apps, {:array, :string}
-    # Per-app UI preferences, keyed by "<app>.<name>"; opaque to the server.
+    # The UI preferences of each app, with "<app>.<name>" keys. They are opaque
+    # to the server.
     field :preferences, :map, default: %{}
-    # AI agents config (enabled/base_url/model/api_key), encrypted at rest
-    # like connector secrets
+    # The config of the AI agents (enabled/base_url/model/api_key). It is
+    # encrypted at rest, like the connector secrets.
     field :ai_config, Servant.Encrypted.Map, redact: true
     field :totp_secret, :binary, redact: true
     field :totp_last_used_at, :utc_datetime
@@ -70,11 +71,12 @@ defmodule Servant.Accounts.User do
     |> merge_preferences(attrs)
   end
 
-  # Preferences are patched, not replaced: each app sends only its own keys, so
-  # two apps saving at once never erase each other. A nil value drops the key.
-  # ponytail: merges against the user loaded for this request, so two saves in
-  # flight at the same instant can still lose one key; move the merge into SQL
-  # (json_patch) if that ever shows up.
+  # The server patches the preferences, it does not replace them. Each app sends
+  # only its own keys. As a result, two apps that save at the same time never
+  # erase the keys of each other. A nil value drops the key.
+  # ponytail: the merge uses the user loaded for this request. As a result, two
+  # saves at the same instant can still lose one key. If that occurs, move the
+  # merge into SQL (json_patch).
 
   defp merge_preferences(changeset, %{"preferences" => prefs}) when is_map(prefs) do
     merged =
@@ -94,8 +96,9 @@ defmodule Servant.Accounts.User do
 
   defp merge_preferences(changeset, _attrs), do: changeset
 
-  # App ids are slugs owned by the frontend registry; only their shape is
-  # checked here so an old backend never rejects a newer frontend's apps.
+  # The app ids are slugs that the frontend registry owns. This function
+  # validates only their shape. As a result, an old backend never rejects the
+  # apps of a newer frontend.
   defp validate_enabled_apps(changeset) do
     changeset
     |> validate_length(:enabled_apps, max: 100)
@@ -108,9 +111,10 @@ defmodule Servant.Accounts.User do
     end)
   end
 
-  # The IANA tz database lives in the browser (used for display), so the server
-  # only sanity-checks the string: a bare IANA-style name like "Europe/Paris" or
-  # "UTC". Keeps out junk without pulling in a tz dependency.
+  # The IANA tz database is in the browser, which uses it for display. As a
+  # result, the server does only a sanity check of the string: a bare IANA-style
+  # name such as "Europe/Paris" or "UTC". This keeps out junk and adds no tz
+  # dependency.
   defp validate_timezone(changeset) do
     changeset
     |> validate_length(:timezone, max: 64)

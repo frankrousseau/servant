@@ -70,8 +70,9 @@ async function selectContact(wrapper: ReturnType<typeof mount>, name: string) {
 
 describe('ContactsApp', () => {
   beforeEach(() => {
-    // selectContact/deleteContact mutate the URL via history.replaceState;
-    // reset between tests so a stray "?selected=" doesn't leak.
+    // selectContact and deleteContact change the URL through
+    // history.replaceState. Reset the URL between tests so that a stray
+    // "?selected=" does not leak.
     window.history.replaceState(null, '', '/')
   })
 
@@ -131,7 +132,8 @@ describe('ContactsApp', () => {
     await chips[1].trigger('click')
     await flushPromises()
 
-    // The second removal is queued behind the first, still-pending save.
+    // The second removal stays in the queue behind the first save, which is
+    // still pending.
     expect(update).toHaveBeenCalledTimes(1)
     const firstBody = update.mock.calls[0][1] as { data: { tags: string[] } }
     expect(firstBody.data.tags).toEqual(['b'])
@@ -196,7 +198,8 @@ describe('ContactsApp', () => {
     await wrapper.find('.ct-rel-add').trigger('submit')
     await flushPromises()
 
-    // Not a built-in type: stored as typed (normalized) on both sides.
+    // This is not a built-in type. The app stores it as typed (normalized) on
+    // the two sides.
     expect(update).toHaveBeenCalledWith('a', {
       data: expect.objectContaining({
         relations: [{ contact_id: 'b', type: 'climbing partner' }]
@@ -270,8 +273,8 @@ describe('ContactsApp', () => {
     await flushPromises()
     expect(wrapper.find('.ct-form-title').text()).toBe('Edit contact')
 
-    // saveForm awaits the still-pending tag save before it re-reads
-    // selected.value.data and issues the form PATCH.
+    // saveForm awaits the tag save, which is still pending. Then it reads
+    // selected.value.data again and sends the form PATCH.
     await wrapper.find('.ct-form').trigger('submit')
     expect(update).toHaveBeenCalledTimes(1)
 
@@ -336,14 +339,14 @@ describe('ContactsApp', () => {
     await chip('family').trigger('click')
     expect(wrapper.text()).toContain('Bob')
 
-    // Both tags active: only the contact carrying the two survives.
+    // The two tags are active: only the contact that has the two tags stays.
     await chip('paris').trigger('click')
     const names = wrapper.findAll('.ct-card').map(c => c.text())
     expect(names.some(n => n.includes('Alice'))).toBe(true)
     expect(names.some(n => n.includes('Bob'))).toBe(false)
     expect(names.some(n => n.includes('Carol'))).toBe(false)
 
-    // Clicking an active chip releases just that tag.
+    // A click on an active chip releases only that tag.
     await chip('paris').trigger('click')
     expect(wrapper.findAll('.ct-card')).toHaveLength(2)
   })
@@ -397,7 +400,7 @@ describe('ContactsApp', () => {
     const { ctx } = makeCtx([alice])
     ctx.api.entries.list = vi.fn(async (filters?: Record<string, string>) => {
       if (filters?.kind === 'contact') return [alice]
-      // The server-side q match is loose; the app filters on the exact id.
+      // The server-side q match is loose. The app filters on the exact id.
       if (filters?.kind === 'photo')
         return [
           photo('p1', '/files/t1.jpg', 'a'),
@@ -470,7 +473,7 @@ describe('ContactsApp', () => {
       })
     )
     expect(wrapper.find('.ct-me-badge').exists()).toBe(true)
-    // The whole address book relates to me: the section would only be noise.
+    // The whole address book relates to me, so the section is only noise.
     const sections = wrapper.findAll('.ct-section-title').map(t => t.text())
     expect(sections).not.toContain('Relations')
   })
@@ -488,7 +491,7 @@ describe('ContactsApp', () => {
     const { ctx } = makeCtx(contacts)
     const merged = { ...twin, data: { ...twin.data, tags: ['x'] } }
     ctx.api.fetch = vi.fn(async () => {
-      // Mirror the backend: the duplicate is gone, the survivor updated.
+      // Mirror the backend: the duplicate is gone and the survivor is updated.
       contacts.splice(0, contacts.length, merged, bob)
       return { ok: true, json: async () => ({ data: merged }) }
     }) as never
@@ -502,11 +505,12 @@ describe('ContactsApp', () => {
 
     const group = wrapper.find('.ct-dup-group')
     expect(group.find('.ct-dup-reasons').text()).toBe('same email, same name')
-    // The fuller card (org set) is preselected as the survivor.
+    // The app preselects the fuller card (org set) as the survivor.
     expect(group.find('.ct-dup-card--keep .ct-dup-name').text()).toBe(
       'Alice Martin'
     )
-    // Both emails show, flagged as the value the two cards share.
+    // The two emails show. The app flags them as the value that the two cards
+    // share.
     expect(
       group.findAll('.ct-dup-value--shared').map(value => value.text())
     ).toEqual(['alice@x.io', 'Alice@x.io'])
@@ -522,7 +526,8 @@ describe('ContactsApp', () => {
         body: JSON.stringify({ survivor_id: 'b', duplicate_ids: ['a'] })
       })
     )
-    // The duplicate left the list, the survivor stayed, the modal has no group.
+    // The duplicate left the list, the survivor stayed, and the modal has no
+    // group.
     const names = wrapper.findAll('.ct-card .ct-name').map(card => card.text())
     expect(names).toEqual(['Alice Martin', 'Bob'])
     expect(wrapper.find('.ct-dup-group').exists()).toBe(false)

@@ -35,7 +35,7 @@ describe('occursOn', () => {
   })
 
   it('weekly matches the same weekday', () => {
-    // 2026-07-06 is a Monday
+    // 2026-07-06 is a Monday.
     expect(occursOn('2026-07-06', 'weekly', '2026-07-13')).toBe(true)
     expect(occursOn('2026-07-06', 'weekly', '2026-07-14')).toBe(false)
   })

@@ -1,8 +1,9 @@
 defmodule ServantWeb.RemoteIpTest do
   use ServantWeb.ConnCase, async: true
 
-  # Test conns arrive from 127.0.0.1, which RemoteIp treats as a proxy, so
-  # X-Forwarded-For is honored, exactly like the documented nginx deployment.
+  # The test conns arrive from 127.0.0.1, and RemoteIp treats that address as a
+  # proxy. As a result, RemoteIp honors X-Forwarded-For, exactly as in the
+  # documented nginx deployment.
   test "X-Forwarded-For from a loopback peer rewrites remote_ip", %{conn: conn} do
     conn =
       conn

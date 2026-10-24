@@ -1,8 +1,8 @@
 defmodule ServantWeb.Plugs.AccessLog do
   @moduledoc """
-  Records every request into `Servant.Audit.LogBuffer` for the Audit page's
-  access-log tab. Static assets never reach this plug (`Plug.Static` halts
-  first); favicon-style noise is skipped explicitly.
+  Records each request into `Servant.Audit.LogBuffer` for the access-log tab of
+  the Audit page. Static assets never reach this plug (`Plug.Static` halts
+  first). The plug skips favicon-style noise explicitly.
   """
 
   @behaviour Plug

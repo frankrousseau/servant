@@ -67,7 +67,7 @@ describe('TrackerDetailView', () => {
 
     const rows = wrapper.findAll('.tkd-table tbody tr')
     expect(rows).toHaveLength(3)
-    // Newest first: the gap week sits in the middle.
+    // Newest first: the gap week is in the middle.
     expect(rows[0].text()).toContain('avg 81 kg (1 log)')
     expect(rows[1].text()).toContain('-')
     expect(rows[2].text()).toContain('avg 81 kg (2 logs)')
@@ -130,7 +130,7 @@ describe('TrackerDetailView', () => {
     expect(few.findAll('.tkd-value').length).toBeGreaterThan(0)
 
     const byDate = new Map<string, number>()
-    // One log per week over 26 weeks: 2026-01-05 is a Monday.
+    // One log for each week during 26 weeks: 2026-01-05 is a Monday.
     const start = Date.UTC(2026, 0, 5)
     for (let i = 0; i < 26; i++) {
       const date = new Date(start + i * 7 * 86_400_000)
@@ -139,7 +139,7 @@ describe('TrackerDetailView', () => {
       byDate.set(date, 1)
     }
     const many = mountView({ byDate })
-    // 26 weekly buckets: slots are too narrow for inline numbers.
+    // 26 weekly buckets: the slots are too narrow for inline numbers.
     expect(many.findAll('.tkd-table tbody tr').length).toBeGreaterThan(16)
     expect(many.findAll('.tkd-value')).toHaveLength(0)
   })

@@ -1,7 +1,8 @@
-// Duplicate detection for the Contacts app: two contacts are candidates when
-// they share an email, a phone number or a name. Groups are the connected
-// components of those matches (A~B on email and B~C on name puts the three
-// together), each with the reasons that hold it, so the user can judge.
+// Duplicate detection for the Contacts app. Two contacts are candidates when
+// they share an email, a phone number or a name. The groups are the connected
+// components of those matches. For example, A~B on email and B~C on name put
+// the three contacts together. Each group has the reasons that hold it
+// together, so that the user can make a decision.
 import { contactName } from '../../lib/contact'
 import type { Entry } from '../types'
 
@@ -17,8 +18,8 @@ interface Labeled {
 }
 
 const UNNAMED = '(unnamed)'
-// Phones compare on their trailing digits: "+33 6 12 34 56 78" and
-// "06 12 34 56 78" are the same line. Shorter numbers must match whole.
+// The comparison of phone numbers uses their last digits. "+33 6 12 34 56 78"
+// and "06 12 34 56 78" are the same line. Shorter numbers must match fully.
 const PHONE_SUFFIX = 9
 const MIN_PHONE_DIGITS = 6
 
@@ -32,8 +33,8 @@ export function normalizePhone(raw: string): string {
   return digits.length > PHONE_SUFFIX ? digits.slice(-PHONE_SUFFIX) : digits
 }
 
-// Case, accents and punctuation folded, so "Élodie Durand-Roux" meets
-// "elodie durand roux".
+// Folds the case, the accents and the punctuation. As a result,
+// "Élodie Durand-Roux" matches "elodie durand roux".
 export function normalizeName(raw: string): string {
   return raw
     .normalize('NFD')
@@ -43,9 +44,10 @@ export function normalizeName(raw: string): string {
     .trim()
 }
 
-// Names that are not written the same but mean the same person: same words
-// in another order ("DUPONT Jeanne"), or one typo apart once long enough for
-// a typo to be the likeliest explanation.
+// These rules find names that have different text but refer to the same
+// person. The names have the same words in a different order ("DUPONT
+// Jeanne"), or they differ by one typo. The typo rule applies only when the
+// names are long enough for a typo to be the most probable explanation.
 const TYPO_MIN_LENGTH = 5
 const TYPO_WIDE_LENGTH = 10
 
@@ -59,7 +61,8 @@ export function similarNames(a: string, b: string): boolean {
   return Math.abs(a.length - b.length) <= budget && editDistance(a, b) <= budget
 }
 
-// ponytail: plain Levenshtein on short strings; names are a few dozen chars.
+// ponytail: this is plain Levenshtein on short strings. Names have a few
+// dozen characters.
 function editDistance(a: string, b: string): number {
   let previous = Array.from({ length: b.length + 1 }, (_, i) => i)
   for (let i = 1; i <= a.length; i++) {
@@ -100,7 +103,8 @@ function keysOf(entry: Entry): { reason: DuplicateReason; key: string }[] {
 }
 
 export function findDuplicateGroups(contacts: Entry[]): DuplicateGroup[] {
-  // Union-find over contact indexes, keyed by the values they share.
+  // This is a union-find over the contact indexes. The keys are the values
+  // that the contacts share.
   const parent = contacts.map((_, index) => index)
   const find = (index: number): number => {
     while (parent[index] !== index) {
@@ -129,9 +133,10 @@ export function findDuplicateGroups(contacts: Entry[]): DuplicateGroup[] {
     }
   })
 
-  // Looser name matches need a pairwise pass: similar full names, and a bare
-  // first name against the one contact whose name carries it (two candidates
-  // would mean guessing, so that one stays alone).
+  // Looser name matches make a pairwise pass necessary. The pass matches
+  // similar full names. It also matches a bare first name with the one
+  // contact whose name contains it. With two candidates, the match is a
+  // guess, so that first name stays alone.
   const names = contacts.map(entry => {
     const name = contactName(entry)
     return name === UNNAMED ? '' : normalizeName(name)
@@ -181,8 +186,9 @@ export function findDuplicateGroups(contacts: Entry[]): DuplicateGroup[] {
     )
 }
 
-// How much a card carries, to preselect the survivor: the fuller one, then
-// the older one (its id is the one other data most likely references).
+// Returns how much data a card holds, to preselect the survivor. The survivor
+// is the fuller card, then the older card. Other data most probably refers to
+// the id of the older card.
 export function contactRichness(entry: Entry): number {
   let score = 0
   for (const key of ['org', 'title', 'address', 'birthday', 'url', 'note'])

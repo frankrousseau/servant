@@ -1,10 +1,11 @@
 // Spot prices for the Cryptos tab, fetched from the browser (display only:
-// the curve and totals still go through manual rates). Majors use CoinGecko
-// directly; other tickers are resolved to a CoinGecko id via /search (exact
-// symbol, best market-cap rank) because DexScreener's ticker search surfaces
-// counterfeit pools with fake liquidity for any listed token. DexScreener
-// stays as the last resort for tokens CoinGecko does not know; those quotes
-// are in USD and converted to `vs` via USDT on CoinGecko.
+// the curve and the totals still use manual rates). Majors use CoinGecko
+// directly. A /search request resolves the other tickers to a CoinGecko id
+// (exact symbol, best market-cap rank). This is because the ticker search of
+// DexScreener shows counterfeit pools with fake liquidity for any listed
+// token. DexScreener stays as the last resort for the tokens that CoinGecko
+// does not know. Those quotes are in USD, and USDT on CoinGecko converts
+// them to `vs`.
 
 const COINGECKO_IDS: Record<string, string> = {
   AAVE: 'aave',
@@ -41,8 +42,8 @@ type DexPair = {
   liquidity?: { usd?: number }
 }
 
-// Symbol -> price in `vs`. CoinGecko (static ids, then search resolution)
-// first; DexScreener only for what CoinGecko does not know.
+// Symbol -> price in `vs`. CoinGecko comes first (static ids, then search
+// resolution). DexScreener is only for what CoinGecko does not know.
 export async function fetchCryptoPrices(
   symbols: string[],
   vs: string
@@ -70,9 +71,10 @@ export async function fetchCryptoPrices(
   return { ...gecko, ...dex }
 }
 
-// Ticker -> CoinGecko id (null = definitively not listed there). Cached for
-// the session: the tab refetches prices on every visit. Transient failures
-// are not cached so the next visit retries.
+// Ticker -> CoinGecko id (null = definitively not listed there). The cache
+// stays for the session, because the tab fetches prices again on every
+// visit. The cache does not keep transient failures, so the next visit
+// retries.
 const resolvedIds = new Map<string, string | null>()
 
 async function resolveGeckoId(symbol: string): Promise<string | null> {

@@ -1,16 +1,18 @@
 defmodule Servant.PhotoShares do
   @moduledoc """
-  Public photo feeds: a share is a random-token link over the owner's photos
-  carrying one or more tags or people (`any` of them, or `all` of them).
-  Anyone holding the link sees those photos, and only those: the JSON feed
-  exposes a few neutral fields per photo plus the owner's note (no EXIF
-  location, no people, not even the people the share selects on), and the
-  file route serves a file only when it belongs to a photo currently in the
-  feed.
+  Public photo feeds.
 
-  The token is stored as-is (not hashed) so the owner can copy the link again
-  from the Photos app; it is 192 random bits, so guessing one is not a
-  realistic attack.
+  A share is a link with a random token. It gives access to the photos of the
+  owner that have one or more tags or people (`any` of them, or `all` of
+  them). Each person who has the link sees those photos, and only those
+  photos. The JSON feed exposes a small number of neutral fields for each
+  photo and the note of the owner. It exposes no EXIF location and no people,
+  not even the people that the share selects on. The file route serves a file
+  only when it belongs to a photo that is in the feed at that time.
+
+  The token is stored as-is (not hashed), so that the owner can copy the link
+  again from the Photos app. It has 192 random bits, so a guess of a token is
+  not a realistic attack.
   """
 
   import Ecto.Query
@@ -48,15 +50,15 @@ defmodule Servant.PhotoShares do
     end
   end
 
-  @doc "The share behind a public link, or nil (unknown or revoked token)."
+  @doc "Returns the share of a public link, or nil (unknown or revoked token)."
   @spec get_by_token(String.t()) :: PhotoShare.t() | nil
   def get_by_token(token) when is_binary(token), do: Repo.get_by(PhotoShare, token: token)
   def get_by_token(_), do: nil
 
   @doc """
-  The owner's photos currently in the feed, newest first: `any` keeps a photo
-  carrying at least one of the share's tags or people, `all` one carrying
-  every one of them.
+  Returns the photos of the owner that are in the feed at this time, newest
+  first. `any` keeps a photo that has at least one of the tags or people of
+  the share. `all` keeps a photo that has all of them.
   """
   @spec photos(PhotoShare.t()) :: [Entry.t()]
   def photos(%PhotoShare{} = share) do
@@ -65,7 +67,7 @@ defmodule Servant.PhotoShares do
     |> Enum.filter(&in_feed?(share, &1))
   end
 
-  @doc "Whether a photo entry belongs to the share's feed."
+  @doc "Returns true if a photo entry belongs to the feed of the share."
   @spec in_feed?(PhotoShare.t(), Entry.t()) :: boolean()
   def in_feed?(%PhotoShare{tags: tags, people: people, match: match}, %Entry{data: data}) do
     photo_tags = for tag <- list(data["tags"]), is_binary(tag), do: {:tag, tag}
@@ -85,10 +87,11 @@ defmodule Servant.PhotoShares do
   defp list(_value), do: []
 
   @doc """
-  Resolves a storage-relative path requested through the share's file route:
-  `{:ok, absolute}` only when the file is the original, thumbnail or display
-  copy of a photo currently in the feed, so a link never reaches the rest of
-  the owner's files.
+  Resolves a storage-relative path that a request to the file route of the
+  share gives. Returns `{:ok, absolute}` only when the file is the original,
+  the thumbnail or the display copy of a photo that is in the feed at this
+  time. As a result, a link never gives access to the other files of the
+  owner.
   """
   @spec resolve_file(PhotoShare.t(), String.t()) :: {:ok, String.t()} | :error
   def resolve_file(%PhotoShare{} = share, relative) when is_binary(relative) do
@@ -103,7 +106,7 @@ defmodule Servant.PhotoShares do
     if allowed?, do: Storage.resolve_owned_path(share.user_id, requested), else: :error
   end
 
-  @doc "Storage-relative paths of a photo's files (original, thumbnail, display copy)."
+  @doc "Returns the storage-relative paths of the photo files (original, thumbnail, display copy)."
   @spec file_paths(Entry.t()) :: [String.t()]
   def file_paths(%Entry{data: data}) do
     for key <- ["path", "thumb_path", "display_path"],
@@ -113,8 +116,9 @@ defmodule Servant.PhotoShares do
   end
 
   @doc """
-  The public JSON feed: the share's label and, per photo, only what a viewer
-  needs to browse it. File URLs go through the share's own file route.
+  Returns the public JSON feed: the label of the share and, for each photo,
+  only the data that is necessary for a viewer to browse it. The file URLs go
+  through the file route of the share.
   """
   @spec feed_json(PhotoShare.t(), [Entry.t()]) :: map()
   def feed_json(%PhotoShare{} = share, photos) do
@@ -137,20 +141,22 @@ defmodule Servant.PhotoShares do
       occurred_at: photo.occurred_at,
       mime_type: mime,
       video: video?,
-      # The owner writes it for whoever gets the link: context, not metadata.
+      # The owner writes it for the people who get the link: it is context, not
+      # metadata.
       note: data["note"],
-      # The grid frame: the thumbnail, else the original (or nothing for a
-      # video without a captured frame; the page then shows a play tile).
+      # The grid frame: the thumbnail, or the original if there is no
+      # thumbnail. For a video without a captured frame, it is nothing, and
+      # the page then shows a play tile.
       thumb: share_url(share, thumb_source(data, video?)),
-      # What the viewer opens: the display copy is the fast 1920px JPEG.
+      # The file that the viewer opens. The display copy is the fast 1920px JPEG.
       src: share_url(share, data["display_path"] || data["path"]),
       # The original, when it differs from the display copy.
       full: if(data["display_path"], do: share_url(share, data["path"]))
     }
   end
 
-  # A video never falls back to its original as a grid frame: the page shows
-  # a play tile instead of mounting one decoder per cell.
+  # A video never uses its original as a grid frame. The page shows a play
+  # tile and does not mount one decoder for each cell.
   defp thumb_source(data, true), do: data["thumb_path"]
   defp thumb_source(data, false), do: data["thumb_path"] || data["path"]
 

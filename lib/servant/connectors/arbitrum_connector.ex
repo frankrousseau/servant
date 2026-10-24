@@ -1,6 +1,6 @@
 defmodule Servant.Connectors.ArbitrumConnector do
   @moduledoc """
-  Connector for Arbitrum One wallet transactions.
+  Connector for the wallet transactions of Arbitrum One.
   """
 
   use Servant.Connectors.EVMConnector,

@@ -4,9 +4,9 @@ defmodule Servant.Connectors.EVMChainsTest do
   alias Servant.Connectors.{ArbitrumConnector, BaseConnector, EthereumConnector}
   alias Servant.Connectors.HyperEVMConnector
 
-  # Every chain is a thin configuration of Servant.Connectors.EVMConnector; the
-  # behaviour is covered through HyperEVMConnector, this guards the wiring
-  # (a wrong chain_id silently queries another chain on Etherscan V2).
+  # Each chain is a thin configuration of Servant.Connectors.EVMConnector. The
+  # HyperEVMConnector tests cover the behavior. This test guards the wiring:
+  # a wrong chain_id silently queries a different chain on Etherscan V2.
   @chains [
     {EthereumConnector, "ethereum", 1, "ETH"},
     {ArbitrumConnector, "arbitrum", 42_161, "ETH"},

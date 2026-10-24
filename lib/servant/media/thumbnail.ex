@@ -1,6 +1,6 @@
 defmodule Servant.Media.Thumbnail do
   @moduledoc """
-  Generates JPEG thumbnails for photo uploads using libvips (via Vix).
+  Generates JPEG thumbnails for photo uploads with libvips (through Vix).
   """
 
   import Ecto.Query
@@ -53,8 +53,8 @@ defmodule Servant.Media.Thumbnail do
   end
 
   @doc """
-  Generates a full-size display JPEG for formats browsers can't render
-  (e.g. HEIC). Returns `{:ok, public_url, relative}` or `:error`.
+  Generates a full-size display JPEG for the formats that browsers cannot
+  render (for example HEIC). Returns `{:ok, public_url, relative}` or `:error`.
   """
   def create_display_for_storage(relative, absolute) do
     display_relative = Storage.display_relative(relative)
@@ -105,9 +105,9 @@ defmodule Servant.Media.Thumbnail do
   def create_display_for_public_path(_), do: :error
 
   @doc """
-  Generates missing thumbnails and display JPEGs for photo entries and
+  Generates the missing thumbnails and display JPEGs for photo entries and
   updates their `thumb_path` / `display_path`. Pass a `user_id` to scope
-  the run to one user (the API endpoint), or nil for all (release task).
+  the run to one user (the API endpoint). Pass nil for all users (release task).
   Returns a list of `{:ok, entry_id}` or `{:error, entry_id, reason}` tuples.
   """
   @backfill_batch_size 100
@@ -122,9 +122,10 @@ defmodule Servant.Media.Thumbnail do
     |> Enum.to_list()
   end
 
-  # Keyset-paginate by id so we never hold every photo entry in memory at once.
-  # Each batch is its own query, so the per-entry `Repo.update` in
-  # `backfill_entry/1` runs between fetches (no open cursor, SQLite-friendly).
+  # Keyset-paginate by id, so that the memory never holds every photo entry at
+  # the same time. Each batch is its own query. As a result, the `Repo.update`
+  # for each entry in `backfill_entry/1` runs between fetches (no open cursor,
+  # SQLite-friendly).
   defp stream_in_batches(query, batch_size) do
     Stream.resource(
       fn -> nil end,

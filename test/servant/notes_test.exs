@@ -66,7 +66,7 @@ defmodule Servant.NotesTest do
       {:ok, note} = Notes.update_note(user.id, note.id, %{"body" => "hello"})
       assert note.data["attachments"] == ["f1", "f2"]
 
-      # A non-list payload is ignored rather than clobbering the list.
+      # The update ignores a non-list payload and does not clobber the list.
       {:ok, note} = Notes.update_note(user.id, note.id, %{"attachments" => "nope"})
       assert note.data["attachments"] == ["f1", "f2"]
 
@@ -81,7 +81,8 @@ defmodule Servant.NotesTest do
       assert %{title: [message]} = errors_on(changeset)
       assert message =~ "already exists"
 
-      # Same title in another folder is a different slug, so it is fine.
+      # The same title in a different folder gives a different slug. As a result,
+      # it is correct.
       assert {:ok, _} = Notes.create_note(user.id, %{"title" => "Dup", "folder" => "Sub"})
     end
   end
@@ -130,8 +131,8 @@ defmodule Servant.NotesTest do
 
       {:ok, renamed} = Notes.update_note(user.id, b.id, %{"title" => "B2"})
 
-      # The link row follows the rename (body rewrite + re-sync), so the graph
-      # never points at a key the note no longer answers to.
+      # The link row follows the rename (body rewrite + re-sync). As a result, the
+      # graph never points at a key that the note does not answer to anymore.
       link = Repo.one!(from l in NoteLink, where: l.source_note_id == ^source.id)
       assert link.target_note_id == b.id
       assert link.target_path == "b2"
@@ -223,14 +224,14 @@ defmodule Servant.NotesTest do
         "data" => %{"display_name" => "Sam"}
       })
 
-      # A note that happens to share the contact's name.
+      # A note that, by chance, has the same name as the contact.
       {:ok, sam_note} = Notes.create_note(user.id, %{"title" => "Sam", "body" => ""})
 
       {:ok, mentioning} =
         Notes.create_note(user.id, %{"title" => "Journal", "body" => "lunch with @[[Sam]]"})
 
-      # The mention targets the contact, not the note, so no backlink appears
-      # and renaming the note leaves the mention text untouched.
+      # The mention targets the contact, not the note. As a result, no backlink
+      # appears, and a rename of the note does not change the mention text.
       assert Notes.backlinks(user.id, sam_note) == []
 
       {:ok, _} = Notes.update_note(user.id, sam_note.id, %{"title" => "Sam 2"})

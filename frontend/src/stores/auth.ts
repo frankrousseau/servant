@@ -7,13 +7,13 @@ import type { Session } from '../api/auth'
 import { applyTheme } from '../lib/theme'
 import { messageOf, reportClientError } from '../lib/reportError'
 
-// Only a non-sensitive "are we logged in?" flag is persisted. The actual auth
-// token lives in an HttpOnly cookie (unreadable by JS) plus an in-memory copy
-// used to open the realtime socket, never in localStorage.
+// The store persists only a non-sensitive "are we logged in?" flag. The real
+// auth token is in an HttpOnly cookie, which JS cannot read. An in-memory copy
+// opens the realtime socket. The token is never in localStorage.
 const LOGGED_IN_KEY = 'servant_logged_in'
 
 export const useAuthStore = defineStore('auth', () => {
-  // Drop any token left by the pre-cookie version.
+  // Drop the token that the version before cookies possibly left.
   localStorage.removeItem('auth_token')
 
   // ----- state -----
@@ -30,8 +30,9 @@ export const useAuthStore = defineStore('auth', () => {
     loggedIn.value = true
     localStorage.setItem(LOGGED_IN_KEY, '1')
     if (session.user.theme) applyTheme(session.user.theme)
-    // The login/register answer carries a partial user; /auth/me completes it
-    // (preferences, enabled apps, formats) without waiting for a reload.
+    // The reply to a login or a register has a partial user. /auth/me
+    // completes it (preferences, enabled apps, formats) and does not wait for
+    // a reload.
     authApi
       .fetchMe()
       .then(me => {
@@ -83,8 +84,9 @@ export const useAuthStore = defineStore('auth', () => {
 
   // ----- preferences -----
 
-  // Applied locally at once, then saved one key at a time. Saves are chained
-  // so two quick changes reach the server in order and never overtake.
+  // A preference applies locally immediately, then the store saves it, one
+  // key at a time. The saves are in a chain. As a result, two quick changes
+  // reach the server in order, and one never overtakes the other.
   let preferenceSaves = Promise.resolve()
 
   function setPreference(key: string, value: unknown) {
@@ -98,9 +100,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   // ----- boot -----
 
-  // On boot, if the flag says we were logged in, confirm via /auth/me; the
-  // HttpOnly cookie authenticates the request. Populates the user and an
-  // in-memory token (for the socket); clears state if the cookie is gone/expired.
+  // On boot, if the flag says that we were logged in, confirm it through
+  // /auth/me. The HttpOnly cookie authenticates the request. This populates
+  // the user and an in-memory token (for the socket). It clears the state if
+  // the cookie is gone or expired.
   async function hydrate() {
     if (user.value || !loggedIn.value) return
 

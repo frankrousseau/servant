@@ -11,12 +11,12 @@ defmodule Servant.Connectors.EVM.TransactionParser do
   Parses a native-currency transaction from an Etherscan-compatible
   txlist response.
 
-  Returns `{:ok, parsed}` or `:skip` if the transaction is failed,
+  Returns `{:ok, parsed}`. Returns `:skip` if the transaction failed,
   has zero value, or is below the threshold.
 
   Options:
-    - `:min_wei`: minimum transfer in wei to include (default 1_000_000_000_000_000 = 0.001)
-    - `:symbol`: native currency symbol of the chain (default "ETH")
+    - `:min_wei`: the minimum transfer, in wei, to include (default 1_000_000_000_000_000 = 0.001)
+    - `:symbol`: the native currency symbol of the chain (default "ETH")
   """
   def parse_transaction(tx, wallet_address, opts \\ []) do
     min_wei = Keyword.get(opts, :min_wei, 1_000_000_000_000_000)
@@ -105,9 +105,10 @@ defmodule Servant.Connectors.EVM.TransactionParser do
          tx_hash: tx["hash"],
          block_number: parse_int(tx["blockNumber"]),
          timestamp: parse_timestamp(tx["timeStamp"]),
-         # Etherscan's tokentx rows carry a per-tx `logIndex`; keep it so a tx
-         # emitting several ERC-20 Transfer events yields distinct external_ids
-         # instead of colliding on the shared hash and being deduped away.
+         # The tokentx rows of Etherscan contain a per-tx `logIndex`. Keep it.
+         # Then a tx that emits several ERC-20 Transfer events gives distinct
+         # external_ids. Without it, the events collide on the shared hash and
+         # the dedup removes them.
          log_index: tx["logIndex"],
          transfers: [
            %{
@@ -128,7 +129,7 @@ defmodule Servant.Connectors.EVM.TransactionParser do
 
   defp check_success(%{"isError" => "0"}), do: :ok
   defp check_success(%{"isError" => "1"}), do: :failed
-  # Token transfers don't have isError; assume success
+  # Token transfers do not have isError. Assume success.
   defp check_success(%{"tokenSymbol" => _}), do: :ok
   defp check_success(_), do: :ok
 

@@ -1,6 +1,11 @@
-// Shapes the API returns, mirrored from what the Phoenix controllers render.
-// Types only: the helpers that used to sit here live in lib/ (datetime, kind,
-// filesize, connectors), so importing a shape never pulls in runtime code.
+// The shapes that the API returns. They mirror what the Phoenix controllers
+// render. This file has types only. The helpers that were here before are now
+// in these files of lib/:
+// - datetime
+// - kind
+// - filesize
+// - connectors
+// As a result, the import of a shape never pulls in runtime code.
 
 // ----- account -----
 
@@ -12,16 +17,16 @@ export interface User {
   avatar_path: string | null
   timezone?: string | null
   theme?: string | null
-  // null on either means "render like the browser does"
+  // A null on one of the two means "render like the browser does".
   time_format?: string | null
   date_format?: string | null
   enabled_apps?: string[] | null
-  // Per-app UI preferences keyed "<app>.<name>"; only /api/auth/me and the
-  // profile update return them.
+  // The UI preferences of each app, with "<app>.<name>" keys. Only /api/auth/me
+  // and the profile update return them.
   preferences?: Record<string, unknown>
   totp_enabled?: boolean
   admin?: boolean
-  // Only /api/auth/me returns it (the Profile page's "member since").
+  // Only /api/auth/me returns it (the "member since" of the Profile page).
   inserted_at?: string
 }
 
@@ -148,12 +153,12 @@ export interface AgentRun {
   inserted_at: string
 }
 
-/** A public link over the photos carrying one or more tags (Photos > Share). */
+/** A public link over the photos that have one or more tags (Photos > Share). */
 export interface PhotoShare {
   id: string
   name: string | null
   tags: string[]
-  /** Contacts tagged on the photos; the name is a label snapshot. */
+  /** The contacts tagged on the photos. The name is a snapshot of the label. */
   people: { id: string; name: string }[]
   match: 'any' | 'all'
   token: string

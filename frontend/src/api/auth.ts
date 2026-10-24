@@ -1,11 +1,12 @@
-// Every call to /api/auth, named. The account endpoints split in two: the ones
-// below that go through the shared client, and the handful that must not.
+// This module gives a name to each call to /api/auth. The account endpoints
+// are in two groups. The calls of the first group go through the shared
+// client. The few calls of the second group must not.
 //
-// The shared client turns any 401 into a logout, which is exactly wrong on the
-// way in: a bad password or a wrong TOTP code answers 401 and would clear a
-// session that was never opened. Those calls use fetch directly, with the same
-// error parsing, so a changeset-style {errors: {field: [...]}} body still
-// surfaces its real message instead of a generic one.
+// The shared client changes each 401 into a logout. That is wrong during the
+// login: a bad password or a wrong TOTP code gives a 401. The shared client
+// would then clear a session that the user did not open. Those calls use
+// fetch directly, with the same error parsing. As a result, a changeset-style
+// {errors: {field: [...]}} body shows its real message and not a generic one.
 import type { User } from '../types'
 import { apiErrorMessage, apiJson } from '../composables/apiClient'
 
@@ -61,12 +62,18 @@ export function register(
   )
 }
 
-/** Clears the HttpOnly cookie server-side. Fire and forget: local state goes either way. */
+/**
+ * Clears the HttpOnly cookie on the server. The call does not wait for the
+ * reply: the local state goes away if the request succeeds or not.
+ */
 export function logout(): void {
   fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
 }
 
-/** Whether this instance still accepts self-registration. Unauthenticated. */
+/**
+ * Tells if this instance still accepts self-registration. The call is
+ * unauthenticated.
+ */
 export async function fetchAuthConfig(): Promise<{
   registration_enabled: boolean
 }> {
@@ -76,8 +83,9 @@ export async function fetchAuthConfig(): Promise<{
 }
 
 /**
- * The current user, authenticated by the cookie alone. Returns null on 401 (no
- * session), and the in-memory token the socket needs when there is one.
+ * Returns the current user, authenticated by the cookie alone. Returns null on
+ * a 401 (no session). Also returns the in-memory token that is necessary for
+ * the socket, when there is one.
  */
 export async function fetchMe(): Promise<{
   user: User
@@ -111,9 +119,10 @@ export async function changePassword(
 }
 
 /**
- * Multipart, so the browser sets the boundary itself and the shared client
- * (which forces a JSON content-type) cannot be used. The token is passed in
- * rather than read from the store, to keep this module free of it.
+ * The request is multipart, so the browser sets the boundary itself. The
+ * shared client forces a JSON content-type, so this call cannot use it. The
+ * caller passes the token, and this module does not read it from the store.
+ * As a result, this module does not depend on the store.
  */
 export async function uploadAvatar(
   file: File,
@@ -136,7 +145,7 @@ export async function uploadAvatar(
 export interface TotpSetup {
   secret: string
   otpauth_url: string
-  /** Signed handle on the pending secret; confirm echoes it back. */
+  /** A signed handle on the pending secret. The confirm call sends it back. */
   payload: string
 }
 

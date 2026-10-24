@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 
 import { heicExif, withExif } from './exifCarry'
 
-// A big-endian TIFF block whose IFD0 holds one Orientation tag (6: rotate
-// 90 degrees), the case an iPhone portrait photo carries.
+// A big-endian TIFF block. Its IFD0 holds one Orientation tag (6: rotate
+// 90 degrees), which is the value in a portrait photo from an iPhone.
 function tiffWithOrientation(orientation: number): Uint8Array {
   const tiff = new Uint8Array(8 + 2 + 12 + 4)
   const view = new DataView(tiff.buffer)
@@ -45,9 +45,9 @@ describe('exifCarry', () => {
     // SOI, APP1 marker, then the segment length (2 + 6 + 26 = 34).
     expect([...out.slice(0, 6)]).toEqual([0xff, 0xd8, 0xff, 0xe1, 0, 34])
     expect(String.fromCharCode(...out.slice(6, 10))).toBe('Exif')
-    // The original JPEG body follows the segment untouched.
+    // The original JPEG body comes after the segment, with no change.
     expect([...out.slice(-6)]).toEqual([0xff, 0xdb, 0x00, 0x02, 0xff, 0xd9])
-    // Orientation value (TIFF offset 18) was reset from 6 to 1.
+    // The function reset the Orientation value (TIFF offset 18) from 6 to 1.
     const tiffStart = 12
     expect(out[tiffStart + 18] * 256 + out[tiffStart + 19]).toBe(1)
   })

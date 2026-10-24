@@ -1,8 +1,9 @@
 defmodule Servant.Media.VideoMeta do
   @moduledoc """
-  Extracts the creation date from MP4/QuickTime containers (.mp4, .mov) by
-  walking the box structure down to `moov/mvhd`. Pure binary parsing, no
-  system dependencies. WebM has no standard creation date and returns :error.
+  Extracts the creation date from MP4/QuickTime containers (.mp4, .mov). It
+  walks the box structure down to `moov/mvhd`. This is pure binary parsing,
+  with no system dependencies. WebM has no standard creation date, so the
+  function returns :error for it.
   """
 
   # Seconds between the QuickTime epoch (1904-01-01) and the Unix epoch.
@@ -35,8 +36,8 @@ defmodule Servant.Media.VideoMeta do
     _ -> :error
   end
 
-  # Scans sibling boxes in [offset, stop) for `type`; returns the content
-  # bounds (past the box header).
+  # Scans the sibling boxes in [offset, stop) for `type`. Returns the content
+  # bounds (after the box header).
   defp find_box(_io, offset, stop, _type) when offset >= stop, do: :error
 
   defp find_box(io, offset, stop, type) do
@@ -50,7 +51,7 @@ defmodule Servant.Media.VideoMeta do
                 _ -> {16, 0}
               end
 
-            # size 0 = box extends to end of file
+            # A size of 0 means that the box extends to the end of the file.
             0 ->
               {8, stop - offset}
 
@@ -82,7 +83,7 @@ defmodule Servant.Media.VideoMeta do
 
   defp qt_time(seconds) do
     case DateTime.from_unix(seconds - @qt_epoch_offset) do
-      # Sanity: some encoders write garbage; only trust plausible dates.
+      # Sanity: some encoders write garbage. Trust only plausible dates.
       {:ok, dt} when dt.year >= 1970 and dt.year <= 2100 -> {:ok, dt}
       _ -> :error
     end

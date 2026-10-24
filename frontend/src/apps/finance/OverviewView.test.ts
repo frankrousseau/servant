@@ -88,7 +88,8 @@ describe('OverviewView', () => {
     const cats = wrapper.findAll('.ov-cat').map(c => c.text())
     expect(cats[0]).toContain('rent')
     expect(cats[1]).toContain('food')
-    // Fresh balance, every currency rated: nothing to do.
+    // The balance is fresh and every currency has a rate: there is nothing
+    // to do.
     expect(wrapper.findAll('.ov-alert')).toHaveLength(0)
     expect(wrapper.text()).toContain('Everything fresh')
   })
@@ -104,9 +105,9 @@ describe('OverviewView', () => {
 
     expect(wrapper.find('.ov-total').text()).toBe('650 EUR')
     expect(wrapper.find('.ov-caption').text()).toContain('net of taxes')
-    // The provision shifts the whole curve; this curve starts inside the
+    // The provision shifts the whole curve. This curve starts inside the
     // 30d window (0 before its first point), so the delta shows the net
-    // level. On a curve older than 30d the flat shift cancels out.
+    // level. On a curve older than 30d, the flat shift cancels out.
     expect(wrapper.find('.ov-delta').text()).toBe('+650 EUR / 30d')
   })
 

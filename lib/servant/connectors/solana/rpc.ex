@@ -20,9 +20,10 @@ defmodule Servant.Connectors.Solana.RPC do
     do_call(url, body)
   end
 
-  # HTTP-level failures (429, 5xx, transport) are retried by Req itself. A node
-  # that reports the rate limit *inside* a 200 body is ours to retry: Req's
-  # retry step runs before the body is decoded, so it cannot see that one.
+  # Req itself retries the HTTP-level failures (429, 5xx, transport). When a
+  # node reports the rate limit *inside* a 200 body, this module must retry.
+  # The retry step of Req runs before the decode of the body, so Req cannot
+  # see that rate limit.
   defp do_call(url, body, attempt \\ 0) do
     case Req.post(url, Servant.HTTP.req_options(json: body, retry: :transient)) do
       {:ok, %Req.Response{status: 200, body: %{"result" => result}}} ->
@@ -46,7 +47,7 @@ defmodule Servant.Connectors.Solana.RPC do
 
   @doc """
   Fetches confirmed transaction signatures for a wallet address.
-  Options: :before (signature), :limit (default 100).
+  Options: :before (signature), :until (signature), :limit (default 100).
   """
   def get_signatures(address, opts \\ []) do
     config = %{limit: Keyword.get(opts, :limit, 100)}

@@ -1,5 +1,5 @@
 defmodule ServantWeb.AppController do
-  @moduledoc "Lists built-in and installed apps; installs apps from git."
+  @moduledoc "Lists the built-in and installed apps. Installs apps from git."
 
   use ServantWeb, :controller
   use OpenApiSpex.ControllerSpecs

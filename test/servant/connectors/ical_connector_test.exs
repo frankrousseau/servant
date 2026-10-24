@@ -82,8 +82,8 @@ defmodule Servant.Connectors.ICalConnectorTest do
     end
 
     test "returns error (not a crash) for well-shaped but invalid stamps" do
-      # These match the digit-shape regexes but are out of range; the parser must
-      # not raise (a single bad VEVENT would otherwise take down the worker).
+      # These stamps match the digit-shape regexes but are out of range. The
+      # parser must not raise. If it raises, one bad VEVENT takes down the worker.
       assert {:error, :invalid_format} = ICalConnector.parse_ical_datetime("20250230T120000Z")
       assert {:error, :invalid_format} = ICalConnector.parse_ical_datetime("20250401T240000Z")
       assert {:error, :invalid_format} = ICalConnector.parse_ical_datetime("20251340")
@@ -139,8 +139,8 @@ defmodule Servant.Connectors.ICalConnectorTest do
   end
 
   describe "sync/1" do
-    # A public IP literal, so the SSRF guard resolves without a DNS lookup and
-    # the test stays offline; Req.Test answers the request itself.
+    # A public IP literal. As a result, the SSRF guard resolves without a DNS
+    # lookup and the test stays offline. Req.Test itself answers the request.
     @feed_url "http://93.184.216.34/calendar.ics"
 
     defp state(config \\ %{}) do
@@ -179,8 +179,8 @@ defmodule Servant.Connectors.ICalConnectorTest do
       assert {:error, "HTTP 404", _state} = ICalConnector.sync(state())
     end
 
-    # The calendar URL comes from the user, so it must never be usable to reach
-    # the host's own network (SSRF).
+    # The calendar URL comes from the user. As a result, it must never let a
+    # request reach the own network of the host (SSRF).
     test "refuses a URL that is not publicly routable" do
       Req.Test.stub(Servant.HTTP, fn _conn -> flunk("the guard should have refused") end)
 

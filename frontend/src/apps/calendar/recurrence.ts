@@ -5,8 +5,8 @@ export function recurrenceOf(data: Record<string, unknown>): Recurrence | null {
   return r === 'weekly' || r === 'monthly' || r === 'yearly' ? r : null
 }
 
-// All dates below are civil "YYYY-MM-DD" strings in the user's timezone
-// (string comparison orders them chronologically).
+// All dates below are civil "YYYY-MM-DD" strings in the user's timezone.
+// A string comparison puts them in chronological order.
 
 function dayOfWeek(dateStr: string): number {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -26,8 +26,8 @@ export function addDays(dateStr: string, n: number): string {
 }
 
 // Does an event seeded on `seed` recur on `date`? Occurrences start at the
-// seed. Seeds past the end of a shorter month (31st, Feb 29 anniversaries)
-// are clamped to that month's last day.
+// seed. A seed can be after the end of a shorter month (31st, Feb 29
+// anniversaries). The function clamps it to the last day of that month.
 export function occursOn(seed: string, rec: Recurrence, date: string): boolean {
   if (date < seed) return false
   if (date === seed) return true
@@ -45,7 +45,8 @@ export function occursOn(seed: string, rec: Recurrence, date: string): boolean {
 }
 
 // First occurrence on or after `from`.
-// ponytail: linear day scan, bounded by the longest gap (a year + slack)
+// ponytail: a linear scan of the days. The longest gap (a year + slack)
+// bounds it.
 export function nextOccurrence(
   seed: string,
   rec: Recurrence,
@@ -59,8 +60,8 @@ export function nextOccurrence(
   return seed
 }
 
-// First occurrence still ahead at `today` + `nowTime` ("HH:MM" wall clock):
-// an occurrence today only counts until the event's time has passed.
+// First occurrence still ahead at `today` + `nowTime` ("HH:MM" wall clock).
+// An occurrence today counts only until the time of the event is past.
 export function upcomingOccurrence(
   seed: string,
   rec: Recurrence,

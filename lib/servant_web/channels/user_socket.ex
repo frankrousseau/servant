@@ -1,5 +1,5 @@
 defmodule ServantWeb.UserSocket do
-  @moduledoc "Token-authenticated socket carrying the per-user data channel."
+  @moduledoc "Token-authenticated socket that carries the per-user data channel."
 
   use Phoenix.Socket
 
@@ -7,8 +7,8 @@ defmodule ServantWeb.UserSocket do
 
   @impl true
   def connect(%{"token" => token}, socket, _connect_info) do
-    # Same path as HTTP auth (verify + token_version check) so the two can't
-    # drift and a revoked token can't open a socket.
+    # Use the same path as HTTP auth (verify + token_version check). As a result,
+    # the two cannot drift apart and a revoked token cannot open a socket.
     case ServantWeb.Auth.authenticate_token(socket, token) do
       {:ok, user} ->
         {:ok, assign(socket, :user_id, user.id)}

@@ -1,5 +1,5 @@
 defmodule ServantWeb.FilesDavTest do
-  # System.put_env on the storage roots: keep serial.
+  # This module calls System.put_env on the storage roots. Keep it serial.
   use ServantWeb.ConnCase, async: false
 
   alias Servant.Data

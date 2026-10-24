@@ -1,7 +1,7 @@
 defmodule Servant.Connectors.VCardConnector do
   @moduledoc """
   Connector that imports contacts from a vCard (.vcf) file or URL.
-  Supports vCard 3.0 and 4.0 formats.
+  Supports the vCard 3.0 and 4.0 formats.
   """
 
   use Servant.Connectors.Connector
@@ -9,8 +9,8 @@ defmodule Servant.Connectors.VCardConnector do
   alias Servant.HTTP
   alias Servant.Storage
 
-  # Contact photos are portrait-sized in practice; past this a card is carrying
-  # something else and we leave it in the raw payload rather than store it.
+  # In practice, contact photos have the size of a portrait. Above this limit, a
+  # card contains something else. Leave it in the raw payload and do not store it.
   @max_photo_bytes 10_000_000
 
   # vCard 2.1 writes types as bare params ("TEL;CELL:..."); the generic ones
@@ -61,11 +61,12 @@ defmodule Servant.Connectors.VCardConnector do
 
   @doc """
   Parses vCard content and returns entry maps.
-  Called by the file import endpoint.
+  The file import endpoint calls this function.
 
-  A dropped file is a hand-off of the user's own address book, not a feed, so
-  its cards land as ordinary "manual" contacts, raw payload kept: they are
-  exposed over CardDAV like any user-authored contact and reach the phone.
+  A dropped file is a hand-off of the user's own address book, not a feed. As a
+  result, its cards become ordinary "manual" contacts and keep their raw payload.
+  CardDAV exposes them like any contact that the user wrote, and they reach the
+  phone.
   """
   def import_vcard(vcf_content, state) do
     entries =
@@ -83,8 +84,8 @@ defmodule Servant.Connectors.VCardConnector do
   end
 
   defp fetch_vcf(url) do
-    # SSRF guard on the user-supplied feed URL, like RSS/iCal; without it a vCard
-    # connector could be pointed at internal/metadata addresses.
+    # SSRF guard on the feed URL that the user supplies, as for RSS and iCal.
+    # Without it, a vCard connector can point at internal or metadata addresses.
     with :ok <- HTTP.ensure_public_url(url) do
       case Req.get(url, HTTP.req_options(verify: false)) do
         {:ok, %Req.Response{status: 200, body: body}} when is_binary(body) ->
@@ -111,9 +112,10 @@ defmodule Servant.Connectors.VCardConnector do
   end
 
   @doc """
-  Same as `parse_vcards/1`, pairing each contact with the card it was parsed
-  from, verbatim. An import keeps that text so photos, structured names and
-  properties this parser ignores survive the trip to a CardDAV client.
+  Same as `parse_vcards/1`, but pairs each contact with the verbatim text of its
+  source card. An import keeps that text. As a result, the photos, the structured
+  names and the properties that this parser ignores survive the trip to a CardDAV
+  client.
   """
   def parse_vcards_with_raw(body) do
     body
@@ -126,9 +128,9 @@ defmodule Servant.Connectors.VCardConnector do
     end)
   end
 
-  # Cards are cut out of the original text, folding and all, before being
-  # unfolded for parsing: the stored payload has to stay byte-for-byte what the
-  # file held. A card without its END line is dropped, as it always was.
+  # Cut the cards out of the original text, with the folding, before the unfold
+  # for the parser. The stored payload must stay byte-for-byte what the file
+  # contained. A card without its END line is dropped, as it always was.
   defp split_cards(body) do
     ~r/BEGIN:VCARD.*?END:VCARD/is
     |> Regex.scan(body)
@@ -160,7 +162,7 @@ defmodule Servant.Connectors.VCardConnector do
     fn_name = get_first(props, "FN")
     n_parts = get_first(props, "N")
 
-    # Build a display name
+    # Build a display name.
     display_name =
       cond do
         fn_name && fn_name != "" ->
@@ -197,8 +199,8 @@ defmodule Servant.Connectors.VCardConnector do
   defp parse_property(line) do
     case String.split(line, ":", parts: 2) do
       [key_part, value] ->
-        # Key may have params like "TEL;TYPE=WORK;VALUE=uri" and a group
-        # prefix like "item1.TEL" (iOS groups a property with its X-ABLabel)
+        # The key can have params such as "TEL;TYPE=WORK;VALUE=uri" and a group
+        # prefix such as "item1.TEL" (iOS groups a property with its X-ABLabel).
         key =
           key_part
           |> String.split(";")
@@ -265,8 +267,9 @@ defmodule Servant.Connectors.VCardConnector do
   end
 
   defp unescape(text) do
-    # Neutralize escaped backslashes first (via a placeholder) so a literal "\\n"
-    # decodes to "\n" and not a newline. Mirrors Servant.CalDAV.ICS.unescape/1.
+    # Neutralize the escaped backslashes first (with a placeholder). Then a literal
+    # "\\n" decodes to "\n" and not to a newline. Servant.CalDAV.ICS.unescape/1
+    # does the same.
     text
     |> String.replace("\\\\", "\0")
     |> String.replace("\\n", "\n")
@@ -325,12 +328,12 @@ defmodule Servant.Connectors.VCardConnector do
     }
   end
 
-  # A vCard carries its photo inline, base64-encoded. Decoding it into a stored
-  # file gives the contact the same avatar as a photo uploaded from the app;
-  # left inside the card it would only ever show up on a phone.
+  # A vCard contains its photo inline, encoded in base64. The decode of the photo
+  # into a stored file gives the contact the same avatar as a photo uploaded from
+  # the app. A photo left in the card shows only on a phone.
   #
-  # Imports only: a feed re-fetched on a schedule would write the same file over
-  # and over, and its entries are skipped as duplicates anyway.
+  # Imports only. A feed fetched again on a schedule writes the same file again
+  # and again, and its entries are skipped as duplicates anyway.
   defp photo_payload(_contact, nil, _state), do: %{}
 
   defp photo_payload(contact, _raw, state) do
@@ -354,8 +357,8 @@ defmodule Servant.Connectors.VCardConnector do
           _ -> :error
         end
 
-      # A remote photo is a link, not a payload: fetching it would mean calling
-      # out to whatever host the file names.
+      # A remote photo is a link, not a payload. To fetch it, the server must
+      # call the host that the file names, whatever that host is.
       String.starts_with?(value, "http") ->
         :error
 
@@ -384,15 +387,15 @@ defmodule Servant.Connectors.VCardConnector do
         _ -> nil
       end
     rescue
-      # A photo that can't be written (bad bytes, full disk) costs the avatar,
-      # not the import: the contact itself still lands.
+      # A photo that cannot be written (bad bytes, full disk) costs the avatar,
+      # not the import. The contact itself is still imported.
       _ -> nil
     after
       Storage.cleanup_tmp(workspace)
     end
   end
 
-  # The TYPE param is optional and often wrong; the bytes are not.
+  # The TYPE param is optional and often wrong. The bytes are not.
   defp photo_extension(<<0xFF, 0xD8, 0xFF, _rest::binary>>), do: ".jpg"
 
   defp photo_extension(<<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, _rest::binary>>),
@@ -402,9 +405,10 @@ defmodule Servant.Connectors.VCardConnector do
   defp photo_extension(<<"RIFF", _size::binary-size(4), "WEBP", _rest::binary>>), do: ".webp"
   defp photo_extension(_binary), do: ".jpg"
 
-  # `Servant.CardDAV.VCard.to_vcf/2` serves this payload back untouched until the
-  # contact is edited in Servant, which is what carries a photo through to a
-  # phone; the same keys a CardDAV PUT stores, so both paths round-trip alike.
+  # `Servant.CardDAV.VCard.to_vcf/2` serves this payload back unchanged until an
+  # edit of the contact in Servant. That is how a photo gets to a phone. These
+  # are the same keys that a CardDAV PUT stores, so the two paths round-trip in
+  # the same way.
   defp raw_payload(nil), do: %{}
 
   defp raw_payload(raw) do

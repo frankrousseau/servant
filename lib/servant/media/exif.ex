@@ -1,12 +1,12 @@
 defmodule Servant.Media.Exif do
   @moduledoc """
   Extracts EXIF metadata from images: date taken, GPS coordinates,
-  camera info. Returns nil values gracefully when data is missing.
+  camera info. Returns nil values without an error when data is missing.
 
-  JPEG files and HEIC photos (iPhone) go through `ExifParser`: the HEIC
-  Exif item is a plain TIFF block, found by its `Exif\\0\\0` marker, since the
-  libvips bundled with Vix has no HEIF loader. Anything else falls back to
-  the `exif-*` header fields libvips exposes.
+  JPEG files and HEIC photos (iPhone) go through `ExifParser`. The HEIC
+  Exif item is a plain TIFF block, found by its `Exif\\0\\0` marker. This is
+  necessary because the libvips bundled with Vix has no HEIF loader. All
+  other formats use the `exif-*` header fields that libvips exposes.
   """
 
   import Ecto.Query
@@ -18,7 +18,7 @@ defmodule Servant.Media.Exif do
 
   @doc """
   Extracts EXIF data from a file path.
-  Returns a map with normalized fields, or an empty map if no EXIF found.
+  Returns a map with normalized fields, or an empty map if there is no EXIF data.
   """
   def extract(path) do
     case parse_exif(path) do
@@ -40,7 +40,7 @@ defmodule Servant.Media.Exif do
     _ -> %{}
   end
 
-  @doc "Photo entry data fields (date_taken, latitude/longitude, camera) from `extract/1`."
+  @doc "Data fields of a photo entry (date_taken, latitude/longitude, camera) from `extract/1`."
   def entry_fields(exif) do
     fields = %{}
 
@@ -69,9 +69,9 @@ defmodule Servant.Media.Exif do
   end
 
   @doc """
-  Re-reads the EXIF of photos stored without a date or a location (HEIC
-  photos imported before HEIC EXIF was supported) and fills what it finds,
-  never overwriting a stored value. Returns `{updated, scanned}`.
+  Re-reads the EXIF of the photos stored without a date or a location (HEIC
+  photos imported before the support of HEIC EXIF). Fills the fields that it
+  finds and never overwrites a stored value. Returns `{updated, scanned}`.
   """
   def backfill_missing(user_id \\ nil) do
     photos =
@@ -107,10 +107,10 @@ defmodule Servant.Media.Exif do
     end
   end
 
-  # ponytail: a marker scan instead of walking the ISOBMFF boxes (meta, iinf,
-  # iloc). Phones write the Exif item as "Exif\0\0" + TIFF header, and the
-  # TIFF magic right after the marker rules out a stray match in pixel data;
-  # walk iloc if a camera ever stores it differently.
+  # ponytail: a marker scan, not a walk of the ISOBMFF boxes (meta, iinf,
+  # iloc). Phones write the Exif item as "Exif\0\0" + TIFF header. The TIFF
+  # magic immediately after the marker rules out a stray match in pixel data.
+  # Walk iloc if a camera stores the Exif item differently.
   @heic_max_bytes 64 * 1024 * 1024
 
   defp parse_heic(path) do
@@ -135,7 +135,7 @@ defmodule Servant.Media.Exif do
   end
 
   # libvips renders each EXIF entry as "value (value, type, n components,
-  # n bytes)"; strip the parenthesized suffix to get the value back.
+  # n bytes)". Strip the parenthesized suffix to get the value back.
   defp extract_via_vips(path) do
     with {:ok, img} <- Image.new_from_file(path),
          {:ok, fields} <- Image.header_field_names(img),
@@ -203,10 +203,10 @@ defmodule Servant.Media.Exif do
     end
   end
 
-  # ExifParser nests the EXIF and GPS sub-IFDs under ifd0; they never appear
-  # at the top level, so these paths all start there.
+  # ExifParser nests the EXIF and GPS sub-IFDs under ifd0. They never appear
+  # at the top level. As a result, all these paths start at ifd0.
   defp extract_date(exif) do
-    # Try multiple date fields in order of preference
+    # Try multiple date fields in the order of preference.
     date_str =
       get_in_exif(exif, [:ifd0, :exif, :date_time_original]) ||
         get_in_exif(exif, [:ifd0, :exif, :date_time_digitized]) ||
@@ -233,7 +233,7 @@ defmodule Servant.Media.Exif do
     end
   end
 
-  # Convert [degrees, minutes, seconds] to decimal
+  # Convert [degrees, minutes, seconds] to decimal.
   defp dms_to_decimal(dms, ref) when is_list(dms) and length(dms) == 3 do
     [d, m, s] = Enum.map(dms, &to_float/1)
     decimal = d + m / 60.0 + s / 3600.0
@@ -258,7 +258,7 @@ defmodule Servant.Media.Exif do
   defp to_float({n, d}) when is_integer(n) and is_integer(d) and d > 0, do: n / d
   defp to_float(_), do: 0.0
 
-  # Parse "2025:03:28 14:30:00" format
+  # Parse the "2025:03:28 14:30:00" format.
   defp parse_exif_date(nil), do: nil
 
   defp parse_exif_date(str) when is_binary(str) do

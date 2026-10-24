@@ -1,11 +1,12 @@
-// Timezone-aware date/time formatting. Timestamps are stored in UTC on the
-// server; everything user-facing is rendered in the user's preferred IANA
-// timezone (falling back to the browser's when unknown). The tz database lives
-// in the browser via Intl; no dependency needed.
+// Date and time formatting that knows the timezone. The server stores the
+// timestamps in UTC. All that the user sees renders in the preferred IANA
+// timezone of the user. When that preference is unknown, it renders in the
+// timezone of the browser. The tz database is in the browser through Intl,
+// so no dependency is necessary.
 import { useAuthStore } from '../stores/auth'
 
-// The user's preferred timezone, or undefined to let Intl use the browser
-// default (e.g. before login). "" is treated as unset.
+// Returns the preferred timezone of the user. Returns undefined to let Intl
+// use the browser default (for example before login). "" counts as unset.
 export function userTimeZone(): string | undefined {
   try {
     const tz = useAuthStore().user?.timezone
@@ -15,9 +16,10 @@ export function userTimeZone(): string | undefined {
   }
 }
 
-// Display preferences (Settings > Appearance), stored on the account beside
-// the timezone. Unset on either side means "render like the browser does",
-// which is the default and what every call did before this existed.
+// The display preferences (Settings > Appearance). The account stores them
+// beside the timezone. An unset value on one of the two means "render like
+// the browser does". That is the default, and each call did that before
+// these preferences.
 export type TimeFormat = '24h' | '12h'
 export type DateFormat = 'dmy' | 'mdy' | 'iso'
 
@@ -47,16 +49,17 @@ export function userDateFormat(): DateFormat | undefined {
   }
 }
 
-// Set only when the user picked a side: left alone, the browser decides.
-// hourCycle rather than hour12, which renders midnight as "24:00" in some
-// locales.
+// Sets the option only when the user picked a side. If not, the browser
+// decides. This uses hourCycle and not hour12, because hour12 renders
+// midnight as "24:00" in some locales.
 function hourCycleOpts(): Intl.DateTimeFormatOptions {
   const format = userTimeFormat()
   if (!format) return {}
   return { hourCycle: format === '12h' ? 'h12' : 'h23' }
 }
 
-// Numeric parts read in the user's timezone, assembled in the chosen order.
+// Reads the numeric parts in the timezone of the user, then assembles them in
+// the chosen order.
 function renderDate(date: Date, format: DateFormat): string {
   const parts: Record<string, string> = {}
   const fmt = new Intl.DateTimeFormat('en-CA', {
@@ -79,9 +82,9 @@ function toDate(iso: string | null | undefined): Date | null {
   return isNaN(d.getTime()) ? null : d
 }
 
-// The date preference applies to the default rendering only. A caller asking
-// for a shape of its own ("Mar 3", a weekday) means it, and a global setting
-// has no business rewriting a deliberately compact label.
+// The date preference applies to the default render only. A caller that asks
+// for a shape of its own ("Mar 3", a weekday) wants that shape. A global
+// setting must not change a label that is compact on purpose.
 export function formatDateTime(
   iso: string | null | undefined,
   opts?: Intl.DateTimeFormatOptions
@@ -125,7 +128,8 @@ export function formatTime(
     : ''
 }
 
-// Media duration as "m:ss" (or "h:mm:ss" past the hour), YouTube-style.
+// Returns a media duration as "m:ss" (or "h:mm:ss" after one hour), in the
+// style of YouTube.
 export function formatDuration(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00'
   const s = Math.floor(seconds % 60)
@@ -137,7 +141,7 @@ export function formatDuration(seconds: number): string {
 
 // --- Wall-clock <-> UTC conversion (for editing events in the user's tz) ---
 
-// Offset (ms) that `tz` is ahead of UTC at the given instant.
+// Returns the offset (ms) of `tz` ahead of UTC at the given instant.
 function tzOffsetMs(tz: string, utcMs: number): number {
   const dtf = new Intl.DateTimeFormat('en-US', {
     timeZone: tz,
@@ -164,26 +168,27 @@ function tzOffsetMs(tz: string, utcMs: number): number {
   return asUTC - utcMs
 }
 
-// A wall-clock date ("YYYY-MM-DD") + time ("HH:MM") interpreted in `tz` -> UTC
-// ISO string for storage. `tz` defaults to the user's preference / browser.
+// Reads a wall-clock date ("YYYY-MM-DD") and time ("HH:MM") in `tz`. Returns
+// a UTC ISO string for storage. The default for `tz` is the preference of the
+// user, then the timezone of the browser.
 export function zonedToUtcISO(
   dateStr: string,
   timeStr: string,
   tz = userTimeZone()
 ): string {
   const zone = tz || Intl.DateTimeFormat().resolvedOptions().timeZone
-  // Treat the wall time as if it were UTC, then subtract the zone's offset.
-  // The offset can differ between the naive guess and the true instant across a
-  // DST boundary, so recompute it once at the first estimate: two passes pin the
-  // correct offset for every real transition.
+  // Read the wall time as UTC, then subtract the offset of the zone. Across a
+  // DST boundary, the offset can be different between the naive guess and the
+  // true instant. For that reason, compute it again one time, at the first
+  // estimate. Two passes give the correct offset for every real transition.
   const guess = new Date(`${dateStr}T${timeStr}:00Z`).getTime()
   const firstPass = guess - tzOffsetMs(zone, guess)
   return new Date(guess - tzOffsetMs(zone, firstPass)).toISOString()
 }
 
-// Intl.DateTimeFormat construction is the expensive part of Intl (tens of µs);
-// callers like the dashboard parse hundreds of instants per refresh, so cache
-// one formatter per timezone.
+// The construction of an Intl.DateTimeFormat is the expensive part of Intl
+// (tens of µs). Callers like the dashboard parse hundreds of instants for
+// each refresh, so cache one formatter for each timezone.
 const zonedPartsFmts = new Map<string, Intl.DateTimeFormat>()
 
 function zonedPartsFmt(zone: string): Intl.DateTimeFormat {
@@ -203,8 +208,8 @@ function zonedPartsFmt(zone: string): Intl.DateTimeFormat {
   return fmt
 }
 
-// A UTC ISO string -> its wall-clock parts in `tz`, for pre-filling date/time
-// inputs when editing.
+// Changes a UTC ISO string into its wall-clock parts in `tz`. They fill the
+// date and time inputs in advance for an edit.
 export function utcToZonedParts(
   iso: string,
   tz = userTimeZone()
@@ -221,22 +226,24 @@ export function utcToZonedParts(
   }
 }
 
-// Today's wall-clock date ("YYYY-MM-DD") in the user's timezone.
+// Returns the wall-clock date of today ("YYYY-MM-DD") in the timezone of the
+// user.
 export function todayInUserTz(tz = userTimeZone()): string {
   return utcToZonedParts(new Date().toISOString(), tz).date
 }
 
 // --- Civil dates ("YYYY-MM-DD", no time component; deadlines are days) ---
 
-// Today as a local civil date, matching the checklists overdue rule.
+// Returns today as a local civil date. This agrees with the overdue rule of
+// the checklists.
 export function todayLocalStr(): string {
   const d = new Date()
   const m = String(d.getMonth() + 1).padStart(2, '0')
   return `${d.getFullYear()}-${m}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-// A civil date's weekday name ("2026-08-14" -> "Friday"). English on
-// purpose: the UI copy around it is English.
+// Returns the weekday name of a civil date ("2026-08-14" -> "Friday"). It is
+// in English on purpose: the UI copy around it is in English.
 export function weekdayName(civilDate: string): string {
   return new Date(`${civilDate}T12:00:00Z`).toLocaleDateString('en-US', {
     weekday: 'long',
@@ -244,7 +251,7 @@ export function weekdayName(civilDate: string): string {
   })
 }
 
-// A civil date as a short "Aug 12" due-chip label.
+// Returns a civil date as a short "Aug 12" label for a due chip.
 export function formatDue(due: string): string {
   const [y, m, d] = due.split('-').map(Number)
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
@@ -254,8 +261,9 @@ export function formatDue(due: string): string {
   })
 }
 
-// Coarse "how long ago" for lists and log lines, where the exact timestamp is
-// noise: minutes, then hours, then days, then the plain local date past a week.
+// Returns a coarse "how long ago" for lists and log lines, where the exact
+// timestamp is noise. It gives minutes, then hours, then days. After a week,
+// it gives the plain local date.
 export function relativeTime(dateStr: string): string {
   const date = new Date(dateStr)
   const now = new Date()

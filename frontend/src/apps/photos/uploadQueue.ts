@@ -4,9 +4,10 @@ import { heicExif, withExif } from './exifCarry'
 
 export type { UploadProgress } from '../../lib/uploadQueue'
 
-// Photos upload pipeline on the shared module-level queue: uploads survive
-// navigating to another app. HEIC decodes to JPEG in the browser, videos get
-// a frame captured client-side for the grid.
+// The upload pipeline of Photos, on the shared module-level queue. The
+// uploads continue when the user navigates to another app. The browser
+// decodes HEIC to JPEG. For each video, the client captures a frame for the
+// grid.
 
 type PhotosApi = AppContext['api']
 
@@ -21,21 +22,23 @@ export const isHeic = (f: File) =>
   f.type === 'image/heic' ||
   f.type === 'image/heif'
 
-// The bundled server-side libvips can't decode HEVC, and neither can most
-// browsers: decode HEIC to JPEG in the browser. heic-to bundles a current
-// libheif; the old heic2any choked on iOS 18 files. The wasm decode costs
-// seconds of CPU per photo, so it runs in a Web Worker (heic-to/next,
-// lazy-created on the first HEIC): a big batch keeps the tab responsive.
-// ponytail: the original HEIC is not kept (the JPEG becomes the archived
-// file); revisit if originals matter. Its EXIF (date, location, camera) is
-// carried over into the JPEG, since the decode keeps pixels only.
+// The libvips bundled on the server and most browsers cannot decode HEVC.
+// Decode HEIC to JPEG in the browser. heic-to bundles a current libheif. The
+// old heic2any failed on iOS 18 files. The wasm decode uses seconds of CPU
+// for each photo. For this reason, it runs in a Web Worker (heic-to/next,
+// lazy-created on the first HEIC), and the tab stays responsive during a
+// big batch.
+// ponytail: the code does not keep the original HEIC (the JPEG becomes the
+// archived file). Look at this again if the originals are important. The
+// code copies the EXIF of the HEIC (date, location, camera) into the JPEG,
+// because the decode keeps only the pixels.
 let heicWorker: Worker | null = null
 
-// A conversion that never settles (heic2any used to do that on iOS 18
-// files) froze the whole batch at "1/N" with no error. Cap it so the item
-// fails visibly and the batch moves on; the worker is rebuilt so the stale
-// decode can't wedge the next one. 60s covers a 48MP decode on slow
-// hardware.
+// A conversion that never settled froze the full batch at "1/N" with no
+// error (heic2any did that on iOS 18 files). Set a time limit on the
+// conversion. Then the item fails visibly and the batch continues. The code
+// builds the worker again, to make sure that the stale decode cannot block
+// the next one. 60s is sufficient for a 48MP decode on slow hardware.
 function convertHeic(file: File): Promise<File> {
   if (!heicWorker) {
     heicWorker = new Worker(new URL('./heicWorker.ts', import.meta.url), {
@@ -54,7 +57,8 @@ function convertHeic(file: File): Promise<File> {
     worker.onmessage = (e: MessageEvent<{ blob?: Blob; error?: string }>) => {
       clearTimeout(timer)
       if (e.data.error || !e.data.blob) {
-        // Bad file, healthy worker: keep it for the next item.
+        // The file is bad but the worker is healthy. Keep the worker for the
+        // next item.
         reject(new Error(e.data.error || 'HEIC conversion failed'))
         return
       }
@@ -78,9 +82,10 @@ async function toUploadable(file: File): Promise<File> {
   return new File([tagged], jpeg.name, { type: 'image/jpeg' })
 }
 
-// Grid thumbnail for videos: decode in the browser (no server-side ffmpeg),
-// seek to the middle (first frames are often black) and grab a small JPEG.
-// null when the browser can't decode the codec; the grid shows a play tile.
+// Makes the grid thumbnail of a video. The browser decodes the video, because
+// there is no ffmpeg on the server. The function seeks to the middle, because
+// the first frames are often black, and gets a small JPEG. It returns null
+// when the browser cannot decode the codec. Then the grid shows a play tile.
 export function captureVideoFrame(file: File): Promise<File | null> {
   return new Promise(resolve => {
     const url = URL.createObjectURL(file)
@@ -94,7 +99,8 @@ export function captureVideoFrame(file: File): Promise<File | null> {
       video.removeAttribute('src')
       resolve(out)
     }
-    // ponytail: 15s cap so an undecodable file can't hang the upload loop
+    // ponytail: a time limit of 15s. With this limit, a file that the browser
+    // cannot decode cannot block the upload loop.
     const timer = setTimeout(() => done(null), 15_000)
     video.muted = true
     video.playsInline = true
@@ -183,13 +189,13 @@ const queue = createUploadQueue<PhotoUpload>({
           >
           data.thumb_path = t.path
         } catch {
-          // No thumbnail: the grid falls back to the play tile.
+          // There is no thumbnail. The grid shows the play tile as a fallback.
         }
       }
     }
 
-    // No EXIF/container date: fall back to the file's mtime, which for
-    // phone media is usually the capture time.
+    // There is no EXIF date and no container date. Use the mtime of the file
+    // as a fallback. For phone media, the mtime is usually the capture time.
     const fallbackDate = original.lastModified
       ? new Date(original.lastModified).toISOString()
       : null
@@ -217,7 +223,8 @@ export function enqueueUploads(
   api: PhotosApi,
   album: string | null
 ) {
-  // .heic often comes with an empty/octet-stream type outside Safari: match by name too.
+  // Outside Safari, a .heic file often has an empty type or an octet-stream
+  // type. Also match by name.
   const media = files.filter(
     f =>
       f.type.startsWith('image/') ||

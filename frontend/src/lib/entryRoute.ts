@@ -1,7 +1,7 @@
 import type { Entry } from '../types'
 
-// Where "open this entry" lands, per kind. Kinds without a dedicated
-// surface fall back to the data browser.
+// Returns where "open this entry" goes, for each kind. The kinds without a
+// dedicated surface fall back to the data browser.
 export function entryRoute(e: Entry): string {
   switch (e.kind) {
     case 'note':
@@ -15,7 +15,7 @@ export function entryRoute(e: Entry): string {
     case 'photo':
       return `/photos/${e.id}`
     case 'file':
-    // Invoices live in the Files app's Invoices virtual folder.
+    // The invoices are in the Invoices virtual folder of the Files app.
     case 'invoice':
       return '/apps/files'
     case 'account':

@@ -1,6 +1,6 @@
-// Visual identity of an entry kind: a tint, so a mixed list stays readable
-// without a legend (the icon per kind lives in components/KindIcon.vue).
-// Kinds absent from the table fall back to neutral.
+// The visual identity of an entry kind: a tint. With it, a mixed list stays
+// readable without a legend (components/KindIcon.vue has the icon of each
+// kind). The kinds that are not in the table fall back to neutral.
 export const KIND_COLORS: Record<string, string> = {
   transaction: '#9d7bff',
   bank_tx: '#4a9c6d',

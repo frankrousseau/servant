@@ -30,9 +30,9 @@ const router = useRouter()
 const connectors = ref<ConnectorConfig[]>([])
 const loading = ref(true)
 
-// Crypto is opt-in (Settings > Apps): with it off, the wallet connectors
-// leave both the catalog and the list. Configured ones keep syncing, they
-// are only out of sight.
+// Crypto is opt-in (Settings > Apps). When it is off, the wallet connectors
+// are not in the catalog and not in the list. The configured ones continue
+// to sync. They are only out of sight.
 const auth = useAuthStore()
 const showCrypto = computed(() => cryptoEnabled(auth.user?.enabled_apps))
 const visibleDef = (def: ConnectorDef) =>
@@ -46,7 +46,8 @@ const supportedSchedules = ref<Schedule[]>([])
 const setupConfig = ref<Record<string, string>>({})
 const saving = ref(false)
 
-// The def rides along so the template resolves it once per connector.
+// The def comes along with each connector. As a result, the template resolves
+// it one time for each connector.
 const connectorsWithDef = computed(() =>
   connectors.value
     .filter(
@@ -117,7 +118,7 @@ function openSetup(def: ConnectorDef) {
       setupConfig.value[field.key] = ''
     }
   })
-  // Load supported schedules
+  // Load the supported schedules.
   loadSchedules(def.id)
 }
 
@@ -148,7 +149,7 @@ async function submitSetup() {
   if (!setupDef.value) return
   saving.value = true
   try {
-    // Build config from hint + form fields
+    // Build the config from the hint and the form fields.
     const config: Record<string, unknown> = {
       ...setupDef.value.configHint
     }
@@ -169,7 +170,7 @@ async function submitSetup() {
     closeSetup()
     await fetchConnectors()
   } catch {
-    // handle error
+    // Ignore the error: the setup dialog stays open.
   } finally {
     saving.value = false
   }

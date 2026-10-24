@@ -1,5 +1,5 @@
 defmodule ServantWeb.AgentController do
-  @moduledoc "CRUD and manual runs for recurring agents; run history for all agent types."
+  @moduledoc "CRUD and manual runs for recurring agents. Run history for all agent types."
 
   use ServantWeb, :controller
   use OpenApiSpex.ControllerSpecs

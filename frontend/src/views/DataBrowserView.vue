@@ -78,8 +78,9 @@ function errMessage(err: unknown, fallback: string): string {
   return err instanceof Error && err.message ? err.message : fallback
 }
 
-// Real-time. Debounced so a burst of entry events (e.g. a connector sync) or the
-// aggregated entries_changed signal refetches the page once, not per row.
+// Real-time. The refresh is debounced. As a result, a burst of entry events
+// (for example a connector sync) or the aggregated entries_changed signal
+// refetches the page one time, not one time for each row.
 const { onEntryChange, onBulkChange } = useSocket()
 const refresh = debounce(fetchEntries)
 onEntryChange(refresh)
@@ -94,15 +95,15 @@ async function fetchFilters() {
     kinds.value = allKinds
     sources.value = allSources
   } catch {
-    // ignore
+    // Ignore the error.
   }
 }
 
 async function fetchEntries() {
   loading.value = true
   try {
-    // Newest-created first: the default occurred_at sort floats future
-    // events (calendar) to the top, unrelated to when data actually landed.
+    // Newest-created first: the default occurred_at sort puts future events
+    // (calendar) at the top, which has no relation to when the data arrived.
     const params: Record<string, string> = {
       page: page.value.toString(),
       per_page: '50',
@@ -153,8 +154,8 @@ function openEdit(entry: Entry) {
 async function saveEntry() {
   formError.value = null
 
-  // Validate the JSON up front so an invalid payload shows a message instead of
-  // silently freezing the modal.
+  // Validate the JSON first. As a result, an invalid payload shows a message
+  // and does not silently freeze the modal.
   let data: unknown
   try {
     data = JSON.parse(formData.value)
@@ -207,7 +208,7 @@ async function deleteAllFiltered() {
   })
   if (!ok) return
   try {
-    // Mirror fetchEntries exactly: what you see is what gets deleted.
+    // Mirror fetchEntries exactly: the delete removes what the list shows.
     const filters: Record<string, string> = {}
     if (filterKind.value) filters.kind = filterKind.value
     if (filterSource.value) filters.source = filterSource.value
@@ -256,9 +257,9 @@ function formatData(data: Record<string, unknown>): string {
   return JSON.stringify(data, null, 2)
 }
 
-// Watch filters -> reset to page 1. When already on page 1 the page watcher
-// won't fire, so fetch explicitly then; otherwise let the page watcher fetch
-// (avoids two concurrent requests for the same params).
+// Watch the filters and reset to page 1. On page 1, the page watcher does not
+// fire: fetch explicitly. On another page, let the page watcher fetch. This
+// prevents two concurrent requests for the same params.
 watch([filterKind, filterSource, filterDateFrom, filterDateTo], () => {
   if (page.value === 1) {
     fetchEntries()
@@ -268,7 +269,7 @@ watch([filterKind, filterSource, filterDateFrom, filterDateTo], () => {
 })
 watch(page, fetchEntries)
 
-// Handle deep link to entry detail
+// Handle a deep link to the entry detail.
 watch(
   () => route.query.entry,
   async entryId => {
@@ -277,14 +278,14 @@ watch(
         selectedEntry.value = await getEntry(String(entryId))
         showDetail.value = true
       } catch {
-        // ignore
+        // Ignore the error.
       }
     }
   },
   { immediate: true }
 )
 
-// Sync kind filter from route query
+// Sync the kind filter from the route query.
 watch(
   () => route.query.kind,
   kind => {
@@ -525,9 +526,10 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Sticky header: negative margin swallows the content's 2rem top padding so
-   the opaque background reaches the viewport edge when pinned. It pins under
-   the top bar on tablets (--topbar-height is 0 on desktop). */
+/* Sticky header: the negative margin absorbs the 2rem top padding of the
+   content. As a result, the opaque background reaches the viewport edge when
+   the header is pinned. It pins under the top bar on tablets (--topbar-height
+   is 0 on desktop). */
 .browser-head {
   position: sticky;
   top: var(--topbar-height);
@@ -676,9 +678,9 @@ onMounted(() => {
   padding: 0.5rem 0 0;
 }
 
-/* Buttons are primary-filled by default, so a filled "current page" looked
-   exactly like its neighbours. The row is neutral, the current page is the
-   only filled one. */
+/* Buttons are primary-filled by default. With that default, a filled "current
+   page" looks exactly like its neighbors. For that reason, the row is
+   neutral, and the current page is the only filled one. */
 .pagination button {
   background: transparent;
   border: 1px solid var(--border);

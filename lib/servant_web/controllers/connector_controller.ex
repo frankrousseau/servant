@@ -313,7 +313,7 @@ defmodule ServantWeb.ConnectorController do
           {:ok, session_fields} ->
             Connectors.persist_connector_cursor(config.id, session_fields)
 
-            # Restart the worker so it picks up the fresh session.
+            # Restart the worker so that it uses the new session.
             Connectors.stop_connector(user_id, config.id)
             if config.enabled, do: Connectors.start_connector(user_id, config.id)
 
@@ -414,7 +414,7 @@ defmodule ServantWeb.ConnectorController do
 
   def logs(conn, %{"id" => id}) do
     user_id = conn.assigns.current_user.id
-    # Verify ownership
+    # Make sure that the user owns the config.
     _config = Connectors.get_connector_config!(user_id, id)
     logs = Connectors.list_sync_logs(id)
 

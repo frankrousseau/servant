@@ -1,7 +1,8 @@
-// Shared HTML-escaping helper for the imperative apps. A single copy avoids one
-// app's escaping silently diverging from the others (an XSS-regression risk).
-// Escapes quotes too: apps interpolate this output into double-quoted HTML
-// attributes (href, value, data-*), not just element content.
+// Shared helper that escapes HTML for the imperative apps. With a single copy,
+// the escaping of one app cannot silently diverge from the others (a risk of
+// XSS regression). Escapes quotes too: apps interpolate this output into
+// double-quoted HTML attributes (href, value, data-*), not only into element
+// content.
 export function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')

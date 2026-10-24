@@ -1,5 +1,5 @@
 defmodule ServantWeb.ShareControllerTest do
-  # System.put_env on FILES_DIR: keep serial.
+  # This module calls System.put_env on FILES_DIR. Keep it serial.
   use ServantWeb.ConnCase, async: false
 
   alias Servant.PhotoShares
@@ -73,7 +73,7 @@ defmodule ServantWeb.ShareControllerTest do
     out_of_feed = write_photo_file(dir, user.id, "out.jpg", "out")
     photo(user.id, ["beach"], %{"path" => in_feed})
     photo(user.id, ["private"], %{"path" => out_of_feed})
-    # A stored file no entry references at all.
+    # A stored file that no entry references.
     write_photo_file(dir, user.id, "orphan.jpg", "orphan")
 
     {:ok, share} = PhotoShares.create_share(user.id, %{"tags" => ["beach"]})

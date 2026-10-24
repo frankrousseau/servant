@@ -18,7 +18,8 @@ defmodule ServantWeb.AppControllerTest do
       assert "photos" in ids
       assert "notes" in ids
 
-      # Each app carries the fields the SPA needs to render/route it.
+      # Each app carries the fields that are necessary for the SPA to render it
+      # and route it.
       for app <- apps do
         assert is_binary(app["name"])
         assert is_binary(app["route"])
@@ -73,8 +74,8 @@ defmodule ServantWeb.AppControllerTest do
         Servant.Accounts.update_ai_config(user, %{
           "enabled" => true,
           "model" => "test-model",
-          # closed port: the task fails fast and the run ends up "error"; we
-          # never assert on that final status here
+          # Closed port: the task fails fast and the run gets the "error" status.
+          # This test never examines that final status.
           "base_url" => "http://localhost:9/v1"
         })
 
@@ -124,9 +125,9 @@ defmodule ServantWeb.AppControllerTest do
     end
 
     test "GET /api/apps/runs is gone (moved to /api/agents/runs)", %{conn: conn} do
-      # No route matches "/api/apps/runs" anymore, so it falls through to the
-      # SPA catch-all (there is no NoRouteError to catch with
-      # assert_error_sent: the router has a wildcard "/*path" route).
+      # No route matches "/api/apps/runs" anymore. As a result, the request
+      # falls through to the SPA catch-all. There is no NoRouteError to catch
+      # with assert_error_sent, because the router has a wildcard "/*path" route.
       conn = get(conn, "/api/apps/runs")
       assert html_response(conn, 200)
     end

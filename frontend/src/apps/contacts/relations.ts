@@ -1,6 +1,7 @@
-// Tags and relations live in contact.data (schemaless entries). Safe across
-// syncs: the CardDAV PUT merges data and the vCard connector never updates
-// existing entries, so these keys survive phone edits and re-imports.
+// Tags and relations are in contact.data (entries without a schema). These
+// keys are safe across syncs. The CardDAV PUT merges data, and the vCard
+// connector never updates entries that exist. As a result, these keys stay
+// after phone edits and re-imports.
 import type { Entry } from '../types'
 
 export const RELATION_TYPES = [
@@ -12,8 +13,9 @@ export const RELATION_TYPES = [
   'colleague'
 ] as const
 
-// The six above are only the suggested ones: any normalized label can be
-// stored ("mentor", "landlord", ...), so the type is a plain string.
+// The six types above are only suggestions. It is possible to store any
+// normalized label ("mentor", "landlord", ...). As a result, the type is a
+// plain string.
 export type RelationType = string
 
 export interface Relation {
@@ -31,10 +33,11 @@ export function relationLabel(type: string): string {
   return type.charAt(0).toUpperCase() + type.slice(1)
 }
 
-// The stored type describes the linked contact relative to the entry that
-// holds it ("parent" on Alice pointing at Bob = Bob is Alice's parent), so
-// the reciprocal entry carries the inverse. Only parent/child are
-// directional; everything else, custom types included, is symmetric.
+// The stored type describes the linked contact in relation to the entry that
+// holds it. For example, "parent" on Alice with a link to Bob means that Bob
+// is the parent of Alice. As a result, the reciprocal entry holds the inverse
+// type. Only parent and child are directional. All the other types are
+// symmetric, custom types included.
 export function inverseType(type: RelationType): RelationType {
   if (type === 'parent') return 'child'
   if (type === 'child') return 'parent'
@@ -67,8 +70,9 @@ export function relationsOf(entry: Entry): Relation[] {
       typeof (r as Relation).type === 'string' &&
       (r as Relation).type.trim() !== ''
   )
-  // A well-formed but duplicated contact_id (writable by other API clients)
-  // would otherwise render with a duplicate :key; last one wins.
+  // Other API clients can write a contact_id that is well-formed but
+  // duplicated. Without this map, it renders with a duplicate :key. The last
+  // relation wins.
   const byContact = new Map<string, Relation>()
   for (const r of filtered) byContact.set(r.contact_id, r)
   return [...byContact.values()]

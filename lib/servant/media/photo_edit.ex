@@ -1,10 +1,11 @@
 defmodule Servant.Media.PhotoEdit do
   @moduledoc """
-  In-place edits on stored photos. Rotation re-encodes the original
-  (libvips has no lossless JPEG transform) into a new file, regenerates the
-  thumbnail and display JPEG, then deletes the old files. A fresh filename
-  sidesteps both the libvips operation cache (which returns the pre-rotation
-  image when the same path is reloaded in-process) and stale browser caches.
+  In-place edits on stored photos. A rotation re-encodes the original into a
+  new file, because libvips has no lossless JPEG transform. It then
+  regenerates the thumbnail and the display JPEG, and deletes the old files.
+  A new filename bypasses the libvips operation cache, which returns the
+  pre-rotation image when the same process loads the same path again. A new
+  filename also bypasses the stale browser caches.
   """
 
   alias Servant.Data
@@ -17,9 +18,9 @@ defmodule Servant.Media.PhotoEdit do
   @jpeg_quality 92
 
   @doc """
-  Rotates the photo's original file clockwise by `angle` degrees, refreshes
-  its derived thumbnail/display JPEGs and updates the entry (broadcasts the
-  change). Returns `{:ok, entry}` or `{:error, message}`.
+  Rotates the original file of the photo clockwise by `angle` degrees. Then
+  refreshes its derived thumbnail/display JPEGs and updates the entry
+  (broadcasts the change). Returns `{:ok, entry}` or `{:error, message}`.
   """
   def rotate(%Entry{} = entry, angle) when is_map_key(@angles, angle) do
     old_relative = Storage.relative_from_public(entry.data["path"] || "")
@@ -39,8 +40,8 @@ defmodule Servant.Media.PhotoEdit do
           {:ok, updated}
 
         error ->
-          # The entry still points at the old files; drop the freshly written
-          # rotated original and its derivatives so they don't leak on disk.
+          # The entry still points at the old files. Drop the newly written
+          # rotated original and its derivatives, so that they do not leak on disk.
           remove_files(entry.user_id, data)
           error
       end
@@ -56,9 +57,9 @@ defmodule Servant.Media.PhotoEdit do
     end
   end
 
-  # Bake any EXIF orientation into the pixels first (autorot also drops the
-  # orientation tag, so viewers won't rotate a second time), then rotate into
-  # a fresh file: a failed encode never touches the original.
+  # First, bake the EXIF orientation (if there is one) into the pixels. autorot
+  # also drops the orientation tag, so viewers do not rotate a second time.
+  # Then rotate into a new file: a failed encode never touches the original.
   defp rotate_to_new_file(user_id, old_absolute, vips_angle) do
     ext = old_absolute |> Path.extname() |> String.downcase()
     relative = Path.join([user_id, "apps", "photos", Ecto.UUID.generate() <> ext])
@@ -80,8 +81,8 @@ defmodule Servant.Media.PhotoEdit do
   defp save_opts(ext) when ext in [".jpg", ".jpeg"], do: [Q: @jpeg_quality]
   defp save_opts(_ext), do: []
 
-  # A failed regeneration drops the key: the frontend falls back to the
-  # original path rather than pointing at a missing file.
+  # A failed regeneration drops the key. The frontend then falls back to the
+  # original path and does not point at a missing file.
   defp put_derived(data, key, {:ok, url, _relative}), do: Map.put(data, key, url)
   defp put_derived(data, key, :error), do: Map.delete(data, key)
 

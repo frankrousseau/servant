@@ -2,20 +2,22 @@ defmodule Mix.Tasks.Servant.Seed do
   @shortdoc "Fill the current dev database with random data"
 
   @moduledoc """
-  Populates the database with random but plausible data for every app screen:
-  contacts (birthdays, relations, tags), calendar agendas and events, notes
-  with wikilinks, checklists, trackers with their logs, bank transactions with
-  running balances, savings and crypto snapshots, invoices, files, generated
-  landscape photos and agent memory files.
+  Populates the database with random but plausible data for every app screen.
+  The data includes contacts (birthdays, relations, tags), calendar agendas
+  and events, and notes with wikilinks. It includes checklists, trackers with
+  their logs, and bank transactions with running balances. It also includes
+  savings and crypto snapshots, invoices and files. Finally, it includes
+  generated landscape photos and agent memory files.
 
       $ mix servant.seed
       $ mix servant.seed --user alice
       $ mix servant.seed --photos 0
       $ DEV_DB=demo mix servant.seed    # seed an alternate database
 
-  Without `--user`, the first account is used; on an empty database a "demo"
-  account (password "demo1234") is created first. Running the task twice adds
-  a second batch on top of the first. Refused when MIX_ENV=prod.
+  Without `--user`, the task uses the first account. On an empty database,
+  the task first creates a "demo" account (password "demo1234"). A second run
+  of the task adds a second batch on top of the first. The task refuses to
+  run when MIX_ENV=prod.
   """
 
   use Mix.Task
@@ -143,7 +145,7 @@ defmodule Mix.Tasks.Servant.Seed do
           "title" => job,
           "emails" => [%{"value" => email, "type" => "home"}],
           "phones" => [
-            # One number per contact: shared phones would read as duplicates.
+            # One number per contact: shared phones look like duplicates.
             %{"value" => "+1 555 01#{10 + i}", "type" => "cell"}
           ],
           "birthday" => maybe(0.6, fn -> random_birthday() end),
@@ -177,9 +179,10 @@ defmodule Mix.Tasks.Servant.Seed do
     Date.to_iso8601(Date.new!(year, month, day))
   end
 
-  # A small connected network so the graph screen has something to lay out:
-  # a family, a work team, a sports triangle, bridged by a few friendships.
-  # Pairs index into the contact list; each relation is written both ways.
+  # A small connected network, so that the graph screen has something to lay
+  # out: a family, a work team and a sports triangle, with a few friendships
+  # as bridges. The pairs are indexes into the contact list. The seed writes
+  # each relation in the two directions.
   @relation_edges [
     {0, 1, "partner"},
     {0, 2, "sibling"},
@@ -205,8 +208,8 @@ defmodule Mix.Tasks.Servant.Seed do
       [{by_index[a], by_index[b].id, type}, {by_index[b], by_index[a].id, type}]
     end)
     |> Enum.group_by(fn {contact, _other, _type} -> contact end)
-    # One write per contact: the struct in hand is the pre-link version, so
-    # writing relation by relation would keep only the last one.
+    # One write per contact: the struct in hand is the pre-link version. One
+    # write per relation keeps only the last relation.
     |> Enum.each(fn {contact, links} ->
       relations =
         for {_contact, other_id, type} <- links, do: %{"contact_id" => other_id, "type" => type}
@@ -698,10 +701,11 @@ defmodule Mix.Tasks.Servant.Seed do
 
   # ----- Connectors -----
 
-  # Enabled but on demand: the workers start and show as healthy, yet never
-  # sync on their own, so the fake credentials below never reach a real API.
-  # The entries they "imported" (articles, bank transactions, invoices) come
-  # from the sections above; commits and activities are seeded here.
+  # Enabled but on demand: the workers start and show as healthy, but they
+  # never sync automatically. As a result, the fake credentials below never
+  # reach a real API. The entries that they "imported" (articles, bank
+  # transactions, invoices) come from the sections above. This section seeds
+  # the commits and the activities.
   @connector_specs [
     {"rss", "Tech news", %{"url" => "https://example.com/feed.xml"}},
     {"bank_csv", "Checking account",
@@ -745,7 +749,7 @@ defmodule Mix.Tasks.Servant.Seed do
     length(@connector_specs) + seed_commits(user_id) + seed_activities(user_id)
   end
 
-  # A week of runs, newest first; one transient failure keeps the log honest.
+  # A week of runs, newest first. One transient failure makes the log realistic.
   defp seed_sync_logs(connector, last_sync) do
     for day <- 0..6 do
       started = DateTime.add(last_sync, -day * 86_400, :second)
@@ -957,8 +961,9 @@ defmodule Mix.Tasks.Servant.Seed do
     count
   end
 
-  # A stylized landscape rendered from SVG by libvips: random hills and sun
-  # position, so the seeded gallery looks like photos without fixture files.
+  # A stylized landscape that libvips renders from SVG. The hills and the sun
+  # position are random. As a result, the seeded gallery looks like photos,
+  # and no fixture files are necessary.
   defp landscape_jpeg!(name, scene) do
     {sky_top, sky_bottom, sun, far, near, sea} = @scene_palettes[scene]
     sun_x = 120 + :rand.uniform(400)

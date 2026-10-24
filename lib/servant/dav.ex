@@ -1,16 +1,16 @@
 defmodule Servant.Dav do
   @moduledoc """
-  Shared WebDAV bits between the CalDAV and CardDAV contexts: entity tags
-  for entries and collection tags derived from them.
+  WebDAV parts that the CalDAV and CardDAV contexts share: the entity tags
+  for the entries and the collection tags calculated from them.
   """
 
-  @doc "Strong ETag derived from the entry content."
+  @doc "Returns a strong ETag calculated from the entry content."
   def etag(entry) do
     hash = :erlang.md5(:erlang.term_to_binary({entry.title, entry.occurred_at, entry.data}))
     ~s("#{Base.encode16(hash, case: :lower)}")
   end
 
-  @doc "Collection tag: changes whenever any member is added, changed or removed."
+  @doc "Returns the collection tag. It changes on each add, change or removal of a member."
   def ctag(entries) do
     digest =
       entries

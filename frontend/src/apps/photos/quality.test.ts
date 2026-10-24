@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 
 import { flawsOf, measure } from './quality'
 
-// A width x height RGBA frame whose gray level comes from `level(x, y)`.
+// An RGBA frame of width x height. `level(x, y)` gives its gray level.
 function frame(
   width: number,
   height: number,
@@ -21,7 +21,8 @@ function frame(
 
 describe('photo quality', () => {
   it('passes a sharp, well exposed frame', () => {
-    // A checkerboard: strong edges everywhere, mid-gray on average.
+    // A checkerboard: it has strong edges in all areas and is mid-gray on
+    // average.
     const metrics = frame(64, 64, (x, y) =>
       ((x >> 2) + (y >> 2)) % 2 ? 200 : 60
     )

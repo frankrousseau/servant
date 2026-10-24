@@ -1,12 +1,13 @@
 defmodule Servant.Audit do
   @moduledoc """
-  System introspection for the Audit page: machine resources (CPU, RAM),
-  what the server and its connector workers consume, and disk usage.
+  System introspection for the Audit page: the machine resources (CPU, RAM),
+  the resources that the server and its connector workers use, and the disk
+  usage.
 
-  Linux-first: it reads `/proc` and cgroup files, which covers bare-metal
-  and Docker deployments alike. Every probe degrades to `nil` when its
-  source is missing (e.g. macOS in development), so the endpoint never
-  crashes on an exotic host.
+  The module is Linux-first. It reads `/proc` and the cgroup files. This is
+  sufficient for bare-metal deployments and for Docker deployments. Each
+  probe returns `nil` when its source is missing (for example macOS in
+  development). As a result, the endpoint never crashes on an unusual host.
   """
 
   import Ecto.Query
@@ -51,8 +52,9 @@ defmodule Servant.Audit do
     %{
       total_bytes: meminfo[:total],
       available_bytes: meminfo[:available],
-      # When running in Docker the real budget is the cgroup limit, not the
-      # host's MemTotal. v2 first, then v1; nil when unlimited or absent.
+      # In Docker, the real budget is the cgroup limit, not the MemTotal of
+      # the host. Read v2 first, then v1. The value is nil when there is no
+      # limit or no file.
       cgroup_limit_bytes:
         cgroup_bytes(["/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"]),
       cgroup_used_bytes:
@@ -81,8 +83,8 @@ defmodule Servant.Audit do
     end
   end
 
-  # cgroup v2 writes "max" when unlimited; v1 uses an absurdly large number.
-  # Both read as "no limit" -> nil.
+  # cgroup v2 writes "max" when there is no limit. v1 uses a very large
+  # number. Both mean "no limit" and give nil.
   defp cgroup_bytes(paths) do
     Enum.find_value(paths, fn path ->
       with {:ok, content} <- File.read(path),
@@ -162,8 +164,8 @@ defmodule Servant.Audit do
     }
   end
 
-  # Space on the filesystem holding the data dir; in Docker that is the
-  # mounted volume, which is what actually fills up (not the host root).
+  # Returns the space on the filesystem that holds the data dir. In Docker,
+  # that is the mounted volume. The volume fills up, not the host root.
   defp df(path) do
     case System.cmd("df", ["-kP", path], stderr_to_stdout: true) do
       {out, 0} ->
@@ -207,7 +209,7 @@ defmodule Servant.Audit do
   defp db_size(nil), do: nil
 
   defp db_size(path) do
-    # SQLite spreads across the db file plus its -wal/-shm siblings.
+    # SQLite uses the db file and its -wal and -shm siblings.
     [path, path <> "-wal", path <> "-shm"]
     |> Enum.map(fn p ->
       case File.stat(p) do

@@ -1,17 +1,18 @@
 import { ref } from 'vue'
 import type { AppContext, Entry } from './types'
 
-// Persisted per-app folder ordering. Folders are derived strings (not
-// entities), so the order lives in a single `folder_order` entry per app
-// (title = app id, data.folders = ordered folder paths). Folders absent from
-// the list sort alphabetically after the ordered ones. Ordering is only ever
-// compared between siblings, so one flat list works for nested paths too.
+// Persisted order of the folders for each app. Folders are derived strings
+// (not entities). As a result, the order is in a single `folder_order` entry
+// for each app (title = app id, data.folders = ordered folder paths). Folders
+// absent from the list sort alphabetically after the ordered ones. The code
+// only compares the order between siblings. As a result, one flat list works
+// for nested paths too.
 export interface FolderOrder {
   load(): Promise<void>
   compare(a: string, b: string): number
-  /** Re-rank one sibling group; other entries keep their relative order. */
+  /** Re-rank one sibling group. The other entries keep their relative order. */
   setGroup(groupSeq: string[]): void
-  /** Keep order entries in sync when a folder (and its children) is renamed. */
+  /** Keep the order entries in sync on a folder rename (children included). */
   rename(from: string, to: string): void
 }
 
@@ -21,8 +22,8 @@ export function createFolderOrder(ctx: AppContext, app: string): FolderOrder {
 
   function persist() {
     const attrs = { data: { folders: order.value } }
-    // ponytail: rapid first-time reorders could race and create two entries;
-    // load() picks the first one, the duplicate is inert.
+    // ponytail: fast first-time reorders can race and create two entries.
+    // load() picks the first one, and the duplicate is inert.
     const req = entry
       ? ctx.api.entries.update(entry.id, attrs)
       : ctx.api.entries
@@ -45,7 +46,7 @@ export function createFolderOrder(ctx: AppContext, app: string): FolderOrder {
         entry = found.find(e => (e.title || '') === app) || null
         order.value = (entry?.data.folders as string[]) || []
       } catch {
-        // ordering degrades to alphabetical
+        // The order degrades to alphabetical.
       }
     },
     compare(a, b) {

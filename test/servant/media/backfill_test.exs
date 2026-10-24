@@ -3,9 +3,9 @@ defmodule Servant.Media.BackfillTest do
 
   alias Servant.Media.Backfill
 
-  # These exercise the single-flight guard only (the already-registered
-  # branch), so no task ever reaches the DB — keeps the spawned task clear of
-  # the Ecto sandbox.
+  # These tests go through the single-flight guard only (the already-registered
+  # branch). As a result, no task reaches the DB, and the spawned task stays
+  # clear of the Ecto sandbox.
 
   test "running? reflects the registry" do
     uid = "u-#{System.unique_integer([:positive])}"
@@ -17,16 +17,16 @@ defmodule Servant.Media.BackfillTest do
 
   test "a second start no-ops while a job holds the slot" do
     uid = "u-#{System.unique_integer([:positive])}"
-    # The test process claims the slot, standing in for an in-flight job.
+    # The test process claims the slot and stands in for an in-flight job.
     {:ok, _owner} = Registry.register(Servant.Media.BackfillRegistry, uid, nil)
 
     {:ok, pid} = Backfill.start(uid)
     ref = Process.monitor(pid)
-    # :noproc when the task already exited before the monitor attached.
+    # The reason is :noproc when the task exited before the monitor attached.
     assert_receive {:DOWN, ^ref, :process, ^pid, reason}, 5000
     assert reason in [:normal, :noproc]
 
-    # The spawned task found the slot taken and exited without work; ours holds.
+    # The spawned task found the slot taken and exited without work. Our claim holds.
     assert Backfill.running?(uid)
   end
 end

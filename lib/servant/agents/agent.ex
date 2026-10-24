@@ -1,9 +1,9 @@
 defmodule Servant.Agents.Agent do
   @moduledoc """
-  A recurring agent run on a schedule over a selection of the user's
-  entries. Two modes: "prompt" (the model writes an ai_report entry) and
-  "recipe" (a declarative recipe interpreted deterministically, producing
-  a report entry with no model call).
+  A recurring agent that runs on a schedule over a selection of the user's
+  entries. There are two modes. In "prompt" mode, the model writes an
+  ai_report entry. In "recipe" mode, a deterministic interpreter runs a
+  declarative recipe and makes a report entry with no model call.
   """
 
   use Ecto.Schema
@@ -22,13 +22,14 @@ defmodule Servant.Agents.Agent do
     field :prompt, :string
     field :mode, :string, default: "prompt"
     field :recipe, :map
-    # Null falls back to the model configured in Settings > Agents.
+    # If the value is null, the agent uses the model configured in Settings > Agents.
     field :model, :string
     field :kinds, {:array, :string}
     field :lookback_days, :integer, default: 7
     field :schedule, :string, default: "every_day"
-    # Hour of the day (user's timezone) a daily/weekly agent fires at; null
-    # keeps the interval counted from the previous run.
+    # The hour of the day (in the user's timezone) at which a daily or weekly
+    # agent fires. If the value is null, the agent keeps the interval counted
+    # from the previous run.
     field :run_at_hour, :integer
     field :enabled, :boolean, default: true
     field :last_run_at, :utc_datetime
@@ -66,9 +67,9 @@ defmodule Servant.Agents.Agent do
     |> validate_by_mode()
   end
 
-  # Prompt agents need a prompt; recipe agents need a valid recipe. Switching
-  # mode clears the field the new mode doesn't use, so a stored-but-inactive
-  # value can never resurface just by flipping mode back.
+  # A prompt agent must have a prompt. A recipe agent must have a valid recipe.
+  # A mode switch clears the field that the new mode does not use. As a result,
+  # a stored but inactive value can never come back when the mode switches back.
   defp validate_by_mode(changeset) do
     case get_field(changeset, :mode) do
       "recipe" ->
@@ -84,13 +85,14 @@ defmodule Servant.Agents.Agent do
     end
   end
 
-  # Reads the current (possibly unchanged, possibly changed) recipe directly
-  # instead of validate_change/3, which only runs when :recipe is part of
-  # this changeset's changes: a bare mode switch to "recipe" with no recipe
-  # change must still validate whatever recipe is already on the record.
+  # Reads the current recipe (possibly unchanged, possibly changed) directly
+  # and does not use validate_change/3. validate_change/3 runs only when
+  # :recipe is part of the changes of this changeset. A bare mode switch to
+  # "recipe" with no recipe change must still validate the recipe that is
+  # already on the record.
   defp validate_recipe(changeset) do
     case get_field(changeset, :recipe) do
-      # validate_required/2 above already errors on a nil recipe.
+      # validate_required/2 above already adds an error for a nil recipe.
       nil ->
         changeset
 
@@ -122,7 +124,7 @@ defmodule Servant.Agents.Agent do
 
   def schedules, do: @schedules
 
-  # Kind slugs, same shape rule as users.enabled_apps.
+  # The kinds are slugs. They follow the same shape rule as users.enabled_apps.
   defp validate_kinds(changeset) do
     changeset
     |> validate_length(:kinds, min: 1, max: 20)

@@ -1,11 +1,12 @@
 defmodule Servant.Encrypted.Map do
   @moduledoc """
-  Ecto type for a map field encrypted at rest via `Servant.Encrypted`.
+  Ecto type for a map field encrypted at rest through `Servant.Encrypted`.
 
-  On `dump` the map is JSON-encoded then encrypted. On `load` it is decrypted
-  and JSON-decoded; a value that isn't our ciphertext is treated as legacy
-  plaintext JSON (so rows written before encryption still load, and get
-  encrypted on their next write).
+  On `dump`, the type JSON-encodes the map and then encrypts it. On `load`,
+  the type decrypts the value and JSON-decodes it. If a value is not our
+  ciphertext, the type reads it as legacy plaintext JSON. As a result, the
+  rows written before encryption still load, and their next write encrypts
+  them.
   """
   use Ecto.Type
 

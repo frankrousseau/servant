@@ -1,16 +1,18 @@
 defmodule Servant.PhotosDav do
   @moduledoc """
-  WebDAV view over the Photos app: a virtual tree derived from `photo`
-  entries where folders are album names (`data.album`). Nested client
-  folders map to slash-joined albums (`Camera/2026-08`), so albums have
-  no entity of their own: MKCOL answers 201 without persisting anything,
-  and an unknown extensionless path resolves as an empty album so the
-  MKCOL then PROPFIND then PUT dance of sync clients keeps working.
+  WebDAV view of the Photos app. It is a virtual tree built from the
+  `photo` entries, where the folders are album names (`data.album`).
+  Nested client folders map to slash-joined albums (`Camera/2026-08`),
+  so an album has no entity of its own. MKCOL answers 201 and persists
+  nothing. An unknown path without an extension resolves as an empty
+  album. As a result, the MKCOL, PROPFIND, PUT sequence of the sync
+  clients continues to work.
 
-  PUT runs the whole photo pipeline server side (store, EXIF, video
-  date, thumbnails, entry creation), the part the SPA upload queue does
-  in the browser. A re-PUT of the same album/filename pair updates the
-  existing entry in place, preserving tags and face data.
+  PUT runs the full photo pipeline on the server (store, EXIF, video
+  date, thumbnails, entry creation). The SPA upload queue does this part
+  in the browser. A second PUT of the same album and filename pair
+  updates the existing entry in place and keeps the tags and the face
+  data.
   """
 
   alias Servant.Data
@@ -39,9 +41,10 @@ defmodule Servant.PhotosDav do
   end
 
   @doc """
-  Resolves path segments against the virtual tree. Returns
+  Resolves the path segments in the virtual tree. Returns
   `{:file, entry}`, `{:folder, prefix}` (nil prefix is the root), or
-  `:not_found`. An unknown extensionless path counts as an empty album.
+  `:not_found`. An unknown path without an extension counts as an empty
+  album.
   """
   def resolve(_photos, []), do: {:folder, nil}
 
@@ -60,12 +63,12 @@ defmodule Servant.PhotosDav do
     end
   end
 
-  @doc "Photos whose album is exactly the prefix (nil at the root)."
+  @doc "Returns the photos with an album that is exactly the prefix (nil at the root)."
   def photos_in(photos, prefix) do
     Enum.filter(photos, &(album(&1) == prefix))
   end
 
-  @doc "Next-level folder names under the prefix, from distinct albums."
+  @doc "Returns the folder names at the next level under the prefix, from the distinct albums."
   def child_folders(photos, prefix) do
     photos
     |> Enum.map(&album/1)
@@ -75,15 +78,16 @@ defmodule Servant.PhotosDav do
     |> Enum.sort()
   end
 
-  @doc "RFC 4918-shaped MKCOL outcome; albums are virtual, nothing persists."
+  @doc "Returns the MKCOL outcome in the RFC 4918 form. Albums are virtual: nothing persists."
   def mkcol_status(photos, segments) do
     if album_exists?(photos, join_album(segments)), do: :exists, else: :created
   end
 
   @doc """
   Stores the uploaded temp file and creates (201) or replaces (204) the
-  photo at the path. `opts[:mtime]` is the client-supplied modification
-  time used when the media carries no capture date of its own.
+  photo at the path. `opts[:mtime]` is the modification time that the
+  client supplies. The function uses it when the media has no capture
+  date of its own.
   """
   def put_photo(user_id, photos, segments, tmp_path, opts \\ []) do
     {parents, [leaf]} = Enum.split(segments, -1)
@@ -132,15 +136,17 @@ defmodule Servant.PhotosDav do
   end
 
   defp record(user_id, leaf, existing, data, occurred_at) do
-    # Replace: new blob first, then drop the old one and its derivatives.
+    # Replace: the new blob comes first, then drop the old blob and its
+    # derivatives.
     old_paths =
       for key <- ["path", "thumb_path", "display_path"],
           path = existing.data[key],
           is_binary(path) and path != "",
           do: path
 
-    # Merge over the old data so tags and face annotations survive; stale
-    # derivative keys must not (the new blob may have no thumbnail).
+    # Merge over the old data, so that the tags and the face annotations
+    # survive. The stale derivative keys must not survive, because the new
+    # blob can have no thumbnail.
     merged =
       existing.data
       |> Map.drop(["thumb_path", "display_path"])

@@ -2,17 +2,18 @@ import { config } from '@vue/test-utils'
 import { vAutofocus } from './lib/autofocus'
 import { vClickKey } from './lib/clickKey'
 
-// Teleported content (ComboBox panel, modals) renders in place during tests
-// so wrapper.find keeps seeing it.
+// In tests, teleported content (the ComboBox panel, the modals) renders in
+// place. As a result, wrapper.find can find it.
 config.global.stubs = { teleport: true }
 
-// The directives main.ts registers on the app: without them every mount of a
-// component using v-autofocus or v-click-key warns "Failed to resolve directive".
+// These are the directives that main.ts registers on the app. Without them,
+// each mount of a component that uses v-autofocus or v-click-key gives the
+// warning "Failed to resolve directive".
 config.global.directives = { autofocus: vAutofocus, 'click-key': vClickKey }
 
-// jsdom has no <dialog> interactivity: polyfill the three methods so the
-// native-dialog modals (lib/dialog.ts openDialog, ConfirmModal, ...) can
-// open and close in tests. The [open] attribute mirrors the real behavior.
+// jsdom has no <dialog> interactivity. Polyfill the three methods. Then the
+// native-dialog modals (openDialog of lib/dialog.ts, ConfirmModal and others)
+// can open and close in tests. The [open] attribute mirrors the real behavior.
 if (typeof HTMLDialogElement !== 'undefined') {
   HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
     this.setAttribute('open', '')

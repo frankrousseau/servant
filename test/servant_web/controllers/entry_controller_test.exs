@@ -24,8 +24,9 @@ defmodule ServantWeb.EntryControllerTest do
       assert json_response(conn, 401)
     end
 
-    # What the Agents page reports list relies on: both report kinds share
-    # source "agent", so one paged, searchable query covers them.
+    # The reports list of the Agents page relies on this: the two report kinds
+    # share the source "agent". As a result, one paged, searchable query covers
+    # them.
     test "pages and searches a source, across kinds", %{conn: conn, user: user} do
       for i <- 1..3 do
         entry_fixture(user.id, %{
@@ -57,7 +58,7 @@ defmodule ServantWeb.EntryControllerTest do
       second = get(conn, "/api/entries", %{"source" => "agent", "per_page" => "2", "page" => "2"})
       assert length(json_response(second, 200)["data"]) == 2
 
-      # Search hits the stored content too, and stays inside the source.
+      # The search also hits the stored content, and it stays inside the source.
       found = get(conn, "/api/entries", %{"source" => "agent", "q" => "counted"})
       assert [%{"title" => "Recipe digest"}] = json_response(found, 200)["data"]
 
@@ -96,7 +97,8 @@ defmodule ServantWeb.EntryControllerTest do
 
     test "422 when required fields are missing", %{conn: conn} do
       conn = post(conn, "/api/entries", %{"title" => "no kind/source"})
-      # Rejected by the spec before the action runs, so it names the fields.
+      # The spec rejects the request before the action runs. As a result, the
+      # error names the fields.
       assert %{"error" => message} = json_response(conn, 422)
       assert message =~ "kind"
       assert message =~ "source"
@@ -179,7 +181,7 @@ defmodule ServantWeb.EntryControllerTest do
 
   describe "aggregate" do
     test "counts per local day in the requested timezone", %{conn: conn, user: user} do
-      # 23:30 UTC is already the next day in Paris (UTC+2 in July)
+      # 23:30 UTC is already the next day in Paris (UTC+2 in July).
       entry_fixture(user.id, %{"kind" => "commit", "occurred_at" => "2026-07-10T23:30:00Z"})
       entry_fixture(user.id, %{"kind" => "commit", "occurred_at" => "2026-07-10T12:00:00Z"})
       entry_fixture(user.id, %{"kind" => "commit", "occurred_at" => "2026-07-11T08:00:00Z"})
@@ -253,7 +255,7 @@ defmodule ServantWeb.EntryControllerTest do
     end
 
     test "buckets by week, month and year", %{conn: conn, user: user} do
-      # 2026-07-12 is a Sunday; its ISO week starts Monday 2026-07-06
+      # 2026-07-12 is a Sunday. Its ISO week starts on Monday 2026-07-06.
       entry_fixture(user.id, %{"kind" => "commit", "occurred_at" => "2026-07-12T10:00:00Z"})
       entry_fixture(user.id, %{"kind" => "commit", "occurred_at" => "2026-07-06T10:00:00Z"})
       entry_fixture(user.id, %{"kind" => "commit", "occurred_at" => "2026-06-30T10:00:00Z"})

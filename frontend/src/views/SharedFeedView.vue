@@ -52,7 +52,7 @@ const emptyText = computed(() =>
 
 const title = computed(() => {
   if (!feed.value) return 'Shared photos'
-  // A people-only link without a name: the feed withholds who it is about.
+  // A people-only link without a name: the feed does not say who it is about.
   return (
     feed.value.name ||
     feed.value.tags.map(tag => `#${tag}`).join(' ') ||
@@ -60,8 +60,8 @@ const title = computed(() => {
   )
 })
 
-// The join word doubles as the match rule: "beach + family" needs both tags,
-// "beach, family" either of them.
+// The join word also shows the match rule: "beach + family" needs the two
+// tags, "beach, family" needs one of them.
 const tagLine = computed(() => {
   if (!feed.value) return ''
   const joiner = feed.value.match === 'all' ? ' + ' : ', '

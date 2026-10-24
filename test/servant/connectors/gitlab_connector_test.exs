@@ -107,8 +107,8 @@ defmodule Servant.Connectors.GitlabConnectorTest do
       }
     end
 
-    # Routes the two GitLab endpoints the connector walks; `commits` is keyed
-    # by project id.
+    # Routes the two GitLab endpoints that the connector walks. The key of
+    # `commits` is the project id.
     defp stub_gitlab(projects, commits) do
       Req.Test.stub(Servant.HTTP, fn conn ->
         conn = Plug.Conn.fetch_query_params(conn)
@@ -146,8 +146,8 @@ defmodule Servant.Connectors.GitlabConnectorTest do
       assert Enum.map(entries, & &1["external_id"]) == ["aaa", "bbb", "ccc"]
       assert hd(entries)["title"] == "cgwire/kitsu - Work on aaa"
 
-      # The cursor is the latest committed_date, compared as a DateTime and
-      # not lexicographically (offsets would break string ordering)
+      # The cursor is the latest committed_date. The comparison uses a DateTime
+      # and is not lexicographic, because the offsets break the string order.
       assert new_state.cursors == %{
                "42" => "2026-07-10T09:30:00Z",
                "43" => "2026-07-09T10:00:00Z"
@@ -170,7 +170,7 @@ defmodule Servant.Connectors.GitlabConnectorTest do
 
       state = state(%{"cursors" => %{"42" => "2026-07-01T10:00:00Z"}})
       assert {:ok, [], new_state} = GitlabConnector.sync(state)
-      # No commits: the cursor stays where it was
+      # No commits: the cursor stays where it was.
       assert new_state.cursors == %{"42" => "2026-07-01T10:00:00Z"}
     end
 

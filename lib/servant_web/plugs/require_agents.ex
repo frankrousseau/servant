@@ -1,5 +1,5 @@
 defmodule ServantWeb.Plugs.RequireAgents do
-  @moduledoc "Halts with a 403 unless the current user enabled AI agents in Settings."
+  @moduledoc "Halts with a 403 unless the current user turned on AI agents in Settings."
 
   import Phoenix.Controller, only: [json: 2]
   import Plug.Conn

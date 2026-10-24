@@ -1,6 +1,7 @@
-// Photo-feed share links: the owner's management calls (session only) and the
-// public feed fetch, which deliberately bypasses the app client: a visitor
-// has no session, and a 404 there must not log anyone out.
+// The share links of the photo feeds. This module has the management calls of
+// the owner (session only) and the fetch of the public feed. That fetch does
+// not use the app client on purpose: a visitor has no session, and a 404
+// there must not log out a user.
 import type { PhotoShare, SharedFeed } from '../types'
 import { apiJson } from '../composables/apiClient'
 

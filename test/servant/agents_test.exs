@@ -325,7 +325,8 @@ defmodule Servant.AgentsTest do
       agent = report_agent(user.id, %{"model" => "  big-model  "})
       plain = report_agent(user.id, %{"name" => "Plain"})
 
-      # Trimmed on the way in, so the stored value is what gets requested.
+      # The model name is trimmed on input. As a result, the request uses the
+      # stored value.
       assert Agents.get_agent(user.id, agent.id).model == "big-model"
 
       capture = self()
@@ -351,20 +352,21 @@ defmodule Servant.AgentsTest do
       agent = report_agent(user.id, %{"schedule" => "every_day", "run_at_hour" => 7})
       tz = user.timezone
 
-      # 06:30 in Paris: too early, whatever the UTC hour is.
+      # 06:30 in Paris: this is too early. The UTC hour has no effect.
       before = DateTime.new!(~D[2026-03-10], ~T[05:30:00], "Etc/UTC")
       refute Agents.due?(agent, before, tz)
 
-      # 07:10 local, never run: fires.
+      # 07:10 local time, and the agent never ran: it fires.
       at_slot = DateTime.new!(~D[2026-03-10], ~T[06:10:00], "Etc/UTC")
       assert Agents.due?(agent, at_slot, tz)
 
-      # Ran at 07:00 local: not again in the same hour, nor later that day.
+      # The agent ran at 07:00 local time. It does not fire again in the same
+      # hour, or later that day.
       ran = %{agent | last_run_at: DateTime.new!(~D[2026-03-10], ~T[06:00:00], "Etc/UTC")}
       refute Agents.due?(ran, at_slot, tz)
       refute Agents.due?(ran, DateTime.new!(~D[2026-03-10], ~T[20:00:00], "Etc/UTC"), tz)
 
-      # Next day, same hour: fires again.
+      # The next day, at the same hour, the agent fires again.
       assert Agents.due?(ran, DateTime.new!(~D[2026-03-11], ~T[06:05:00], "Etc/UTC"), tz)
     end
 
@@ -430,7 +432,8 @@ defmodule Servant.AgentsTest do
       assert_receive {:ai_request, payload}
       [_system, %{"content" => user_msg}] = payload["messages"]
       assert user_msg =~ "[truncated extract]"
-      # 200 entries max: entry 210 exists, at most 200 "- " lines
+      # The maximum is 200 entries. Entry 210 exists, but there are 200 "- " lines
+      # at most.
       assert length(String.split(user_msg, "\n- ")) <= 201
     end
 
@@ -480,9 +483,9 @@ defmodule Servant.AgentsTest do
       off_user = user_fixture()
       _off_agent = report_agent(off_user.id)
 
-      # No plug injection here: the due agent will hit the configured
-      # localhost:9999 endpoint and fail fast (connection refused), which is
-      # fine: run_due must survive it and record the failed run.
+      # There is no plug injection here. The due agent will hit the configured
+      # localhost:9999 endpoint and fail fast (connection refused). This is
+      # correct: run_due must survive the failure and record the failed run.
       assert Agents.run_due(DateTime.utc_now()) == :ok
 
       assert [run] = Agents.list_runs(user.id, type: "recurrent")
@@ -492,8 +495,9 @@ defmodule Servant.AgentsTest do
     end
 
     test "a raise in one agent does not stop the batch" do
-      # covered structurally: run_due wraps each agent in try/rescue; the
-      # AI-failure path above already proves an erroring agent yields :ok
+      # The structure covers this case: run_due wraps each agent in try/rescue.
+      # The AI-failure path above already proves that an agent with an error
+      # gives :ok.
       assert Agents.run_due(DateTime.utc_now()) == :ok
     end
 
@@ -507,8 +511,8 @@ defmodule Servant.AgentsTest do
 
       assert Agents.run_due(DateTime.utc_now()) == :ok
 
-      # Each agent got its own run, none lost to the overlap (they fail on the
-      # unreachable endpoint, which is what makes them fast here).
+      # Each agent got its own run, and the overlap lost none. The runs fail on
+      # the unreachable endpoint, and that makes them fast here.
       run_agent_ids = user.id |> Agents.list_runs(type: "recurrent") |> Enum.map(& &1.agent_id)
       assert Enum.sort(run_agent_ids) == agents |> Enum.map(& &1.id) |> Enum.sort()
     end
@@ -616,8 +620,9 @@ defmodule Servant.AgentsTest do
       reloaded = Agents.get_agent(user.id, agent.id)
       assert reloaded.recipe == nil
 
-      # Nothing to resurrect: flipping mode back alone is rejected, not
-      # silently reactivating the recipe that used to be stored.
+      # There is nothing to restore. The update rejects a change of only the
+      # mode back to "recipe". It does not silently reactivate the recipe that
+      # was stored before.
       assert {:error, changeset} = Agents.update_agent(reloaded, %{"mode" => "recipe"})
       assert %{recipe: _} = errors_on(changeset)
     end

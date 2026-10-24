@@ -1,8 +1,8 @@
 defmodule Servant.Connectors.BankCSVConnector do
   @moduledoc """
-  Import connector for bank transaction CSV files.
-  On-demand only: the user uploads a CSV file which gets parsed
-  into transaction entries using a bank-specific preset.
+  Import connector for CSV files of bank transactions.
+  On-demand only: the user uploads a CSV file. The connector parses the file
+  into transaction entries with a bank-specific preset.
   """
 
   use Servant.Connectors.Connector
@@ -42,13 +42,13 @@ defmodule Servant.Connectors.BankCSVConnector do
 
   @impl true
   def sync(state) do
-    # This connector doesn't auto-sync; entries are created via import_csv/3
+    # This connector does not sync automatically. import_csv/2 creates the entries.
     {:ok, [], state}
   end
 
   @doc """
-  Parses a CSV string and returns entry maps ready to be inserted.
-  Called by the upload endpoint, not by the regular sync cycle.
+  Parses a CSV string and returns entry maps that are ready for the insert.
+  The upload endpoint calls this function, not the regular sync cycle.
   """
   def import_csv(csv_content, state) do
     case Parser.parse(csv_content, state.preset) do
@@ -151,9 +151,9 @@ defmodule Servant.Connectors.BankCSVConnector do
 
   defp original_data(_tx), do: %{}
 
-  # Generate a deterministic ID from transaction data for dedup. N26 payments
-  # abroad were once stored under their original currency: hashing that one
-  # keeps a re-import of the same file from duplicating them.
+  # Generate a deterministic ID from the transaction data for the dedup. N26
+  # payments abroad were once stored under their original currency: hashing
+  # that one keeps a re-import of the same file from duplicating them.
   defp generate_external_id(tx) do
     currency = Map.get(tx, :original_currency) || tx.currency
     data = "#{tx.date}|#{tx.description}|#{tx.amount}|#{currency}"

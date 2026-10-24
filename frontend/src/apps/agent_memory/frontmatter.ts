@@ -1,7 +1,8 @@
-// Memory files, skills and Cursor rules open with a YAML frontmatter block
-// that markdown-it would render as a rule and stray paragraphs. Split it off
-// as flat fields (one nesting level: `group` is the parent key, shown as a
-// tag, "" at the top level) for display; the stored body keeps it verbatim.
+// Memory files, skills and Cursor rules start with a YAML frontmatter block.
+// markdown-it renders this block as a rule and stray paragraphs. Split the
+// block into flat fields for display. There is one level of nesting: `group`
+// is the parent key, shown as a tag, and is "" at the top level. The stored
+// body keeps the block verbatim.
 
 export interface FrontmatterField {
   group: string

@@ -17,9 +17,9 @@ import {
 } from '../lib/sidebarApps'
 import { useAuthStore } from './auth'
 
-// Builtin apps merged with the user's git-installed apps. Installed apps are
-// loaded at runtime by importing their pre-built ES module from /files (the
-// cookie authenticates the request, same as any file).
+// The builtin apps, merged with the git-installed apps of the user. An
+// installed app loads at runtime: the store imports its pre-built ES module
+// from /files. The cookie authenticates the request, as for all files.
 export const useAppsStore = defineStore('apps', () => {
   const auth = useAuthStore()
 
@@ -31,7 +31,8 @@ export const useAppsStore = defineStore('apps', () => {
   // ----- what the sidebar, the palette and AppView read -----
 
   function toDef(app: InstalledApp): AppDef {
-    // updated_at busts the browser's ES-module cache after an app update
+    // updated_at invalidates the ES-module cache of the browser after an app
+    // update.
     const url = `${app.entry_url}?v=${encodeURIComponent(app.updated_at)}`
     return {
       id: app.id,
@@ -42,9 +43,10 @@ export const useAppsStore = defineStore('apps', () => {
     }
   }
 
-  // Disabled built-ins disappear everywhere defs is consumed: sidebar,
-  // command palette, and app mounting (getDef misses). Installed apps were
-  // an explicit install, they are always on.
+  // The disabled built-ins go away from all the consumers of defs: the
+  // sidebar, the command palette, and the mount of apps (getDef finds
+  // nothing). The user installed the installed apps explicitly, so they are
+  // always on.
   const defs = computed<AppDef[]>(() => [
     ...enabledBuiltins(auth.user?.enabled_apps),
     ...installed.value.map(toDef)

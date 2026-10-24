@@ -24,7 +24,7 @@ const {
   fallbackError: 'Photo not found'
 })
 const imgError = ref(false)
-// Refetch when the id changes: the instance is reused across /photos/:id links.
+// Refetch when the id changes: the /photos/:id links reuse the same instance.
 watch(
   () => route.params.id,
   () => {

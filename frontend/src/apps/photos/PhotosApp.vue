@@ -68,8 +68,9 @@ const loadError = ref('')
 const loadState = computed<LoadStatus>(() =>
   loading.value ? 'loading' : loadError.value ? 'error' : 'ready'
 )
-// Long backfill/scan loops check this so they stop when the app is unmounted
-// (navigating away) instead of running on in the background.
+// The long backfill loops and scan loops read this flag. They stop when the
+// app is unmounted (the user navigates away) and do not continue in the
+// background.
 let alive = true
 const selectionMode = ref(false)
 // Phones fold the secondary toolbar actions behind a "more" toggle; the
@@ -93,8 +94,8 @@ const getThumbPath = (photo: Entry) =>
 const isVideo = (photo: Entry) =>
   ((field(photo, 'mime_type') as string) || '').startsWith('video/')
 
-// Videos never mount a <video> in the grid: one media decoder per cell
-// wedges the browser on large libraries. They show the JPEG frame captured
+// Videos never mount a <video> in the grid: one media decoder for each cell
+// blocks the browser on large libraries. They show the JPEG frame captured
 // at upload time (thumb_path), or a plain play tile when there is none.
 const hasGridImage = (photo: Entry) =>
   !isVideo(photo) || !!field(photo, 'thumb_path')
@@ -140,7 +141,7 @@ const filtered = computed(() => {
   return list
 })
 
-// ----- grouping by shot date (occurred_at, i.e. EXIF date, else upload date) -----
+// ----- grouping by shot date (occurred_at: the EXIF date, else the upload date) -----
 
 type GroupBy = '' | 'year' | 'month' | 'week'
 const groupBy = preferenceRef<GroupBy>(props.ctx, 'photos.groupBy', '')
@@ -164,8 +165,8 @@ function onGroupByChange(v: string) {
 const photoDate = (photo: Entry) =>
   (photo.occurred_at || photo.inserted_at) as string
 
-// Thumb chips are tiny: first name only (the full name stays in the title
-// tooltip, the filter bar and the viewer meta).
+// The thumb chips are very small: they show only the first name. The full
+// name stays in the title tooltip, the filter bar and the viewer meta.
 const firstName = (name: string) => name.trim().split(/\s+/)[0]
 
 function isoWeek(
@@ -245,8 +246,8 @@ async function rebuildPreviews() {
   rebuilding.value = true
   try {
     await props.ctx.api.fetch('/api/entries/backfill_media', { method: 'POST' })
-    // The server regenerates in the background: poll until nothing is
-    // missing anymore, up to ~1 minute.
+    // The server regenerates the previews in the background. Poll until no
+    // preview is missing, for a maximum of approximately 1 minute.
     for (let i = 0; i < 15; i++) {
       await new Promise(r => setTimeout(r, 4000))
       if (!alive) break
@@ -268,7 +269,7 @@ const missingVideoThumbs = computed(
 const fixingVideos = ref<{ done: number; total: number } | null>(null)
 
 // Downloads each video, captures a frame in the browser and stores it as the
-// entry's thumb_path (same pipeline as fresh uploads).
+// thumb_path of the entry. This is the same pipeline as for new uploads.
 async function rebuildVideoThumbs() {
   const targets = allPhotos.value.filter(
     photo => isVideo(photo) && !field(photo, 'thumb_path')
@@ -311,9 +312,10 @@ async function rebuildVideoThumbs() {
 
 // ----- face detection (browser-side, see faceScan.ts) -----
 
-// The photo the detector can decode: the 1920px display JPEG when it
-// exists, else the original for browser-readable formats. HEIC originals
-// without a display JPEG need "Fix previews" first.
+// Returns the image that the detector can decode. This is the 1920px display
+// JPEG when it exists. If not, it is the original, for the formats that the
+// browser can read. For a HEIC original without a display JPEG, "Fix
+// previews" is necessary first.
 function faceScanSrc(photo: Entry): string | null {
   if (isVideo(photo)) return null
   const display = field(photo, 'display_path') as string
@@ -370,10 +372,10 @@ async function scanFaces() {
 interface ClusterRow {
   cluster: FaceCluster
   assign: string // selected contact id
-  // Faces left out of the tagging ("<photoId>:<index>"): a wrong match in
-  // the group stays unnamed and shows up again at the next scan.
+  // The faces excluded from the tag operation ("<photoId>:<index>"). A wrong
+  // match in the group stays unnamed and shows again at the next scan.
   excluded: string[]
-  done?: string // contact name once tagged
+  done?: string // the contact name, after the tag operation
 }
 
 const faceModalActive = ref(false)
@@ -398,8 +400,8 @@ function chipSrc(photoId: string): string {
 const faceKey = (face: FaceCluster['faces'][number]) =>
   `${face.photoId}:${face.index}`
 
-// Per-row face lists with their exclusion state, derived once per change
-// instead of per chip in the template.
+// The face lists of each row, with their exclusion state. The computed
+// derives them one time for each change, not for each chip in the template.
 const faceRowViews = computed(() =>
   faceRows.value.map(row => {
     const excluded = new Set(row.excluded)
@@ -432,9 +434,9 @@ function openFaceModal() {
   faceModalActive.value = true
 }
 
-// Tags every photo of the cluster with the chosen contact (through the
-// regular people mechanism) and pins the person on each face, making it a
-// reference for future suggestions.
+// Tags every photo of the cluster with the selected contact (through the
+// regular people mechanism) and pins the person on each face. As a result,
+// each face becomes a reference for future suggestions.
 async function nameCluster(row: ClusterRow) {
   const contact = allContacts.value.find(c => c.id === row.assign)
   if (!contact || row.done || namingCluster.value) return
@@ -476,14 +478,16 @@ async function nameCluster(row: ClusterRow) {
 
 // ----- failed shots (blurry, dark, overexposed) -----
 
-// Metrics are measured once per photo and stored on it; `ok` records the
-// user's "Keep", which takes the photo off the list for good.
+// The app measures the metrics one time for each photo and stores them on
+// the photo. `ok` records the "Keep" of the user, which permanently removes
+// the photo from the list.
 type StoredQuality = QualityMetrics & { ok?: boolean }
 
 const qualityOf = (photo: Entry) =>
   photo.data.quality as StoredQuality | undefined
 
-// The thumbnail is enough to judge a shot and is the cheapest to decode.
+// The thumbnail is sufficient to judge a shot and is the cheapest image to
+// decode.
 const qualitySrc = (photo: Entry) =>
   (field(photo, 'thumb_path') as string) || faceScanSrc(photo)
 
@@ -531,8 +535,8 @@ async function checkQuality() {
         item.id === updated.id ? updated : item
       )
     } catch {
-      // ponytail: an unreadable photo is retried at the next check; store a
-      // marker if a large broken backlog ever makes that slow.
+      // ponytail: the next check tries an unreadable photo again. Store a
+      // marker if a large backlog of broken photos makes that slow.
       qualityUnreadable.value++
     } finally {
       if (checkingQuality.value) checkingQuality.value.done++
@@ -541,7 +545,7 @@ async function checkQuality() {
   checkingQuality.value = null
 }
 
-// The note travels with the photo, public share feed included.
+// The note goes with the photo, also into the public share feed.
 async function saveNote(id: string, note: string) {
   const photo = photoById.value.get(id)
   if (!photo) return
@@ -584,8 +588,9 @@ const matchingContacts = computed(() => {
   if (!peopleSearchActive.value) return []
   const q = peopleSearchQuery.value.toLowerCase()
   if (!q) {
-    // Before any typing, offer the people already tagged on other photos:
-    // recurring people are one click away instead of requiring a search.
+    // Before the user types, offer the people who are tagged on other photos.
+    // The user then gets the recurring people with one click, without a
+    // search.
     return allPeople.value
       .map(photo => allContacts.value.find(c => c.id === photo.id))
       .filter((c): c is Entry => !!c)
@@ -740,7 +745,8 @@ async function copyShare(share: PhotoShare) {
     clearTimeout(copiedTimer)
     copiedTimer = setTimeout(() => (copiedShareId.value = ''), 2000)
   } catch {
-    // No clipboard access (insecure context): the URL stays selectable.
+    // There is no clipboard access (insecure context). The user can still
+    // select the URL.
   }
 }
 async function revokeShare(share: PhotoShare) {
@@ -784,11 +790,13 @@ async function reload() {
   }
 }
 
-// Upload state and pipeline live in ./uploadQueue (module scope) so a batch
-// survives navigating to another app mid-upload. While mounted, created
-// photos land in the grid in 1s batches (one regroup/re-render per flush,
-// not per upload: a 500-file batch would churn the grid 500 times) and a
-// single reload trues everything up when the queue drains.
+// The upload state and the upload pipeline are in ./uploadQueue (module
+// scope). As a result, a batch continues when the user navigates to another
+// app during the upload. While the app is mounted, the created photos go
+// into the grid in batches of 1s. There is one regroup and one re-render for
+// each flush, not for each upload: for each upload, a batch of 500 files
+// renders the grid 500 times. When the queue becomes empty, one reload makes
+// all the data correct.
 let pendingCreated: Entry[] = []
 let createdFlushTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -815,7 +823,8 @@ function uploadFiles(files: File[]) {
 function onFileInput(event: Event) {
   const input = event.target as HTMLInputElement
   if (input.files?.length) uploadFiles(Array.from(input.files))
-  // Reset so picking the same file(s) again re-triggers the change event.
+  // Reset the input. Then the change event fires again when the user selects
+  // the same file or files again.
   input.value = ''
 }
 const dragover = ref(false)
@@ -825,12 +834,14 @@ function onDrop(event: DragEvent) {
     uploadFiles(Array.from(event.dataTransfer.files))
 }
 
-// Anchor for shift-click range selection (last photo clicked in select mode).
+// The anchor for the range selection with shift-click: the last photo clicked
+// in select mode.
 let lastClickedId: string | null = null
 
 function onThumbClick(photo: Entry, event?: MouseEvent) {
   if (selectionMode.value) {
-    // Shift extends from the anchor to the clicked photo, in grid order.
+    // Shift extends the selection from the anchor to the clicked photo, in
+    // grid order.
     if (event?.shiftKey && lastClickedId && lastClickedId !== photo.id) {
       const list = filtered.value
       const from = list.findIndex(item => item.id === lastClickedId)
@@ -846,7 +857,7 @@ function onThumbClick(photo: Entry, event?: MouseEvent) {
     else selectedIds.value.add(photo.id)
     lastClickedId = photo.id
   } else if (event?.shiftKey) {
-    // Shift-click from browse mode jumps straight into selection.
+    // A shift-click in browse mode goes directly into selection mode.
     selectionMode.value = true
     selectedIds.value.add(photo.id)
     lastClickedId = photo.id
@@ -899,8 +910,9 @@ async function deletePhotos(ids: string[]) {
   await reload()
 }
 
-// Rotation keeps the selection: fixing an orientation often takes a second
-// quarter turn, so the user should not have to reselect.
+// The rotation keeps the selection. To correct an orientation, a second
+// quarter turn is often necessary, and the user must not have to select the
+// photos again.
 const rotating = ref(false)
 async function rotateSelected(angle: 90 | 270) {
   const targets = [...selectedIds.value]
@@ -929,8 +941,9 @@ async function rotateSelected(angle: 90 | 270) {
   }
 }
 
-// ponytail: sets occurred_at + data.date_taken only; the EXIF bytes inside
-// the file are not rewritten (needs exiftool or a lossy vips re-encode).
+// ponytail: sets only occurred_at and data.date_taken. The code does not
+// rewrite the EXIF bytes in the file (for that, exiftool or a lossy vips
+// re-encode is necessary).
 const dateModalActive = ref(false)
 const dateModalDate = ref('')
 const dateModalTime = ref('')
@@ -1095,14 +1108,16 @@ async function removeTagAction() {
 }
 
 function openViewer(photoId: string, opts: { push?: boolean } = {}) {
-  // Opening a photo is a history entry so the browser back button closes it.
+  // When the user opens a photo, the app adds a history entry. As a result,
+  // the back button of the browser closes the photo.
   if (opts.push !== false) {
     history.pushState(null, '', `/apps/photos?photo=${photoId}`)
   }
   const photos = filtered.value
   const items = photos.map(photo => {
     const meta: Record<string, string | number | null> = {}
-    // Without EXIF, the date the grid sorts by (file date, else upload).
+    // Without EXIF, this is the date that the grid sorts by (the file date,
+    // else the upload date).
     if (photo.data.date_taken)
       meta['Date taken'] = formatDateTime(photo.data.date_taken as string)
     else meta['Date'] = formatDateTime(photoDate(photo))
@@ -1121,7 +1136,7 @@ function openViewer(photoId: string, opts: { push?: boolean } = {}) {
       meta['People'] = photoPeople.map(pp => pp.name).join(', ')
     return {
       id: photo.id,
-      // display_path is the fast 1920px JPEG; the original stays one click away
+      // display_path is the fast 1920px JPEG. The original stays one click away.
       src: (field(photo, 'display_path') || field(photo, 'path')) as string,
       fullSrc: field(photo, 'display_path')
         ? (field(photo, 'path') as string)
@@ -1134,8 +1149,8 @@ function openViewer(photoId: string, opts: { push?: boolean } = {}) {
     }
   })
   const idx = photos.findIndex(photo => photo.id === photoId)
-  // The deep-linked photo may be outside the active filter; don't silently open
-  // the first one (idx -1 -> 0) as if it were the requested photo.
+  // The deep-linked photo can be outside the active filter. Do not silently
+  // open the first photo (idx -1 -> 0) as if it was the requested photo.
   if (idx === -1) return
   props.ctx.viewer.open(items, idx)
 }
@@ -1157,7 +1172,7 @@ onMounted(async () => {
     await reload()
   })
   props.ctx.viewer.onNote(saveNote)
-  // Backdrop/Esc/Close must also drop the ?photo= deep link.
+  // The backdrop, Esc and Close must also remove the ?photo= deep link.
   props.ctx.viewer.onClose(() => {
     if (new URLSearchParams(window.location.search).get('photo')) {
       history.replaceState(null, '', '/apps/photos')
@@ -1165,7 +1180,7 @@ onMounted(async () => {
   })
   await reload()
   const params = new URLSearchParams(window.location.search)
-  // ?person=<contact id> lands here from a contact card ("all photos of X").
+  // A contact card links here with ?person=<contact id> ("all photos of X").
   const person = params.get('person')
   if (person) setFilter({ person })
   const initial = params.get('photo')
@@ -2106,7 +2121,7 @@ onUnmounted(() => {
 }
 .ph-uploading {
   display: flex;
-  flex-wrap: wrap; /* the bar takes its own full row: label changes can't resize it */
+  flex-wrap: wrap; /* the bar takes its own full row: label changes cannot resize it */
   align-items: center;
   gap: 0.35rem 0.75rem;
   padding: 0.5rem 1rem;
@@ -2187,7 +2202,7 @@ onUnmounted(() => {
 }
 .ph-group-header {
   position: sticky;
-  top: -0.75rem; /* cancel .ph-scroll padding so it pins to the very top */
+  top: -0.75rem; /* cancels the .ph-scroll padding, to pin the header at the top edge */
   z-index: 3;
   display: flex;
   align-items: center;
@@ -2237,7 +2252,7 @@ onUnmounted(() => {
   background: rgba(0, 0, 0, 0.5);
   color: #fff;
 }
-/* Photos are the light: on hover the image brightens inside a phosphor ring */
+/* Photos are the light: on hover, the image becomes brighter in a phosphor ring */
 .ph-thumb:hover {
   box-shadow:
     0 0 0 2px rgba(var(--primary-rgb), 0.7),
@@ -2294,7 +2309,7 @@ onUnmounted(() => {
   border-color: transparent;
   color: var(--primary-contrast);
 }
-/* No hover on touch screens: keep the button reachable */
+/* Touch screens have no hover: keep the button reachable */
 @media (hover: none) {
   .ph-thumb-delete {
     opacity: 1;
@@ -2509,7 +2524,8 @@ onUnmounted(() => {
   color: var(--primary);
   font-size: var(--text-sm);
 }
-/* Every face of the group, wrapping: the whole set is judged at once. */
+/* Shows every face of the group, with wrap: the user judges the full set at
+   one time. */
 .ph-face-chips {
   display: flex;
   flex-wrap: wrap;

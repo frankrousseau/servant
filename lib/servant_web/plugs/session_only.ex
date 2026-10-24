@@ -1,7 +1,7 @@
 defmodule ServantWeb.Plugs.SessionOnly do
   @moduledoc """
-  Rejects API tokens. Account management, connectors, audit and token
-  management are reserved to interactive sessions so a leaked token can't
+  Rejects API tokens. Only interactive sessions can use account management,
+  connectors, audit and token management. As a result, a leaked token cannot
   escalate (create tokens, change the password, read other domains).
   """
 

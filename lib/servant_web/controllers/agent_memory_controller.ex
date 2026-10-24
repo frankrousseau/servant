@@ -1,8 +1,9 @@
 defmodule ServantWeb.AgentMemoryController do
   @moduledoc """
-  Agent memory files (memory, skills, rules of coding agents): manifest,
-  batch upsert by path, delete by path. The pull/push scripts of the
-  `servant-memory` skill and the Agent memory app are the callers.
+  Manages the agent memory files (memory, skills, rules of coding agents). The
+  operations are the manifest, the batch upsert by path and the delete by path.
+  The pull/push scripts of the `servant-memory` skill and the Agent memory app
+  are the callers.
   """
 
   use ServantWeb, :controller

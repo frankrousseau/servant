@@ -26,7 +26,7 @@ defmodule Servant.Connectors.ICalConnector do
     url = config_value(config, "url")
     calendar_name = Map.get(config, "calendar_name", "Calendar")
 
-    # URL is optional; the connector can work with file uploads only
+    # The URL is optional. The connector can work with file uploads only.
     {:ok, %{url: url, calendar_name: calendar_name}}
   end
 
@@ -48,8 +48,8 @@ defmodule Servant.Connectors.ICalConnector do
   end
 
   @doc """
-  Parses iCal content and returns entry maps ready to be inserted.
-  Called by the upload endpoint for file imports.
+  Parses iCal content and returns entry maps that are ready for the insert.
+  The upload endpoint calls this function for file imports.
   """
   def import_ical(ical_content, state) do
     entries = build_entries(ical_content, state)
@@ -118,7 +118,7 @@ defmodule Servant.Connectors.ICalConnector do
     |> Enum.map(&parse_vevent/1)
   end
 
-  # iCal spec: lines starting with space/tab are continuations
+  # iCal spec: the lines that start with a space or a tab are continuations.
   defp unfold_lines(text) do
     text
     |> String.replace(~r/\r?\n[ \t]/, "")
@@ -205,10 +205,10 @@ defmodule Servant.Connectors.ICalConnector do
     end
   end
 
-  # Uses the non-raising Date.new/Time.new: the regexes above only validate the
-  # digit *shape*, not the values, so a well-formed-but-invalid stamp (Feb 30,
-  # hour 24, both emitted by some broken calendar generators) must return
-  # {:error, _} rather than raise and crash the worker on a single bad VEVENT.
+  # Uses Date.new/Time.new, which do not raise. The regexes above validate only
+  # the digit *shape*, not the values. Some broken calendar generators emit a
+  # well-formed but invalid stamp (Feb 30, hour 24). Such a stamp must return
+  # {:error, _}. It must not raise and crash the worker on a single bad VEVENT.
   defp build_datetime(y, m, d, h, mi, s) do
     with {:ok, date} <- Date.new(int(y), int(m), int(d)),
          {:ok, time} <- Time.new(int(h), int(mi), int(s)) do

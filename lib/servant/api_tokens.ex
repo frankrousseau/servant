@@ -1,9 +1,10 @@
 defmodule Servant.ApiTokens do
   @moduledoc """
-  Scoped API tokens for agents and scripts. The plaintext (`srv_` prefixed) is
-  returned exactly once at creation; only its SHA-256 hash lands in the
-  database. Tokens are individually revocable and independent of the session
-  `token_version` (revoking an agent does not log the user out).
+  Scoped API tokens for agents and scripts. The creation returns the plaintext
+  (with the `srv_` prefix) one time only. The database stores only its SHA-256
+  hash. You can revoke each token individually. The tokens are independent of
+  the session `token_version`: when you revoke an agent, the user stays logged
+  in.
   """
 
   import Ecto.Query
@@ -13,7 +14,8 @@ defmodule Servant.ApiTokens do
   alias Servant.Repo
 
   @prefix "srv_"
-  # last_used_at is refreshed at most once per interval, not on every request
+  # The code refreshes last_used_at one time at most for each interval, not on
+  # each request.
   @touch_interval_s 60
 
   def list_tokens(user_id) do
@@ -23,7 +25,7 @@ defmodule Servant.ApiTokens do
     |> Repo.all()
   end
 
-  @doc "Creates a token. Returns `{:ok, struct, plaintext}`; the plaintext is shown once."
+  @doc "Creates a token. Returns `{:ok, struct, plaintext}`. The plaintext is visible one time."
   def create_token(user_id, attrs) do
     plaintext = @prefix <> Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
 
@@ -48,8 +50,8 @@ defmodule Servant.ApiTokens do
   end
 
   @doc """
-  Authenticates a plaintext API token: `{:ok, user, scopes}` when the hash is
-  known, the token is not expired and the user still exists.
+  Authenticates a plaintext API token. Returns `{:ok, user, scopes}` when the
+  hash is known, the token is not expired and the user still exists.
   """
   def authenticate(@prefix <> _ = plaintext) do
     with %ApiToken{} = token <- Repo.get_by(ApiToken, token_hash: hash(plaintext)),

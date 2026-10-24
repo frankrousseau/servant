@@ -1,11 +1,11 @@
 defmodule Servant.Connectors.AppleHealthConnector do
   @moduledoc """
-  Import connector for Apple Health export.xml files.
+  Import connector for the export.xml files of Apple Health.
   On-demand only: the user exports their health data from iOS
   (Settings → Health → Export All Health Data) and uploads the XML.
 
-  Records are aggregated by category and day to avoid creating
-  thousands of entries for high-frequency data (e.g. heart rate).
+  The connector aggregates the records by category and day. This prevents
+  thousands of entries for high-frequency data (for example, heart rate).
   """
 
   use Servant.Connectors.Connector
@@ -42,8 +42,8 @@ defmodule Servant.Connectors.AppleHealthConnector do
   end
 
   @doc """
-  Parses Apple Health export XML and returns entry maps.
-  Aggregates high-frequency data (steps, heart rate, etc.) by day.
+  Parses the export XML of Apple Health and returns entry maps.
+  Aggregates the high-frequency data (for example steps and heart rate) by day.
   """
   def import_health(xml_content, _state) do
     case XMLParser.parse(xml_content) do
@@ -64,11 +64,11 @@ defmodule Servant.Connectors.AppleHealthConnector do
 
   # --- Aggregation ---
 
-  # High-frequency categories that should be aggregated per day
+  # Aggregate these high-frequency categories per day.
   @aggregate_categories ~w(steps distance active_energy basal_energy exercise_time stand_time
                            flights_climbed water calories_consumed)
 
-  # Categories where we want the daily average
+  # These categories use the daily average.
   @average_categories ~w(heart_rate resting_heart_rate hrv walking_heart_rate
                          respiratory_rate spo2 audio_exposure headphone_audio)
 
@@ -82,7 +82,7 @@ defmodule Servant.Connectors.AppleHealthConnector do
     |> Enum.map(fn {{category, day}, day_records} ->
       cond do
         category == "workout" ->
-          # Don't aggregate workouts, keep each one
+          # Do not aggregate the workouts. Keep each one.
           Enum.map(day_records, &{category, day, &1})
 
         category in @aggregate_categories ->
@@ -92,7 +92,7 @@ defmodule Servant.Connectors.AppleHealthConnector do
           [{category, day, avg_records(day_records, day)}]
 
         true ->
-          # Single-value categories (weight, height, etc.): take latest
+          # Single-value categories (for example weight and height): take the latest record.
           latest = Enum.max_by(day_records, & &1.start_date, fn -> List.first(day_records) end)
           [{category, day, latest}]
       end

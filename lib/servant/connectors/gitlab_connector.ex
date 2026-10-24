@@ -1,16 +1,25 @@
 defmodule Servant.Connectors.GitlabConnector do
   @moduledoc """
-  Connector that fetches the user's commit metadata from GitLab.
+  Connector that fetches the commit metadata of the user from GitLab.
 
-  GitLab has no cross-project commit search, so each sync lists the projects
-  the token's user is a member of, then walks each project's commits (all
-  branches) filtered by the configured author. A per-project `committed_date`
-  cursor map keeps syncs incremental; the `since` bound is inclusive and the
-  overlap is deduplicated by the entries upsert on `external_id` (the sha).
+  GitLab has no commit search across projects. As a result, each sync lists
+  the projects that the user of the token is a member of. Then it walks the
+  commits of each project (all branches), filtered by the configured author. A
+  map of `committed_date` cursors, one per project, keeps the syncs
+  incremental. The `since` bound is inclusive, and the upsert of the entries
+  on `external_id` (the sha) deduplicates the overlap.
 
   Works with gitlab.com and self-hosted instances (instance URL setting).
-  Only commit metadata is stored: project, sha, message, author, dates, URL;
-  no diffs or per-commit stats.
+  The connector stores only the commit metadata:
+
+  - project
+  - sha
+  - message
+  - author
+  - dates
+  - URL
+
+  It stores no diffs and no per-commit stats.
   """
 
   use Servant.Connectors.Connector
@@ -81,13 +90,13 @@ defmodule Servant.Connectors.GitlabConnector do
                  Map.put(cursors, key, new_cursor)}
 
               {:error, _reason} ->
-                # Skip this project (revoked access, rate limit); its old
-                # cursor is kept so the next sync retries from there.
+                # Skip this project (revoked access, rate limit). Keep its old
+                # cursor so that the next sync retries from there.
                 {acc, cursors}
             end
           end)
 
-        # Drop cursors of projects the user no longer belongs to.
+        # Drop the cursors of the projects that the user no longer belongs to.
         keys = Enum.map(projects, &to_string(&1["id"]))
         {:ok, entries, %{state | cursors: Map.take(cursors, keys)}}
 
@@ -164,8 +173,8 @@ defmodule Servant.Connectors.GitlabConnector do
     end
   end
 
-  # Committed dates carry the committer's local UTC offset, so they are
-  # compared as parsed DateTimes, never lexicographically.
+  # The committed dates contain the local UTC offset of the committer. Compare
+  # them as parsed DateTimes, never lexicographically.
   defp latest_committed_date(commits) do
     commits
     |> Enum.flat_map(fn commit ->
@@ -188,7 +197,7 @@ defmodule Servant.Connectors.GitlabConnector do
     message = commit["message"] || ""
     [first_line | _] = String.split(message, "\n", parts: 2)
 
-    # from_iso8601 already normalizes offset datetimes to UTC
+    # from_iso8601 already normalizes offset datetimes to UTC.
     occurred_at =
       case DateTime.from_iso8601(commit["authored_date"] || "") do
         {:ok, dt, _offset} -> DateTime.truncate(dt, :second)

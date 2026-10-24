@@ -1,9 +1,9 @@
 defmodule Servant.PhotoShares.PhotoShare do
   @moduledoc """
-  A public link over the photos carrying one or more tags or people
-  (contacts tagged on the photo). The feed is computed at request time, so a
-  photo tagged after the link was created shows up in it, and untagging a
-  photo removes it.
+  A public link over the photos that carry one or more tags or people
+  (contacts tagged on the photo). Servant computes the feed at request time.
+  As a result, a photo tagged after the creation of the link appears in the
+  feed, and a photo leaves the feed when its tag is removed.
   """
 
   use Ecto.Schema
@@ -20,7 +20,7 @@ defmodule Servant.PhotoShares.PhotoShare do
     field :name, :string
     field :tags, {:array, :string}, default: []
     # [%{"id" => contact_id, "name" => name}]: the name is a label snapshot
-    # for the owner's lists; matching goes by id.
+    # for the lists of the owner. The match uses the id.
     field :people, {:array, :map}, default: []
     field :match, :string, default: "any"
     field :token, :string
@@ -32,11 +32,11 @@ defmodule Servant.PhotoShares.PhotoShare do
 
   @type t :: %__MODULE__{}
 
-  @doc "The accepted `match` values: `any` (union of the tags) or `all` (intersection)."
+  @doc "Returns the accepted `match` values: `any` (union of the tags) or `all` (intersection)."
   def matches, do: @matches
 
-  # user_id and token are set programmatically by the context, never cast
-  # from params.
+  # The context sets user_id and token programmatically. The changeset never
+  # casts them from params.
   def changeset(share, attrs) do
     share
     |> cast(attrs, [:name, :tags, :people, :match])
@@ -93,7 +93,7 @@ defmodule Servant.PhotoShares.PhotoShare do
 
   defp normalize_people(people), do: people
 
-  @doc "JSON shape for the management API, link included (the owner may copy it again)."
+  @doc "JSON shape for the management API, link included (the owner can copy it again)."
   def to_json(%__MODULE__{} = share) do
     %{
       id: share.id,

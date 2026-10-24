@@ -4,7 +4,7 @@ defmodule Servant.Media.ExifTest do
   alias Servant.Media.Exif
   alias Vix.Vips.{Image, MutableImage}
 
-  # Minimal 1x1 JPEG, same fixture as the thumbnail tests.
+  # Minimal 1x1 JPEG, the same fixture as in the thumbnail tests.
   @jpeg Base.decode64!(
           "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDAREAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQBAQAAAAAAAAAAAAAAAAAAAAD/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCwAA//2Q=="
         )
@@ -19,9 +19,8 @@ defmodule Servant.Media.ExifTest do
     {"exif-ifd3-GPSLongitudeRef", "E"}
   ]
 
-  # Anything that is not a JPEG goes through the libvips header fallback: that
-  # is the path HEIC photos from phones take (PNG here, since a libvips build
-  # without HEIC support would make the test environment-dependent).
+  # A file that is not a JPEG or a HEIC goes through the libvips header
+  # fallback. The test uses a PNG.
   test "extracts date, GPS and camera from a non-JPEG through the vips fallback" do
     tmp = System.tmp_dir!()
     png = Path.join(tmp, "exif-test-#{System.unique_integer([:positive])}.png")
@@ -56,9 +55,9 @@ defmodule Servant.Media.ExifTest do
     assert Exif.extract(path) == %{}
   end
 
-  # JPEG goes through ExifParser (not the vips fallback). Regression: the EXIF
-  # and GPS sub-IFDs are nested under ifd0, so reading them at the top level
-  # silently dropped the date and the coordinates of every JPEG photo.
+  # A JPEG goes through ExifParser (not the vips fallback). Regression: the EXIF
+  # and GPS sub-IFDs are nested under ifd0. As a result, a read at the top level
+  # silently dropped the date and the coordinates of each JPEG photo.
   test "extracts date, GPS and dimensions from a JPEG through ExifParser" do
     tmp = System.tmp_dir!()
     jpg = Path.join(tmp, "exif-jpeg-#{System.unique_integer([:positive])}.jpg")
@@ -97,11 +96,10 @@ defmodule Servant.Media.ExifTest do
     assert exif.gps.longitude < 0
   end
 
-  # Tags the fixture through the exif-* mutable fields, then writes it to
-  # `path` in whatever format its extension asks for.
-  # iPhone photos are HEIC, which the bundled libvips cannot decode: the Exif
-  # item is read straight from the file. The fake HEIC wraps the TIFF block of
-  # a tagged JPEG the way phones store it (item offset, "Exif\0\0", TIFF).
+  # The iPhone photos are HEIC, and the bundled libvips cannot decode HEIC. As a
+  # result, the code reads the Exif item directly from the file. The fake HEIC
+  # wraps the TIFF block of a tagged JPEG in the same way as the phones store it
+  # (item offset, "Exif\0\0", TIFF).
   test "extracts date, GPS and camera from an iPhone HEIC" do
     tmp = System.tmp_dir!()
     jpg = Path.join(tmp, "exif-src-heic-#{System.unique_integer([:positive])}.jpg")
@@ -128,6 +126,8 @@ defmodule Servant.Media.ExifTest do
     assert exif.camera_model == "iPhone 15 Pro"
   end
 
+  # Tags the fixture through the exif-* mutable fields, then writes it to
+  # `path` in the format that its extension specifies.
   defp write_image_with_exif(path, fields \\ @exif_fields) do
     source = Path.join(System.tmp_dir!(), "exif-src-#{System.unique_integer([:positive])}.jpg")
     File.write!(source, @jpeg)

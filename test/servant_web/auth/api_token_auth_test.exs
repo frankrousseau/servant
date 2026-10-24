@@ -4,7 +4,7 @@ defmodule ServantWeb.Auth.ApiTokenAuthTest do
   alias Servant.Auth.Throttle
 
   setup do
-    # failed lookups feed the per-IP throttle; keep tests independent
+    # The failed lookups feed the per-IP throttle. Keep the tests independent.
     on_exit(fn -> Throttle.reset("api_token:127.0.0.1") end)
     :ok
   end
