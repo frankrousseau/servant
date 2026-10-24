@@ -5,6 +5,7 @@ This is an **API-only** Phoenix backend (`--no-html --no-live --no-assets`) pair
 - Use `mix precommit` alias when you are done with all changes and fix any pending issues
 - Use the already included and available `:req` (`Req`) library for HTTP requests, **avoid** `:httpoison`, `:tesla`, and `:httpc`. Req is included by default and is the preferred HTTP client for Phoenix apps
 - **Never write em dashes (—)** anywhere: comments, doc strings, UI copy, docs, commit messages. Use a comma, colon, semicolon, parentheses, or a plain hyphen instead. Entry-title separators and empty-cell placeholders use a plain "-" ("Name - org - email"). The only em dashes left in the code are the legacy-separator (" — ") parsing fallbacks that keep pre-July-2026 entries readable; never remove those
+- **Commit messages are short**: the title is `area: what changed` in 50 characters or fewer (`calendar: labels on one baseline`). Add a body only when the title is not enough: 2 to 4 lines on why, and on what the diff does not show. Never list the changes file by file, and never repeat the title
 
 ## Vue style
 
