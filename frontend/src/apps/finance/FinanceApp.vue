@@ -4,13 +4,15 @@ import { ChevronDown, ChevronRight, X } from 'lucide-vue-next'
 
 import ComboBox from '../../components/ComboBox.vue'
 import DateInput from '../../components/DateInput.vue'
+import LoadState from '../../components/LoadState.vue'
+import ServantDialog from '../../components/ServantDialog.vue'
+import TabBar from '../../components/TabBar.vue'
 import BalanceChart from './BalanceChart.vue'
 import OverviewView from './OverviewView.vue'
 import SpendingView from './SpendingView.vue'
 import TransactionsSection from './TransactionsSection.vue'
 
 import { todayInUserTz, zonedToUtcISO } from '../../lib/datetime'
-import { openDialog } from '../../lib/dialog'
 import { addDays } from '../calendar/recurrence'
 import { cryptoEnabled } from '../registry'
 import { fetchCryptoPrices } from './cryptoPrices'
@@ -33,6 +35,8 @@ import {
   type SnapshotPoint,
   type Universe
 } from './finance'
+import type { LoadStatus } from '../../components/LoadState.vue'
+import type { TabOption } from '../../components/TabBar.vue'
 import type { AppContext, Entry } from '../types'
 
 const props = defineProps<{ ctx: AppContext }>()
@@ -49,19 +53,21 @@ const tab = ref<Tab>('overview')
 // no Cryptos tab, no wallet accounts, no crypto line in the totals.
 const showCrypto = computed(() => cryptoEnabled(ctx.enabledApps))
 
-const TABS = computed<Array<{ id: Tab; label: string }>>(() => [
-  { id: 'overview' as Tab, label: 'Overview' },
-  { id: 'accounts' as Tab, label: 'Accounts' },
-  { id: 'spending' as Tab, label: 'Spending' },
-  ...(showCrypto.value ? [{ id: 'cryptos' as Tab, label: 'Cryptos' }] : []),
-  { id: 'taxes' as Tab, label: 'Taxes' }
+const TABS = computed<TabOption<Tab>[]>(() => [
+  { value: 'overview', label: 'Overview' },
+  { value: 'accounts', label: 'Accounts' },
+  { value: 'spending', label: 'Spending' },
+  ...(showCrypto.value
+    ? [{ value: 'cryptos' as const, label: 'Cryptos' }]
+    : []),
+  { value: 'taxes', label: 'Taxes' }
 ])
 
 const accountEntries = ref<Entry[]>([])
 const balanceEntries = ref<Entry[]>([])
 const bankTxs = ref<Entry[]>([])
 const prefs = ref<Entry | null>(null)
-const loadState = ref<'loading' | 'ready' | 'error'>('loading')
+const loadState = ref<LoadStatus>('loading')
 
 async function reload() {
   try {
@@ -710,385 +716,186 @@ function saveShared(account: Account, shared: boolean) {
 
 <template>
   <div class="fin-layout" :class="{ 'fin-layout--wide': tab === 'spending' }">
-    <p v-if="loadState === 'loading'" class="fin-placeholder">
-      Loading finance data…
-    </p>
-    <p v-else-if="loadState === 'error'" class="fin-placeholder">
-      Failed to load finance data.
-    </p>
-    <template v-else>
-      <div class="fin-tabs">
-        <button
-          v-for="option in TABS"
-          :key="option.id"
-          class="fin-tab"
-          :class="{ 'fin-tab--active': tab === option.id }"
-          @click="tab = option.id"
-        >
-          {{ option.label }}
-        </button>
-      </div>
-
-      <OverviewView
-        v-if="tab === 'overview'"
-        :accounts="accounts"
-        :series-by-key="seriesByKey"
-        :balance-entries="visibleBalances"
-        :txs="bankTxs"
-        :rates="rates"
-        :ref-currency="refCurrency"
-        :today="today"
-        :tax-provision="taxProvision"
-        :crypto-tax-pct="cryptoTaxPct"
-        @go="tab = $event"
-      />
-
-      <template v-else-if="tab === 'spending'">
-        <SpendingView
-          :ctx="ctx"
-          :txs="bankTxs"
+    <LoadState :state="loadState" what="finance data">
+      <TabBar v-model="tab" :options="TABS" label="Finance sections">
+        <OverviewView
+          v-if="tab === 'overview'"
           :accounts="accounts"
+          :series-by-key="seriesByKey"
+          :balance-entries="visibleBalances"
+          :txs="bankTxs"
           :rates="rates"
           :ref-currency="refCurrency"
+          :today="today"
+          :tax-provision="taxProvision"
+          :crypto-tax-pct="cryptoTaxPct"
+          @go="tab = $event"
         />
-        <TransactionsSection
-          v-if="bankTxs.length"
-          :ctx="ctx"
-          :txs="bankTxs"
-          :focus-account="txFocus"
-          @updated="onTxUpdated"
-          @deleted="onTxDeleted"
-        />
-      </template>
 
-      <template v-else-if="tab === 'taxes'">
-        <section class="fin-universe fin-taxes">
-          <div class="fin-modal-field">
-            <label for="fin-tax-provision"
-              >Taxes owed ({{ refCurrency }})</label
-            >
-            <input
-              id="fin-tax-provision"
-              class="fin-tax-input"
-              :value="taxProvision || ''"
-              inputmode="decimal"
-              placeholder="0"
-              @change="
-                saveTax(
-                  'tax_provision',
-                  ($event.target as HTMLInputElement).value
-                )
-              "
-            />
-            <p class="fin-modal-hint">
-              Fixed amount you still owe the tax office, deducted from the
-              tradfi total in the overview.
-            </p>
-          </div>
-          <div v-if="showCrypto" class="fin-modal-field">
-            <label for="fin-crypto-tax">Crypto tax rate (%)</label>
-            <input
-              id="fin-crypto-tax"
-              class="fin-tax-input"
-              :value="cryptoTaxPct || ''"
-              inputmode="decimal"
-              placeholder="0"
-              @change="
-                saveTax(
-                  'crypto_tax_pct',
-                  ($event.target as HTMLInputElement).value
-                )
-              "
-            />
-            <p class="fin-modal-hint">
-              Share of the crypto value withheld in the overview, as if it were
-              all taxable gain (France flat tax in 2026: 31.4).
-            </p>
-          </div>
-          <p class="fin-modal-hint">
-            Display only: balances, history and the other tabs stay untouched.
-          </p>
-        </section>
-      </template>
-
-      <template v-else-if="tab === 'cryptos'">
-        <form class="fin-crypto-add" @submit.prevent="addCrypto">
-          <input
-            v-model="cryptoToken"
-            class="fin-crypto-token"
-            placeholder="Token (BTC, ETH...)"
+        <template v-else-if="tab === 'spending'">
+          <SpendingView
+            :ctx="ctx"
+            :txs="bankTxs"
+            :accounts="accounts"
+            :rates="rates"
+            :ref-currency="refCurrency"
           />
-          <input
-            v-model="cryptoQty"
-            class="fin-crypto-qty"
-            placeholder="Quantity"
+          <TransactionsSection
+            v-if="bankTxs.length"
+            :ctx="ctx"
+            :txs="bankTxs"
+            :focus-account="txFocus"
+            @updated="onTxUpdated"
+            @deleted="onTxDeleted"
           />
-          <button
-            type="submit"
-            class="fin-btn fin-btn--primary"
-            :disabled="
-              cryptoSaving || !cryptoToken.trim() || parseQty(cryptoQty) == null
-            "
-          >
-            Add
-          </button>
-        </form>
+        </template>
 
-        <div
-          v-if="cryptoAccounts.length || portfolioSnapshots.length"
-          class="fin-crypto-summary"
-        >
-          <span
-            class="fin-account-caret"
-            title="Snapshot history"
-            @click="toggleExpanded(PORTFOLIO_KEY)"
-          >
-            <ChevronDown v-if="expanded.has(PORTFOLIO_KEY)" :size="16" />
-            <ChevronRight v-else :size="16" />
-          </span>
-          <span class="fin-total-caption">total</span>
-          <span class="fin-total">{{ cryptoTotalLabel }}</span>
-          <span v-if="cryptoTotal.excluded.length" class="fin-warn">
-            without {{ cryptoTotal.excluded.join(', ') }} (no price)
-          </span>
-          <span class="fin-toolbar-spacer"></span>
-          <button
-            class="fin-btn fin-crypto-snapshot"
-            :disabled="
-              cryptoSnapshotSaving ||
-              cryptoPricesLoading ||
-              !cryptoTotal.counted
-            "
-            title="Record the current total as a dated observation; it feeds the Overview curve"
-            @click="snapshotPortfolio"
-          >
-            Snapshot
-          </button>
-        </div>
-        <div
-          v-if="
-            (cryptoAccounts.length || portfolioSnapshots.length) &&
-            expanded.has(PORTFOLIO_KEY)
-          "
-          class="fin-history"
-        >
-          <div
-            v-for="snapshot in portfolioSnapshots"
-            :key="snapshot.id"
-            class="fin-history-row"
-          >
-            <span class="fin-history-date">{{
-              snapshotDateLabel(snapshot)
-            }}</span>
-            <span class="fin-history-amount">{{
-              portfolioAmountLabel(snapshot)
-            }}</span>
+        <template v-else-if="tab === 'taxes'">
+          <section class="fin-universe fin-taxes">
+            <div class="fin-modal-field">
+              <label for="fin-tax-provision"
+                >Taxes owed ({{ refCurrency }})</label
+              >
+              <input
+                id="fin-tax-provision"
+                class="fin-tax-input"
+                :value="taxProvision || ''"
+                inputmode="decimal"
+                placeholder="0"
+                @change="
+                  saveTax(
+                    'tax_provision',
+                    ($event.target as HTMLInputElement).value
+                  )
+                "
+              />
+              <p class="fin-modal-hint">
+                Fixed amount you still owe the tax office, deducted from the
+                tradfi total in the overview.
+              </p>
+            </div>
+            <div v-if="showCrypto" class="fin-modal-field">
+              <label for="fin-crypto-tax">Crypto tax rate (%)</label>
+              <input
+                id="fin-crypto-tax"
+                class="fin-tax-input"
+                :value="cryptoTaxPct || ''"
+                inputmode="decimal"
+                placeholder="0"
+                @change="
+                  saveTax(
+                    'crypto_tax_pct',
+                    ($event.target as HTMLInputElement).value
+                  )
+                "
+              />
+              <p class="fin-modal-hint">
+                Share of the crypto value withheld in the overview, as if it
+                were all taxable gain (France flat tax in 2026: 31.4).
+              </p>
+            </div>
+            <p class="fin-modal-hint">
+              Display only: balances, history and the other tabs stay untouched.
+            </p>
+          </section>
+        </template>
+
+        <template v-else-if="tab === 'cryptos'">
+          <form class="fin-crypto-add" @submit.prevent="addCrypto">
+            <input
+              v-model="cryptoToken"
+              class="fin-crypto-token"
+              placeholder="Token (BTC, ETH...)"
+            />
+            <input
+              v-model="cryptoQty"
+              class="fin-crypto-qty"
+              placeholder="Quantity"
+            />
             <button
-              class="fin-mini-del"
-              title="Delete snapshot"
-              aria-label="Delete snapshot"
-              @click="deleteSnapshot(snapshot)"
+              type="submit"
+              class="fin-btn fin-btn--primary"
+              :disabled="
+                cryptoSaving ||
+                !cryptoToken.trim() ||
+                parseQty(cryptoQty) == null
+              "
             >
-              <X :size="18" />
+              Add
+            </button>
+          </form>
+
+          <div
+            v-if="cryptoAccounts.length || portfolioSnapshots.length"
+            class="fin-crypto-summary"
+          >
+            <span
+              class="fin-account-caret"
+              title="Snapshot history"
+              @click="toggleExpanded(PORTFOLIO_KEY)"
+            >
+              <ChevronDown v-if="expanded.has(PORTFOLIO_KEY)" :size="16" />
+              <ChevronRight v-else :size="16" />
+            </span>
+            <span class="fin-total-caption">total</span>
+            <span class="fin-total">{{ cryptoTotalLabel }}</span>
+            <span v-if="cryptoTotal.excluded.length" class="fin-warn">
+              without {{ cryptoTotal.excluded.join(', ') }} (no price)
+            </span>
+            <span class="fin-toolbar-spacer"></span>
+            <button
+              class="fin-btn fin-crypto-snapshot"
+              :disabled="
+                cryptoSnapshotSaving ||
+                cryptoPricesLoading ||
+                !cryptoTotal.counted
+              "
+              title="Record the current total as a dated observation; it feeds the Overview curve"
+              @click="snapshotPortfolio"
+            >
+              Snapshot
             </button>
           </div>
-          <p v-if="!portfolioSnapshots.length" class="fin-history-note">
-            No snapshots yet.
-          </p>
-        </div>
-
-        <p v-if="!cryptoAccounts.length" class="fin-empty">
-          No tokens yet. Enter a token and the quantity you hold; its spot price
-          values it, snapshot the total to feed the curve.
-        </p>
-
-        <div v-else class="fin-accounts">
           <div
-            v-for="account in cryptoAccounts"
-            :key="account.key"
-            class="fin-account"
+            v-if="
+              (cryptoAccounts.length || portfolioSnapshots.length) &&
+              expanded.has(PORTFOLIO_KEY)
+            "
+            class="fin-history"
           >
-            <div class="fin-account-row">
-              <span
-                class="fin-account-caret"
-                @click="toggleExpanded(account.key)"
-              >
-                <ChevronDown v-if="expanded.has(account.key)" :size="16" />
-                <ChevronRight v-else :size="16" />
-              </span>
-              <span class="fin-crypto-name">{{ account.name }}</span>
-              <span
-                v-if="cryptoPrices[account.currency] != null"
-                class="fin-crypto-price"
-                title="Spot price (CoinGecko / DexScreener)"
-              >
-                {{ formatAmount(cryptoPrices[account.currency], refCurrency) }}
-              </span>
-              <span class="fin-account-amount">
-                <input
-                  :key="`${account.key}-${lastPoint(account)?.amount ?? ''}`"
-                  class="fin-crypto-qty-input"
-                  :value="lastPoint(account)?.amount ?? ''"
-                  placeholder="quantity"
-                  title="Type a new quantity to record it"
-                  @change="
-                    setCryptoQty(
-                      account,
-                      ($event.target as HTMLInputElement).value
-                    )
-                  "
-                />
-                <span
-                  v-if="cryptoValue(account)"
-                  class="fin-account-converted"
-                  :title="
-                    cryptoValue(account)!.spot
-                      ? 'Spot estimate; snapshot the total to count it in the curve'
-                      : ''
-                  "
-                >
-                  {{ cryptoValue(account)!.text }}
-                </span>
-              </span>
+            <div
+              v-for="snapshot in portfolioSnapshots"
+              :key="snapshot.id"
+              class="fin-history-row"
+            >
+              <span class="fin-history-date">{{
+                snapshotDateLabel(snapshot)
+              }}</span>
+              <span class="fin-history-amount">{{
+                portfolioAmountLabel(snapshot)
+              }}</span>
               <button
-                v-if="account.entryId"
                 class="fin-mini-del"
-                title="Delete token"
-                aria-label="Delete token"
-                @click="deleteCrypto(account)"
+                title="Delete snapshot"
+                aria-label="Delete snapshot"
+                @click="deleteSnapshot(snapshot)"
               >
                 <X :size="18" />
               </button>
             </div>
-
-            <div v-if="expanded.has(account.key)" class="fin-history">
-              <div
-                v-for="snapshot in manualSnapshots(account)"
-                :key="snapshot.id"
-                class="fin-history-row"
-              >
-                <span class="fin-history-date">{{
-                  snapshotDateLabel(snapshot)
-                }}</span>
-                <input
-                  :key="`${snapshot.id}-${snapshot.data.amount}`"
-                  class="fin-crypto-qty-input"
-                  :value="snapshot.data.amount"
-                  title="Edit this record's quantity"
-                  @change="
-                    editQtyRecord(
-                      snapshot,
-                      account,
-                      ($event.target as HTMLInputElement).value
-                    )
-                  "
-                />
-                <button
-                  class="fin-mini-del"
-                  title="Delete record"
-                  aria-label="Delete record"
-                  @click="deleteSnapshot(snapshot)"
-                >
-                  <X :size="18" />
-                </button>
-              </div>
-              <p
-                v-if="!manualSnapshots(account).length"
-                class="fin-history-note"
-              >
-                No records yet.
-              </p>
-            </div>
+            <p v-if="!portfolioSnapshots.length" class="fin-history-note">
+              No snapshots yet.
+            </p>
           </div>
-        </div>
-      </template>
 
-      <template v-else>
-        <div class="fin-toolbar">
-          <label class="fin-ref">
-            <span class="fin-ref-label">Reference</span>
-            <ComboBox
-              class="fin-ref-select"
-              :model-value="refCurrency"
-              :options="refCurrencyOptions"
-              @update:model-value="onRefCurrencyChange"
-            />
-          </label>
-          <span class="fin-toolbar-spacer"></span>
-          <button class="fin-btn fin-btn--primary" @click="openAccountModal">
-            + Account
-          </button>
-        </div>
-
-        <p v-if="!accounts.length" class="fin-empty">
-          No accounts yet. Create one (bank, cash, livret, broker or wallet) and
-          record its balance; bank accounts imported through CSV appear here by
-          themselves.
-        </p>
-        <p v-else class="fin-model-hint">
-          One row per account, the curve is their sum. A balance is whatever was
-          last observed: imported transactions carry one (the tx column opens an
-          account's transactions), the other accounts you record with "record
-          balance".
-        </p>
-
-        <section
-          v-for="universe in universes"
-          v-show="universe.accounts.length"
-          :key="universe.universe"
-          class="fin-universe"
-        >
-          <div class="fin-universe-head">
-            <!-- Tradfi is the default universe: its name adds nothing. -->
-            <h2
-              v-if="universe.universe !== 'tradfi'"
-              class="fin-universe-title"
-              :style="{ color: universe.color }"
-            >
-              {{ universe.label }}
-            </h2>
-            <span class="fin-total-caption">total balance</span>
-            <span class="fin-total">{{
-              formatAmount(universe.total, refCurrency)
-            }}</span>
-            <span
-              v-if="universe.points.length"
-              class="fin-delta"
-              :class="{ 'fin-delta--down': universe.delta30 < 0 }"
-              title="Change over the last 30 days"
-              >{{ deltaLabel(universe.delta30) }}</span
-            >
-          </div>
-          <BalanceChart
-            :points="universe.points"
-            :end-date="today"
-            :color="universe.color"
-          />
-          <p v-if="universe.excluded.length" class="fin-warn">
-            No {{ refCurrency }} rate for:
-            {{ universe.excluded.join(', ') }} (excluded from the curve)
+          <p v-if="!cryptoAccounts.length" class="fin-empty">
+            No tokens yet. Enter a token and the quantity you hold; its spot
+            price values it, snapshot the total to feed the curve.
           </p>
 
-          <div class="fin-accounts">
-            <div class="fin-account-row fin-account-row--head">
-              <span class="fin-account-caret"></span>
-              <span class="fin-account-name fin-col-label">account</span>
-              <span class="fin-account-type fin-col-label">type</span>
-              <span
-                class="fin-tx-col fin-col-label"
-                title="Imported transactions matched to this account"
-                >tx</span
-              >
-              <span
-                class="fin-fresh fin-col-label"
-                title="Age of the last observation"
-                >updated</span
-              >
-              <span class="fin-account-amount fin-col-label">last balance</span>
-              <span class="fin-account-actions"></span>
-            </div>
+          <div v-else class="fin-accounts">
             <div
-              v-for="account in universe.accounts"
+              v-for="account in cryptoAccounts"
               :key="account.key"
               class="fin-account"
             >
@@ -1100,133 +907,54 @@ function saveShared(account: Account, shared: boolean) {
                   <ChevronDown v-if="expanded.has(account.key)" :size="16" />
                   <ChevronRight v-else :size="16" />
                 </span>
+                <span class="fin-crypto-name">{{ account.name }}</span>
                 <span
-                  class="fin-account-name"
-                  @click="toggleExpanded(account.key)"
+                  v-if="cryptoPrices[account.currency] != null"
+                  class="fin-crypto-price"
+                  title="Spot price (CoinGecko / DexScreener)"
                 >
-                  {{ account.name }}
-                  <span
-                    v-if="account.derived"
-                    class="fin-badge"
-                    title="Reconstructed from bank imports; create an account with this name to claim it"
-                    >imported</span
-                  >
+                  {{
+                    formatAmount(cryptoPrices[account.currency], refCurrency)
+                  }}
                 </span>
-                <span class="fin-account-type">{{ account.type }}</span>
-                <span class="fin-tx-col">
-                  <button
-                    v-if="txCount(account)"
-                    class="fin-tx-btn"
-                    title="Show this account's transactions"
-                    @click="showTransactions(account)"
-                  >
-                    {{ txCount(account) }}
-                  </button>
-                  <template v-else>-</template>
-                </span>
-                <span
-                  class="fin-fresh"
-                  :class="freshness(account).level"
-                  title="Age of the last observation"
-                  >{{ freshness(account).label }}</span
-                >
                 <span class="fin-account-amount">
-                  <template v-if="lastPoint(account)">
-                    {{
-                      formatAmount(lastPoint(account)!.amount, account.currency)
-                    }}
-                    <span
-                      v-if="converted(account)"
-                      class="fin-account-converted"
-                    >
-                      {{ converted(account) }}
-                    </span>
-                  </template>
-                  <template v-else>no data</template>
-                </span>
-                <span class="fin-account-actions">
-                  <button
-                    v-if="account.entryId"
-                    class="fin-mini-btn"
-                    title="Record the balance you see at the bank today"
-                    @click="openSnapshotForm(account)"
-                  >
-                    record balance
-                  </button>
-                  <button
-                    v-if="account.entryId"
-                    class="fin-mini-del"
-                    title="Delete account"
-                    aria-label="Delete account"
-                    @click="deleteAccount(account)"
-                  >
-                    <X :size="18" />
-                  </button>
-                </span>
-              </div>
-
-              <form
-                v-if="snapshotFor === account.key"
-                class="fin-snapshot-form"
-                @submit.prevent="addSnapshot(account)"
-              >
-                <input
-                  v-model="snapshotAmount"
-                  class="fin-snap-amount"
-                  :placeholder="`Amount (${account.currency})`"
-                  autofocus
-                />
-                <DateInput v-model="snapshotDate" class="fin-snap-date" />
-                <button
-                  type="submit"
-                  class="fin-btn fin-btn--primary"
-                  :disabled="snapshotSaving"
-                >
-                  Save
-                </button>
-                <button
-                  type="button"
-                  class="fin-btn"
-                  @click="snapshotFor = null"
-                >
-                  Cancel
-                </button>
-              </form>
-
-              <div v-if="expanded.has(account.key)" class="fin-history">
-                <div v-if="account.entryId" class="fin-ident-row">
-                  <label class="fin-ident-label" :for="`ident-${account.key}`"
-                    >tx account</label
-                  >
                   <input
-                    :id="`ident-${account.key}`"
-                    class="fin-ident-input"
-                    :value="account.identifier || ''"
-                    placeholder="name carried by imported transactions"
-                    title="Transactions whose account matches this name feed this account's balance"
+                    :key="`${account.key}-${lastPoint(account)?.amount ?? ''}`"
+                    class="fin-crypto-qty-input"
+                    :value="lastPoint(account)?.amount ?? ''"
+                    placeholder="quantity"
+                    title="Type a new quantity to record it"
                     @change="
-                      saveIdentifier(
+                      setCryptoQty(
                         account,
                         ($event.target as HTMLInputElement).value
                       )
                     "
-                  /><span v-if="!account.identifier" class="fin-ident-hint"
-                    >matches by account name when empty</span
+                  />
+                  <span
+                    v-if="cryptoValue(account)"
+                    class="fin-account-converted"
+                    :title="
+                      cryptoValue(account)!.spot
+                        ? 'Spot estimate; snapshot the total to count it in the curve'
+                        : ''
+                    "
                   >
-                  <label class="fin-shared-toggle">
-                    <input
-                      type="checkbox"
-                      :checked="account.shared"
-                      @change="
-                        saveShared(
-                          account,
-                          ($event.target as HTMLInputElement).checked
-                        )
-                      "
-                    />
-                    shared (spending counts half)
-                  </label>
-                </div>
+                    {{ cryptoValue(account)!.text }}
+                  </span>
+                </span>
+                <button
+                  v-if="account.entryId"
+                  class="fin-mini-del"
+                  title="Delete token"
+                  aria-label="Delete token"
+                  @click="deleteCrypto(account)"
+                >
+                  <X :size="18" />
+                </button>
+              </div>
+
+              <div v-if="expanded.has(account.key)" class="fin-history">
                 <div
                   v-for="snapshot in manualSnapshots(account)"
                   :key="snapshot.id"
@@ -1235,105 +963,370 @@ function saveShared(account: Account, shared: boolean) {
                   <span class="fin-history-date">{{
                     snapshotDateLabel(snapshot)
                   }}</span>
-                  <span>{{
-                    formatAmount(
-                      snapshot.data.amount as number,
-                      account.currency
-                    )
-                  }}</span>
+                  <input
+                    :key="`${snapshot.id}-${snapshot.data.amount}`"
+                    class="fin-crypto-qty-input"
+                    :value="snapshot.data.amount"
+                    title="Edit this record's quantity"
+                    @change="
+                      editQtyRecord(
+                        snapshot,
+                        account,
+                        ($event.target as HTMLInputElement).value
+                      )
+                    "
+                  />
                   <button
                     class="fin-mini-del"
-                    title="Delete snapshot"
-                    aria-label="Delete snapshot"
+                    title="Delete record"
+                    aria-label="Delete record"
                     @click="deleteSnapshot(snapshot)"
                   >
                     <X :size="18" />
                   </button>
                 </div>
-                <p v-if="txObservationCount(account)" class="fin-history-note">
-                  + {{ txObservationCount(account) }} balance point(s) from bank
-                  imports
-                </p>
                 <p
-                  v-if="
-                    !manualSnapshots(account).length &&
-                    !txObservationCount(account)
-                  "
+                  v-if="!manualSnapshots(account).length"
                   class="fin-history-note"
                 >
-                  No snapshots yet.
+                  No records yet.
                 </p>
               </div>
             </div>
           </div>
-        </section>
+        </template>
 
-        <p v-if="bothUniversesLive" class="fin-grand">
-          ALL UNIVERSES: {{ formatAmount(grandTotal, refCurrency) }}
-        </p>
-      </template>
-    </template>
+        <template v-else>
+          <div class="fin-toolbar">
+            <label class="fin-ref">
+              <span class="fin-ref-label">Reference</span>
+              <ComboBox
+                class="fin-ref-select"
+                :model-value="refCurrency"
+                :options="refCurrencyOptions"
+                @update:model-value="onRefCurrencyChange"
+              />
+            </label>
+            <span class="fin-toolbar-spacer"></span>
+            <button class="fin-btn fin-btn--primary" @click="openAccountModal">
+              + Account
+            </button>
+          </div>
+
+          <p v-if="!accounts.length" class="fin-empty">
+            No accounts yet. Create one (bank, cash, livret, broker or wallet)
+            and record its balance; bank accounts imported through CSV appear
+            here by themselves.
+          </p>
+          <p v-else class="fin-model-hint">
+            One row per account, the curve is their sum. A balance is whatever
+            was last observed: imported transactions carry one (the tx column
+            opens an account's transactions), the other accounts you record with
+            "record balance".
+          </p>
+
+          <section
+            v-for="universe in universes"
+            v-show="universe.accounts.length"
+            :key="universe.universe"
+            class="fin-universe"
+          >
+            <div class="fin-universe-head">
+              <!-- Tradfi is the default universe: its name adds nothing. -->
+              <h2
+                v-if="universe.universe !== 'tradfi'"
+                class="fin-universe-title"
+                :style="{ color: universe.color }"
+              >
+                {{ universe.label }}
+              </h2>
+              <span class="fin-total-caption">total balance</span>
+              <span class="fin-total">{{
+                formatAmount(universe.total, refCurrency)
+              }}</span>
+              <span
+                v-if="universe.points.length"
+                class="fin-delta"
+                :class="{ 'fin-delta--down': universe.delta30 < 0 }"
+                title="Change over the last 30 days"
+                >{{ deltaLabel(universe.delta30) }}</span
+              >
+            </div>
+            <BalanceChart
+              :points="universe.points"
+              :end-date="today"
+              :color="universe.color"
+            />
+            <p v-if="universe.excluded.length" class="fin-warn">
+              No {{ refCurrency }} rate for:
+              {{ universe.excluded.join(', ') }} (excluded from the curve)
+            </p>
+
+            <div class="fin-accounts">
+              <div class="fin-account-row fin-account-row--head">
+                <span class="fin-account-caret"></span>
+                <span class="fin-account-name fin-col-label">account</span>
+                <span class="fin-account-type fin-col-label">type</span>
+                <span
+                  class="fin-tx-col fin-col-label"
+                  title="Imported transactions matched to this account"
+                  >tx</span
+                >
+                <span
+                  class="fin-fresh fin-col-label"
+                  title="Age of the last observation"
+                  >updated</span
+                >
+                <span class="fin-account-amount fin-col-label"
+                  >last balance</span
+                >
+                <span class="fin-account-actions"></span>
+              </div>
+              <div
+                v-for="account in universe.accounts"
+                :key="account.key"
+                class="fin-account"
+              >
+                <div class="fin-account-row">
+                  <span
+                    class="fin-account-caret"
+                    @click="toggleExpanded(account.key)"
+                  >
+                    <ChevronDown v-if="expanded.has(account.key)" :size="16" />
+                    <ChevronRight v-else :size="16" />
+                  </span>
+                  <span
+                    class="fin-account-name"
+                    @click="toggleExpanded(account.key)"
+                  >
+                    {{ account.name }}
+                    <span
+                      v-if="account.derived"
+                      class="fin-badge"
+                      title="Reconstructed from bank imports; create an account with this name to claim it"
+                      >imported</span
+                    >
+                  </span>
+                  <span class="fin-account-type">{{ account.type }}</span>
+                  <span class="fin-tx-col">
+                    <button
+                      v-if="txCount(account)"
+                      class="fin-tx-btn"
+                      title="Show this account's transactions"
+                      @click="showTransactions(account)"
+                    >
+                      {{ txCount(account) }}
+                    </button>
+                    <template v-else>-</template>
+                  </span>
+                  <span
+                    class="fin-fresh"
+                    :class="freshness(account).level"
+                    title="Age of the last observation"
+                    >{{ freshness(account).label }}</span
+                  >
+                  <span class="fin-account-amount">
+                    <template v-if="lastPoint(account)">
+                      {{
+                        formatAmount(
+                          lastPoint(account)!.amount,
+                          account.currency
+                        )
+                      }}
+                      <span
+                        v-if="converted(account)"
+                        class="fin-account-converted"
+                      >
+                        {{ converted(account) }}
+                      </span>
+                    </template>
+                    <template v-else>no data</template>
+                  </span>
+                  <span class="fin-account-actions">
+                    <button
+                      v-if="account.entryId"
+                      class="fin-mini-btn"
+                      title="Record the balance you see at the bank today"
+                      @click="openSnapshotForm(account)"
+                    >
+                      record balance
+                    </button>
+                    <button
+                      v-if="account.entryId"
+                      class="fin-mini-del"
+                      title="Delete account"
+                      aria-label="Delete account"
+                      @click="deleteAccount(account)"
+                    >
+                      <X :size="18" />
+                    </button>
+                  </span>
+                </div>
+
+                <form
+                  v-if="snapshotFor === account.key"
+                  class="fin-snapshot-form"
+                  @submit.prevent="addSnapshot(account)"
+                >
+                  <input
+                    v-model="snapshotAmount"
+                    class="fin-snap-amount"
+                    :placeholder="`Amount (${account.currency})`"
+                    autofocus
+                  />
+                  <DateInput v-model="snapshotDate" class="fin-snap-date" />
+                  <button
+                    type="submit"
+                    class="fin-btn fin-btn--primary"
+                    :disabled="snapshotSaving"
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    class="fin-btn"
+                    @click="snapshotFor = null"
+                  >
+                    Cancel
+                  </button>
+                </form>
+
+                <div v-if="expanded.has(account.key)" class="fin-history">
+                  <div v-if="account.entryId" class="fin-ident-row">
+                    <label class="fin-ident-label" :for="`ident-${account.key}`"
+                      >tx account</label
+                    >
+                    <input
+                      :id="`ident-${account.key}`"
+                      class="fin-ident-input"
+                      :value="account.identifier || ''"
+                      placeholder="name carried by imported transactions"
+                      title="Transactions whose account matches this name feed this account's balance"
+                      @change="
+                        saveIdentifier(
+                          account,
+                          ($event.target as HTMLInputElement).value
+                        )
+                      "
+                    /><span v-if="!account.identifier" class="fin-ident-hint"
+                      >matches by account name when empty</span
+                    >
+                    <label class="fin-shared-toggle">
+                      <input
+                        type="checkbox"
+                        :checked="account.shared"
+                        @change="
+                          saveShared(
+                            account,
+                            ($event.target as HTMLInputElement).checked
+                          )
+                        "
+                      />
+                      shared (spending counts half)
+                    </label>
+                  </div>
+                  <div
+                    v-for="snapshot in manualSnapshots(account)"
+                    :key="snapshot.id"
+                    class="fin-history-row"
+                  >
+                    <span class="fin-history-date">{{
+                      snapshotDateLabel(snapshot)
+                    }}</span>
+                    <span>{{
+                      formatAmount(
+                        snapshot.data.amount as number,
+                        account.currency
+                      )
+                    }}</span>
+                    <button
+                      class="fin-mini-del"
+                      title="Delete snapshot"
+                      aria-label="Delete snapshot"
+                      @click="deleteSnapshot(snapshot)"
+                    >
+                      <X :size="18" />
+                    </button>
+                  </div>
+                  <p
+                    v-if="txObservationCount(account)"
+                    class="fin-history-note"
+                  >
+                    + {{ txObservationCount(account) }} balance point(s) from
+                    bank imports
+                  </p>
+                  <p
+                    v-if="
+                      !manualSnapshots(account).length &&
+                      !txObservationCount(account)
+                    "
+                    class="fin-history-note"
+                  >
+                    No snapshots yet.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <p v-if="bothUniversesLive" class="fin-grand">
+            ALL UNIVERSES: {{ formatAmount(grandTotal, refCurrency) }}
+          </p>
+        </template>
+      </TabBar>
+    </LoadState>
   </div>
 
   <Teleport to="body">
-    <dialog
-      v-if="accountModalOpen"
-      :ref="openDialog"
-      class="modal-dialog"
-      aria-labelledby="fin-account-title"
-      @click.self="accountModalOpen = false"
-      @cancel="accountModalOpen = false"
+    <ServantDialog
+      v-model:open="accountModalOpen"
+      title="New account"
+      size="sm"
     >
-      <div class="fin-modal">
-        <div id="fin-account-title" class="fin-modal-header">New account</div>
+      <div class="fin-modal-field">
+        <label>Name</label>
+        <input
+          v-model="accountName"
+          autofocus
+          placeholder="e.g. Livret A, Ledger ETH"
+          @keydown.enter="createAccount"
+        />
+      </div>
+      <div class="fin-modal-row">
         <div class="fin-modal-field">
-          <label>Name</label>
-          <input
-            v-model="accountName"
-            placeholder="e.g. Livret A, Ledger ETH"
-            @keydown.enter="createAccount"
-          />
-        </div>
-        <div class="fin-modal-row">
-          <div class="fin-modal-field">
-            <label>Type</label>
-            <ComboBox v-model="accountType" :options="accountTypeOptions" />
-          </div>
-          <div class="fin-modal-field">
-            <label>Currency / asset</label>
-            <input v-model="accountCurrency" placeholder="EUR, USD, ETH…" />
-          </div>
+          <label>Type</label>
+          <ComboBox v-model="accountType" :options="accountTypeOptions" />
         </div>
         <div class="fin-modal-field">
-          <label>Transactions account (optional)</label>
-          <input
-            v-model="accountIdentifier"
-            placeholder="account name carried by imported transactions"
-          />
-        </div>
-        <label class="fin-shared-toggle fin-modal-shared">
-          <input v-model="accountShared" type="checkbox" />
-          Shared account (spending counts half)
-        </label>
-        <p v-if="showCrypto" class="fin-modal-hint">
-          Wallets live in the crypto universe; use the asset as currency (one
-          account per asset), valued from its spot price.
-        </p>
-        <div class="fin-modal-actions">
-          <span class="fin-modal-spacer"></span>
-          <button class="fin-btn" @click="accountModalOpen = false">
-            Cancel
-          </button>
-          <button
-            class="fin-btn fin-btn--primary"
-            :disabled="accountSaving || !accountName.trim()"
-            @click="createAccount"
-          >
-            Create
-          </button>
+          <label>Currency / asset</label>
+          <input v-model="accountCurrency" placeholder="EUR, USD, ETH…" />
         </div>
       </div>
-    </dialog>
+      <div class="fin-modal-field">
+        <label>Transactions account (optional)</label>
+        <input
+          v-model="accountIdentifier"
+          placeholder="account name carried by imported transactions"
+        />
+      </div>
+      <label class="fin-shared-toggle fin-modal-shared">
+        <input v-model="accountShared" type="checkbox" />
+        Shared account (spending counts half)
+      </label>
+      <p v-if="showCrypto" class="fin-modal-hint">
+        Wallets live in the crypto universe; use the asset as currency (one
+        account per asset), valued from its spot price.
+      </p>
+      <template #actions>
+        <button
+          class="fin-btn fin-btn--primary"
+          :disabled="accountSaving || !accountName.trim()"
+          @click="createAccount"
+        >
+          Create
+        </button>
+      </template>
+    </ServantDialog>
   </Teleport>
 </template>
 
@@ -1386,40 +1379,11 @@ function saveShared(account: Account, shared: boolean) {
 .fin-history-amount {
   font-variant-numeric: tabular-nums;
 }
-.fin-placeholder,
 .fin-empty {
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 0.88rem;
   padding: 2rem 0;
-}
-.fin-tabs {
-  display: flex;
-  gap: 0.25rem;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 1rem;
-}
-.fin-tab {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  padding: 0.5rem 0.9rem;
-  cursor: pointer;
-  border-radius: 0;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-.fin-tab:hover {
-  color: var(--text);
-}
-.fin-tab--active {
-  color: var(--primary);
-  box-shadow: inset 0 -2px 0 var(--primary);
 }
 .fin-toolbar {
   display: flex;
@@ -1770,20 +1734,7 @@ function saveShared(account: Account, shared: boolean) {
   margin: 0 0 1rem;
 }
 
-/* Modals */
-.fin-modal {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 1.25rem;
-  width: 100%;
-  max-width: 400px;
-}
-.fin-modal-header {
-  font-weight: 600;
-  font-size: 1.05rem;
-  margin-bottom: 1rem;
-}
+/* ----- Form fields (new account modal, taxes) ----- */
 .fin-modal-field {
   display: flex;
   flex-direction: column;
@@ -1806,15 +1757,6 @@ function saveShared(account: Account, shared: boolean) {
   font-size: 0.78rem;
   margin: 0 0 0.75rem;
 }
-.fin-modal-actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-.fin-modal-spacer {
-  flex: 1;
-}
-
 /* ----- Taxes tab ----- */
 .fin-taxes {
   max-width: 420px;
@@ -1837,9 +1779,6 @@ function saveShared(account: Account, shared: boolean) {
   /* The content area already provides the phone gutter. */
   .fin-layout {
     padding: 0.25rem 0 1rem;
-  }
-  .fin-tab {
-    padding: 0.5rem 0.7rem;
   }
   .fin-universe {
     padding: 0.85rem 0.75rem;
@@ -1932,9 +1871,6 @@ function saveShared(account: Account, shared: boolean) {
 }
 
 @media (pointer: coarse) {
-  .fin-tab {
-    min-height: 44px;
-  }
   .fin-account-caret {
     min-width: 1.5em;
   }

@@ -107,7 +107,7 @@ describe('FinanceApp tabs', () => {
     })
     await flushPromises()
 
-    const tabs = wrapper.findAll('.fin-tab')
+    const tabs = wrapper.findAll('[role="tab"]')
     expect(tabs.map(t => t.text())).toEqual([
       'Overview',
       'Accounts',
@@ -161,7 +161,7 @@ describe('FinanceApp tabs', () => {
     const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
     await flushPromises()
 
-    const tabs = wrapper.findAll('.fin-tab')
+    const tabs = wrapper.findAll('[role="tab"]')
     expect(tabs.map(t => t.text())).toEqual([
       'Overview',
       'Accounts',
@@ -190,7 +190,7 @@ describe('FinanceApp tabs', () => {
       props: { ctx: makeCtx() as never }
     })
     await flushPromises()
-    await wrapper.findAll('.fin-tab')[1].trigger('click')
+    await wrapper.findAll('[role="tab"]')[1].trigger('click')
 
     const chip = wrapper.find('.fin-tx-btn')
     expect(chip.text()).toBe('2')
@@ -206,7 +206,7 @@ describe('FinanceApp tabs', () => {
     const ctx = makeCtx()
     const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
     await flushPromises()
-    await wrapper.findAll('.fin-tab')[3].trigger('click')
+    await wrapper.findAll('[role="tab"]')[3].trigger('click')
 
     await wrapper.find('.fin-crypto-token').setValue('eth')
     await wrapper.find('.fin-crypto-qty').setValue('1,5')
@@ -245,7 +245,7 @@ describe('FinanceApp tabs', () => {
     const ctx = makeCtx()
     const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
     await flushPromises()
-    await wrapper.findAll('.fin-tab')[3].trigger('click')
+    await wrapper.findAll('[role="tab"]')[3].trigger('click')
     await wrapper.find('.fin-crypto-token').setValue('eth')
     await wrapper.find('.fin-crypto-qty').setValue('1.5')
     await wrapper.find('.fin-crypto-add').trigger('submit')
@@ -273,7 +273,7 @@ describe('FinanceApp tabs', () => {
     const ctx = makeCtx()
     const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
     await flushPromises()
-    await wrapper.findAll('.fin-tab')[3].trigger('click')
+    await wrapper.findAll('[role="tab"]')[3].trigger('click')
     await wrapper.find('.fin-crypto-token').setValue('eth')
     await wrapper.find('.fin-crypto-qty').setValue('1.5')
     await wrapper.find('.fin-crypto-add').trigger('submit')
@@ -301,7 +301,7 @@ describe('FinanceApp tabs', () => {
     const ctx = makeCtx()
     const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
     await flushPromises()
-    await wrapper.findAll('.fin-tab')[3].trigger('click')
+    await wrapper.findAll('[role="tab"]')[3].trigger('click')
     await wrapper.find('.fin-crypto-token').setValue('eth')
     await wrapper.find('.fin-crypto-qty').setValue('1.5')
     await wrapper.find('.fin-crypto-add').trigger('submit')
@@ -319,7 +319,7 @@ describe('FinanceApp tabs', () => {
     const ctx = makeCtx()
     const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
     await flushPromises()
-    await wrapper.findAll('.fin-tab')[3].trigger('click')
+    await wrapper.findAll('[role="tab"]')[3].trigger('click')
     await wrapper.find('.fin-crypto-token').setValue('eth')
     await wrapper.find('.fin-crypto-qty').setValue('1.5')
     await wrapper.find('.fin-crypto-add').trigger('submit')
@@ -387,7 +387,7 @@ describe('FinanceApp tabs', () => {
     })
     const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
     await flushPromises()
-    await wrapper.findAll('.fin-tab')[1].trigger('click')
+    await wrapper.findAll('[role="tab"]')[1].trigger('click')
 
     const sections = wrapper.findAll('.fin-universe')
     const cryptoSection = sections[sections.length - 1]
@@ -408,7 +408,7 @@ describe('FinanceApp tabs', () => {
     })
     const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
     await flushPromises()
-    await wrapper.findAll('.fin-tab')[3].trigger('click')
+    await wrapper.findAll('[role="tab"]')[3].trigger('click')
 
     // No wallet accounts left, but the snapshot still counts toward other
     // totals: the summary bar must stay reachable, not hidden behind
@@ -427,7 +427,7 @@ describe('FinanceApp tabs', () => {
     const ctx = makeCtx()
     const wrapper = mount(FinanceApp, { props: { ctx: ctx as never } })
     await flushPromises()
-    await wrapper.findAll('.fin-tab')[4].trigger('click')
+    await wrapper.findAll('[role="tab"]')[4].trigger('click')
 
     const input = wrapper.find('#fin-crypto-tax')
     expect(input.exists()).toBe(true)
