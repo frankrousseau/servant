@@ -31,7 +31,7 @@ import {
   utcToZonedParts,
   zonedToUtcISO
 } from '../lib/datetime'
-import { kindColor } from '../lib/kind'
+import { kindColor, kindLabel } from '../lib/kind'
 import { useAuthStore } from '../stores/auth'
 import type { Item as ChecklistItem } from '../apps/checklists/markdown'
 import type { ConnectorConfig, Entry } from '../types'
@@ -344,7 +344,7 @@ const statCards = computed(() => {
       .map(([kind, count]) => ({
         kind: kind as string | null,
         count,
-        label: kind,
+        label: kindLabel(kind),
         bars: sparkBars(dailyStats.value[kind])
       }))
   ]
@@ -404,7 +404,7 @@ onMounted(fetchData)
       </div>
 
       <div class="dashboard-layout">
-        <!-- Left: Checklists + Connectors (by activation date) -->
+        <!-- Left: Checklists + Sources (by activation date) -->
         <div class="dashboard-main">
           <section v-if="pendingItems.length" class="dashboard-section">
             <div class="section-header">
@@ -441,7 +441,7 @@ onMounted(fetchData)
 
           <section class="dashboard-section">
             <div class="section-header">
-              <h2>Connectors</h2>
+              <h2>Sources</h2>
               <router-link to="/connectors" class="section-link"
                 >Manage</router-link
               >
@@ -813,7 +813,7 @@ onMounted(fetchData)
   font-size: var(--text-sm);
 }
 
-/* ----- Connectors ----- */
+/* ----- Sources ----- */
 
 .connector-status-list {
   display: flex;
@@ -999,7 +999,6 @@ onMounted(fetchData)
 .stat-label {
   font-size: var(--text-sm);
   color: var(--text-muted);
-  text-transform: capitalize;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

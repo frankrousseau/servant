@@ -19,3 +19,20 @@ export const KIND_COLORS: Record<string, string> = {
 export function kindColor(kind: string): string {
   return KIND_COLORS[kind] ?? '#8b8fa3'
 }
+
+// Plural label of a kind, for counts ("281 Bank transactions"): the table
+// holds the ids that do not read as an English word with an s; any other
+// kind drops its underscores and takes one.
+const KIND_LABELS: Record<string, string> = {
+  activity: 'Activities',
+  ai_report: 'AI reports',
+  bank_tx: 'Bank transactions',
+  blockchain_tx: 'Blockchain transactions',
+  health: 'Health records',
+  prefs: 'Preferences'
+}
+
+export function kindLabel(kind: string): string {
+  const label = KIND_LABELS[kind] ?? `${kind.replaceAll('_', ' ')}s`
+  return label.charAt(0).toUpperCase() + label.slice(1)
+}

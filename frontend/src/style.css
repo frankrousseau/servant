@@ -634,7 +634,6 @@ th {
 .stat-label {
   font-size: var(--text-base);
   color: var(--text-muted);
-  text-transform: capitalize;
 }
 
 .connector-list {
