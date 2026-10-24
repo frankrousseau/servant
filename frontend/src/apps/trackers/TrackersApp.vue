@@ -472,6 +472,7 @@ watch([windowEnd, weeksVisible], () => {
           <SearchField
             v-model="searchQuery"
             class="tk-search"
+            size="sm"
             label="Find a tracker"
           />
           <button class="tk-new" @click="openModal">+ Tracker</button>
@@ -578,11 +579,6 @@ watch([windowEnd, weeksVisible], () => {
 }
 .tk-search {
   width: 190px;
-}
-.tk-search :deep(.search-field-input) {
-  padding-top: 0.4rem;
-  padding-bottom: 0.4rem;
-  font-size: 0.85rem;
 }
 .tk-date {
   font-family: var(--font-mono);

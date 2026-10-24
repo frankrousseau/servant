@@ -9,6 +9,7 @@ import { Search, X } from 'lucide-vue-next'
 // showModal() reads when the field sits in a dialog.
 //
 // <SearchField v-model="query" label="Search notes" autofocus />
+// size="sm" matches the 32px buttons of a compact toolbar (40px on touch).
 const props = withDefaults(
   defineProps<{
     modelValue: string
@@ -16,8 +17,9 @@ const props = withDefaults(
     label: string
     placeholder?: string
     autofocus?: boolean
+    size?: 'md' | 'sm'
   }>(),
-  { placeholder: undefined, autofocus: false }
+  { placeholder: undefined, autofocus: false, size: 'md' }
 )
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
@@ -39,7 +41,7 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="search-field">
+  <div class="search-field" :class="`search-field--${size}`">
     <Search class="search-field-icon" :size="15" aria-hidden="true" />
     <input
       ref="input"
@@ -89,6 +91,11 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 /* The clear button below replaces the browser's own (WebKit only). */
+.search-field--sm .search-field-input {
+  height: 32px;
+  font-size: 0.85rem;
+}
+
 .search-field-input::-webkit-search-cancel-button {
   appearance: none;
 }
@@ -113,6 +120,10 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 @media (pointer: coarse) {
+  .search-field--sm .search-field-input {
+    height: 40px;
+  }
+
   .search-field-clear {
     min-width: 36px;
     min-height: 36px;

@@ -729,6 +729,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
             <SearchField
               v-model="searchQuery"
               class="fs-search"
+              size="sm"
               label="Search files"
               autofocus
             />
@@ -1080,11 +1081,6 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   min-width: 160px;
   max-width: 480px;
 }
-.fs-search :deep(.search-field-input) {
-  height: 32px;
-  font-size: 0.85rem;
-  border-radius: 8px;
-}
 .fs-type-filter {
   width: 150px;
   flex-shrink: 0;
@@ -1142,7 +1138,6 @@ onUnmounted(() => window.removeEventListener('popstate', onPopState))
   }
 }
 @media (pointer: coarse) {
-  .fs-search :deep(.search-field-input),
   .fs-btn,
   .fs-type-filter :deep(.cb-control) {
     height: 40px;
