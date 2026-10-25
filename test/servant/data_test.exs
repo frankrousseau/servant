@@ -101,6 +101,24 @@ defmodule Servant.DataTest do
     test "empty list is a no-op", %{user: user} do
       assert {:ok, 0} = Data.create_entries(user.id, [])
     end
+
+    test "create_entries_sampled/3 returns up to n of the new rows only", %{user: user} do
+      known = %{"kind" => "note", "source" => "bulk", "external_id" => "known", "title" => "Old"}
+      assert {:ok, 1} = Data.create_entries(user.id, [known])
+
+      fresh =
+        for n <- 1..3,
+            do: %{
+              "kind" => "note",
+              "source" => "bulk",
+              "external_id" => "n#{n}",
+              "title" => "New #{n}"
+            }
+
+      assert {:ok, 3, sample} = Data.create_entries_sampled(user.id, [known | fresh], 2)
+      assert length(sample) == 2
+      assert Enum.all?(sample, &(&1.kind == "note" and &1.title =~ "New" and is_binary(&1.id)))
+    end
   end
 
   describe "q search filter" do

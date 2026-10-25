@@ -203,27 +203,47 @@ defmodule Servant.Data do
   # keeps the number of round-trips low.
   @insert_chunk_size 500
 
-  def create_entries(_user_id, []), do: {:ok, 0}
+  def create_entries(user_id, attrs_list) do
+    with {:ok, count, _sample} <- create_entries_sampled(user_id, attrs_list, 0),
+         do: {:ok, count}
+  end
 
-  def create_entries(user_id, attrs_list) when is_list(attrs_list) do
+  @doc """
+  `create_entries/2`, which also returns up to `sample_size` of the rows it
+  inserted, as `%{id, kind, title}`. Those are new entries only: a skipped
+  conflict returns no row. The sync logs list them.
+
+  Returns `{:ok, inserted_count, sample}`.
+  """
+  def create_entries_sampled(_user_id, [], _sample_size), do: {:ok, 0, []}
+
+  def create_entries_sampled(user_id, attrs_list, sample_size) when is_list(attrs_list) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
-    count =
+    {count, sample} =
       attrs_list
       |> Stream.map(&entry_row(user_id, &1, now))
       |> Stream.chunk_every(@insert_chunk_size)
-      |> Enum.reduce(0, fn rows, acc ->
-        {inserted, _} =
+      |> Enum.reduce({0, []}, fn rows, {count, sample} ->
+        missing = sample_size - length(sample)
+
+        {inserted, returned} =
           Repo.insert_all(Entry, rows,
             on_conflict: :nothing,
-            conflict_target: [:user_id, :source, :external_id]
+            conflict_target: [:user_id, :source, :external_id],
+            # Only while the sample is short: a large sync returns no rows.
+            returning: if(missing > 0, do: [:id, :kind, :title], else: false)
           )
 
-        acc + inserted
+        new =
+          for entry <- Enum.take(returned || [], max(missing, 0)),
+              do: %{id: entry.id, kind: entry.kind, title: entry.title}
+
+        {count + inserted, sample ++ new}
       end)
 
     if count > 0, do: broadcast(user_id, {:entries_changed, %{count: count}})
-    {:ok, count}
+    {:ok, count, sample}
   end
 
   defp entry_row(user_id, attrs, now) do
