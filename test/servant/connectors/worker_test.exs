@@ -244,6 +244,58 @@ defmodule Servant.Connectors.WorkerTest do
     assert Process.read_timer(first) == false
   end
 
+  describe "sync trace" do
+    @describetag :capture_log
+
+    test "a success records what came in and what the connector logged", %{user: user} do
+      {config, pid} =
+        start_worker(user, %{"config" => %{"external_id" => "fake-1", "log" => "fetched page 1"}})
+
+      for _ <- 1..2 do
+        Worker.sync_now(user.id, config.id)
+        _ = :sys.get_state(pid)
+      end
+
+      logs = Connectors.list_sync_logs(config.id)
+      first = Enum.find(logs, &(&1.entries_count == 1))
+      second = Enum.find(logs, &(&1.entries_count == 0))
+
+      assert first.fetched_count == 1
+      assert second.fetched_count == 1
+      assert second.log_count == 1
+
+      details = Connectors.get_sync_log!(config.id, first.id).details
+      assert details["kinds"] == %{"note" => 1}
+      assert [%{"title" => "synced", "kind" => "note"}] = details["new_entries"]
+      assert [%{"level" => "warning", "message" => "fetched page 1"}] = details["logs"]
+    end
+
+    test "a raise records the stack trace and the lines before it", %{user: user} do
+      {config, pid} =
+        start_worker(user, %{"config" => %{"raise_sync" => true, "log" => "about to fail"}})
+
+      Worker.sync_now(user.id, config.id)
+      _ = :sys.get_state(pid)
+
+      [log] = Connectors.list_sync_logs(config.id)
+      details = Connectors.get_sync_log!(config.id, log.id).details
+
+      assert details["stacktrace"] =~ "connector blew up"
+      assert details["stacktrace"] =~ "Servant.FakeConnector.sync/1"
+      assert [%{"message" => "about to fail"}] = details["logs"]
+    end
+
+    test "the worker's own lines stay out of the trace", %{user: user} do
+      {config, pid} = start_worker(user, %{"config" => %{"fail_sync" => "Token refresh failed"}})
+
+      Worker.sync_now(user.id, config.id)
+      _ = :sys.get_state(pid)
+
+      # The worker logs "Connector sync error" after the run: not the connector's.
+      assert [%{status: "failed", log_count: 0}] = Connectors.list_sync_logs(config.id)
+    end
+  end
+
   describe "update_connector_config/3" do
     setup %{user: user} do
       {:ok, config} =

@@ -13,7 +13,7 @@ defmodule Servant.Connectors.Worker do
 
   alias Servant.Connectors
   alias Servant.Connectors.ConnectorConfig
-  alias Servant.Data
+  alias Servant.Connectors.SyncTrace
   alias Servant.Repo
 
   # Never busy-loop the "continuous" schedule (which maps to a 0ms interval).
@@ -103,37 +103,71 @@ defmodule Servant.Connectors.Worker do
   end
 
   defp run_sync(%__MODULE__{} = state, sync_log) do
-    case state.connector_module.sync(state.state) do
-      {:ok, entries, new_connector_state} ->
-        {:ok, inserted} = Data.create_entries(state.user_id, entries)
+    {result, trace} = traced_sync(state)
 
-        Connectors.complete_sync_log(sync_log, inserted)
-        persist_cursor(state, new_connector_state)
-        update_sync_status(state.config_id, nil)
-        schedule_sync(%{state | state: new_connector_state})
-
-      {:error, reason, new_connector_state} ->
-        message = format_reason(reason)
-        Logger.error("Connector sync error [#{sync_context(state)}]: #{message}")
-        Connectors.fail_sync_log(sync_log, message)
-        # Persist the returned state too. A connector possibly rotated a
-        # refresh_token before the step that failed. The loss of that token
-        # (until the next successful sync) breaks the connector on the next
-        # restart.
-        persist_cursor(state, new_connector_state)
-        update_sync_status(state.config_id, message)
-        schedule_sync(%{state | state: new_connector_state})
+    try do
+      record_run(state, sync_log, result, trace)
+    rescue
+      # create_entries or a DB write raised after the connector returned.
+      # Without this rescue, the worker crashes and the sync_log stays
+      # "running" forever.
+      e -> crashed(state, sync_log, e, __STACKTRACE__, trace)
     end
-  rescue
-    # Without this rescue, a raise in sync/1 or create_entries crashes the worker
-    # and this sync_log stays in "running" forever. Fail the sync_log. Arm the
-    # timer again. Continue.
-    e ->
-      reason = Exception.message(e)
-      Logger.error("Connector sync crashed [#{sync_context(state)}]: #{reason}")
-      Connectors.fail_sync_log(sync_log, reason)
-      update_sync_status(state.config_id, reason)
-      schedule_sync(state)
+  end
+
+  # The connector's own work, traced: the HTTP calls it made and the lines
+  # it logged. A raise is caught here, so its trace still reaches the log.
+  defp traced_sync(%__MODULE__{} = state) do
+    SyncTrace.start()
+
+    result =
+      try do
+        state.connector_module.sync(state.state)
+      rescue
+        exception -> {:raised, exception, __STACKTRACE__}
+      end
+
+    {result, SyncTrace.finish()}
+  end
+
+  defp record_run(state, sync_log, {:ok, entries, new_connector_state}, trace) do
+    {counts, details} = Connectors.insert_run_entries(state.user_id, entries)
+    Connectors.complete_sync_log(sync_log, Map.merge(SyncTrace.summary(trace, details), counts))
+    persist_cursor(state, new_connector_state)
+    update_sync_status(state.config_id, nil)
+    schedule_sync(%{state | state: new_connector_state})
+  end
+
+  defp record_run(state, sync_log, {:error, reason, new_connector_state}, trace) do
+    message = format_reason(reason)
+    Logger.error("Connector sync error [#{sync_context(state)}]: #{message}")
+    Connectors.fail_sync_log(sync_log, message, SyncTrace.summary(trace, %{}))
+    # Persist the returned state too. A connector possibly rotated a
+    # refresh_token before the step that failed. The loss of that token
+    # (until the next successful sync) breaks the connector on the next
+    # restart.
+    persist_cursor(state, new_connector_state)
+    update_sync_status(state.config_id, message)
+    schedule_sync(%{state | state: new_connector_state})
+  end
+
+  defp record_run(state, sync_log, {:raised, exception, stacktrace}, trace) do
+    crashed(state, sync_log, exception, stacktrace, trace)
+  end
+
+  # Fail the sync_log with the stack trace, arm the timer again, continue.
+  defp crashed(state, sync_log, exception, stacktrace, trace) do
+    reason = Exception.message(exception)
+    Logger.error("Connector sync crashed [#{sync_context(state)}]: #{reason}")
+
+    Connectors.fail_sync_log(
+      sync_log,
+      reason,
+      SyncTrace.summary(trace, %{stacktrace: Exception.format(:error, exception, stacktrace)})
+    )
+
+    update_sync_status(state.config_id, reason)
+    schedule_sync(state)
   end
 
   defp persist_cursor(%__MODULE__{} = state, connector_state) do

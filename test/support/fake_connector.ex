@@ -7,6 +7,8 @@ defmodule Servant.FakeConnector do
 
   use Servant.Connectors.Connector
 
+  require Logger
+
   @impl true
   def id, do: "fake"
 
@@ -29,13 +31,16 @@ defmodule Servant.FakeConnector do
          cursor: Map.get(config, "cursor", "start"),
          fail_sync: Map.get(config, "fail_sync", false),
          raise_sync: Map.get(config, "raise_sync", false),
+         log: Map.get(config, "log"),
+         external_id: Map.get(config, "external_id"),
          user_id: Map.get(config, "user_id")
        }}
     end
   end
 
   @impl true
-  def sync(%{raise_sync: true}) do
+  def sync(%{raise_sync: true} = state) do
+    log(state)
     raise "connector blew up"
   end
 
@@ -48,9 +53,21 @@ defmodule Servant.FakeConnector do
   end
 
   def sync(state) do
-    entry = %{"kind" => "note", "source" => "fake", "title" => "synced"}
+    log(state)
+
+    entry = %{
+      "kind" => "note",
+      "source" => "fake",
+      "title" => "synced",
+      "external_id" => state.external_id
+    }
+
     {:ok, [entry], %{state | cursor: "advanced"}}
   end
+
+  # A line for the sync trace to pick up (a warning: the test log level).
+  defp log(%{log: nil}), do: :ok
+  defp log(%{log: line}), do: Logger.warning(line)
 
   @impl true
   def persisted_config(state), do: %{"cursor" => state.cursor}

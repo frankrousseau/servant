@@ -194,7 +194,7 @@ defmodule ServantWeb.ConnectorControllerTest do
     test "lists the sync logs of a connector", %{conn: conn, user: user} do
       config = create_strava(user.id)
       {:ok, log} = Connectors.create_sync_log(config.id)
-      Connectors.complete_sync_log(log, 3)
+      Connectors.complete_sync_log(log, %{entries_count: 3})
 
       conn = get(conn, "/api/connectors/#{config.id}/logs")
       assert %{"data" => [entry]} = json_response(conn, 200)

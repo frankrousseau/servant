@@ -241,35 +241,95 @@ defmodule Servant.Connectors do
 
   # --- Sync Logs ---
 
+  # Run history of a source: the most recent runs stay, and only the most
+  # recent of those keep their details (the bulky part).
+  @keep_runs 500
+  @keep_details 50
+  @max_new_entries 20
+
+  @doc "Opens a run (status running) and trims the history of its source."
   def create_sync_log(config_id) do
-    %SyncLog{}
-    |> SyncLog.changeset(%{
-      connector_config_id: config_id,
-      status: "running",
-      started_at: DateTime.truncate(DateTime.utc_now(), :second)
-    })
-    |> Repo.insert()
+    result =
+      %SyncLog{}
+      |> SyncLog.changeset(%{
+        connector_config_id: config_id,
+        status: "running",
+        started_at: DateTime.truncate(DateTime.utc_now(), :second)
+      })
+      |> Repo.insert()
+
+    with {:ok, _} <- result, do: prune_sync_logs(config_id)
+    result
   end
 
-  def complete_sync_log(sync_log, entries_count) do
-    sync_log
-    |> SyncLog.changeset(%{
-      status: "completed",
-      entries_count: entries_count,
-      finished_at: DateTime.truncate(DateTime.utc_now(), :second)
-    })
-    |> Repo.update()
+  @doc """
+  Closes a run as completed. `summary` holds the counts (`entries_count`,
+  the new entries; `fetched_count`; `http_count`, `http_failed_count`,
+  `log_count`) and `details` (see `Servant.Connectors.SyncTrace`).
+  """
+  def complete_sync_log(sync_log, summary) do
+    close_sync_log(sync_log, Map.put(summary, :status, "completed"))
   end
 
-  def fail_sync_log(sync_log, error) do
-    sync_log
-    |> SyncLog.changeset(%{
-      status: "failed",
-      error: to_string(error),
-      finished_at: DateTime.truncate(DateTime.utc_now(), :second)
-    })
-    |> Repo.update()
+  @doc "Closes a run as failed, with its error and the same summary."
+  def fail_sync_log(sync_log, error, summary \\ %{}) do
+    close_sync_log(sync_log, Map.merge(summary, %{status: "failed", error: to_string(error)}))
   end
+
+  # The details are the bulky, optional part: when they cannot be written
+  # (a term JSON cannot encode), the run still records its status and counts.
+  defp close_sync_log(sync_log, attrs) do
+    attrs = Map.put(attrs, :finished_at, DateTime.truncate(DateTime.utc_now(), :second))
+
+    try do
+      sync_log |> SyncLog.changeset(attrs) |> Repo.update()
+    rescue
+      _ -> sync_log |> SyncLog.changeset(Map.delete(attrs, :details)) |> Repo.update()
+    end
+  end
+
+  @doc """
+  Trims the run history of a source: the #{@keep_runs} most recent runs
+  stay, and only the #{@keep_details} most recent keep their details.
+  """
+  def prune_sync_logs(config_id) do
+    runs = where(SyncLog, connector_config_id: ^config_id)
+
+    keep =
+      runs
+      |> order_by(desc: :started_at, desc: :inserted_at)
+      |> limit(@keep_runs)
+      |> select([log], log.id)
+      |> Repo.all()
+
+    runs |> where([log], log.id not in ^keep) |> Repo.delete_all()
+
+    detailed = Enum.take(keep, @keep_details)
+
+    # nil written in the query, not passed as a value: a nil value goes
+    # through the :map type and lands as the JSON text "null", not NULL.
+    runs
+    |> where([log], log.id not in ^detailed and not is_nil(log.details))
+    |> update(set: [details: nil])
+    |> Repo.update_all([])
+
+    :ok
+  end
+
+  @doc """
+  Inserts the entries a run returned and says what they brought:
+  `{%{entries_count: new, fetched_count: returned}, %{kinds: ..., new_entries: ...}}`.
+  The syncs (`Worker`) and the file imports share it.
+  """
+  def insert_run_entries(user_id, entries) do
+    {:ok, inserted, new_entries} =
+      Servant.Data.create_entries_sampled(user_id, entries, @max_new_entries)
+
+    {%{entries_count: inserted, fetched_count: length(entries)},
+     %{kinds: Enum.frequencies_by(entries, &entry_kind/1), new_entries: new_entries}}
+  end
+
+  defp entry_kind(entry), do: Map.get(entry, "kind") || Map.get(entry, :kind) || "unknown"
 
   @doc """
   Imports the contents of an uploaded file into the entries of a connector
@@ -348,9 +408,8 @@ defmodule Servant.Connectors do
         {:error, {:import_failed, "No entries found, check file format and connector preset"}}
 
       {:ok, entries} ->
-        {:ok, inserted} = Servant.Data.create_entries(user_id, entries)
-
-        complete_sync_log(sync_log, inserted)
+        {counts, details} = insert_run_entries(user_id, entries)
+        complete_sync_log(sync_log, Map.put(counts, :details, details))
 
         update_connector_config(user_id, config_id, %{
           "last_synced_at" => DateTime.truncate(DateTime.utc_now(), :second),
@@ -368,9 +427,9 @@ defmodule Servant.Connectors do
 
         {:ok,
          %{
-           imported: inserted,
+           imported: counts.entries_count,
            total: length(entries),
-           skipped: length(entries) - inserted,
+           skipped: length(entries) - counts.entries_count,
            file_path: Servant.Storage.public_url(relative)
          }}
 
@@ -380,14 +439,28 @@ defmodule Servant.Connectors do
     end
   end
 
+  # Everything but the bulky details, which one run's page reads on its own.
+  @sync_log_summary SyncLog.__schema__(:fields) -- [:details]
+
+  @doc """
+  The most recent runs of a source, newest first, as maps without their
+  details: `has_details` says whether `get_sync_log!/2` has some.
+  """
   def list_sync_logs(config_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
 
     SyncLog
     |> where(connector_config_id: ^config_id)
-    |> order_by(desc: :started_at)
+    |> order_by(desc: :started_at, desc: :inserted_at)
     |> limit(^limit)
+    |> select([log], map(log, ^@sync_log_summary))
+    |> select_merge([log], %{has_details: not is_nil(log.details)})
     |> Repo.all()
+  end
+
+  @doc "One run of a source, details included. Raises when it is not that source's."
+  def get_sync_log!(config_id, log_id) do
+    Repo.get_by!(SyncLog, id: log_id, connector_config_id: config_id)
   end
 
   # --- ConnectorEnvironment (shared reference data cache) ---
