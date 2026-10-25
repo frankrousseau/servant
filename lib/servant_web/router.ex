@@ -125,6 +125,7 @@ defmodule ServantWeb.Router do
         post "/connectors/:id/enable_banking/auth_url", ConnectorController, :eb_auth_url
         post "/connectors/:id/enable_banking/exchange", ConnectorController, :eb_exchange
         get "/connectors/:id/logs", ConnectorController, :logs
+        get "/connectors/:id/logs/:log_id", ConnectorController, :log
         get "/connectors/schedules/:connector_type", ConnectorController, :schedules
 
         # Operator-only: server-wide stats, and the access and error logs of all users.

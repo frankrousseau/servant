@@ -380,31 +380,43 @@ defmodule ServantWeb.ConnectorController do
     |> json(%{error: message})
   end
 
+  @sync_log_schema %Schema{
+    type: :object,
+    properties: %{
+      id: %Schema{type: :string, format: :uuid},
+      status: %Schema{type: :string, enum: ["running", "completed", "failed"]},
+      entries_count: %Schema{type: :integer, description: "New entries inserted by the run"},
+      fetched_count: %Schema{type: :integer, description: "Entries the connector returned"},
+      known_count: %Schema{type: :integer, description: "Returned entries already stored"},
+      http_count: %Schema{type: :integer},
+      http_failed_count: %Schema{type: :integer, description: "Status >= 400 or network error"},
+      log_count: %Schema{type: :integer},
+      has_details: %Schema{type: :boolean},
+      error: %Schema{type: :string, nullable: true},
+      started_at: %Schema{type: :string, format: :"date-time", nullable: true},
+      finished_at: %Schema{type: :string, format: :"date-time", nullable: true}
+    }
+  }
+
+  @sync_log_details_schema %Schema{
+    type: :object,
+    nullable: true,
+    description:
+      "What the run did: kinds, new_entries (20 at most), http (method, host, path, " <>
+        "status, ms, error), http_omitted, logs (at, level, message), logs_omitted, stacktrace",
+    additionalProperties: true
+  }
+
   operation(:logs,
     summary: "List sync logs for a connector",
-    description: "Session-only.",
+    description: "Session-only. The 50 most recent runs, without their details.",
     parameters: [id: [in: :path, type: :string, required: true]],
     responses: [
       ok:
         {"Sync logs", "application/json",
          %Schema{
            type: :object,
-           properties: %{
-             data: %Schema{
-               type: :array,
-               items: %Schema{
-                 type: :object,
-                 properties: %{
-                   id: %Schema{type: :string, format: :uuid},
-                   status: %Schema{type: :string},
-                   entries_count: %Schema{type: :integer, nullable: true},
-                   error: %Schema{type: :string, nullable: true},
-                   started_at: %Schema{type: :string, format: :"date-time", nullable: true},
-                   finished_at: %Schema{type: :string, format: :"date-time", nullable: true}
-                 }
-               }
-             }
-           }
+           properties: %{data: %Schema{type: :array, items: @sync_log_schema}}
          }},
       unauthorized: {"Unauthorized", "application/json", Schemas.Error},
       forbidden: {"Session required", "application/json", Schemas.Error},
@@ -416,21 +428,66 @@ defmodule ServantWeb.ConnectorController do
     user_id = conn.assigns.current_user.id
     # Make sure that the user owns the config.
     _config = Connectors.get_connector_config!(user_id, id)
-    logs = Connectors.list_sync_logs(id)
 
     json(conn, %{
-      data:
-        Enum.map(logs, fn log ->
-          %{
-            id: log.id,
-            status: log.status,
-            entries_count: log.entries_count,
-            error: log.error,
-            started_at: log.started_at,
-            finished_at: log.finished_at
-          }
-        end)
+      data: Enum.map(Connectors.list_sync_logs(id), &sync_log_json(&1, &1.has_details))
     })
+  end
+
+  operation(:log,
+    summary: "One sync log of a connector, with what the run did",
+    description:
+      "Session-only. The details are kept on the 50 most recent runs of a connector; " <>
+        "an older run returns null details.",
+    parameters: [
+      id: [in: :path, type: :string, required: true],
+      log_id: [in: :path, type: :string, required: true]
+    ],
+    responses: [
+      ok:
+        {"Sync log", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             data: %Schema{
+               allOf: [
+                 @sync_log_schema,
+                 %Schema{type: :object, properties: %{details: @sync_log_details_schema}}
+               ]
+             }
+           }
+         }},
+      unauthorized: {"Unauthorized", "application/json", Schemas.Error},
+      forbidden: {"Session required", "application/json", Schemas.Error},
+      not_found: {"Not found", "application/json", Schemas.Error}
+    ]
+  )
+
+  def log(conn, %{"id" => id, "log_id" => log_id}) do
+    user_id = conn.assigns.current_user.id
+    config = Connectors.get_connector_config!(user_id, id)
+    log = Connectors.get_sync_log!(config.id, log_id)
+
+    json(conn, %{
+      data: log |> sync_log_json(not is_nil(log.details)) |> Map.put(:details, log.details)
+    })
+  end
+
+  defp sync_log_json(log, has_details) do
+    %{
+      id: log.id,
+      status: log.status,
+      entries_count: log.entries_count,
+      fetched_count: log.fetched_count,
+      known_count: max(log.fetched_count - log.entries_count, 0),
+      http_count: log.http_count,
+      http_failed_count: log.http_failed_count,
+      log_count: log.log_count,
+      has_details: has_details,
+      error: log.error,
+      started_at: log.started_at,
+      finished_at: log.finished_at
+    }
   end
 
   operation(:schedules,

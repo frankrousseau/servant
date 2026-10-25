@@ -194,12 +194,49 @@ defmodule ServantWeb.ConnectorControllerTest do
     test "lists the sync logs of a connector", %{conn: conn, user: user} do
       config = create_strava(user.id)
       {:ok, log} = Connectors.create_sync_log(config.id)
-      Connectors.complete_sync_log(log, %{entries_count: 3})
+
+      Connectors.complete_sync_log(log, %{
+        entries_count: 3,
+        fetched_count: 10,
+        http_count: 4,
+        http_failed_count: 1,
+        details: %{kinds: %{"activity" => 10}}
+      })
 
       conn = get(conn, "/api/connectors/#{config.id}/logs")
       assert %{"data" => [entry]} = json_response(conn, 200)
       assert entry["status"] == "completed"
       assert entry["entries_count"] == 3
+      assert entry["known_count"] == 7
+      assert entry["http_failed_count"] == 1
+      assert entry["has_details"] == true
+      refute Map.has_key?(entry, "details")
+    end
+
+    test "returns one run with its details", %{conn: conn, user: user} do
+      config = create_strava(user.id)
+      {:ok, log} = Connectors.create_sync_log(config.id)
+      Connectors.complete_sync_log(log, %{details: %{kinds: %{"activity" => 10}}})
+
+      conn = get(conn, "/api/connectors/#{config.id}/logs/#{log.id}")
+      assert %{"data" => data} = json_response(conn, 200)
+      assert data["id"] == log.id
+      assert data["details"] == %{"kinds" => %{"activity" => 10}}
+    end
+
+    test "a run of another source is a 404", %{conn: conn, user: user} do
+      config = create_strava(user.id)
+      other = create_strava(user.id)
+      {:ok, log} = Connectors.create_sync_log(other.id)
+
+      assert_error_sent(404, fn -> get(conn, "/api/connectors/#{config.id}/logs/#{log.id}") end)
+    end
+
+    test "cannot read a run of another user", %{conn: conn} do
+      foreign = create_strava(user_fixture().id)
+      {:ok, log} = Connectors.create_sync_log(foreign.id)
+
+      assert_error_sent(404, fn -> get(conn, "/api/connectors/#{foreign.id}/logs/#{log.id}") end)
     end
 
     test "cannot read another user's logs", %{conn: conn} do
