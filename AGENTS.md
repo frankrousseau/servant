@@ -35,36 +35,7 @@ All Vue code follows the [official Vue.js style guide](https://fr.vuejs.org/styl
 
 ## Frontend guidelines
 
-The SPA is Vue 3 and TypeScript on Vite, with vue-router, Pinia, `@vueuse/core` and Vitest. `docs/development.md` maps `frontend/src/`.
-
-### Tooling
-
-- Run from `frontend/`: `npm run format` (Prettier; config in `.prettierrc.json`: no semicolons, single quotes, no trailing commas, `arrowParens: avoid`), `npm run test` (Vitest), `npm run build` (`vue-tsc -b`, then `vite build`)
-- `mix precommit` runs the frontend tests and the build, so a type error fails it, but it does not run Prettier: run `npm run format` before committing frontend changes
-- There is no ESLint: the strict type check (`tsconfig.app.json`: `strict`, `noUnusedLocals`, `noUnusedParameters`) and Prettier are the only gates
-
-### TypeScript
-
-- Every SFC is `<script setup lang="ts">`; props and emits use the type-based macros (`defineProps<{...}>()`, `defineEmits<{...}>()`)
-- No `any`: a caught error stays `unknown` and is read with `err instanceof Error ? err.message : '<fallback>'` (`messageOf` in `lib/reportError.ts` is for error reports, not UI copy); narrow an unknown payload with a check rather than a cast
-- **API shapes live in `src/types.ts`**: it mirrors what the Phoenix controllers render and holds types only, so importing a shape never pulls runtime code. A type used by one module stays in that module and is exported from it (`LoadStatus` in `LoadState.vue`)
-
-### Data and state
-
-- **One HTTP client**: every `/api` call goes through `composables/apiClient.ts` (`apiFetch`, `apiJson`), which adds the Bearer header, logs out on a 401 and turns an error payload into a readable message. Views call the named functions of `api/*.ts` (add one there rather than spelling a path and its envelope in a view), or `useApi` for a one-off call. A raw `fetch` is only for what the client cannot do: the `/api/auth` calls made before a token exists, and the `/files/...` binaries, which the HttpOnly cookie authenticates
-- **Apps reach the system through `ctx` only**: code under `apps/<id>/` imports `lib/` and the shared components, never a store, the router, `api/` or `apiClient`. It uses the `AppContext` it receives (`frontend/src/apps/README.md`); a missing capability is added to the context in `apps/createContext.ts`. App preferences go through `ctx.preferences` with `<app>.<name>` keys
-- **Pinia holds only the state several views share** (`stores/auth`, `stores/apps`); state that one view or app owns stays in its component or in a composable
-- **Live updates**: subscribe with `useSocket` in a view or `ctx.events` in an app (`onEntryChange`, `onBulkChange`), and call the returned unsubscribe in `onUnmounted`. A deleted entry arrives with its `id` only. A sync or an import sends one `onBulkChange` instead of per-entry events, so an app that shows synced data refetches there; coalesce bursts of entry events before refetching
-
-### Icons and copy
-
-- **Icons are Lucide** (`lucide-vue-next`), never a Unicode character or an emoji standing in for one; an app declares its icon by name and `lib/appIcons.ts` maps the name to the component. An icon-only button carries an `aria-label`
-- **The UI says "Sources"** for connectors ("Add a Source"), never "Connectors" or "Integrations"; code, routes and the API keep `connector`
-
-### Tests
-
-- Tests sit next to the code as `<name>.test.ts` (Vitest, jsdom, `@vue/test-utils`): pure helpers in `lib/` and in app modules get unit tests, shared components get mount tests
-- `src/test-setup.ts` already renders `Teleport` content in place, registers the global directives (`v-autofocus`, `v-click-key`) and polyfills `<dialog>`; a new global directive is registered there too, not in each test file
+The frontend guidelines (tooling, TypeScript, data and state, icons and copy, tests) are in [docs/development.md](docs/development.md#frontend-guidelines).
 
 ## Elixir style
 
