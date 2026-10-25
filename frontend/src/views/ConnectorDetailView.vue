@@ -5,17 +5,16 @@ import {
   ArrowLeft,
   Check,
   Copy,
-  LoaderCircle,
   RefreshCw,
   ToggleLeft,
   ToggleRight,
   Trash2,
-  Upload,
-  X
+  Upload
 } from 'lucide-vue-next'
 
 import ComboBox from '../components/ComboBox.vue'
 import LoadState from '../components/LoadState.vue'
+import SyncHistory from '../components/SyncHistory.vue'
 
 import {
   connectorLogs,
@@ -333,16 +332,6 @@ async function deleteConnector() {
   }
 }
 
-function duration(log: SyncLog): string {
-  if (!log.finished_at) return '-'
-  const start = new Date(log.started_at).getTime()
-  const end = new Date(log.finished_at).getTime()
-  const ms = end - start
-  if (ms < 1000) return `${ms}ms`
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
-  return `${(ms / 60000).toFixed(1)}m`
-}
-
 onMounted(async () => {
   await fetchConnector()
   resetConfigForm()
@@ -601,47 +590,11 @@ onMounted(async () => {
         <section class="detail-card">
           <h2>{{ isImportOnly ? 'Import History' : 'Sync History' }}</h2>
           <p v-if="logsLoading">Loading...</p>
-          <div v-else-if="logs.length" class="log-list">
-            <div
-              v-for="log in logs"
-              :key="log.id"
-              class="log-row"
-              :class="'log-' + log.status"
-            >
-              <span class="log-icon" :class="'log-icon-' + log.status">
-                <Check v-if="log.status === 'completed'" :size="14" />
-                <X v-else-if="log.status === 'failed'" :size="14" />
-                <LoaderCircle v-else :size="14" class="spin" />
-              </span>
-              <div class="log-body">
-                <span class="log-status">{{ log.status }}</span>
-                <span v-if="log.entries_count > 0" class="log-entries">
-                  {{ log.entries_count }}
-                  {{ log.entries_count === 1 ? 'entry' : 'entries' }}
-                </span>
-                <span v-if="log.error" class="log-error">
-                  <span class="log-error-text">{{ log.error }}</span>
-                  <button
-                    class="copy-error-btn"
-                    @click.stop="copyError(log.error!, `log-${log.id}`)"
-                    :title="
-                      copiedId === `log-${log.id}` ? 'Copied!' : 'Copy error'
-                    "
-                    :aria-label="
-                      copiedId === `log-${log.id}` ? 'Copied' : 'Copy error'
-                    "
-                  >
-                    <Check v-if="copiedId === `log-${log.id}`" :size="14" />
-                    <Copy v-else :size="14" />
-                  </button>
-                </span>
-              </div>
-              <div class="log-time">
-                <span>{{ relativeTime(log.started_at) }}</span>
-                <span class="log-duration">{{ duration(log) }}</span>
-              </div>
-            </div>
-          </div>
+          <SyncHistory
+            v-else-if="logs.length"
+            :connector-id="connectorId"
+            :logs="logs"
+          />
           <p v-else class="empty">No sync history yet.</p>
 
           <button
@@ -980,49 +933,7 @@ onMounted(async () => {
   word-break: break-word;
 }
 
-/* Log list */
-.log-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.log-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 0.6rem 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.log-row:last-child {
-  border-bottom: none;
-}
-
-.log-icon {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.log-icon-completed {
-  background: color-mix(in srgb, var(--success) 15%, transparent);
-  color: var(--success);
-}
-
-.log-icon-failed {
-  background: color-mix(in srgb, var(--danger) 15%, transparent);
-  color: var(--danger);
-}
-
-.log-icon-running {
-  background: rgba(var(--primary-rgb), 0.15);
-  color: var(--primary);
-}
-
+/* The sync button turns while a sync runs */
 .spin {
   animation: spin 1.2s linear infinite;
 }
@@ -1034,53 +945,6 @@ onMounted(async () => {
   to {
     transform: rotate(360deg);
   }
-}
-
-.log-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.log-status {
-  font-weight: 500;
-  text-transform: capitalize;
-}
-
-.log-entries {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-}
-
-.log-error {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  min-width: 0;
-}
-.log-error-text {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  color: var(--danger);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.log-time {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.log-duration {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
 }
 
 .refresh-btn {
