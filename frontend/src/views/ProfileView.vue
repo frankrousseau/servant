@@ -83,8 +83,8 @@ async function startTotpSetup() {
       width: 220
     })
     totpCode.value = ''
-  } catch (err: any) {
-    totpError.value = err.message || 'Setup failed'
+  } catch (err) {
+    totpError.value = err instanceof Error ? err.message : 'Setup failed'
   } finally {
     totpBusy.value = false
   }
@@ -100,8 +100,8 @@ async function confirmTotp() {
     totpSetup.value = null
     totpQr.value = ''
     totpCode.value = ''
-  } catch (err: any) {
-    totpError.value = err.message || 'Invalid code'
+  } catch (err) {
+    totpError.value = err instanceof Error ? err.message : 'Invalid code'
   } finally {
     totpBusy.value = false
   }
@@ -114,8 +114,8 @@ async function disableTotp() {
     await api.disableTotp(totpDisableCode.value.trim())
     totpEnabled.value = false
     totpDisableCode.value = ''
-  } catch (err: any) {
-    totpError.value = err.message || 'Invalid code'
+  } catch (err) {
+    totpError.value = err instanceof Error ? err.message : 'Invalid code'
   } finally {
     totpBusy.value = false
   }
@@ -157,8 +157,9 @@ async function saveProfile() {
     }
     profileSuccess.value = true
     setTimeout(() => (profileSuccess.value = false), 3000)
-  } catch (err: any) {
-    profileError.value = err.message || 'Failed to update profile'
+  } catch (err) {
+    profileError.value =
+      err instanceof Error ? err.message : 'Failed to update profile'
   } finally {
     profileSaving.value = false
   }
@@ -204,8 +205,9 @@ async function changePassword() {
     confirmPassword.value = ''
     passwordSuccess.value = true
     setTimeout(() => (passwordSuccess.value = false), 3000)
-  } catch (err: any) {
-    passwordError.value = err.message || 'Failed to change password'
+  } catch (err) {
+    passwordError.value =
+      err instanceof Error ? err.message : 'Failed to change password'
   } finally {
     passwordSaving.value = false
   }

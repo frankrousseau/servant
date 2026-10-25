@@ -64,6 +64,7 @@ directly.
 - `api.entries`: user-scoped CRUD (`list` / `get` / `create` / `update` / `delete` / `stats` / `aggregate`). `list` pages through the results transparently, `aggregate` returns server-side COUNT/SUM bucketed by local day/week/month/year.
 - `api.upload(file, app?, onProgress?)`: upload a file, returns `{ path, filename, size, mime_type }`; `onProgress` receives a percentage.
 - `events.onEntryChange(cb)`: live entry changes pushed over the data channel (a deleted entry carries only its `id`). Returns an unsubscribe to call in `unmount` (or `onUnmounted`); coalesce bursts before refetching.
+- `events.onBulkChange(cb)`: the one signal a bulk write sends (connector sync, import, bulk delete), which emits no per-entry event; refetch there. Returns an unsubscribe, like `onEntryChange`.
 - `api.fetch(path, opts?)`: authenticated `fetch` for anything not covered above (the Notes app uses it for `/api/notes`, which is the only way to write a note, the Photos app for media backfill).
 
 ## Conventions

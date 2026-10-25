@@ -26,8 +26,8 @@ async function handleRegister() {
   try {
     await auth.register(username.value, password.value, displayName.value)
     router.push('/')
-  } catch (err: any) {
-    error.value = err.message || 'Registration failed'
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Registration failed'
   } finally {
     loading.value = false
   }

@@ -104,8 +104,8 @@ async function loadApp(appId: string) {
       await currentApp.mount(mountEl.value, ctx)
       document.title = `Servant | ${def.name}`
     }
-  } catch (err: any) {
-    error.value = err.message || 'Failed to load app'
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to load app'
   }
 }
 

@@ -98,8 +98,8 @@ async function uploadCSV(event: Event) {
     )
     await fetchConnector()
     await fetchLogs()
-  } catch (err: any) {
-    uploadError.value = err.message || 'Upload failed'
+  } catch (err) {
+    uploadError.value = err instanceof Error ? err.message : 'Upload failed'
   } finally {
     uploading.value = false
     input.value = ''

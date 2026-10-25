@@ -712,6 +712,9 @@ onMounted(async () => {
   if (initial) setFolder(initial)
 })
 onUnmounted(() => window.removeEventListener('popstate', onPopState))
+// A sync or an import sends one bulk signal, not one event per entry.
+const stopBulkChange = props.ctx.events.onBulkChange(reload)
+onUnmounted(stopBulkChange)
 </script>
 
 <template>

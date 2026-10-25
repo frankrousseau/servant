@@ -81,6 +81,7 @@ function makeCtx() {
     // Crypto is opt-in. These cases use it, so the fixture opts in.
     enabledApps: ['crypto'],
     confirm: { ask: vi.fn().mockResolvedValue(true) },
+    events: { onBulkChange: vi.fn(() => vi.fn()), onEntryChange: vi.fn() },
     preferences: fakePreferences(),
     api: {
       entries: {

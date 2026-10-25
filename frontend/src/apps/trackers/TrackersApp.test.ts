@@ -36,6 +36,7 @@ function makeCtx(trackers: Entry[], logs: Entry[] = []) {
   const ctx = {
     navigate: vi.fn(),
     confirm: { ask: vi.fn().mockResolvedValue(true) },
+    events: { onBulkChange: vi.fn(() => vi.fn()), onEntryChange: vi.fn() },
     api: {
       entries: {
         list: vi.fn(async (filters?: Record<string, string>) =>

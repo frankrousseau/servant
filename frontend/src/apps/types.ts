@@ -78,10 +78,13 @@ export interface AppContext {
     set(key: string, value: unknown): void
   }
   // Live entry changes from the user's data channel (created, updated, or
-  // deleted; a deleted entry carries only `id`). Returns an unsubscribe
-  // function. Call it in the teardown of the app.
+  // deleted; a deleted entry carries only `id`). A bulk write (connector
+  // sync, import, bulk delete) sends no per-entry event, only one
+  // onBulkChange signal: refetch there. Both return an unsubscribe function.
+  // Call it in the teardown of the app.
   events: {
     onEntryChange(cb: (entry: Entry) => void): () => void
+    onBulkChange(cb: () => void): () => void
   }
   api: {
     entries: EntriesAPI

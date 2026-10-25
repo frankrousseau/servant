@@ -429,6 +429,9 @@ onUnmounted(() => {
   resizeObs?.disconnect()
   window.removeEventListener('popstate', onPopState)
 })
+// A sync or an import sends one bulk signal, not one event per entry.
+const stopBulkChange = ctx.events.onBulkChange(reload)
+onUnmounted(stopBulkChange)
 
 // A move or a resize of the window changes the dates that are necessary for
 // entry trackers.

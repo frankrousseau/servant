@@ -19,7 +19,7 @@ export function createAppContext(viewer: ViewerAPI): AppContext {
   const auth = useAuthStore()
   const router = useRouter()
   const { ask } = useConfirm()
-  const { onEntryChange } = useSocket()
+  const { onBulkChange, onEntryChange } = useSocket()
 
   return {
     navigate(path: string) {
@@ -92,7 +92,7 @@ export function createAppContext(viewer: ViewerAPI): AppContext {
         (auth.user?.preferences?.[key] as T | undefined) ?? fallback,
       set: auth.setPreference
     },
-    events: { onEntryChange },
+    events: { onBulkChange, onEntryChange },
     viewer
   }
 }

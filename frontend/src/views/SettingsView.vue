@@ -20,6 +20,7 @@ import TabBar from '../components/TabBar.vue'
 import { updateProfile } from '../api/auth'
 import { deletePhotoShare, listPhotoShares } from '../api/photoShares'
 import { BUILTIN_APPS, DEFAULT_ENABLED_APPS } from '../apps/registry'
+import { apiFetch } from '../composables/apiClient'
 import { useApi } from '../composables/useApi'
 import { useConfirm } from '../composables/useConfirm'
 import {
@@ -381,10 +382,7 @@ async function downloadFile(
 ) {
   loadingRef.value = true
   try {
-    const res = await fetch(url, {
-      headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {}
-    })
-    if (!res.ok) throw new Error('Download failed')
+    const res = await apiFetch(url)
     const blob = await res.blob()
     const blobUrl = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -394,8 +392,8 @@ async function downloadFile(
     link.download = match?.[1] || fallbackName
     link.click()
     URL.revokeObjectURL(blobUrl)
-  } catch (err: any) {
-    alert(err.message || 'Failed to download')
+  } catch (err) {
+    alert(err instanceof Error ? err.message : 'Failed to download')
   } finally {
     loadingRef.value = false
   }

@@ -32,6 +32,7 @@ function makeCtx() {
   return {
     navigate: vi.fn(),
     confirm: { ask: vi.fn().mockResolvedValue(true) },
+    events: { onBulkChange: vi.fn(() => vi.fn()), onEntryChange: vi.fn() },
     preferences: fakePreferences(),
     api: {
       entries: {

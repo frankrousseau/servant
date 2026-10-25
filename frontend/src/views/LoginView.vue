@@ -36,8 +36,8 @@ async function handleLogin() {
     } else {
       router.push('/')
     }
-  } catch (err: any) {
-    error.value = err.message || 'Login failed'
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Login failed'
   } finally {
     loading.value = false
   }
@@ -50,8 +50,8 @@ async function handleTotp() {
   try {
     await auth.verifyTotp(totpTicket.value, totpCode.value.trim())
     router.push('/')
-  } catch (err: any) {
-    error.value = err.message || 'Invalid code'
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Invalid code'
   } finally {
     loading.value = false
   }

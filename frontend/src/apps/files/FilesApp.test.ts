@@ -46,6 +46,10 @@ function makeCtx(files: Entry[]) {
   const ctx = {
     navigate: vi.fn(),
     confirm: { ask: vi.fn().mockResolvedValue(true) },
+    events: {
+      onBulkChange: vi.fn((_listener: () => void) => vi.fn()),
+      onEntryChange: vi.fn()
+    },
     // Keep the virtual mounts (Notes, Photos, ...) out of the row list. As a
     // result, the .fs-name selectors hit real files only.
     preferences: fakePreferences({ 'files.showVirtual': false }),
@@ -63,7 +67,7 @@ function makeCtx(files: Entry[]) {
     },
     viewer: { open: vi.fn(), close: vi.fn(), onDelete: vi.fn() }
   }
-  return { ctx, create, update, del }
+  return { ctx, create, update, del, store }
 }
 
 async function createFolder(wrapper: ReturnType<typeof mount>) {
@@ -184,5 +188,30 @@ describe('FilesApp folder creation', () => {
 
     expect(del).not.toHaveBeenCalled()
     expect(update).not.toHaveBeenCalled()
+  })
+})
+
+describe('FilesApp live updates', () => {
+  beforeEach(() => {
+    window.history.replaceState(null, '', '/')
+  })
+
+  it('refetches on a bulk change and unsubscribes on unmount', async () => {
+    const { ctx, store } = makeCtx([fileEntry('a', 'a.pdf')])
+    const wrapper = mount(FilesApp, { props: { ctx: ctx as never } })
+    await flushPromises()
+    const names = () => wrapper.findAll('.fs-name').map(name => name.text())
+    expect(names()).toEqual(['a.pdf'])
+
+    // A sync imports a file: no per-entry event, one bulk signal.
+    store.push(fileEntry('b', 'b.pdf'))
+    const [[onBulkChange]] = ctx.events.onBulkChange.mock.calls
+    onBulkChange()
+    await flushPromises()
+    expect(names()).toEqual(['a.pdf', 'b.pdf'])
+
+    const unsubscribe = ctx.events.onBulkChange.mock.results[0].value
+    wrapper.unmount()
+    expect(unsubscribe).toHaveBeenCalled()
   })
 })

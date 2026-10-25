@@ -802,6 +802,9 @@ async function reload() {
 
 onMounted(reload)
 onUnmounted(destroyPickers)
+// A sync or an import sends one bulk signal, not one event per entry.
+const stopBulkChange = props.ctx.events.onBulkChange(reload)
+onUnmounted(stopBulkChange)
 </script>
 
 <template>

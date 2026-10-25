@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { ChevronDown, ChevronRight, X } from 'lucide-vue-next'
 
 import ComboBox from '../../components/ComboBox.vue'
@@ -89,6 +89,9 @@ async function reload() {
 }
 
 onMounted(reload)
+// A sync or an import sends one bulk signal, not one event per entry.
+const stopBulkChange = ctx.events.onBulkChange(reload)
+onUnmounted(stopBulkChange)
 
 // ----- preferences (reference currency + saved rates) -----
 
