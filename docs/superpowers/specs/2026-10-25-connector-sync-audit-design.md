@@ -85,13 +85,21 @@ Migration on `sync_logs`:
 
 | column | type | |
 |--------|------|-|
-| `fetched_count` | integer, default 0 | |
+| `fetched_count` | integer, default 0 | backfilled from `entries_count` for the existing rows |
+| `http_count` | integer, default 0 | calls made, omitted ones included |
+| `http_failed_count` | integer, default 0 | status >= 400 or network error |
+| `log_count` | integer, default 0 | lines logged, omitted ones included |
 | `details` | map (JSON), nullable | `kinds`, `new_entries`, `http`, `http_omitted`, `logs`, `logs_omitted`, `stacktrace` |
+
+The counts are columns rather than read from `details`: the history list then
+never loads the bulky JSON, and a run keeps its summary ("2 of 37 calls failed")
+after its details are pruned.
 
 If writing `details` fails, the run still records its status and counts.
 
-**Retention**, applied by the worker after each run, per source: keep the 500 most
-recent runs; keep `details` only on the 50 most recent.
+**Retention**, applied each time a run opens (`create_sync_log/1`, which covers
+the syncs and the imports), per source: keep the 500 most recent runs; keep
+`details` only on the 50 most recent.
 
 ## API
 
