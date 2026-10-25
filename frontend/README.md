@@ -57,7 +57,7 @@ Vitest on jsdom, tests colocated with the code as `*.test.ts` (see
 
 - `src/views/` - routed Vue views (dashboard, data browser, connectors, agents, audit, settings, profile, auth)
 - `src/apps/` - pluggable "apps" (calendar, checklists, contacts, files, finance, notes, photos, trackers); see [`src/apps/README.md`](src/apps/README.md) and `src/apps/types.ts` for the `AppModule`/`AppContext` contract
-- `src/components/` - `AppSidebar` (the shell's navigation: pinned apps, All apps, Sources; folds to a rail of icons on desktop, remembered per device) and its `AccountMenu` footer (Profile, Settings, Data, Agents, Audit, Sign out), plus the shared widgets used by views and apps: `ComboBox`, `AutocompleteInput`, `ConfirmModal`, `DateInput`, `KindIcon`, `MediaViewer`, `VideoPlayer`, `CommandPalette`
+- `src/components/` - `AppSidebar` (the shell's navigation: pinned apps, All apps, Sources; folds to a rail of icons on desktop, remembered per device) and its `AccountMenu` footer (Profile, Settings, Data, Agents, Audit, Sign out), plus the shared widgets used by views and apps: `ComboBox`, `AutocompleteInput`, `ConfirmModal`, `DateInput`, `KindIcon`, `MediaViewer`, `VideoPlayer`, `CommandPalette`, `SyncHistory` (a source's runs, each opening on `SyncRunDetails`)
 - `src/composables/` - `apiClient` (the single HTTP client), `useApi`, `useSocket`, `useConfirm`, `useFetchData`, `authConfig`
 - `src/lib/` - framework-free helpers (dates, markdown, theme, entry routes, upload queue, API token scopes)
 - `src/stores/` - Pinia stores (`auth`, `apps`)

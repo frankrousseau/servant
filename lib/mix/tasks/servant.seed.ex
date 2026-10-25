@@ -755,17 +755,46 @@ defmodule Mix.Tasks.Servant.Seed do
       started = DateTime.add(last_sync, -day * 86_400, :second)
       failed = day == 4 and connector.connector_type == "strava"
 
+      fetched = if failed, do: 0, else: 20 + :rand.uniform(80)
+
       %SyncLog{}
       |> SyncLog.changeset(%{
         connector_config_id: connector.id,
         status: if(failed, do: "failed", else: "completed"),
         entries_count: if(failed, do: 0, else: :rand.uniform(12)),
+        fetched_count: fetched,
+        http_count: 3,
+        http_failed_count: if(failed, do: 1, else: 0),
+        log_count: 2,
+        details: if(day == 0, do: seed_run_details(connector, fetched)),
         error: if(failed, do: "Rate limit exceeded, retrying later"),
         started_at: started,
         finished_at: DateTime.add(started, 2 + :rand.uniform(20), :second)
       })
       |> Repo.insert!()
     end
+  end
+
+  # What the latest run of a source did, so the history has one to open
+  defp seed_run_details(connector, fetched) do
+    host = connector.connector_type <> ".example.com"
+    now = DateTime.to_iso8601(DateTime.utc_now())
+
+    %{
+      kinds: %{"activity" => fetched},
+      new_entries: [],
+      http: [
+        %{method: "GET", host: host, path: "/api/v1/items", status: 200, ms: 182},
+        %{method: "GET", host: host, path: "/api/v1/items", status: 200, ms: 164},
+        %{method: "GET", host: host, path: "/api/v1/me", status: 200, ms: 91}
+      ],
+      http_omitted: 0,
+      logs: [
+        %{at: now, level: "info", message: "page 1 of 2"},
+        %{at: now, level: "info", message: "page 2 of 2"}
+      ],
+      logs_omitted: 0
+    }
   end
 
   @commit_messages [
