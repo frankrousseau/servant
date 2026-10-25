@@ -143,11 +143,16 @@ servant/
 ├── frontend/
 │   ├── public/                # logo.svg (owl-butler logo), favicon.svg
 │   ├── src/
-│   │   ├── composables/       # useApi, useSocket
-│   │   ├── stores/            # Pinia stores (auth)
-│   │   ├── views/             # Vue views
+│   │   ├── api/               # Named calls per endpoint (entries, connectors, auth, photo shares)
+│   │   ├── apps/              # Built-in apps (one folder each) + the AppContext contract
+│   │   ├── components/        # Shared widgets (ComboBox, ServantDialog, LoadState, ...)
+│   │   ├── composables/       # apiClient (the one HTTP client), useApi, useSocket, useConfirm
+│   │   ├── lib/               # Shared helpers (datetime, entryRoute, kind, markdown, ...)
+│   │   ├── stores/            # Pinia stores (auth, apps)
+│   │   ├── views/             # Routed pages (dashboard, sources, settings, ...)
 │   │   ├── router/
-│   │   └── types.ts
+│   │   ├── style.css          # Design tokens and global styles
+│   │   └── types.ts           # API response shapes (types only)
 │   └── vite.config.ts
 ├── priv/
 │   ├── repo/migrations/

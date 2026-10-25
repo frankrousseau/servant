@@ -23,7 +23,7 @@ All Vue code follows the [official Vue.js style guide](https://fr.vuejs.org/styl
 - **Shared helpers live in `frontend/src/lib/`** (dates and civil-date strings in `lib/datetime.ts`, per-kind routes in `lib/entryRoute.ts`); before writing a helper in a view or app, check `lib/` and the owning app module, and promote duplicated logic there instead of copying it
 - **Design tokens over literals**: `var(--font-mono)`, `var(--font-display)`, theme colors (`--primary`, `--danger`, ...), never a hardcoded font stack or palette hex in a component. Font sizes come from the type scale (`--text-sm` to `--text-2xl`); `--text-sm` (0.875rem) is the floor, nothing is set smaller. Floating panels (menus, popovers, tips) sit on `--bg-raised` under `--shadow-raised`; form control edges use `--border-strong`, dividers and card edges `--border`
 - **Name bindings with words**: no single-letter variables (`entry`, `list`, `connector`, never `e`, `l`, `c`), in arrow functions and `v-for` included; the accepted exceptions are a numeric loop index `i` and the `(a, b)` pair of a sort comparator
-- **Derive in computeds, not in the template**: anything involving a loop, `Date`/`Intl` work, or a lookup per row goes through a `computed` (or is attached to the items of an existing one), so it is cached instead of recomputed on every render (`cd frontend && npm run format`; config in `frontend/.prettierrc.json`: no semicolons, single quotes, no trailing commas, `arrowParens: avoid`). Run it before committing frontend changes.
+- **Derive in computeds, not in the template**: anything involving a loop, `Date`/`Intl` work, or a lookup per row goes through a `computed` (or is attached to the items of an existing one), so it is cached instead of recomputed on every render
 
 ### Accessibility
 
@@ -32,6 +32,39 @@ All Vue code follows the [official Vue.js style guide](https://fr.vuejs.org/styl
 - **Every informative image gets a real, descriptive `alt`** (a photo uses its entry title, a chart says what it shows: "Crypto portfolio value over six months"; never a filename or "image"); purely decorative images get `alt=""`, and commentary longer than a description belongs in a `<figcaption>`, not in the alt
 - **Default focus lands on the search field** when the page has one (`autofocus`, or a focus on mount when the field renders asynchronously); without a search field, it lands on a navigation button. A page never opens with the focus stranded on `<body>`
 - **Keyboard and zoom fundamentals**: `lang` on `<html>` and `hreflang` on links to content in another language; the viewport meta never disables zoom; every interactive element keeps a visible `:focus-visible` style (the global outline in `style.css` counts, do not `outline: none` it away without a replacement); non-essential animations are disabled under `@media (prefers-reduced-motion: reduce)`
+
+## Frontend guidelines
+
+The SPA is Vue 3 and TypeScript on Vite, with vue-router, Pinia, `@vueuse/core` and Vitest. `docs/development.md` maps `frontend/src/`.
+
+### Tooling
+
+- Run from `frontend/`: `npm run format` (Prettier; config in `.prettierrc.json`: no semicolons, single quotes, no trailing commas, `arrowParens: avoid`), `npm run test` (Vitest), `npm run build` (`vue-tsc -b`, then `vite build`)
+- `mix precommit` runs the frontend tests and the build, so a type error fails it, but it does not run Prettier: run `npm run format` before committing frontend changes
+- There is no ESLint: the strict type check (`tsconfig.app.json`: `strict`, `noUnusedLocals`, `noUnusedParameters`) and Prettier are the only gates
+
+### TypeScript
+
+- Every SFC is `<script setup lang="ts">`; props and emits use the type-based macros (`defineProps<{...}>()`, `defineEmits<{...}>()`)
+- No `any`: a caught error stays `unknown` and is read with `err instanceof Error ? err.message : '<fallback>'` (`messageOf` in `lib/reportError.ts` is for error reports, not UI copy); narrow an unknown payload with a check rather than a cast
+- **API shapes live in `src/types.ts`**: it mirrors what the Phoenix controllers render and holds types only, so importing a shape never pulls runtime code. A type used by one module stays in that module and is exported from it (`LoadStatus` in `LoadState.vue`)
+
+### Data and state
+
+- **One HTTP client**: every `/api` call goes through `composables/apiClient.ts` (`apiFetch`, `apiJson`), which adds the Bearer header, logs out on a 401 and turns an error payload into a readable message. Views call the named functions of `api/*.ts` (add one there rather than spelling a path and its envelope in a view), or `useApi` for a one-off call. A raw `fetch` is only for what the client cannot do: the `/api/auth` calls made before a token exists, and the `/files/...` binaries, which the HttpOnly cookie authenticates
+- **Apps reach the system through `ctx` only**: code under `apps/<id>/` imports `lib/` and the shared components, never a store, the router, `api/` or `apiClient`. It uses the `AppContext` it receives (`frontend/src/apps/README.md`); a missing capability is added to the context in `apps/createContext.ts`. App preferences go through `ctx.preferences` with `<app>.<name>` keys
+- **Pinia holds only the state several views share** (`stores/auth`, `stores/apps`); state that one view or app owns stays in its component or in a composable
+- **Live updates**: subscribe with `useSocket` in a view or `ctx.events` in an app (`onEntryChange`, `onBulkChange`), and call the returned unsubscribe in `onUnmounted`. A deleted entry arrives with its `id` only. A sync or an import sends one `onBulkChange` instead of per-entry events, so an app that shows synced data refetches there; coalesce bursts of entry events before refetching
+
+### Icons and copy
+
+- **Icons are Lucide** (`lucide-vue-next`), never a Unicode character or an emoji standing in for one; an app declares its icon by name and `lib/appIcons.ts` maps the name to the component. An icon-only button carries an `aria-label`
+- **The UI says "Sources"** for connectors ("Add a Source"), never "Connectors" or "Integrations"; code, routes and the API keep `connector`
+
+### Tests
+
+- Tests sit next to the code as `<name>.test.ts` (Vitest, jsdom, `@vue/test-utils`): pure helpers in `lib/` and in app modules get unit tests, shared components get mount tests
+- `src/test-setup.ts` already renders `Teleport` content in place, registers the global directives (`v-autofocus`, `v-click-key`) and polyfills `<dialog>`; a new global directive is registered there too, not in each test file
 
 ## Elixir style
 
