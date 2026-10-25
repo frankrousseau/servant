@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>Your personal data hub, on your own server.</b><br>
-  Personal apps and habits in one interoperable place
+  Apps, data, and files in one interoperable place
 </p>
 
 <p align="center">
