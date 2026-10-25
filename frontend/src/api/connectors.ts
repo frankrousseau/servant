@@ -8,7 +8,12 @@
 // - hand off to the OAuth of a bank
 // Before this module, each of the four views that drive a connector wrote the
 // paths in full.
-import type { ConnectorConfig, Schedule, SyncLog } from '../types'
+import type {
+  ConnectorConfig,
+  Schedule,
+  SyncLog,
+  SyncLogDetails
+} from '../types'
 import { apiErrorMessage, apiJson } from '../composables/apiClient'
 
 export async function listConnectors(): Promise<ConnectorConfig[]> {
@@ -96,6 +101,18 @@ export async function connectorLogs(id: string): Promise<SyncLog[]> {
     `/api/connectors/${id}/logs`
   )
   return res.data
+}
+
+// null when the run is older than the 50 whose details are kept
+export async function connectorLogDetails(
+  id: string,
+  logId: string
+): Promise<SyncLogDetails | null> {
+  const res = await apiJson<{ data: { details: SyncLogDetails | null } }>(
+    'GET',
+    `/api/connectors/${id}/logs/${logId}`
+  )
+  return res.data.details
 }
 
 /**

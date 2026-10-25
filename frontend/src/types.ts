@@ -104,10 +104,44 @@ export interface ConnectorConfig {
 export interface SyncLog {
   id: string
   status: 'running' | 'completed' | 'failed'
+  // The new entries; known_count = fetched_count - entries_count
   entries_count: number
+  fetched_count: number
+  known_count: number
+  http_count: number
+  http_failed_count: number
+  log_count: number
+  has_details: boolean
   error: string | null
   started_at: string
   finished_at: string | null
+}
+
+// What one run did (GET /api/connectors/:id/logs/:log_id), kept on the 50
+// most recent runs of a source
+export interface SyncLogDetails {
+  kinds?: Record<string, number>
+  new_entries?: { id: string; kind: string; title: string | null }[]
+  http?: SyncHttpCall[]
+  http_omitted?: number
+  logs?: SyncLogLine[]
+  logs_omitted?: number
+  stacktrace?: string
+}
+
+export interface SyncHttpCall {
+  method: string
+  host: string
+  path: string
+  status: number | null
+  ms: number
+  error?: string
+}
+
+export interface SyncLogLine {
+  at: string
+  level: string
+  message: string
 }
 
 // ----- agents -----

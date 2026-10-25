@@ -30,6 +30,7 @@ import {
 } from '../api/connectors'
 import { getConnectorDef } from '../connectors'
 import { useConfirm } from '../composables/useConfirm'
+import { useCopyFeedback } from '../composables/useCopyFeedback'
 import { SCHEDULE_LABELS } from '../lib/connectors'
 import { formatDate, formatDateTime, relativeTime } from '../lib/datetime'
 import { useAuthStore } from '../stores/auth'
@@ -50,12 +51,7 @@ const connectorDef = computed(() =>
   connector.value ? getConnectorDef(connector.value.connector_type) : null
 )
 
-const copiedId = ref<string | null>(null)
-function copyError(text: string, id: string) {
-  navigator.clipboard.writeText(text)
-  copiedId.value = id
-  setTimeout(() => (copiedId.value = null), 1500)
-}
+const { copiedId, copy: copyError } = useCopyFeedback()
 
 // CSV upload
 const uploading = ref(false)

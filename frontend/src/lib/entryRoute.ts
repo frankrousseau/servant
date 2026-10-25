@@ -2,7 +2,7 @@ import type { Entry } from '../types'
 
 // Returns where "open this entry" goes, for each kind. The kinds without a
 // dedicated surface fall back to the data browser.
-export function entryRoute(e: Entry): string {
+export function entryRoute(e: Pick<Entry, 'id' | 'kind'>): string {
   switch (e.kind) {
     case 'note':
       return `/apps/notes?selected=${e.id}`
