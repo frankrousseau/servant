@@ -15,6 +15,7 @@ import {
 import ComboBox from '../components/ComboBox.vue'
 import LoadState from '../components/LoadState.vue'
 import SyncHistory from '../components/SyncHistory.vue'
+import TabBar from '../components/TabBar.vue'
 
 import {
   connectorLogs,
@@ -33,6 +34,7 @@ import { useCopyFeedback } from '../composables/useCopyFeedback'
 import { SCHEDULE_LABELS } from '../lib/connectors'
 import { formatDate, formatDateTime, relativeTime } from '../lib/datetime'
 import { useAuthStore } from '../stores/auth'
+import type { TabOption } from '../components/TabBar.vue'
 import type { ConnectorConfig, Schedule, SyncLog } from '../types'
 
 const route = useRoute()
@@ -107,6 +109,29 @@ async function uploadCSV(event: Event) {
 }
 
 const connectorId = computed(() => route.params.id as string)
+
+// ----- Tabs: the configuration and the run history apart -----
+
+// Kept in the URL (?tab=history), like Settings. A source with a file to
+// import lands on the import, the others on their history.
+const tabs = computed<TabOption[]>(() => [
+  { value: 'config', label: isImportable.value ? 'Import' : 'Configuration' },
+  {
+    value: 'history',
+    label: isImportOnly.value ? 'Import history' : 'Sync history'
+  }
+])
+
+const tab = computed({
+  get: () => {
+    const requested = route.query.tab
+    if (requested === 'config' || requested === 'history') return requested
+    return isImportable.value ? 'config' : 'history'
+  },
+  set: next => {
+    router.replace({ query: { ...route.query, tab: next } })
+  }
+})
 
 // ----- Enable Banking consent flow -----
 
@@ -469,142 +494,148 @@ onMounted(async () => {
           </Transition>
         </section>
 
-        <!-- Config -->
-        <section class="detail-card">
-          <h2>{{ isImportable ? 'Import' : 'Configuration' }}</h2>
-
-          <!-- CSV Upload zone (bank_csv only) -->
-          <div v-if="isImportable && importConfig" class="upload-zone">
-            <label class="upload-area" :class="{ uploading }">
-              <Upload :size="24" />
-              <span v-if="uploading">Importing...</span>
-              <span v-else
-                >Drop a {{ importConfig.label }} file or click to browse</span
-              >
-              <input
-                type="file"
-                :accept="importConfig.accept"
-                class="upload-input"
-                @change="uploadCSV"
-                :disabled="uploading"
-              />
-            </label>
-
-            <div v-if="uploadResult" class="upload-result msg-success">
-              Imported {{ uploadResult.imported }} {{ importConfig.items
-              }}<template v-if="uploadResult.skipped"
-                >, {{ uploadResult.skipped }} skipped (duplicates)</template
-              >.
-            </div>
-            <div v-if="uploadError" class="upload-result msg-error">
-              {{ uploadError }}
-            </div>
-          </div>
-
-          <!-- Bank consent flow (enable_banking only) -->
-          <div v-if="isEnableBanking" class="eb-zone">
-            <p v-if="ebConnected" class="msg-success">
-              Connected: {{ ebAccounts.length }} account(s)<template
-                v-if="ebValidUntil"
-              >
-                , consent valid until
-                {{ new Date(ebValidUntil).toLocaleDateString() }}</template
-              >.
-            </p>
-            <p v-else class="eb-hint">
-              Not connected to the bank yet. Register this redirect URL in your
-              Enable Banking application, then connect:
-              <code>{{ ebRedirectUrl }}</code>
-            </p>
-            <button type="button" :disabled="ebConnecting" @click="ebConnect">
-              {{
-                ebConnecting
-                  ? 'Redirecting…'
-                  : ebConnected
-                    ? 'Reconnect (renew consent)'
-                    : 'Connect bank account'
-              }}
-            </button>
-            <p v-if="ebError" class="upload-result msg-error">{{ ebError }}</p>
-          </div>
-
-          <form
-            v-if="configFields.length"
-            class="config-form"
-            @submit.prevent="saveConfig"
-          >
-            <div
-              v-for="field in configFields"
-              :key="field.key"
-              class="config-field"
-            >
-              <label :for="`cfg-${field.key}`">
-                {{ field.label }}
-                <span v-if="!field.required" class="config-optional"
-                  >optional</span
+        <TabBar
+          v-model="tab"
+          class="detail-tabs"
+          :options="tabs"
+          label="Source sections"
+        >
+          <!-- Config -->
+          <section v-if="tab === 'config'" class="detail-card">
+            <!-- CSV Upload zone (bank_csv only) -->
+            <div v-if="isImportable && importConfig" class="upload-zone">
+              <label class="upload-area" :class="{ uploading }">
+                <Upload :size="24" />
+                <span v-if="uploading">Importing...</span>
+                <span v-else
+                  >Drop a {{ importConfig.label }} file or click to browse</span
                 >
+                <input
+                  type="file"
+                  :accept="importConfig.accept"
+                  class="upload-input"
+                  @change="uploadCSV"
+                  :disabled="uploading"
+                />
               </label>
-              <ComboBox
-                v-if="field.type === 'select' && field.options"
-                v-model="configForm[field.key]"
-                :options="field.options"
-              />
-              <textarea
-                v-else-if="field.type === 'textarea'"
-                :id="`cfg-${field.key}`"
-                v-model="configForm[field.key]"
-                class="config-textarea"
-                rows="5"
-                :placeholder="field.placeholder"
-                spellcheck="false"
-              ></textarea>
-              <input
-                v-else
-                :id="`cfg-${field.key}`"
-                v-model="configForm[field.key]"
-                :type="field.type"
-                :placeholder="field.placeholder"
-              />
+
+              <div v-if="uploadResult" class="upload-result msg-success">
+                Imported {{ uploadResult.imported }} {{ importConfig.items
+                }}<template v-if="uploadResult.skipped"
+                  >, {{ uploadResult.skipped }} skipped (duplicates)</template
+                >.
+              </div>
+              <div v-if="uploadError" class="upload-result msg-error">
+                {{ uploadError }}
+              </div>
             </div>
-            <p v-if="configErrorMsg" class="upload-result msg-error">
-              {{ configErrorMsg }}
-            </p>
-            <button
-              type="submit"
-              class="action-btn action-btn--primary config-save"
-              :disabled="configSaving"
+
+            <!-- Bank consent flow (enable_banking only) -->
+            <div v-if="isEnableBanking" class="eb-zone">
+              <p v-if="ebConnected" class="msg-success">
+                Connected: {{ ebAccounts.length }} account(s)<template
+                  v-if="ebValidUntil"
+                >
+                  , consent valid until
+                  {{ new Date(ebValidUntil).toLocaleDateString() }}</template
+                >.
+              </p>
+              <p v-else class="eb-hint">
+                Not connected to the bank yet. Register this redirect URL in
+                your Enable Banking application, then connect:
+                <code>{{ ebRedirectUrl }}</code>
+              </p>
+              <button type="button" :disabled="ebConnecting" @click="ebConnect">
+                {{
+                  ebConnecting
+                    ? 'Redirecting…'
+                    : ebConnected
+                      ? 'Reconnect (renew consent)'
+                      : 'Connect bank account'
+                }}
+              </button>
+              <p v-if="ebError" class="upload-result msg-error">
+                {{ ebError }}
+              </p>
+            </div>
+
+            <form
+              v-if="configFields.length"
+              class="config-form"
+              @submit.prevent="saveConfig"
             >
-              {{ configSaving ? 'Saving...' : 'Save configuration' }}
+              <div
+                v-for="field in configFields"
+                :key="field.key"
+                class="config-field"
+              >
+                <label :for="`cfg-${field.key}`">
+                  {{ field.label }}
+                  <span v-if="!field.required" class="config-optional"
+                    >optional</span
+                  >
+                </label>
+                <ComboBox
+                  v-if="field.type === 'select' && field.options"
+                  v-model="configForm[field.key]"
+                  :options="field.options"
+                />
+                <textarea
+                  v-else-if="field.type === 'textarea'"
+                  :id="`cfg-${field.key}`"
+                  v-model="configForm[field.key]"
+                  class="config-textarea"
+                  rows="5"
+                  :placeholder="field.placeholder"
+                  spellcheck="false"
+                ></textarea>
+                <input
+                  v-else
+                  :id="`cfg-${field.key}`"
+                  v-model="configForm[field.key]"
+                  :type="field.type"
+                  :placeholder="field.placeholder"
+                />
+              </div>
+              <p v-if="configErrorMsg" class="upload-result msg-error">
+                {{ configErrorMsg }}
+              </p>
+              <button
+                type="submit"
+                class="action-btn action-btn--primary config-save"
+                :disabled="configSaving"
+              >
+                {{ configSaving ? 'Saving...' : 'Save configuration' }}
+              </button>
+            </form>
+
+            <h3 v-if="isImportable || isEnableBanking || configFields.length">
+              Settings
+            </h3>
+            <pre class="config-pre">{{
+              JSON.stringify(connector.config, null, 2)
+            }}</pre>
+          </section>
+
+          <!-- Sync history -->
+          <section v-else class="detail-card">
+            <p v-if="logsLoading">Loading...</p>
+            <SyncHistory
+              v-else-if="logs.length"
+              :connector-id="connectorId"
+              :logs="logs"
+            />
+            <p v-else class="empty">No sync history yet.</p>
+
+            <button
+              v-if="!logsLoading"
+              class="small refresh-btn"
+              @click="fetchLogs()"
+            >
+              Refresh
             </button>
-          </form>
-
-          <h3 v-if="isImportable || isEnableBanking || configFields.length">
-            Settings
-          </h3>
-          <pre class="config-pre">{{
-            JSON.stringify(connector.config, null, 2)
-          }}</pre>
-        </section>
-
-        <!-- Sync history -->
-        <section class="detail-card">
-          <h2>{{ isImportOnly ? 'Import History' : 'Sync History' }}</h2>
-          <p v-if="logsLoading">Loading...</p>
-          <SyncHistory
-            v-else-if="logs.length"
-            :connector-id="connectorId"
-            :logs="logs"
-          />
-          <p v-else class="empty">No sync history yet.</p>
-
-          <button
-            v-if="!logsLoading"
-            class="small refresh-btn"
-            @click="fetchLogs()"
-          >
-            Refresh
-          </button>
-        </section>
+          </section>
+        </TabBar>
       </template>
     </LoadState>
   </div>
@@ -680,10 +711,6 @@ onMounted(async () => {
   border-radius: var(--radius);
   padding: 1.25rem;
   margin-bottom: 1rem;
-}
-
-.detail-card h2 {
-  margin: 0 0 0.75rem;
 }
 
 .detail-grid {
@@ -888,6 +915,12 @@ onMounted(async () => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* ----- Tabs ----- */
+
+.detail-tabs {
+  margin-bottom: 1rem;
 }
 
 /* ----- Configuration form ----- */
