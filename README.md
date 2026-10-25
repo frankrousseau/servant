@@ -6,8 +6,7 @@
 
 <p align="center">
   <b>Your personal data hub, on your own server.</b><br>
-  Contacts, calendar, photos, notes, money and habits in one place,
-  synced with your phone and open to your scripts and AI agents.
+  Personal apps and habits in one interoperable place
 </p>
 
 <p align="center">
@@ -29,7 +28,7 @@
 - **Open to your tools:** a REST API with scoped tokens, live updates over websockets, one
   shared memory for Claude Code and Cursor.
 - **Extensible:** install apps from git, or describe one and let an agent write it.
-- **Light and private:** one Elixir release, one SQLite file, Docker or bare metal. It runs on
+- **Light and private:** one server, one SQLite file, Docker or bare metal. It runs on
   a Raspberry Pi.
 
 ## Quick start
@@ -42,6 +41,20 @@ docker compose up -d --build
 
 Open `http://localhost:4000` and register the first account. More in the
 [deployment guide](docs/deploy.md).
+
+## Documentation
+
+| I want to... | Read |
+|--------------|------|
+| Install Servant on a server | [Deployment](docs/deploy.md) |
+| Save my data | [Backups](docs/backup-strategy.md) |
+| See my calendars and contacts on my phone | [Phone sync](docs/dav.md) |
+| Back up my phone's photos automatically | [Phone backup](docs/phone-backup.md) |
+| Share photos with a link | [Photo sharing](docs/photo-sharing.md) |
+| Add an app that Servant does not have | [Custom apps](docs/custom-apps.md) |
+| Give Claude Code and Cursor one shared memory | [Agent memory](docs/agent-memory.md) |
+| Develop on Servant | [Development](docs/development.md) and the [coding rules](AGENTS.md) |
+
 
 ## Screenshots
 
@@ -70,36 +83,6 @@ Open `http://localhost:4000` and register the first account. More in the
     <td width="50%"><a href="docs/screenshots/agent-memory.webp"><img src="docs/screenshots/agent-memory.webp" alt="Agent memory app showing a tree of memory files with one file open"></a><br><sub><b>Agent memory</b>: Claude Code and Cursor memory and skills</sub></td>
   </tr>
 </table>
-
-<sub>Seeded demo data, captured with `npm run screenshots` (see [development.md](docs/development.md#docs-screenshots)).</sub>
-
-## Documentation
-
-| I want to... | Read |
-|--------------|------|
-| Install Servant on a server or a Raspberry Pi | [Deployment](docs/deploy.md) |
-| Never lose my data | [Backups](docs/backup-strategy.md) |
-| See my calendars and contacts on my phone | [Phone sync](docs/dav.md) |
-| Back up my phone's photos automatically | [Phone backup](docs/phone-backup.md) |
-| Share photos with a link | [Photo sharing](docs/photo-sharing.md) |
-| Add an app that Servant does not have | [Custom apps](docs/custom-apps.md) |
-| Give Claude Code and Cursor one shared memory | [Agent memory](docs/agent-memory.md) |
-| Hack on Servant | [Development](docs/development.md) and the [coding rules](AGENTS.md) |
-
-## Development
-
-```bash
-mix setup                   # deps, database, migrations
-cd frontend && npm install
-```
-
-```bash
-mix phx.server              # API on port 4001
-cd frontend && npm run dev  # frontend on port 5001
-```
-
-Open `http://localhost:5001`. Prerequisites, project structure and architecture:
-[docs/development.md](docs/development.md).
 
 ## License
 
