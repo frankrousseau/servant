@@ -51,11 +51,12 @@ function outcome(log: SyncLog): string {
   return parts.join(' · ')
 }
 
+// The run times are kept to the second: under one, say so rather than 0ms
 function duration(log: SyncLog): string {
   if (!log.finished_at) return '-'
   const ms =
     new Date(log.finished_at).getTime() - new Date(log.started_at).getTime()
-  if (ms < 1000) return `${ms}ms`
+  if (ms < 1000) return '< 1s'
   if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
   return `${(ms / 60000).toFixed(1)}m`
 }
@@ -263,10 +264,12 @@ async function toggle(log: SyncLog) {
   transform: rotate(90deg);
 }
 
+/* A fixed width keeps the chevrons of all the rows in one column */
 .sync-run-time {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  min-width: 4.5rem;
   font-size: var(--text-sm);
   color: var(--text-muted);
   white-space: nowrap;

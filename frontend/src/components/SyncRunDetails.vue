@@ -284,6 +284,36 @@ const quiet = computed(
   color: var(--danger);
 }
 
+/* Phone: no room for four columns. Each call takes two lines, status,
+   method and time first, then the host and path. */
+@media (max-width: 640px) {
+  .run-calls thead {
+    display: none;
+  }
+
+  .run-calls tr {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    column-gap: 0.75rem;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .run-calls td {
+    padding: 0;
+    border: none;
+  }
+
+  .run-calls .run-call-url {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .run-calls td:last-child {
+    justify-self: end;
+  }
+}
+
 /* ----- Log ----- */
 
 .run-log {
