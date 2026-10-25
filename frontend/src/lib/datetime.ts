@@ -128,6 +128,25 @@ export function formatTime(
     : ''
 }
 
+// The time in as few characters as still read clearly, for tight spots (the
+// calendar's month chips): "9:30am" on a 12-hour clock, "09:30" on a
+// 24-hour one, which is short already.
+export function formatTimeShort(iso: string | null | undefined): string {
+  const d = toDate(iso)
+  if (!d) return ''
+  const parts = new Intl.DateTimeFormat(undefined, {
+    timeZone: userTimeZone(),
+    ...hourCycleOpts(),
+    hour: 'numeric',
+    minute: '2-digit'
+  }).formatToParts(d)
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find(item => item.type === type)?.value
+  const dayPeriod = part('dayPeriod')
+  if (!dayPeriod) return formatTime(iso)
+  return `${part('hour')}:${part('minute')}${dayPeriod.toLowerCase().replace(/[\s.]/g, '')}`
+}
+
 // Returns a media duration as "m:ss" (or "h:mm:ss" after one hour), in the
 // style of YouTube.
 export function formatDuration(seconds: number): string {

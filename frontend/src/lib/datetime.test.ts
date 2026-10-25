@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
-import { formatDate, formatDateTime, formatTime } from './datetime'
+import {
+  formatDate,
+  formatDateTime,
+  formatTime,
+  formatTimeShort
+} from './datetime'
 import { useAuthStore } from '../stores/auth'
 
 import type { User } from '../types'
@@ -45,6 +50,14 @@ describe('display preferences', () => {
     expect(formatTime(ISO)).toBe('14:30')
     asUser({ time_format: '12h' })
     expect(formatTime(ISO)).toMatch(/2:30\s*PM/i)
+  })
+
+  it('shortens the time for tight spots, on either clock', () => {
+    asUser({ time_format: '12h' })
+    expect(formatTimeShort(ISO)).toBe('2:30pm')
+    asUser({ time_format: '24h' })
+    expect(formatTimeShort(ISO)).toBe('14:30')
+    expect(formatTimeShort(null)).toBe('')
   })
 
   it('combines both in formatDateTime', () => {

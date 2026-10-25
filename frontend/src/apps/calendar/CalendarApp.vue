@@ -20,6 +20,7 @@ import TabBar from '../../components/TabBar.vue'
 import { birthdaySeed, contactField, contactName } from '../../lib/contact'
 import {
   formatTime,
+  formatTimeShort,
   todayInUserTz,
   utcToZonedParts,
   zonedToUtcISO
@@ -921,7 +922,7 @@ onUnmounted(destroyPickers)
               <span
                 v-if="!ev.data?.all_day && ev.occurred_at"
                 class="cal-chip-time"
-                >{{ formatTime(ev.occurred_at) }}</span
+                >{{ formatTimeShort(ev.occurred_at) }}</span
               >
               <span
                 v-if="ev.data?.recurrence"
