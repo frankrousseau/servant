@@ -41,6 +41,10 @@ defmodule Servant.Application do
       _ =
         :logger.add_handler(:servant_audit_errors, Servant.Audit.ErrorLogHandler, %{level: :error})
 
+      # What each connector sync does (its HTTP calls and log lines) goes to
+      # its sync log. Idempotent like the handler above.
+      :ok = Servant.Connectors.SyncTrace.attach()
+
       ok
     end
   end
