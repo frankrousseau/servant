@@ -53,7 +53,7 @@ Open `http://localhost:4000` and register the first account. More in the
 | Share photos with a link | [Photo sharing](docs/photo-sharing.md) |
 | Add an app that Servant does not have | [Custom apps](docs/custom-apps.md) |
 | Give Claude Code and Cursor one shared memory | [Agent memory](docs/agent-memory.md) |
-| Develop on Servant | [Development](docs/development.md) and the [coding rules](AGENTS.md) |
+| Develop on Servant | [Development](docs/development.md) and the [coding guidelines](docs/coding-guidelines.md) |
 
 
 ## Screenshots

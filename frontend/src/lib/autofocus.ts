@@ -1,6 +1,7 @@
 import type { Directive } from 'vue'
 
-// Sets the default focus when a page opens (AGENTS.md accessibility rules).
+// Sets the default focus when a page opens (the accessibility rules in
+// docs/coding-guidelines.md).
 // The focus goes to the search field when the page has one. If not, it goes
 // to a navigation button. The forms with a conditional render also use this
 // directive (for example the TOTP step of the login page). On dynamic

@@ -1,144 +1,34 @@
-This is an **API-only** Phoenix backend (`--no-html --no-live --no-assets`) paired with a separate Vue.js 3 SPA in `frontend/`. There is no LiveView, no server-rendered HTML, and no `core_components.ex`, so the standard Phoenix HTML/LiveView guidelines do **not** apply here. The web layer is JSON controllers + Phoenix Channels.
+# Servant
 
-## Project guidelines
+Self-hosted personal data hub: Elixir/Phoenix API-only backend + Vue.js 3 SPA (`frontend/`).
+Aggregates data from external services via per-user connector GenServers, stores everything as
+universal user-scoped `entries`, and pushes changes over Phoenix Channels.
 
-- Use `mix precommit` alias when you are done with all changes and fix any pending issues
-- Use the already included and available `:req` (`Req`) library for HTTP requests, **avoid** `:httpoison`, `:tesla`, and `:httpc`. Req is included by default and is the preferred HTTP client for Phoenix apps
-- **Never write em dashes (—)** anywhere: comments, doc strings, UI copy, docs, commit messages. Use a comma, colon, semicolon, parentheses, or a plain hyphen instead. Entry-title separators and empty-cell placeholders use a plain "-" ("Name - org - email"). The only em dashes left in the code are the legacy-separator (" — ") parsing fallbacks that keep pre-July-2026 entries readable; never remove those
-- **Commit messages are short**: the title is `area: what changed` in 50 characters or fewer (`calendar: labels on one baseline`). Add a body only when the title is not enough: 2 to 4 lines on why, and on what the diff does not show. Never list the changes file by file, and never repeat the title
+This file is the instructions for every coding agent: Claude Code reads it through `CLAUDE.md`
+(which only imports it), the others read it directly. Edit this file, never `CLAUDE.md`. A line
+written `@path` is a file to read before you start (Claude Code loads it automatically).
 
-## Vue style
+## Coding rules & conventions
 
-All Vue code follows the [official Vue.js style guide](https://fr.vuejs.org/style-guide/), applied by priority:
+Read the coding guidelines before you write or review code. When you are done with all
+changes, run `mix precommit` and fix any pending issues, then `npm run format` in `frontend/`
+(`mix precommit` does not run Prettier).
 
-- **Priority A (essential, always)**: multi-word component names; typed prop definitions (`defineProps<{...}>()`); every `v-for` carries a `:key`; never `v-if` and `v-for` on the same element (filter in a computed instead); component styles are `scoped` (a global block needs a comment justifying it)
-- **Priority B (strongly recommended)**: one component per file, PascalCase filenames and template tags, self-closing tags for empty components, camelCase prop declarations, complex template expressions extracted into computeds, consistent directive shorthands (`:`, `@`, `#`)
-- **Priority C (recommended)**: SFC top-level order is `<script>` then `<template>` then `<style>` in every file
-- **Servant widgets first**: reach for the shared components in `frontend/src/components/` before native controls or ad-hoc markup: `ComboBox` for closed single choices (never a bare `<select>` or a `<datalist>` picker), `AutocompleteInput` for free text with suggestions, `ConfirmModal` through `useConfirm` for confirmations, `ServantDialog` for every other modal, `TabBar` for section tabs and view switches, `SearchField` for search and filter boxes, `LoadState` for the loading, error and empty states of a list, `DateInput`, `KindIcon`, `MediaViewer`/`VideoPlayer` for media. Fall back to a native control only when no shared widget covers the need
+@docs/coding-guidelines.md
 
-### Code organization
+## Development setup, project structure & architecture
 
-- **Import order** in `<script setup>`: framework (`vue`, `vue-router`), then components, then app modules sorted by path (`api/`, `apps/`, `composables/`, `connectors`, `lib/`, `stores/`), then `import type` lines last; one import per module, names sorted inside each brace
-- **Scoped styles follow the template**: layout rules first, then one commented block per template region in display order (`/* ----- Connectors ----- */`); a modifier class (`.thing--variant`) is declared after its base so it wins the cascade at equal specificity
-- **Shared helpers live in `frontend/src/lib/`** (dates and civil-date strings in `lib/datetime.ts`, per-kind routes in `lib/entryRoute.ts`); before writing a helper in a view or app, check `lib/` and the owning app module, and promote duplicated logic there instead of copying it
-- **Design tokens over literals**: `var(--font-mono)`, `var(--font-display)`, theme colors (`--primary`, `--danger`, ...), never a hardcoded font stack or palette hex in a component. Font sizes come from the type scale (`--text-sm` to `--text-2xl`); `--text-sm` (0.875rem) is the floor, nothing is set smaller. Floating panels (menus, popovers, tips) sit on `--bg-raised` under `--shadow-raised`; form control edges use `--border-strong`, dividers and card edges `--border`
-- **Name bindings with words**: no single-letter variables (`entry`, `list`, `connector`, never `e`, `l`, `c`), in arrow functions and `v-for` included; the accepted exceptions are a numeric loop index `i` and the `(a, b)` pair of a sort comparator
-- **Derive in computeds, not in the template**: anything involving a loop, `Date`/`Intl` work, or a lookup per row goes through a `computed` (or is attached to the items of an existing one), so it is cached instead of recomputed on every render
+@docs/development.md
 
-### Accessibility
+## See also (read when the task needs it)
 
-- **Modals are native `<dialog>` elements** opened with `showModal()`: the browser then provides the focus trap, Escape handling and focus restoration for free. `ServantDialog` does all of this (title wired to `aria-labelledby`, labelled icon close button plus a text one); put `autofocus` on the primary action. A hand-written `<dialog>` (fullscreen viewer, command palette) follows the same rules. Never rebuild a modal out of an overlay `<div>`
-- **The active nav link is `[aria-current="page"]`**: vue-router already sets that attribute on the exact-active `RouterLink`, so style the attribute selector rather than `.router-link-active`; the state announced to assistive tech and the state shown on screen then cannot diverge
-- **Every informative image gets a real, descriptive `alt`** (a photo uses its entry title, a chart says what it shows: "Crypto portfolio value over six months"; never a filename or "image"); purely decorative images get `alt=""`, and commentary longer than a description belongs in a `<figcaption>`, not in the alt
-- **Default focus lands on the search field** when the page has one (`autofocus`, or a focus on mount when the field renders asynchronously); without a search field, it lands on a navigation button. A page never opens with the focus stranded on `<body>`
-- **Keyboard and zoom fundamentals**: `lang` on `<html>` and `hreflang` on links to content in another language; the viewport meta never disables zoom; every interactive element keeps a visible `:focus-visible` style (the global outline in `style.css` counts, do not `outline: none` it away without a replacement); non-essential animations are disabled under `@media (prefers-reduced-motion: reduce)`
-
-## Frontend guidelines
-
-The frontend guidelines (tooling, TypeScript, data and state, icons and copy, tests) are in [docs/development.md](docs/development.md#frontend-guidelines).
-
-## Elixir style
-
-All Elixir code follows [The Elixir Style Guide](https://github.com/christopheradams/elixir_style_guide). `mix format` covers layout; the rules it does **not** enforce and that we apply here:
-
-- `@moduledoc` comes immediately after `defmodule` (use `@moduledoc false` when there is nothing to say), then directives in this order: `@behaviour`, `use`, `import`, `require`, `alias` (alphabetical), module attributes, `defstruct`, `@type`, callbacks/functions
-- Reference the current module with `__MODULE__`
-- No single-pipe expressions (`foo |> bar()` → `bar(foo)`); pipelines start from a bare value, not a function call
-- Prefer `if` over `unless` when there is an `else`; use `true ->` (never `:else ->`) as the final `cond` clause
-- Functions returning booleans end in `?`; the `is_` prefix is reserved for guards (already stated below)
-- `@spec` sits right under `@doc`, before the function head; a module's main type is named `t`
-- `defstruct` omits the square brackets; keyword lists use `[a: 1]`, never `[{:a, 1}]`
-- Exception modules end in `Error`, with lowercase unpunctuated messages
-- In tests, the actual value goes left of the operator, the expected value right (`assert actual == expected`)
-- Comment annotations are uppercase with a colon (`# TODO:`), placed on the line above the code they describe
-
-<!-- usage-rules-start -->
-
-<!-- phoenix:elixir-start -->
-## Elixir guidelines
-
-- Elixir lists **do not support index based access via the access syntax**
-
-  **Never do this (invalid)**:
-
-      i = 0
-      mylist = ["blue", "green"]
-      mylist[i]
-
-  Instead, **always** use `Enum.at`, pattern matching, or `List` for index based list access, ie:
-
-      i = 0
-      mylist = ["blue", "green"]
-      Enum.at(mylist, i)
-
-- Elixir variables are immutable, but can be rebound, so for block expressions like `if`, `case`, `cond`, etc
-  you *must* bind the result of the expression to a variable if you want to use it and you CANNOT rebind the result inside the expression, ie:
-
-      # INVALID: we are rebinding inside the `if` and the result never gets assigned
-      if connected?(socket) do
-        socket = assign(socket, :val, val)
-      end
-
-      # VALID: we rebind the result of the `if` to a new variable
-      socket =
-        if connected?(socket) do
-          assign(socket, :val, val)
-        end
-
-- **Never** nest multiple modules in the same file as it can cause cyclic dependencies and compilation errors
-- **Never** use map access syntax (`changeset[:field]`) on structs as they do not implement the Access behaviour by default. For regular structs, you **must** access the fields directly, such as `my_struct.field` or use higher level APIs that are available on the struct if they exist, `Ecto.Changeset.get_field/2` for changesets
-- Elixir's standard library has everything necessary for date and time manipulation. Familiarize yourself with the common `Time`, `Date`, `DateTime`, and `Calendar` interfaces by accessing their documentation as necessary. **Never** install additional dependencies unless asked or for date/time parsing (which you can use the `date_time_parser` package)
-- Don't use `String.to_atom/1` on user input (memory leak risk)
-- Predicate function names should not start with `is_` and should end in a question mark. Names like `is_thing` should be reserved for guards
-- Elixir's builtin OTP primitives like `DynamicSupervisor` and `Registry`, require names in the child spec, such as `{DynamicSupervisor, name: MyApp.MyDynamicSup}`, then you can use `DynamicSupervisor.start_child(MyApp.MyDynamicSup, child_spec)`
-- Use `Task.async_stream(collection, callback, options)` for concurrent enumeration with back-pressure. The majority of times you will want to pass `timeout: :infinity` as option
-
-## Mix guidelines
-
-- Read the docs and options before using tasks (by using `mix help task_name`)
-- To debug test failures, run tests in a specific file with `mix test test/my_test.exs` or run all previously failed tests with `mix test --failed`
-- `mix deps.clean --all` is **almost never needed**. **Avoid** using it unless you have good reason
-
-## Test guidelines
-
-- **Always use `start_supervised!/1`** to start processes in tests as it guarantees cleanup between tests
-- **Avoid** `Process.sleep/1` and `Process.alive?/1` in tests
-  - Instead of sleeping to wait for a process to finish, **always** use `Process.monitor/1` and assert on the DOWN message:
-
-      ref = Process.monitor(pid)
-      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
-
-   - Instead of sleeping to synchronize before the next call, **always** use `_ = :sys.get_state/1` to ensure the process has handled prior messages
-<!-- phoenix:elixir-end -->
-
-<!-- phoenix:phoenix-start -->
-## Phoenix guidelines
-
-- Remember Phoenix router `scope` blocks include an optional alias which is prefixed for all routes within the scope. **Always** be mindful of this when creating routes within a scope to avoid duplicate module prefixes.
-
-- You **never** need to create your own `alias` for route definitions! The `scope` provides the alias, ie:
-
-      scope "/admin", AppWeb.Admin do
-        pipe_through :browser
-
-        live "/users", UserLive, :index
-      end
-
-  the UserLive route would point to the `AppWeb.Admin.UserLive` module
-
-- `Phoenix.View` no longer is needed or included with Phoenix, don't use it
-<!-- phoenix:phoenix-end -->
-
-<!-- phoenix:ecto-start -->
-## Ecto Guidelines
-
-- **Always** preload Ecto associations in queries when they'll be accessed in templates, ie a message that needs to reference the `message.user.email`
-- Remember `import Ecto.Query` and other supporting modules when you write `seeds.exs`
-- `Ecto.Schema` fields always use the `:string` type, even for `:text`, columns, ie: `field :name, :string`
-- `Ecto.Changeset.validate_number/2` **DOES NOT SUPPORT the `:allow_nil` option**. By default, Ecto validations only run if a change for the given field exists and the change value is not nil, so such as option is never needed
-- You **must** use `Ecto.Changeset.get_field(changeset, :field)` to access changeset fields
-- Fields which are set programmatically, such as `user_id`, must not be listed in `cast` calls or similar for security purposes. Instead they must be explicitly set when creating the struct
-- **Always** invoke `mix ecto.gen.migration migration_name_using_underscores` when generating migration files, so the correct timestamp and conventions are applied
-<!-- phoenix:ecto-end -->
-
-<!-- usage-rules-end -->
+- `README.md`: short project overview, quick start, links to the docs.
+- `docs/deploy.md`: deployment (Docker image/compose, bare-metal release, env vars, systemd, reverse proxy, ops).
+- `docs/backup-strategy.md`: what to back up (database, files dir, secrets), backup recipes, restore procedure.
+- `docs/custom-apps.md`: apps installable from git (servant-app.json manifest, entry module contract).
+- `docs/dav.md`: CalDAV/CardDAV/WebDAV endpoint at /dav (phone calendar + contacts sync, Files and Photos over WebDAV; client setup, what syncs, protocol subset).
+- `docs/phone-backup.md`: user guide for auto-uploading a phone's camera roll to the Photos app over WebDAV at /dav/photos (PhotoSync, FolderSync, rclone).
+- `docs/photo-sharing.md`: public photo feeds by link over one or more tags (Photos > Share; /share/<token> page, what is exposed, security notes).
+- `specs/backlog.md`: ideas left over from shipped features ("hors scope v1"), nothing committed to.
+- `docs/agent-memory.md`: the Agent memory app (what is stored, per-machine setup, how a session pulls and pushes, API, trust model).
+- `docs/skills/servant-memory/SKILL.md`: the skill (plus pull/push scripts) that lets Claude Code and Cursor share agent memory and skills through the Agent memory app.

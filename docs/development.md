@@ -1,8 +1,7 @@
 # Development Setup
 
-For the coding rules and conventions, see [AGENTS.md](../AGENTS.md) and the
-[frontend guidelines](#frontend-guidelines) below. For production deployment, see
-[deploy.md](deploy.md).
+For the coding rules and conventions, see [Coding guidelines](coding-guidelines.md). For
+production deployment, see [deploy.md](deploy.md).
 
 ## Prerequisites
 
@@ -215,66 +214,3 @@ servant/
   preference of the user.
 - **PubSub** sends entry changes on the `"data:<user_id>"` topics (with `Servant.Events`).
   Phoenix Channels send them to the clients.
-
-## Frontend guidelines
-
-The SPA is Vue 3 and TypeScript on Vite, with vue-router, Pinia, `@vueuse/core` and Vitest.
-The [project structure](#project-structure) maps `frontend/src/`. The Vue style, code
-organization and accessibility rules are in [AGENTS.md](../AGENTS.md).
-
-### Tooling
-
-- `mix precommit` runs the frontend tests and the build (`vue-tsc -b`, then `vite build`), so
-  a type error fails it. It does not run Prettier: run `npm run format` before you commit
-  frontend changes (config in `frontend/.prettierrc.json`: no semicolons, single quotes, no
-  trailing commas, `arrowParens: avoid`).
-- There is no ESLint. The strict type check (`tsconfig.app.json`: `strict`,
-  `noUnusedLocals`, `noUnusedParameters`) and Prettier are the only gates.
-
-### TypeScript
-
-- Every SFC is `<script setup lang="ts">`. Props and emits use the type-based macros
-  (`defineProps<{...}>()`, `defineEmits<{...}>()`).
-- **No `any`.** A caught error stays `unknown` and is read with
-  `err instanceof Error ? err.message : '<fallback>'` (`messageOf` in `lib/reportError.ts` is
-  for error reports, not UI copy). Narrow an unknown payload with a check, not a cast.
-- **API shapes live in `src/types.ts`.** It mirrors what the Phoenix controllers render and
-  holds types only, so importing a shape never pulls runtime code. A type used by one module
-  stays in that module and is exported from it (`LoadStatus` in `LoadState.vue`).
-
-### Data and state
-
-- **One HTTP client.** Every `/api` call goes through `composables/apiClient.ts` (`apiFetch`,
-  `apiJson`): it adds the Bearer header, logs out on a 401 and turns an error payload into a
-  readable message. Views call the named functions of `api/*.ts` (add one there rather than
-  spelling a path and its envelope in a view), or `useApi` for a one-off call. A raw `fetch`
-  is only for what the client cannot do: the `/api/auth` calls made before a token exists,
-  and the `/files/...` binaries, which the HttpOnly cookie authenticates.
-- **Apps reach the system through `ctx` only.** Code under `apps/<id>/` imports `lib/` and
-  the shared components, never a store, the router, `api/` or `apiClient`. It uses the
-  `AppContext` it receives ([`frontend/src/apps/README.md`](../frontend/src/apps/README.md));
-  a missing capability is added to the context in `apps/createContext.ts`. App preferences
-  go through `ctx.preferences` with `<app>.<name>` keys.
-- **Pinia holds only the state several views share** (`stores/auth`, `stores/apps`). State
-  that one view or app owns stays in its component or in a composable.
-- **Live updates.** Subscribe with `useSocket` in a view or `ctx.events` in an app
-  (`onEntryChange`, `onBulkChange`), and call the returned unsubscribe in `onUnmounted`. A
-  deleted entry arrives with its `id` only. A sync or an import sends one `onBulkChange`
-  instead of per-entry events, so an app that shows synced data refetches there. Coalesce
-  bursts of entry events before refetching.
-
-### Icons and copy
-
-- **Icons are Lucide** (`lucide-vue-next`), never a Unicode character or an emoji standing in
-  for one. An app declares its icon by name and `lib/appIcons.ts` maps the name to the
-  component. An icon-only button carries an `aria-label`.
-- **The UI says "Sources"** for connectors ("Add a Source"), never "Connectors" or
-  "Integrations". Code, routes and the API keep `connector`.
-
-### Tests
-
-- Tests sit next to the code as `<name>.test.ts` (Vitest, jsdom, `@vue/test-utils`). Pure
-  helpers in `lib/` and in app modules get unit tests, shared components get mount tests.
-- `src/test-setup.ts` already renders `Teleport` content in place, registers the global
-  directives (`v-autofocus`, `v-click-key`) and polyfills `<dialog>`. Register a new global
-  directive there too, not in each test file.
